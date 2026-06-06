@@ -1,0 +1,153 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// MÓDULO: CRM (Clientes)
+// ==========================================
+model Cliente {
+  id                String   @id @default(uuid())
+  tipoPessoa        TipoPessoa @default(FISICA)
+  nomeRazaoSocial   String
+  nomeFantasia      String?
+  documento         String   @unique // CPF ou CNPJ
+  email             String?
+  telefone          String
+  isWhatsapp        Boolean  @default(true)
+  categoria         CategoriaCliente @default(CLIENTE_FINAL)
+  
+  // Relações
+  ordensServico     OrdemServico[]
+  contasReceber     ContaReceber[]
+
+  criadoEm          DateTime @default(now())
+  atualizadoEm      DateTime @updatedAt
+}
+
+enum TipoPessoa {
+  FISICA
+  JURIDICA
+}
+
+enum CategoriaCliente {
+  CLIENTE_FINAL
+  EMPRESA
+  ORGAO_PUBLICO
+}
+
+// ==========================================
+// MÓDULO: ORDEM DE SERVIÇO (OS)
+// ==========================================
+model OrdemServico {
+  id                String   @id @default(uuid())
+  numeroOs          Int      @unique @default(autoincrement())
+  
+  clienteId         String
+  cliente           Cliente  @relation(fields: [clienteId], references: [id])
+  
+  equipamento       String
+  marca             String?
+  modelo            String?
+  numeroSerieImei   String?
+  senhaAcesso       String?
+  padraoDesenho     String?  // Array de números em formato string (ex: "1,2,5,8,9")
+  
+  relatoCliente     String
+  condicaoFisica    String?
+  acessoriosDeixados String?
+  
+  status            StatusOS @default(AGUARDANDO_ORCAMENTO)
+  observacoes       String?
+  
+  itens             ItemOS[]
+  transacoes        ContaReceber[] // Vínculo com o financeiro
+
+  criadoEm          DateTime @default(now())
+  atualizadoEm      DateTime @updatedAt
+}
+
+model ItemOS {
+  id                String   @id @default(uuid())
+  ordemServicoId    String
+  ordemServico      OrdemServico @relation(fields: [ordemServicoId], references: [id])
+  
+  tipo              TipoPeca
+  descricao         String
+  custoPeca         Float
+  valorCobrado      Float    // Calculado automaticamente no front-end
+}
+
+enum StatusOS {
+  AGUARDANDO_ORCAMENTO
+  AGUARDANDO_APROVACAO
+  APROVADO
+  AGUARDANDO_PECA
+  EM_MANUTENCAO
+  PRONTO
+  ENTREGUE
+}
+
+enum TipoPeca {
+  TELA
+  BATERIA
+  CONECTOR_CARGA
+  TAMPA_IPHONE
+  TAMPA_ANDROID
+  OUTROS
+}
+
+// ==========================================
+// MÓDULO: FINANCEIRO (Contas a Receber)
+// ==========================================
+model ContaReceber {
+  id                String   @id @default(uuid())
+  descricao         String
+  valor             Float
+  
+  clienteId         String?
+  cliente           Cliente? @relation(fields: [clienteId], references: [id])
+  
+  ordemServicoId    String?
+  ordemServico      OrdemServico? @relation(fields: [ordemServicoId], references: [id])
+  
+  dataVencimento    DateTime
+  dataRecebimento   DateTime?
+  
+  status            StatusPagamento @default(PENDENTE)
+  formaRecebimento  FormaPagamento
+  origem            OrigemReceita
+  
+  notaFiscalEmitida Boolean @default(false)
+
+  criadoEm          DateTime @default(now())
+  atualizadoEm      DateTime @updatedAt
+}
+
+enum StatusPagamento {
+  PENDENTE
+  RECEBIDO
+  ATRASADO
+  RENEGOCIADO
+}
+
+enum FormaPagamento {
+  PIX
+  BOLETO
+  CARTAO_CREDITO
+  CARTAO_DEBITO
+  DINHEIRO
+  EMPENHO_PUBLICO
+}
+
+enum OrigemReceita {
+  VENDA_PDV
+  ORDEM_SERVICO
+  CONTRATO_RECORRENTE
+  LICITACAO
+  AVULSO
+}
