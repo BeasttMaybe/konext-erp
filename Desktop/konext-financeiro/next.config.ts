@@ -1,6 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  experimental: {
+    serverActions: {
+      // Permite envio de logos/fotos em data URL maiores que 1MB.
+      bodySizeLimit: "5mb",
+    },
+  },
   // Instrui o bundler a NUNCA empacotar estes módulos em nenhum bundle
   // (Edge Runtime, Server Components, Route Handlers, etc.).
   // Eles ficam como require() externos no Node.js runtime da Vercel.
