@@ -67,13 +67,23 @@ export default function PerfilPage() {
 
     try {
       setSalvando(true);
-      await atualizarPerfil(usuarioId, {
+      const resultadoPerfil = await atualizarPerfil(usuarioId, {
         nome: nomeCompleto,
         email,
         fotoPerfilUrl,
       });
 
-      await atualizarLogoEmpresa(configId, logoEmpresaUrl);
+      if (!resultadoPerfil.sucesso) {
+        toast.error(resultadoPerfil.erro);
+        return;
+      }
+
+      const resultadoLogo = await atualizarLogoEmpresa(configId, logoEmpresaUrl);
+
+      if (!resultadoLogo.sucesso) {
+        toast.error(resultadoLogo.erro);
+        return;
+      }
 
       toast.success("Alteracoes salvas com sucesso.");
     } catch (error) {

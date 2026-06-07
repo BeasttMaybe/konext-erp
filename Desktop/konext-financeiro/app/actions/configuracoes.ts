@@ -48,6 +48,41 @@ export type ResultadoConsultaCnpj =
       erro: string;
     };
 
+type ResultadoAcaoPerfil =
+  | {
+      sucesso: true;
+      id: string;
+    }
+  | {
+      sucesso: false;
+      erro: string;
+    };
+
+function normalizarUrlImagem(url: string | null | undefined, nomeCampo: string): string | null {
+  const valor = String(url ?? "").trim();
+
+  if (!valor) {
+    return null;
+  }
+
+  if (valor.length > 4096) {
+    throw new Error(`${nomeCampo} excede o limite de 4096 caracteres.`);
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(valor);
+  } catch {
+    throw new Error(`${nomeCampo} invalida. Use um link completo (https://...).`);
+  }
+
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error(`${nomeCampo} invalida. Apenas URLs http/https sao permitidas.`);
+  }
+
+  return parsed.toString();
+}
+
 function obterDelegateConfiguracao() {
   const prismaAny = prisma as any;
   return prismaAny.configuracao ?? prismaAny.Configuracao;
@@ -382,118 +417,159 @@ export async function obterDadosPerfilConfiguracao() {
   };
 }
 
-export async function atualizarPerfil(usuarioId: string | null, data: DadosPerfil) {
+export async function atualizarPerfil(
+  usuarioId: string | null,
+  data: DadosPerfil
+): Promise<ResultadoAcaoPerfil> {
   // C1: exige sessao valida antes de alterar perfil.
-  await exigirSessao();
+  try {
+    await exigirSessao();
 
-  const prismaAny = prisma as any;
-  const usuarioDelegate = prismaAny.usuario ?? prismaAny.Usuario;
+    const prismaAny = prisma as any;
+    const usuarioDelegate = prismaAny.usuario ?? prismaAny.Usuario;
 
-  if (!usuarioDelegate?.findFirst || !usuarioDelegate?.update) {
-    throw new Error("Delegate Prisma de Usuario nao disponivel.");
-  }
-
-  let usuarioAlvo = null;
-
-  if (usuarioId && usuarioDelegate.findUnique) {
-    usuarioAlvo = await usuarioDelegate.findUnique({ where: { id: usuarioId } });
-  }
-
-  if (!usuarioAlvo) {
-    usuarioAlvo = await usuarioDelegate.findFirst({
-      orderBy: {
-        criadoEm: "asc",
-      },
-    });
-  }
-
-  if (!usuarioAlvo) {
-    if (!usuarioDelegate.create) {
-      throw new Error("Nao foi possivel criar usuario padrao para atualizacao de perfil.");
+    if (!usuarioDelegate?.findFirst || !usuarioDelegate?.update) {
+      return {
+        sucesso: false,
+        erro: "Nao foi possivel acessar os dados de usuario.",
+      };
     }
 
-    usuarioAlvo = await usuarioDelegate.create({
+    const fotoPerfilNormalizada = normalizarUrlImagem(data.fotoPerfilUrl, "URL da foto de perfil");
+
+    let usuarioAlvo = null;
+
+    if (usuarioId && usuarioDelegate.findUnique) {
+      usuarioAlvo = await usuarioDelegate.findUnique({ where: { id: usuarioId } });
+    }
+
+    if (!usuarioAlvo) {
+      usuarioAlvo = await usuarioDelegate.findFirst({
+        orderBy: {
+          criadoEm: "asc",
+        },
+      });
+    }
+
+    if (!usuarioAlvo) {
+      if (!usuarioDelegate.create) {
+        return {
+          sucesso: false,
+          erro: "Nao foi possivel criar usuario padrao para atualizacao de perfil.",
+        };
+      }
+
+      usuarioAlvo = await usuarioDelegate.create({
+        data: {
+          nome: data.nome?.trim() || "Usuario Konext",
+          email: data.email?.trim() || `usuario-${Date.now()}@konext.local`,
+          senha: "pendente",
+          role: "ADMIN",
+          fotoPerfilUrl: fotoPerfilNormalizada,
+        },
+      });
+    }
+
+    const usuarioAtualizado = await usuarioDelegate.update({
+      where: {
+        id: usuarioAlvo.id,
+      },
       data: {
-        nome: data.nome?.trim() || "Usuario Konext",
-        email: data.email?.trim() || `usuario-${Date.now()}@konext.local`,
-        senha: "pendente",
-        role: "ADMIN",
-        fotoPerfilUrl: data.fotoPerfilUrl?.trim() || null,
+        nome: data.nome?.trim() || usuarioAlvo.nome,
+        email: data.email?.trim() || usuarioAlvo.email,
+        fotoPerfilUrl: fotoPerfilNormalizada,
       },
     });
+
+    revalidatePath("/perfil");
+    revalidatePath("/", "layout");
+
+    return {
+      sucesso: true,
+      id: String(usuarioAtualizado.id),
+    };
+  } catch (error) {
+    const mensagem = error instanceof Error ? error.message : "Nao foi possivel salvar os dados do perfil.";
+    return {
+      sucesso: false,
+      erro: mensagem,
+    };
   }
-
-  const usuarioAtualizado = await usuarioDelegate.update({
-    where: {
-      id: usuarioAlvo.id,
-    },
-    data: {
-      nome: data.nome?.trim() || usuarioAlvo.nome,
-      email: data.email?.trim() || usuarioAlvo.email,
-      fotoPerfilUrl: data.fotoPerfilUrl?.trim() || null,
-    },
-  });
-
-  revalidatePath("/perfil");
-  revalidatePath("/", "layout");
-
-  return {
-    id: String(usuarioAtualizado.id),
-  };
 }
 
-export async function atualizarLogoEmpresa(configId: string | null, logoUrl: string, nomeFantasia?: string) {
+export async function atualizarLogoEmpresa(
+  configId: string | null,
+  logoUrl: string,
+  nomeFantasia?: string
+): Promise<ResultadoAcaoPerfil> {
   // C1: exige sessao valida antes de alterar a logo da empresa.
-  await exigirSessao();
+  try {
+    await exigirSessao();
 
-  const prismaAny = prisma as any;
-  const configuracaoDelegate = prismaAny.configuracao ?? prismaAny.Configuracao;
+    const prismaAny = prisma as any;
+    const configuracaoDelegate = prismaAny.configuracao ?? prismaAny.Configuracao;
 
-  if (!configuracaoDelegate?.findFirst || !configuracaoDelegate?.update) {
-    throw new Error("Delegate Prisma de Configuracao nao disponivel.");
-  }
-
-  let configuracaoAlvo = null;
-
-  if (configId && configuracaoDelegate.findUnique) {
-    configuracaoAlvo = await configuracaoDelegate.findUnique({ where: { id: configId } });
-  }
-
-  if (!configuracaoAlvo) {
-    configuracaoAlvo = await configuracaoDelegate.findFirst({
-      orderBy: {
-        criadoEm: "asc",
-      },
-    });
-  }
-
-  if (!configuracaoAlvo) {
-    if (!configuracaoDelegate.create) {
-      throw new Error("Nao foi possivel criar configuracao padrao da empresa.");
+    if (!configuracaoDelegate?.findFirst || !configuracaoDelegate?.update) {
+      return {
+        sucesso: false,
+        erro: "Nao foi possivel acessar as configuracoes da empresa.",
+      };
     }
 
-    configuracaoAlvo = await configuracaoDelegate.create({
+    const logoUrlNormalizada = normalizarUrlImagem(logoUrl, "URL da logo da empresa");
+
+    let configuracaoAlvo = null;
+
+    if (configId && configuracaoDelegate.findUnique) {
+      configuracaoAlvo = await configuracaoDelegate.findUnique({ where: { id: configId } });
+    }
+
+    if (!configuracaoAlvo) {
+      configuracaoAlvo = await configuracaoDelegate.findFirst({
+        orderBy: {
+          criadoEm: "asc",
+        },
+      });
+    }
+
+    if (!configuracaoAlvo) {
+      if (!configuracaoDelegate.create) {
+        return {
+          sucesso: false,
+          erro: "Nao foi possivel criar configuracao padrao da empresa.",
+        };
+      }
+
+      configuracaoAlvo = await configuracaoDelegate.create({
+        data: {
+          nomeFantasia: nomeFantasia?.trim() || "Konext",
+          logoUrl: logoUrlNormalizada,
+        },
+      });
+    }
+
+    await configuracaoDelegate.update({
+      where: {
+        id: configuracaoAlvo.id,
+      },
       data: {
-        nomeFantasia: nomeFantasia?.trim() || "Konext",
-        logoUrl: logoUrl.trim() || null,
+        logoUrl: logoUrlNormalizada,
+        ...(nomeFantasia ? { nomeFantasia: nomeFantasia.trim() } : {}),
       },
     });
+
+    revalidatePath("/", "layout");
+    revalidatePath("/perfil");
+
+    return {
+      sucesso: true,
+      id: String(configuracaoAlvo.id),
+    };
+  } catch (error) {
+    const mensagem = error instanceof Error ? error.message : "Nao foi possivel salvar a logo da empresa.";
+    return {
+      sucesso: false,
+      erro: mensagem,
+    };
   }
-
-  await configuracaoDelegate.update({
-    where: {
-      id: configuracaoAlvo.id,
-    },
-    data: {
-      logoUrl: logoUrl.trim() || null,
-      ...(nomeFantasia ? { nomeFantasia: nomeFantasia.trim() } : {}),
-    },
-  });
-
-  revalidatePath("/", "layout");
-  revalidatePath("/perfil");
-
-  return {
-    id: String(configuracaoAlvo.id),
-  };
 }
