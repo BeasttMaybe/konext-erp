@@ -119,6 +119,7 @@ export async function login(
 
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const senha = String(formData.get("senha") ?? "");
+  const senhaNormalizada = senha.trim();
 
   if (!email || !senha) {
     return { erro: "Informe e-mail e senha." };
@@ -155,11 +156,27 @@ export async function login(
   // compara diretamente e re-hasheia ao autenticar com sucesso.
   let senhaConfere = false;
   let precisaReHash = false;
+  let senhaParaHash = senha;
 
   if (pareceHashBcrypt(senhaArmazenada)) {
     senhaConfere = await bcrypt.compare(senha, senhaArmazenada);
+
+    // Tolerancia para input acidental com espacos no inicio/fim.
+    if (!senhaConfere && senhaNormalizada !== senha) {
+      senhaConfere = await bcrypt.compare(senhaNormalizada, senhaArmazenada);
+    }
   } else {
-    senhaConfere = senhaArmazenada === senha;
+    // Migração de senha legada: também tolera espaços/quebras de linha
+    // residuais salvos no banco (ex.: "senha\n").
+    const senhaArmazenadaNormalizada = senhaArmazenada.trim();
+
+    senhaConfere =
+      senhaArmazenada === senha ||
+      senhaArmazenada === senhaNormalizada ||
+      senhaArmazenadaNormalizada === senha ||
+      senhaArmazenadaNormalizada === senhaNormalizada;
+
+    senhaParaHash = senhaNormalizada || senha;
     precisaReHash = senhaConfere;
   }
 
@@ -169,7 +186,7 @@ export async function login(
 
   if (precisaReHash) {
     try {
-      const novoHash = await gerarHashSenha(senha);
+      const novoHash = await gerarHashSenha(senhaParaHash);
 
       if (usuarioDelegate?.update) {
         await usuarioDelegate.update({
