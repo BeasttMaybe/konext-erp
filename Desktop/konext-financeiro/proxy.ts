@@ -1,7 +1,11 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-export function middleware(request: NextRequest) {
+// Next.js 16: proxy.ts roda no Node.js runtime por padrão (não Edge Runtime).
+// Isso elimina completamente o erro "__dirname is not defined" que ocorria no
+// Edge Runtime do middleware.ts (convenção deprecated do Next.js 13-15).
+
+export function proxy(request: NextRequest) {
   const session = request.cookies.get("konext_session")?.value;
   const { pathname } = request.nextUrl;
 
@@ -9,7 +13,7 @@ export function middleware(request: NextRequest) {
   const rotaApi = pathname.startsWith("/api/");
 
   // Proteção de arquivos estáticos internos do Next
-  if (pathname.startsWith('/_next') || pathname.includes('.')) {
+  if (pathname.startsWith("/_next") || pathname.includes(".")) {
     return NextResponse.next();
   }
 
