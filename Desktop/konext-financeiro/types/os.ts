@@ -30,7 +30,7 @@ export interface ItemOrcamento {
 export interface ChecklistEntrada {
   relatoCliente: string;
   condicaoFisica: string;
-  acessoriosDeixados: string;
+  acessorios: string;
 }
 
 export interface OrdemServico {
@@ -43,8 +43,9 @@ export interface OrdemServico {
   equipamento: string;
   marca?: string;
   modelo?: string;
-  numeroSerieImei?: string;
-  senhaAcesso?: string;
+  imei?: string;
+  senha?: string;
+  senhaDesenho?: string;
   
   // Entrada
   checklist: ChecklistEntrada;

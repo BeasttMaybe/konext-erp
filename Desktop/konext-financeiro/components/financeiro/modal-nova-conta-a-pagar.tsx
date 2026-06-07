@@ -281,7 +281,7 @@ export function ModalNovaContaAPagar({
                 </div>
 
                 {/* Linha Digitável / Código de Barras (Condicional) */}
-                {(formaPagamento === "BOLETO" || formaPagamento === "CARTAO") && (
+                {(formaPagamento === "BOLETO" || formaPagamento === "CARTAO_CREDITO") && (
                   <div className="col-span-2 space-y-2">
                     <Label
                       htmlFor="linhaDigitavel"

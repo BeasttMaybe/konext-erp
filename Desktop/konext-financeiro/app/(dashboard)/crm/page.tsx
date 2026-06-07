@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Users,
   Building2,
@@ -39,7 +39,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ModalNovoCliente } from "@/components/crm/modal-novo-cliente";
+import { criarCliente, excluirCliente, listarClientes } from "@/app/actions/crm";
 import type { FormCliente } from "@/lib/validations/crm";
+import { toast } from "sonner";
 
 type CategoriaCliente = "CLIENTE_FINAL" | "EMPRESA" | "ORGAO_PUBLICO";
 
@@ -52,51 +54,6 @@ interface ClienteCadastrado {
   telefone: string;
   categoria: CategoriaCliente;
 }
-
-const clientesMock: ClienteCadastrado[] = [
-  {
-    id: "cli-001",
-    tipoPessoa: "FISICA",
-    nomeRazaoSocial: "Carlos Eduardo Lima",
-    documento: "123.456.789-10",
-    telefone: "(11) 99111-2222",
-    categoria: "CLIENTE_FINAL",
-  },
-  {
-    id: "cli-002",
-    tipoPessoa: "JURIDICA",
-    nomeRazaoSocial: "Construtora Horizonte LTDA",
-    nomeFantasia: "Horizonte Engenharia",
-    documento: "12.345.678/0001-10",
-    telefone: "(11) 3333-4444",
-    categoria: "EMPRESA",
-  },
-  {
-    id: "cli-003",
-    tipoPessoa: "JURIDICA",
-    nomeRazaoSocial: "Prefeitura Municipal de Itapevi",
-    documento: "46.523.031/0001-28",
-    telefone: "(11) 4143-7600",
-    categoria: "ORGAO_PUBLICO",
-  },
-  {
-    id: "cli-004",
-    tipoPessoa: "FISICA",
-    nomeRazaoSocial: "Mariana Souza Rocha",
-    documento: "987.654.321-00",
-    telefone: "(11) 98888-1111",
-    categoria: "CLIENTE_FINAL",
-  },
-  {
-    id: "cli-005",
-    tipoPessoa: "JURIDICA",
-    nomeRazaoSocial: "Distribuidora Prime Comercial SA",
-    nomeFantasia: "Prime Comercial",
-    documento: "33.222.111/0001-76",
-    telefone: "(11) 4002-9000",
-    categoria: "EMPRESA",
-  },
-];
 
 const mapaCategoriaRotulo: Record<CategoriaCliente, string> = {
   CLIENTE_FINAL: "Cliente Final",
@@ -118,12 +75,45 @@ function normalizarTextoBusca(texto: string): string {
 }
 
 export default function PaginaCRM() {
-  const [clientes, setClientes] = useState<ClienteCadastrado[]>(clientesMock);
+  const [clientes, setClientes] = useState<ClienteCadastrado[]>([]);
   const [termoBusca, setTermoBusca] = useState("");
   const [filtroCategoria, setFiltroCategoria] = useState<"TODOS" | CategoriaCliente>(
     "TODOS"
   );
   const [modalNovoClienteAberto, setModalNovoClienteAberto] = useState(false);
+  const [deletandoClienteId, setDeletandoClienteId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let ativo = true;
+
+    const carregarClientes = async () => {
+      try {
+        const clientesBanco = await listarClientes();
+        if (!ativo) return;
+
+        setClientes(
+          clientesBanco.map((cliente) => ({
+            id: cliente.id,
+            tipoPessoa: cliente.tipoPessoa,
+            nomeRazaoSocial: cliente.nomeRazaoSocial,
+            nomeFantasia: cliente.nomeFantasia || "",
+            documento: cliente.documento,
+            telefone: cliente.telefone,
+            categoria: cliente.categoria,
+          }))
+        );
+      } catch {
+        if (!ativo) return;
+        toast.error("Nao foi possivel carregar os clientes cadastrados.");
+      }
+    };
+
+    carregarClientes();
+
+    return () => {
+      ativo = false;
+    };
+  }, []);
 
   const metricas = useMemo(() => {
     return {
@@ -156,24 +146,54 @@ export default function PaginaCRM() {
     });
   }, [clientes, termoBusca, filtroCategoria]);
 
-  const aoSalvarNovoCliente = (dados: FormCliente) => {
+  const aoSalvarNovoCliente = async (
+    dados: FormCliente
+  ): Promise<{ sucesso: boolean }> => {
+    const resultado = await criarCliente(dados);
+
+    if (!resultado.sucesso) {
+      toast.error(resultado.mensagem);
+      return { sucesso: false };
+    }
+
     const novoCliente: ClienteCadastrado = {
-      id: `cli-${Date.now()}`,
-      tipoPessoa: dados.tipoPessoa,
-      nomeRazaoSocial: dados.nomeRazaoSocial,
-      nomeFantasia: dados.nomeFantasia || "",
-      documento: dados.documento,
-      telefone: dados.telefone,
-      categoria: dados.categoria,
+      id: resultado.cliente.id,
+      tipoPessoa: resultado.cliente.tipoPessoa,
+      nomeRazaoSocial: resultado.cliente.nomeRazaoSocial,
+      nomeFantasia: resultado.cliente.nomeFantasia || "",
+      documento: resultado.cliente.documento,
+      telefone: resultado.cliente.telefone,
+      categoria: resultado.cliente.categoria,
     };
 
     setClientes((anterior) => [novoCliente, ...anterior]);
     setModalNovoClienteAberto(false);
+    toast.success("Cliente cadastrado com sucesso!");
+
+    return { sucesso: true };
+  };
+
+  const aoExcluirCliente = async (clienteId: string) => {
+    if (deletandoClienteId) return;
+
+    setDeletandoClienteId(clienteId);
+
+    const resultado = await excluirCliente(clienteId);
+
+    if (!resultado.sucesso) {
+      toast.error(resultado.mensagem);
+      setDeletandoClienteId(null);
+      return;
+    }
+
+    setClientes((anterior) => anterior.filter((cliente) => cliente.id !== clienteId));
+    toast.success(resultado.mensagem);
+    setDeletandoClienteId(null);
   };
 
   return (
-    <div className="w-full h-full flex flex-col overflow-hidden bg-background">
-      <div className="px-6 lg:px-8 py-6 border-b border-border bg-background">
+    <div className="w-full min-h-full flex flex-col bg-slate-50 dark:bg-slate-900">
+      <div className="px-6 lg:px-8 py-6 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
         <div className="max-w-7xl mx-auto w-full">
           <h1 className="text-3xl font-bold text-foreground">CRM / Cadastros</h1>
           <p className="text-muted-foreground mt-2 text-sm">
@@ -311,7 +331,8 @@ export default function PaginaCRM() {
                                 Editar
                               </DropdownMenuItem>
                               <DropdownMenuItem
-                                onClick={() => console.log("Excluir cliente", cliente.id)}
+                                onClick={() => aoExcluirCliente(cliente.id)}
+                                disabled={deletandoClienteId === cliente.id}
                                 className="text-destructive"
                               >
                                 <Trash2 className="h-4 w-4 mr-2" />

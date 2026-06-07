@@ -1,32 +1,82 @@
 generator client {
-  provider = "prisma-client-js"
+  provider   = "prisma-client-js"
+  engineType = "binary"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+}
+
+model Usuario {
+  id            String      @id @default(uuid())
+  nome          String
+  email         String      @unique
+  senha         String
+  fotoPerfilUrl String?
+  role          RoleUsuario @default(ADMIN)
+  criadoEm      DateTime    @default(now())
+  atualizadoEm  DateTime    @updatedAt
+}
+
+enum RoleUsuario {
+  ADMIN
+  OPERADOR
+  TECNICO
+}
+
+model Configuracao {
+  id                        String   @id @default(uuid())
+  razaoSocial               String   @default("")
+  nomeFantasia              String   @default("Konext")
+  cnpj                      String   @default("")
+  inscricaoEstadual         String   @default("")
+  telefone                  String   @default("")
+  cep                       String   @default("")
+  logradouro                String   @default("")
+  numero                    String   @default("")
+  bairro                    String   @default("")
+  cidade                    String   @default("")
+  estado                    String   @default("")
+  endereco                  String   @default("")
+  logoUrl                   String?
+  chavePix                  String?
+  mensagemCupom             String?
+  habilitarMargemAutomatica Boolean  @default(true)
+  permitirVendaSemEstoque   Boolean  @default(false)
+  criadoEm                  DateTime @default(now())
+  atualizadoEm              DateTime @updatedAt
 }
 
 // ==========================================
 // MÓDULO: CRM (Clientes)
 // ==========================================
 model Cliente {
-  id                String   @id @default(uuid())
-  tipoPessoa        TipoPessoa @default(FISICA)
+  id                String           @id @default(uuid())
+  tipoPessoa        TipoPessoa       @default(FISICA)
   nomeRazaoSocial   String
   nomeFantasia      String?
-  documento         String   @unique // CPF ou CNPJ
+  documento         String           @unique // CPF ou CNPJ
+  inscricaoEstadual String?
   email             String?
   telefone          String
-  isWhatsapp        Boolean  @default(true)
+  isWhatsapp        Boolean          @default(true)
+  cep               String?
+  logradouro        String?
+  numero            String?
+  bairro            String?
+  cidade            String?
+  estado            String?
   categoria         CategoriaCliente @default(CLIENTE_FINAL)
-  
-  // Relações
-  ordensServico     OrdemServico[]
-  contasReceber     ContaReceber[]
+  observacoes       String?
 
-  criadoEm          DateTime @default(now())
-  atualizadoEm      DateTime @updatedAt
+  // Relações
+  ordensServico OrdemServico[]
+  contasReceber ContaReceber[]
+  vendas        Venda[]
+  notasFiscais  NotaFiscal[]
+
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
 }
 
 enum TipoPessoa {
@@ -44,42 +94,45 @@ enum CategoriaCliente {
 // MÓDULO: ORDEM DE SERVIÇO (OS)
 // ==========================================
 model OrdemServico {
-  id                String   @id @default(uuid())
-  numeroOs          Int      @unique @default(autoincrement())
-  
-  clienteId         String
-  cliente           Cliente  @relation(fields: [clienteId], references: [id])
-  
-  equipamento       String
-  marca             String?
-  modelo            String?
-  numeroSerieImei   String?
-  senhaAcesso       String?
-  padraoDesenho     String?  // Array de números em formato string (ex: "1,2,5,8,9")
-  
-  relatoCliente     String
-  condicaoFisica    String?
-  acessoriosDeixados String?
-  
-  status            StatusOS @default(AGUARDANDO_ORCAMENTO)
-  observacoes       String?
-  
-  itens             ItemOS[]
-  transacoes        ContaReceber[] // Vínculo com o financeiro
+  id       String @id @default(uuid())
+  numeroOs Int    @unique @default(autoincrement())
 
-  criadoEm          DateTime @default(now())
-  atualizadoEm      DateTime @updatedAt
+  clienteId String
+  cliente   Cliente @relation(fields: [clienteId], references: [id])
+
+  equipamento  String
+  marca        String?
+  modelo       String?
+  imei         String?
+  senha        String?
+  senhaDesenho String? // Guarda os nos do padrao em string (ex: "1-2-5-8-9")
+
+  relatoCliente  String
+  condicaoFisica String?
+  acessorios     String?
+
+  status      StatusOS @default(AGUARDANDO_ORCAMENTO)
+  observacoes String?
+
+  itens      ItemOS[]
+  transacoes ContaReceber[] // Vínculo com o financeiro
+
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
 }
 
+// Apos salvar o schema, execute: npx prisma db push
+
 model ItemOS {
-  id                String   @id @default(uuid())
-  ordemServicoId    String
-  ordemServico      OrdemServico @relation(fields: [ordemServicoId], references: [id])
-  
-  tipo              TipoPeca
-  descricao         String
-  custoPeca         Float
-  valorCobrado      Float    // Calculado automaticamente no front-end
+  id           String       @id @default(uuid())
+  osId         String
+  ordemServico OrdemServico @relation(fields: [osId], references: [id], onDelete: Cascade)
+
+  descricao    String
+  tipoPeca     TipoPeca
+  custoPeca    Float
+  valorCobrado Float
+  criadoEm     DateTime @default(now())
 }
 
 enum StatusOS {
@@ -105,27 +158,30 @@ enum TipoPeca {
 // MÓDULO: FINANCEIRO (Contas a Receber)
 // ==========================================
 model ContaReceber {
-  id                String   @id @default(uuid())
-  descricao         String
-  valor             Float
-  
-  clienteId         String?
-  cliente           Cliente? @relation(fields: [clienteId], references: [id])
-  
-  ordemServicoId    String?
-  ordemServico      OrdemServico? @relation(fields: [ordemServicoId], references: [id])
-  
-  dataVencimento    DateTime
-  dataRecebimento   DateTime?
-  
-  status            StatusPagamento @default(PENDENTE)
-  formaRecebimento  FormaPagamento
-  origem            OrigemReceita
-  
+  id        String @id @default(uuid())
+  descricao String
+  valor     Float
+
+  clienteId String?
+  cliente   Cliente? @relation(fields: [clienteId], references: [id])
+
+  ordemServicoId String?
+  ordemServico   OrdemServico? @relation(fields: [ordemServicoId], references: [id])
+
+  vendaId String? @unique
+  venda   Venda?  @relation(fields: [vendaId], references: [id])
+
+  dataVencimento  DateTime
+  dataRecebimento DateTime?
+
+  status           StatusPagamento @default(PENDENTE)
+  formaRecebimento FormaPagamento
+  origem           OrigemReceita
+
   notaFiscalEmitida Boolean @default(false)
 
-  criadoEm          DateTime @default(now())
-  atualizadoEm      DateTime @updatedAt
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
 }
 
 enum StatusPagamento {
@@ -137,12 +193,15 @@ enum StatusPagamento {
 
 enum FormaPagamento {
   PIX
-  BOLETO
+  DINHEIRO
   CARTAO_CREDITO
   CARTAO_DEBITO
-  DINHEIRO
+  BOLETO
+  CREDIARIO
   EMPENHO_PUBLICO
 }
+
+// Importante: apos alterar o enum de pagamento, execute `npx prisma db push`.
 
 enum OrigemReceita {
   VENDA_PDV
@@ -150,4 +209,166 @@ enum OrigemReceita {
   CONTRATO_RECORRENTE
   LICITACAO
   AVULSO
+}
+
+// ==========================================
+// MÓDULO: CONTAS A PAGAR
+// ==========================================
+model Despesa {
+  id           String      @id @default(uuid())
+  fornecedor   String
+  descricao    String
+  valorTotal   Float
+  tipo         TipoDespesa
+  qtdParcelas  Int
+  criadoEm     DateTime    @default(now())
+  atualizadoEm DateTime    @updatedAt
+
+  parcelas ParcelaDespesa[]
+}
+
+model ParcelaDespesa {
+  id             String               @id @default(uuid())
+  despesaId      String
+  despesa        Despesa              @relation(fields: [despesaId], references: [id], onDelete: Cascade)
+  numeroParcela  Int
+  valor          Float
+  dataVencimento DateTime
+  dataPagamento  DateTime?
+  status         StatusParcelaDespesa @default(PENDENTE)
+  valorPago      Float?
+  criadoEm       DateTime             @default(now())
+}
+
+enum TipoDespesa {
+  UNICA
+  PARCELADA
+  FIXA_MENSAL
+}
+
+enum StatusParcelaDespesa {
+  PENDENTE
+  PAGO
+  ATRASADO
+}
+
+// Importante: apos alterar o modelo de despesas, execute `npx prisma db push`.
+
+// ==========================================
+// MÓDULO: NOTAS FISCAIS
+// ==========================================
+model NotaFiscal {
+  id          String           @id @default(uuid())
+  numero      String
+  chaveAcesso String?
+  valorTotal  Float
+  status      StatusNotaFiscal @default(PENDENTE)
+
+  clienteId String?
+  cliente   Cliente? @relation(fields: [clienteId], references: [id])
+
+  criadoEm DateTime @default(now())
+}
+
+enum StatusNotaFiscal {
+  EMITIDA
+  CANCELADA
+  PENDENTE
+}
+
+// Apos salvar este schema, execute: npx prisma db push
+
+// ==========================================
+// MÓDULO: ESTOQUE E PRODUTOS
+// ==========================================
+model Produto {
+  id           String  @id @default(uuid())
+  codigoBarras String? @unique
+  imagemUrl    String?
+  nome         String
+  descricao    String?
+
+  categoria CategoriaProduto
+
+  itensVenda ItemVenda[]
+
+  custo      Float // Preço de compra do fornecedor
+  precoVenda Float // Preço final para o cliente
+
+  quantidadeEstoque Int @default(0)
+  estoqueMinimo     Int @default(3) // Alerta quando estiver acabando
+
+  ativo Boolean @default(true)
+
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+}
+
+enum CategoriaProduto {
+  ACESSORIO // Cabos, Capas, Películas (quando aplicável)
+  PECA_REPARO // Telas, Baterias, Conectores
+  EQUIPAMENTO_REDE // Switches, Roteadores (para B2B/Licitações)
+  SERVICO // Mão de obra (não movimenta estoque físico)
+  OUTROS
+}
+
+// ==========================================
+// MÓDULO: VENDAS (PDV)
+// ==========================================
+model Venda {
+  id        String   @id @default(uuid())
+  clienteId String? // Opcional para venda rápida de balcão
+  cliente   Cliente? @relation(fields: [clienteId], references: [id])
+
+  itens ItemVenda[]
+
+  // Ligação direta com o financeiro (1 Venda = 1 Conta a Receber)
+  contaReceber ContaReceber?
+
+  formaPagamento FormaPagamento
+  valorTotal     Float
+  desconto       Float          @default(0)
+
+  criadoEm       DateTime      @default(now())
+  caixaSession   CaixaSession? @relation(fields: [caixaSessionId], references: [id])
+  caixaSessionId String?
+}
+
+model ItemVenda {
+  id      String @id @default(uuid())
+  vendaId String
+  venda   Venda  @relation(fields: [vendaId], references: [id], onDelete: Cascade)
+
+  produtoId String
+  produto   Produto @relation(fields: [produtoId], references: [id])
+
+  quantidade    Int
+  custoUnitario Float @default(0)
+  precoUnitario Float
+  subtotal      Float
+}
+
+// ==========================================
+// MÓDULO: CONTROLE DE FLUXO DE CAIXA
+// ==========================================
+model CaixaSession {
+  id String @id @default(uuid())
+
+  status CaixaStatus @default(ABERTO)
+
+  valorAbertura   Float // Saldo inicial/troco
+  valorFechamento Float? // Saldo final conferido
+
+  dataAbertura   DateTime  @default(now())
+  dataFechamento DateTime?
+
+  vendas Venda[] // Vincula as vendas feitas nesta sessão
+
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+}
+
+enum CaixaStatus {
+  ABERTO
+  FECHADO
 }

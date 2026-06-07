@@ -2,6 +2,8 @@
 
 import { ConteudoPrincipal } from "@/components/layout/conteudo-principal";
 import { Rodape } from "@/components/layout/rodape";
+import { BarraLateral } from "@/components/layout/barralateral";
+import { Cabecalho } from "@/components/layout/cabecalho";
 
 /**
  * Layout do Dashboard - Envolve a sidebar, cabeçalho e rodapé
@@ -13,12 +15,13 @@ export default function LayoutDashboard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-900">
+      <BarraLateral />
+      <Cabecalho />
+
       {/* Conteúdo Principal com Sidebar Dinâmica */}
       <ConteudoPrincipal>
-        <div className="container mx-auto p-6">
-          {children}
-        </div>
+        {children}
       </ConteudoPrincipal>
 
       <Rodape />

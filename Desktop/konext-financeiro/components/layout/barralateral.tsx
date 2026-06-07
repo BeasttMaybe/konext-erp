@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -11,10 +12,12 @@ import {
   DollarSign,
   ChevronLeft,
   ChevronRight,
+  Box,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useSidebar } from "@/contextos/contexto-sidebar";
+import { obterDadosPerfilConfiguracao } from "@/app/actions/configuracoes";
 
 /**
  * Componente da Barra Lateral (Sidebar) do Dashboard
@@ -22,6 +25,31 @@ import { useSidebar } from "@/contextos/contexto-sidebar";
 export function BarraLateral() {
   const { contraida, setContraida } = useSidebar();
   const nomeRota = usePathname();
+  const [nomeEmpresa, setNomeEmpresa] = useState("Konext");
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let ativo = true;
+
+    const carregarBranding = async () => {
+      try {
+        const dados = await obterDadosPerfilConfiguracao();
+        if (!ativo) return;
+        setNomeEmpresa(dados.configuracao?.nomeFantasia || "Konext");
+        setLogoUrl(dados.configuracao?.logoUrl || null);
+      } catch {
+        if (!ativo) return;
+        setNomeEmpresa("Konext");
+        setLogoUrl(null);
+      }
+    };
+
+    carregarBranding();
+
+    return () => {
+      ativo = false;
+    };
+  }, []);
 
   // Mapeamento de ícones
   const icones: Record<string, React.ReactNode> = {
@@ -57,24 +85,63 @@ export function BarraLateral() {
       )}
     >
       {/* Cabeçalho da Sidebar */}
-      <div className="h-16 flex items-center justify-between px-4 border-b border-zinc-200 dark:border-zinc-800">
-        {!contraida && (
-          <div className="text-xl font-bold text-slate-900 dark:text-white">
-            Konext
-          </div>
+      <div
+        className={cn(
+          "h-20 flex items-center border-b border-zinc-200 dark:border-zinc-800 transition-all duration-300 ease-in-out",
+          contraida ? "justify-center px-2" : "justify-between px-4"
         )}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setContraida(!contraida)}
-          className="h-8 w-8"
-        >
-          {contraida ? (
-            <ChevronRight className="h-4 w-4" />
-          ) : (
-            <ChevronLeft className="h-4 w-4" />
+      >
+        <div
+          className={cn(
+            "flex items-center overflow-hidden transition-all duration-300 ease-in-out",
+            contraida ? "justify-center" : "gap-3"
           )}
-        </Button>
+        >
+          {logoUrl ? (
+            <img
+              src={logoUrl}
+              alt={nomeEmpresa}
+              className={cn(
+                "rounded-md object-contain border border-zinc-200 dark:border-zinc-700 bg-white transition-all duration-300 ease-in-out",
+                contraida ? "w-10 h-10" : "w-14 h-14"
+              )}
+            />
+          ) : (
+            <div
+              className={cn(
+                "rounded-md flex items-center justify-center bg-slate-100 dark:bg-slate-800 border border-zinc-200 dark:border-zinc-700 text-slate-700 dark:text-slate-200 transition-all duration-300 ease-in-out",
+                contraida ? "w-10 h-10" : "w-14 h-14"
+              )}
+            >
+              {contraida ? (
+                <Box className="h-5 w-5" />
+              ) : (
+                <span className="text-base font-bold">{nomeEmpresa.charAt(0).toUpperCase()}</span>
+              )}
+            </div>
+          )}
+
+          {!contraida && (
+            <div className="text-xl font-bold text-slate-900 dark:text-white transition-all duration-300 ease-in-out">
+              {nomeEmpresa}
+            </div>
+          )}
+        </div>
+
+        <div className="self-center">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setContraida(!contraida)}
+            className="h-9 w-9 shrink-0"
+          >
+            {contraida ? (
+              <ChevronRight className="h-4 w-4" />
+            ) : (
+              <ChevronLeft className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
       </div>
 
       {/* Menu de Navegação */}
@@ -104,7 +171,7 @@ export function BarraLateral() {
             contraida && "truncate"
           )}
         >
-          {!contraida ? "Powered by Konext" : "v1.0"}
+          {!contraida ? `Powered by ${nomeEmpresa}` : "v1.0"}
         </p>
       </div>
     </aside>

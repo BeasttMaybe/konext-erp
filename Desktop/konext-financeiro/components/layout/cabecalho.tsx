@@ -15,9 +15,10 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Avatar, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { useSidebar } from "@/contextos/contexto-sidebar";
+import { obterDadosPerfilConfiguracao } from "@/app/actions/configuracoes";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,6 +26,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { logout } from "@/app/actions/auth";
 
 /**
  * Componente do Cabeçalho (Header) do Dashboard
@@ -35,14 +37,48 @@ export function Cabecalho() {
   const router = useRouter();
   const [localizado, setLocalizado] = useState("");
   const [montado, setMontado] = useState(false);
+  const [nomeUsuario, setNomeUsuario] = useState("Usuario Konext");
+  const [emailUsuario, setEmailUsuario] = useState("usuario@konext.local");
+  const [fotoPerfilUrl, setFotoPerfilUrl] = useState<string | null>(null);
 
   // Apenas renderizar ícone de tema após hidratação completa
   useEffect(() => {
     setMontado(true);
   }, []);
 
-  const nomeUsuario = "Gabriel Vieira";
-  const emailUsuario = "gabriel@konext.com.br";
+  useEffect(() => {
+    let ativo = true;
+
+    const carregarUsuario = async () => {
+      try {
+        const dados = await obterDadosPerfilConfiguracao();
+        if (!ativo) return;
+
+        setNomeUsuario(dados.usuario?.nome || "Usuario Konext");
+        setEmailUsuario(dados.usuario?.email || "usuario@konext.local");
+        setFotoPerfilUrl(dados.usuario?.fotoPerfilUrl || null);
+      } catch {
+        if (!ativo) return;
+        setNomeUsuario("Usuario Konext");
+        setEmailUsuario("usuario@konext.local");
+        setFotoPerfilUrl(null);
+      }
+    };
+
+    carregarUsuario();
+
+    return () => {
+      ativo = false;
+    };
+  }, []);
+
+  const iniciais = nomeUsuario
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((parte) => parte[0])
+    .join("")
+    .toUpperCase();
 
   return (
     <header
@@ -96,9 +132,10 @@ export function Cabecalho() {
             >
               <Avatar className="h-8 w-8">
                 <AvatarImage
-                  src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${nomeUsuario}`}
+                  src={fotoPerfilUrl || undefined}
                   alt={nomeUsuario}
                 />
+                <AvatarFallback>{iniciais || "UK"}</AvatarFallback>
               </Avatar>
               <span className="text-sm font-medium hidden sm:inline-block">
                 {nomeUsuario}
@@ -138,7 +175,9 @@ export function Cabecalho() {
             {/* Sair */}
             <DropdownMenuItem
               className="flex items-center gap-2 cursor-pointer text-red-600 dark:text-red-400"
-              onSelect={() => router.push("/login")}
+              onSelect={() => {
+                void logout();
+              }}
             >
               <LogOut className="h-4 w-4" />
               <span>Sair</span>

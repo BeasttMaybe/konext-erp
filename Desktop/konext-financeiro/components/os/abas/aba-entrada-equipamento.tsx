@@ -1,40 +1,70 @@
 "use client";
 
-import { useState } from "react";
-import { useFormContext, Controller } from "react-hook-form";
-import { Cliente } from "@/types/os";
+import { useEffect, useState } from "react";
+import { useFormContext } from "react-hook-form";
+import { buscarClientesOS, type ClienteBuscaOS } from "@/app/actions/os";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Eye, EyeOff } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Card } from "@/components/ui/card";
 
-interface AbaEntradaEquipamentoProps {
-  clientes: Cliente[];
-}
-
-export function AbaEntradaEquipamento({ clientes }: AbaEntradaEquipamentoProps) {
-  const { control, register, formState: { errors } } = useFormContext();
+export function AbaEntradaEquipamento() {
+  const { register, setValue, formState: { errors } } = useFormContext();
   const [mostrarSenhaAcesso, setMostrarSenhaAcesso] = useState(false);
   const [padraoDesenho, setPadraoDesenho] = useState<number[]>([]);
+  const [buscaCliente, setBuscaCliente] = useState("");
+  const [carregandoClientes, setCarregandoClientes] = useState(false);
+  const [clientesEncontrados, setClientesEncontrados] = useState<ClienteBuscaOS[]>([]);
+  const [clienteSelecionadoTexto, setClienteSelecionadoTexto] = useState("");
+
+  useEffect(() => {
+    const termo = buscaCliente.trim();
+
+    if (termo.length < 2) {
+      setClientesEncontrados([]);
+      setCarregandoClientes(false);
+      return;
+    }
+
+    let ativo = true;
+    setCarregandoClientes(true);
+
+    const timer = setTimeout(async () => {
+      try {
+        const clientes = await buscarClientesOS(termo);
+        if (!ativo) return;
+        setClientesEncontrados(clientes);
+      } finally {
+        if (ativo) setCarregandoClientes(false);
+      }
+    }, 350);
+
+    return () => {
+      ativo = false;
+      clearTimeout(timer);
+    };
+  }, [buscaCliente]);
+
+  const selecionarCliente = (cliente: ClienteBuscaOS) => {
+    setValue("clienteId", cliente.id, { shouldValidate: true, shouldDirty: true });
+    setClienteSelecionadoTexto(`${cliente.nomeRazaoSocial} - ${cliente.documento} - ${cliente.telefone}`);
+  };
 
   const handleSelecionarPontoDesenho = (ponto: number) => {
     setPadraoDesenho((atual) => {
       if (atual.includes(ponto)) return atual;
-      return [...atual, ponto];
+      const atualizado = [...atual, ponto];
+      setValue("senhaDesenho", atualizado.join("-"), { shouldValidate: true, shouldDirty: true });
+      return atualizado;
     });
   };
 
   const handleLimparDesenho = () => {
     setPadraoDesenho([]);
+    setValue("senhaDesenho", "", { shouldValidate: true, shouldDirty: true });
   };
 
   const obterOrdemPonto = (ponto: number): number => {
@@ -49,26 +79,49 @@ export function AbaEntradaEquipamento({ clientes }: AbaEntradaEquipamentoProps) 
         <h3 className="text-sm font-semibold text-slate-900 mb-3">
           📋 Dados do Cliente
         </h3>
-        <div className="space-y-2">
-          <Label htmlFor="cliente">Cliente *</Label>
-          <Controller
-            name="clienteId"
-            control={control}
-            render={({ field }) => (
-              <Select value={field.value} onValueChange={field.onChange}>
-                <SelectTrigger id="cliente">
-                  <SelectValue placeholder="Selecione um cliente" />
-                </SelectTrigger>
-                <SelectContent>
-                  {clientes.map((cliente) => (
-                    <SelectItem key={cliente.id} value={cliente.id}>
-                      {cliente.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+        <div className="space-y-3">
+          <input type="hidden" {...register("clienteId")} />
+          <Label htmlFor="busca-cliente">Cliente *</Label>
+          <Input
+            id="busca-cliente"
+            value={buscaCliente}
+            onChange={(evento) => setBuscaCliente(evento.target.value)}
+            placeholder="Digite nome, CPF/CNPJ ou telefone"
           />
+
+          {clienteSelecionadoTexto && (
+            <p className="text-xs text-emerald-600 dark:text-emerald-400">
+              Cliente selecionado: {clienteSelecionadoTexto}
+            </p>
+          )}
+
+          <Card className="border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-0 max-h-48 overflow-y-auto">
+            {carregandoClientes && (
+              <p className="p-3 text-xs text-slate-500">Buscando clientes...</p>
+            )}
+
+            {!carregandoClientes && buscaCliente.trim().length < 2 && (
+              <p className="p-3 text-xs text-slate-500">Digite ao menos 2 caracteres para buscar.</p>
+            )}
+
+            {!carregandoClientes && buscaCliente.trim().length >= 2 && clientesEncontrados.length === 0 && (
+              <p className="p-3 text-xs text-slate-500">Nenhum cliente encontrado.</p>
+            )}
+
+            {!carregandoClientes && clientesEncontrados.map((cliente) => (
+              <button
+                key={cliente.id}
+                type="button"
+                onClick={() => selecionarCliente(cliente)}
+                className="w-full text-left px-3 py-2 border-b last:border-b-0 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+              >
+                <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{cliente.nomeRazaoSocial}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">CPF/CNPJ: {cliente.documento}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Telefone: {cliente.telefone}</p>
+              </button>
+            ))}
+          </Card>
+
           {errors.clienteId && (
             <p className="text-xs text-red-500">{String(errors.clienteId.message)}</p>
           )}
@@ -114,23 +167,23 @@ export function AbaEntradaEquipamento({ clientes }: AbaEntradaEquipamentoProps) 
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="numeroSerieImei">IMEI / Nº de Série</Label>
+            <Label htmlFor="imei">IMEI / Nº de Série</Label>
             <Input
-              id="numeroSerieImei"
+              id="imei"
               placeholder="Ex: 358123045237847"
-              {...register("numeroSerieImei")}
+              {...register("imei")}
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="senhaAcesso">Senha do Aparelho</Label>
+            <Label htmlFor="senha">Senha do Aparelho</Label>
             <div className="relative">
               <Input
-                id="senhaAcesso"
+                id="senha"
                 type={mostrarSenhaAcesso ? "text" : "password"}
                 placeholder="••••••••"
                 className="pr-11"
-                {...register("senhaAcesso")}
+                {...register("senha")}
               />
               <button
                 type="button"
@@ -148,6 +201,7 @@ export function AbaEntradaEquipamento({ clientes }: AbaEntradaEquipamentoProps) 
           </div>
 
           <div className="col-span-2 space-y-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-4">
+            <input type="hidden" {...register("senhaDesenho")} />
             <div>
               <Label className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                 Senha de Desenho (Android)
@@ -242,12 +296,12 @@ export function AbaEntradaEquipamento({ clientes }: AbaEntradaEquipamentoProps) 
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="acessoriosDeixados">Acessórios Deixados</Label>
+            <Label htmlFor="acessorios">Acessórios Deixados</Label>
             <Textarea
-              id="acessoriosDeixados"
+              id="acessorios"
               placeholder="Ex: Carregador original, capinha, EarPods..."
               rows={2}
-              {...register("acessoriosDeixados")}
+              {...register("acessorios")}
             />
           </div>
         </div>

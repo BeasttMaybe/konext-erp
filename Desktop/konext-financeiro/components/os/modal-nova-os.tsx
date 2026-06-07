@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { FormProvider, useForm } from "react-hook-form";
+import { useState } from "react";
+import { FormProvider, useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Cliente } from "@/types/os";
 import { AbaEntradaEquipamento } from "./abas/aba-entrada-equipamento";
 import { AbaOrcamento } from "./abas/aba-orcamento";
 import { AbaHistoricoStatus } from "./abas/aba-historico-status";
@@ -20,13 +20,14 @@ const esquemaNovaOS = z.object({
   equipamento: z.string().min(1, "Equipamento é obrigatório"),
   marca: z.string().optional(),
   modelo: z.string().optional(),
-  numeroSerieImei: z.string().optional(),
-  senhaAcesso: z.string().optional(),
+  imei: z.string().optional(),
+  senha: z.string().optional(),
+  senhaDesenho: z.string().optional(),
   
   // Checklist
   relatoCliente: z.string().min(1, "Relato do cliente é obrigatório"),
   condicaoFisica: z.string().optional(),
-  acessoriosDeixados: z.string().optional(),
+  acessorios: z.string().optional(),
   
   // Orçamento
   itensOrcamento: z.array(
@@ -64,31 +65,31 @@ type DadosNovaOS = z.infer<typeof esquemaNovaOS>;
 interface ModalNovaOSProps {
   aberta: boolean;
   onAbrirMudar: (aberta: boolean) => void;
-  clientes: Cliente[];
-  onSalvar?: (dados: DadosNovaOS) => void;
+  onSalvar?: (dados: DadosNovaOS) => Promise<void>;
 }
 
 export function ModalNovaOS({
   aberta,
   onAbrirMudar,
-  clientes,
   onSalvar,
 }: ModalNovaOSProps) {
   const [abaAtiva, setAbaAtiva] = useState("entrada");
+  const [salvando, setSalvando] = useState(false);
   
   const formulario = useForm<DadosNovaOS>({
-    resolver: zodResolver(esquemaNovaOS),
+    resolver: zodResolver(esquemaNovaOS) as unknown as Resolver<DadosNovaOS>,
     mode: "onChange",
     defaultValues: {
       clienteId: "",
       equipamento: "",
       marca: "",
       modelo: "",
-      numeroSerieImei: "",
-      senhaAcesso: "",
+      imei: "",
+      senha: "",
+      senhaDesenho: "",
       relatoCliente: "",
       condicaoFisica: "",
-      acessoriosDeixados: "",
+      acessorios: "",
       itensOrcamento: [],
       status: "AGUARDANDO_ORCAMENTO",
       observacoesInternas: "",
@@ -96,9 +97,17 @@ export function ModalNovaOS({
   });
 
   const handleSalvar = async (dados: DadosNovaOS) => {
-    onSalvar?.(dados);
-    formulario.reset();
-    onAbrirMudar(false);
+    try {
+      setSalvando(true);
+      await onSalvar?.(dados);
+      formulario.reset();
+      onAbrirMudar(false);
+    } catch (error) {
+      const mensagem = error instanceof Error ? error.message : "Nao foi possivel salvar a ordem de servico.";
+      toast.error(mensagem);
+    } finally {
+      setSalvando(false);
+    }
   };
 
   const handleFechar = () => {
@@ -129,7 +138,7 @@ export function ModalNovaOS({
               </TabsList>
 
               <TabsContent value="entrada" className="space-y-4 mt-4">
-                <AbaEntradaEquipamento clientes={clientes} />
+                <AbaEntradaEquipamento />
               </TabsContent>
 
               <TabsContent value="orcamento" className="space-y-4 mt-4">
@@ -146,8 +155,8 @@ export function ModalNovaOS({
               <Button variant="outline" onClick={handleFechar}>
                 Cancelar
               </Button>
-              <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
-                Salvar Ordem de Serviço
+              <Button type="submit" className="bg-blue-600 hover:bg-blue-700" disabled={salvando}>
+                {salvando ? "Salvando..." : "Salvar Ordem de Serviço"}
               </Button>
             </div>
           </form>

@@ -4,6 +4,7 @@ export interface ProdutoPDV {
   id: string;
   nome: string;
   preco: number;
+  imagemUrl?: string | null;
 }
 
 export interface ItemCarrinho extends ProdutoPDV {

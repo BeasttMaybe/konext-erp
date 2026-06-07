@@ -1,97 +1,64 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
 import { TabuleiroKanban } from "@/components/os/tabuleiro-kanban";
 import { ModalNovaOS } from "@/components/os/modal-nova-os";
-import { OrdemServico, Cliente, StatusOS } from "@/types/os";
+import { OrdemServico, StatusOS } from "@/types/os";
+import { criarOrdemServico, atualizarStatusOrdemServico } from "@/app/actions/os";
 import { Search, Plus, AlertCircle, ListChecks, KanbanSquare } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface DashboardOSProps {
   ordensServico: OrdemServico[];
-  clientes: Cliente[];
 }
 
-export function DashboardOS({ ordensServico, clientes }: DashboardOSProps) {
+export function DashboardOS({ ordensServico }: DashboardOSProps) {
+  const router = useRouter();
   const [modalAberta, setModalAberta] = useState(false);
   const [buscaTexto, setBuscaTexto] = useState("");
-  const [ordens, setOrdens] = useState(ordensServico);
   const [modoVisualizacao, setModoVisualizacao] = useState<"KANBAN" | "LISTA_FINALIZADAS">("KANBAN");
-  const [osSelecionada, setOsSelecionada] = useState<OrdemServico | null>(null);
-  const [modalDetalhesAberto, setModalDetalhesAberto] = useState(false);
 
   // Filtrar ordens por busca
-  const ordensFiltradas = ordens.filter((os) =>
+  const ordensFiltradas = ordensServico.filter((os) =>
     os.numeroOS.toLowerCase().includes(buscaTexto.toLowerCase()) ||
     os.nomeCliente.toLowerCase().includes(buscaTexto.toLowerCase()) ||
     os.equipamento.toLowerCase().includes(buscaTexto.toLowerCase())
   );
 
-  const ordensFinalizadasEntregues = ordens.filter(
+  const ordensFinalizadasEntregues = ordensServico.filter(
     (os) => os.status === "PRONTO" || os.status === "ENTREGUE"
   );
 
-  const handleSalvarNovaOS = (dados: any) => {
-    // Simular criação de nova OS
-    const novaOS: OrdemServico = {
-      id: `os-${Date.now()}`,
-      numeroOS: `OS-2026-${String(ordens.length + 1).padStart(3, "0")}`,
-      clienteId: dados.clienteId,
-      nomeCliente:
-        clientes.find((c) => c.id === dados.clienteId)?.nome || "Cliente",
-      equipamento: dados.equipamento,
-      marca: dados.marca,
-      modelo: dados.modelo,
-      numeroSerieImei: dados.numeroSerieImei,
-      senhaAcesso: dados.senhaAcesso,
-      checklist: {
-        relatoCliente: dados.relatoCliente,
-        condicaoFisica: dados.condicaoFisica || "",
-        acessoriosDeixados: dados.acessoriosDeixados || "",
-      },
-      itensOrcamento: dados.itensOrcamento || [],
-      totalOrcamento:
-        dados.itensOrcamento?.reduce(
-          (total: number, item: any) => total + (item.valorCobrado || 0),
-          0
-        ) || 0,
-      status: dados.status,
-      observacoesInternas: dados.observacoesInternas,
-      dataCriacao: new Date().toISOString(),
-      dataAtualizacao: new Date().toISOString(),
-    };
-
-    setOrdens([...ordens, novaOS]);
-    console.log("Nova OS criada:", novaOS);
+  const handleSalvarNovaOS = async (dados: any) => {
+    try {
+      await criarOrdemServico(dados);
+      toast.success("Ordem de servico criada com sucesso.");
+      router.refresh();
+    } catch (error) {
+      const mensagem =
+        error instanceof Error ? error.message : "Nao foi possivel criar a ordem de servico.";
+      toast.error(mensagem);
+      throw error;
+    }
   };
 
-  const handleMoverOS = (osId: string, novoStatus: StatusOS) => {
-    setOrdens((prev) =>
-      prev.map((os) =>
-        os.id === osId
-          ? {
-              ...os,
-              status: novoStatus,
-              dataAtualizacao: new Date().toISOString(),
-            }
-          : os
-      )
-    );
+  const handleMoverOS = async (osId: string, novoStatus: StatusOS) => {
+    try {
+      await atualizarStatusOrdemServico(osId, novoStatus);
+      router.refresh();
+    } catch (error) {
+      const mensagem = error instanceof Error ? error.message : "Nao foi possivel atualizar o status da OS.";
+      toast.error(mensagem);
+    }
   };
 
   const handleAbrirDetalhesOS = (os: OrdemServico) => {
-    setOsSelecionada(os);
-    setModalDetalhesAberto(true);
+    router.push(`/os/${os.id}`);
   };
 
   const formatarMoeda = (valor: number) =>
@@ -253,7 +220,8 @@ export function DashboardOS({ ordensServico, clientes }: DashboardOSProps) {
                   {ordensFinalizadasEntregues.map((os) => (
                     <tr
                       key={os.id}
-                      className="border-b border-slate-100 dark:border-slate-700/70 text-slate-700 dark:text-slate-200"
+                      className="border-b border-slate-100 dark:border-slate-700/70 text-slate-700 dark:text-slate-200 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/30"
+                      onClick={() => handleAbrirDetalhesOS(os)}
                     >
                       <td className="py-3 pr-3 font-semibold">{os.numeroOS}</td>
                       <td className="py-3 pr-3">{os.nomeCliente}</td>
@@ -286,62 +254,8 @@ export function DashboardOS({ ordensServico, clientes }: DashboardOSProps) {
       <ModalNovaOS
         aberta={modalAberta}
         onAbrirMudar={setModalAberta}
-        clientes={clientes}
         onSalvar={handleSalvarNovaOS}
       />
-
-      {/* Modal Detalhes da OS */}
-      <Dialog open={modalDetalhesAberto} onOpenChange={setModalDetalhesAberto}>
-        <DialogContent className="max-w-2xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
-          <DialogHeader>
-            <DialogTitle>Detalhes da OS</DialogTitle>
-            <DialogDescription>
-              Resumo da ordem de serviço selecionada.
-            </DialogDescription>
-          </DialogHeader>
-
-          {osSelecionada && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="rounded-md border border-slate-200 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-800">
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Cliente</p>
-                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 mt-1">
-                    {osSelecionada.nomeCliente}
-                  </p>
-                </div>
-
-                <div className="rounded-md border border-slate-200 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-800">
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Equipamento</p>
-                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 mt-1">
-                    {osSelecionada.equipamento}
-                  </p>
-                </div>
-
-                <div className="rounded-md border border-slate-200 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-800 md:col-span-2">
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Relato do Cliente</p>
-                  <p className="text-sm text-slate-900 dark:text-slate-100 mt-1 whitespace-pre-wrap">
-                    {osSelecionada.checklist.relatoCliente || "Sem relato informado."}
-                  </p>
-                </div>
-
-                <div className="rounded-md border border-slate-200 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-800">
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Status</p>
-                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 mt-1">
-                    {osSelecionada.status.replaceAll("_", " ")}
-                  </p>
-                </div>
-
-                <div className="rounded-md border border-slate-200 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-800">
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Valor Total</p>
-                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 mt-1">
-                    {formatarMoeda(osSelecionada.totalOrcamento || 0)}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

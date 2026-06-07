@@ -1,40 +1,62 @@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { TransacaoRecente } from "@/types/indice";
 import {
   ArrowUpRight,
   ArrowDownLeft,
   Wrench,
-  ShoppingCart,
 } from "lucide-react";
 
+export interface AtividadeDashboard {
+  id: string;
+  tipo: "VENDA" | "DESPESA" | "OS";
+  descricao: string;
+  valor: number;
+  data: Date;
+  status: string;
+  cliente?: string;
+}
+
 interface TabelaAtividadeProps {
-  transacoes: TransacaoRecente[];
+  transacoes: AtividadeDashboard[];
 }
 
 /**
  * Mapa de cores e ícones para tipos de transação
  */
 const tiposTransacao = {
-  entrada: { icone: ArrowUpRight, cor: "text-emerald-600", fundo: "bg-emerald-100 dark:bg-emerald-900/30" },
-  saida: { icone: ArrowDownLeft, cor: "text-red-600", fundo: "bg-red-100 dark:bg-red-900/30" },
-  os: { icone: Wrench, cor: "text-blue-600", fundo: "bg-blue-100 dark:bg-blue-900/30" },
-  pdv: { icone: ShoppingCart, cor: "text-violet-600", fundo: "bg-violet-100 dark:bg-violet-900/30" },
+  VENDA: { icone: ArrowUpRight, cor: "text-emerald-600", fundo: "bg-emerald-100 dark:bg-emerald-900/30" },
+  DESPESA: { icone: ArrowDownLeft, cor: "text-red-600", fundo: "bg-red-100 dark:bg-red-900/30" },
+  OS: { icone: Wrench, cor: "text-blue-600", fundo: "bg-blue-100 dark:bg-blue-900/30" },
 };
 
 /**
  * Mapa de status
  */
-const statusBadge = {
-  completo: { label: "Completo", variante: "default" as const },
-  pendente: { label: "Pendente", variante: "outline" as const },
-  cancelado: { label: "Cancelado", variante: "destructive" as const },
+const statusBadge = (status: string) => {
+  const normalizado = status.toUpperCase();
+
+  if (["RECEBIDO", "PAGO", "ENTREGUE", "CONCLUIDA", "CONCLUÍDA", "PRONTO"].includes(normalizado)) {
+    return { label: "Concluído", variante: "default" as const };
+  }
+
+  if (["CANCELADO", "CANCELADA"].includes(normalizado)) {
+    return { label: "Cancelado", variante: "destructive" as const };
+  }
+
+  return { label: "Pendente", variante: "outline" as const };
 };
 
 /**
  * Componente de Tabela de Atividades Recentes
  */
 export function TabelaAtividade({ transacoes }: TabelaAtividadeProps) {
+  const formatadorMoeda = new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
   return (
     <Card className="border-zinc-200 dark:border-zinc-800 p-6">
       <div className="space-y-4">
@@ -46,7 +68,8 @@ export function TabelaAtividade({ transacoes }: TabelaAtividadeProps) {
           {transacoes.slice(0, 5).map((transacao) => {
             const tipo = tiposTransacao[transacao.tipo];
             const Icone = tipo.icone;
-            const status = statusBadge[transacao.status];
+            const status = statusBadge(transacao.status);
+            const sinal = transacao.tipo === "DESPESA" ? "-" : "+";
 
             return (
               <div
@@ -74,11 +97,8 @@ export function TabelaAtividade({ transacoes }: TabelaAtividadeProps) {
                 <div className="flex items-center gap-4 text-right">
                   <div className="hidden md:block">
                     <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                      {transacao.tipo === "saida" ? "-" : "+"}
-                      {transacao.valor.toLocaleString("pt-BR", {
-                        style: "currency",
-                        currency: "BRL",
-                      })}
+                      {sinal}
+                      {formatadorMoeda.format(transacao.valor)}
                     </p>
                     <p className="text-xs text-zinc-600 dark:text-zinc-400">
                       {transacao.data.toLocaleDateString("pt-BR")}

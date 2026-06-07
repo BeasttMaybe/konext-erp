@@ -33,11 +33,12 @@ import {
 import { toast } from "sonner";
 
 export type FormaPagamento =
-  | "DINHEIRO"
   | "PIX"
-  | "DEBITO"
-  | "CREDITO_VISTA"
-  | "CREDITO_PARCELADO";
+  | "DINHEIRO"
+  | "CARTAO_DEBITO"
+  | "CARTAO_CREDITO"
+  | "BOLETO"
+  | "CREDIARIO";
 
 export interface DadosPagamento {
   formaPagamento: FormaPagamento;
@@ -60,57 +61,42 @@ interface OpcaoPagamento {
 
 const opcoesPagamento: OpcaoPagamento[] = [
   {
+    valor: "PIX",
+    rotulo: "PIX (Instantaneo)",
+    icone: <QrCode className="h-5 w-5" />,
+    taxa: 0,
+  },
+  {
     valor: "DINHEIRO",
     rotulo: "Dinheiro",
     icone: <Banknote className="h-5 w-5" />,
     taxa: 0,
   },
   {
-    valor: "PIX",
-    rotulo: "PIX",
-    icone: <QrCode className="h-5 w-5" />,
-    taxa: 0,
-  },
-  {
-    valor: "DEBITO",
-    rotulo: "Débito",
+    valor: "CARTAO_DEBITO",
+    rotulo: "Cartao de Debito",
     icone: <Landmark className="h-5 w-5" />,
     taxa: 1.36,
   },
   {
-    valor: "CREDITO_VISTA",
-    rotulo: "Crédito à vista",
+    valor: "CARTAO_CREDITO",
+    rotulo: "Cartao de Credito",
     icone: <CreditCard className="h-5 w-5" />,
     taxa: 3.14,
   },
   {
-    valor: "CREDITO_PARCELADO",
-    rotulo: "Crédito parcelado",
-    icone: <CreditCard className="h-5 w-5" />,
-    taxa: 5.38,
+    valor: "BOLETO",
+    rotulo: "Boleto Bancario (A prazo)",
+    icone: <FileText className="h-5 w-5" />,
+    taxa: 0,
+  },
+  {
+    valor: "CREDIARIO",
+    rotulo: "Crediario / Promissoria (A prazo)",
+    icone: <FileText className="h-5 w-5" />,
+    taxa: 0,
   },
 ];
-
-/**
- * Tabela de taxas de crédito parcelado (2x a 10x).
- */
-const taxaPorParcela = (parcelas: number): number => {
-  const tabelaTaxas: Record<number, number> = {
-    2: 5.38,
-    3: 6.11,
-    4: 6.84,
-    5: 7.56,
-    6: 8.27,
-    7: 8.98,
-    8: 9.68,
-    9: 10.37,
-    10: 11.05,
-  };
-
-  if (parcelas <= 2) return tabelaTaxas[2];
-  if (parcelas >= 10) return tabelaTaxas[10];
-  return tabelaTaxas[parcelas];
-};
 
 const formatarMoeda = (valor: number): string =>
   new Intl.NumberFormat("pt-BR", {
@@ -122,7 +108,9 @@ interface PropsModalPagamento {
   aberto: boolean;
   total: number;
   aoFechar: () => void;
-  aoConfirmar: (dados: DadosPagamento) => void;
+  aoConfirmar: (
+    dados: DadosPagamento
+  ) => Promise<{ sucesso: boolean; mensagem?: string; vendaId?: string }>;
   aoNovaVenda: () => void;
 }
 
@@ -138,13 +126,13 @@ export function ModalPagamento({
   const [valorRecebido, setValorRecebido] = useState<number>(0);
   const [processando, setProcessando] = useState(false);
   const [vendaFinalizada, setVendaFinalizada] = useState(false);
+  const [vendaIdGerada, setVendaIdGerada] = useState<string | null>(null);
 
-  // Taxa efetiva conforme forma de pagamento e parcelas
+  // Taxa efetiva conforme forma de pagamento selecionada
   const taxaPercentual = useMemo(() => {
-    if (forma === "CREDITO_PARCELADO") return taxaPorParcela(parcelas);
     const opcao = opcoesPagamento.find((o) => o.valor === forma);
     return opcao?.taxa ?? 0;
-  }, [forma, parcelas]);
+  }, [forma]);
 
   const valorTaxa = useMemo(
     () => total * (taxaPercentual / 100),
@@ -162,11 +150,6 @@ export function ModalPagamento({
     return Math.max(0, valorRecebido - total);
   }, [forma, valorRecebido, total]);
 
-  const valorParcela = useMemo(
-    () => (parcelas > 0 ? total / parcelas : total),
-    [parcelas, total]
-  );
-
   const dinheiroInsuficiente =
     forma === "DINHEIRO" && valorRecebido > 0 && valorRecebido < total;
 
@@ -181,6 +164,7 @@ export function ModalPagamento({
     setValorRecebido(0);
     setProcessando(false);
     setVendaFinalizada(false);
+    setVendaIdGerada(null);
   };
 
   // Reseta o estado interno sempre que o modal é fechado
@@ -192,24 +176,35 @@ export function ModalPagamento({
     aoFechar();
   };
 
-  const handleConfirmar = () => {
+  const handleConfirmar = async () => {
     setProcessando(true);
-    // Simula a comunicação com a maquininha / gateway
-    setTimeout(() => {
-      setProcessando(false);
-      const dados: DadosPagamento = {
-        formaPagamento: forma,
-        parcelas: forma === "CREDITO_PARCELADO" ? parcelas : 1,
-        taxaPercentual,
-        valorTaxa,
-        totalLiquido,
-        totalCobrado: total,
-        valorRecebido: forma === "DINHEIRO" ? valorRecebido : undefined,
-        troco: forma === "DINHEIRO" ? troco : undefined,
-      };
-      aoConfirmar(dados);
+
+    const dados: DadosPagamento = {
+      formaPagamento: forma,
+      parcelas: 1,
+      taxaPercentual,
+      valorTaxa,
+      totalLiquido,
+      totalCobrado: total,
+      valorRecebido: forma === "DINHEIRO" ? valorRecebido : undefined,
+      troco: forma === "DINHEIRO" ? troco : undefined,
+    };
+
+    try {
+      const resultado = await aoConfirmar(dados);
+
+      if (!resultado.sucesso) {
+        if (resultado.mensagem) {
+          toast.error(resultado.mensagem);
+        }
+        return;
+      }
+
+      setVendaIdGerada(resultado.vendaId || null);
       setVendaFinalizada(true);
-    }, 1000);
+    } finally {
+      setProcessando(false);
+    }
   };
 
   const handleNovaVenda = () => {
@@ -220,6 +215,8 @@ export function ModalPagamento({
       aoFechar();
     }, 80);
   };
+
+  const urlRecibo = vendaIdGerada ? `/recibo/${vendaIdGerada}` : null;
 
   return (
     <Dialog
@@ -240,14 +237,33 @@ export function ModalPagamento({
               <p className="text-slate-600 dark:text-slate-400">
                 Total da venda: <span className="font-semibold">{formatarMoeda(total)}</span>
               </p>
+              {vendaIdGerada && (
+                <p className="text-slate-600 dark:text-slate-400">
+                  Comprovante: <span className="font-semibold">#{vendaIdGerada.slice(0, 8)}</span>
+                </p>
+              )}
             </div>
+
+            {urlRecibo && (
+              <div className="w-full rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden bg-white dark:bg-slate-900">
+                <iframe
+                  src={`${urlRecibo}?embed=1`}
+                  title="Preview do recibo"
+                  className="w-full h-72"
+                />
+              </div>
+            )}
 
             <div className="w-full space-y-3">
               <Button
                 type="button"
                 variant="outline"
                 className="w-full"
-                onClick={() => window.print()}
+                onClick={() => {
+                  if (!urlRecibo) return;
+                  window.open(`${urlRecibo}?autoprint=1`, "_blank", "noopener,noreferrer");
+                }}
+                disabled={!urlRecibo}
               >
                 <Printer className="h-4 w-4 mr-2" />
                 Imprimir Recibo
@@ -259,7 +275,11 @@ export function ModalPagamento({
                 className="w-full hover:bg-emerald-50 hover:text-emerald-700 dark:hover:bg-emerald-900/20"
                 onClick={() =>
                   window.open(
-                    "https://wa.me/?text=Ol%C3%A1!%20Segue%20o%20comprovante%20da%20sua%20compra%20na%20Konext...",
+                    `https://wa.me/?text=${encodeURIComponent(
+                      `Ola! Segue o comprovante da sua compra na Konext. Total: ${formatarMoeda(total)}${
+                        vendaIdGerada ? ` | Venda: #${vendaIdGerada.slice(0, 8)}` : ""
+                      }`
+                    )}`,
                     "_blank"
                   )
                 }
@@ -292,8 +312,7 @@ export function ModalPagamento({
             <DialogHeader>
               <DialogTitle>Finalizar Venda</DialogTitle>
               <DialogDescription>
-                Selecione a forma de pagamento. As taxas da maquininha são
-                aplicadas automaticamente.
+                Selecione a forma de pagamento para concluir o recebimento.
               </DialogDescription>
             </DialogHeader>
 
@@ -320,7 +339,7 @@ export function ModalPagamento({
                         type="button"
                         onClick={() => {
                           setForma(opcao.valor);
-                          setParcelas(opcao.valor === "CREDITO_PARCELADO" ? 2 : 1);
+                          setParcelas(1);
                         }}
                         className={`flex flex-col items-center gap-1.5 rounded-lg border p-3 text-center transition-all ${
                           ativo
@@ -333,43 +352,13 @@ export function ModalPagamento({
                           {opcao.rotulo}
                         </span>
                         <span className="text-[10px] text-zinc-500 dark:text-zinc-400">
-                          {opcao.valor === "CREDITO_PARCELADO"
-                            ? "2x a 10x"
-                            : opcao.taxa > 0
-                              ? `taxa ${opcao.taxa}%`
-                              : "sem taxa"}
+                          {opcao.taxa > 0 ? `taxa ${opcao.taxa}%` : "sem taxa"}
                         </span>
                       </button>
                     );
                   })}
                 </div>
               </div>
-
-              {/* Parcelas (apenas crédito parcelado) */}
-              {forma === "CREDITO_PARCELADO" && (
-                <div className="space-y-2">
-                  <Label>Parcelas</Label>
-                  <Select
-                    value={String(parcelas)}
-                    onValueChange={(v) => setParcelas(Number(v))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.from({ length: 9 }, (_, i) => i + 2).map((n) => (
-                        <SelectItem key={n} value={String(n)}>
-                          {n}x de {formatarMoeda(total / n)} ({taxaPorParcela(n)}
-                          %)
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                    {parcelas}x de {formatarMoeda(valorParcela)}
-                  </p>
-                </div>
-              )}
 
               {/* Valor recebido (apenas dinheiro) */}
               {forma === "DINHEIRO" && (

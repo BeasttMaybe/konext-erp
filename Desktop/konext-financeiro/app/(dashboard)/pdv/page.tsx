@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Search,
   Plus,
@@ -9,9 +10,14 @@ import {
   ShoppingCart,
   CreditCard,
   Tag,
+  BarChart3,
+  RefreshCw,
+  Wallet,
+  Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -23,25 +29,49 @@ import {
   ModalPagamento,
   DadosPagamento,
 } from "@/components/pdv/modal-pagamento";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useCartStore, ProdutoPDV } from "@/store/useCartStore";
-
-/**
- * Catálogo de produtos mock para o PDV
- */
-const produtosCatalogo: ProdutoPDV[] = [
-  { id: "prod-001", nome: "Película de Vidro 3D", preco: 35 },
-  { id: "prod-002", nome: "Capa Anti-Impacto", preco: 49.9 },
-  { id: "prod-003", nome: "Carregador Turbo 33W", preco: 89.9 },
-  { id: "prod-004", nome: "Cabo USB-C 1m", preco: 24.9 },
-  { id: "prod-005", nome: "Fone Bluetooth TWS", preco: 159.9 },
-  { id: "prod-006", nome: "Power Bank 10000mAh", preco: 129.9 },
-  { id: "prod-007", nome: "Suporte Veicular", preco: 39.9 },
-  { id: "prod-008", nome: "Bateria Externa Tipo C", preco: 199.9 },
-  { id: "prod-009", nome: "Limpeza de Tela Kit", preco: 19.9 },
-  { id: "prod-010", nome: "Adaptador HDMI", preco: 59.9 },
-  { id: "prod-011", nome: "Caneta Touch Stylus", preco: 29.9 },
-  { id: "prod-012", nome: "Cartão Micro SD 128GB", preco: 79.9 },
-];
+import {
+  listarClientesPDV,
+  listarProdutosPDV,
+  obterPedidoOSParaPDV,
+  processarVendaComOSNoPDV,
+  type PedidoOSPDV,
+  processarVenda,
+  type ClientePDV,
+} from "@/app/actions/pdv";
+import { obterResumoCaixaDiario, type ResumoCaixaDiario } from "@/app/actions/caixa";
+import {
+  abrirNovaCaixaSession,
+  fecharCaixaSessionAtual,
+  obterResumoCaixaAbertoAtual,
+  verificarStatusCaixa,
+} from "@/app/actions/caixa-pdv";
+import { toast } from "sonner";
 
 const formatarMoeda = (valor: number): string =>
   new Intl.NumberFormat("pt-BR", {
@@ -49,13 +79,65 @@ const formatarMoeda = (valor: number): string =>
     currency: "BRL",
   }).format(valor);
 
+const formatarHora = (data: Date | string): string =>
+  new Intl.DateTimeFormat("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(data));
+
+const formatarFormaPagamento = (formaPagamento: string): string => {
+  const mapa: Record<string, string> = {
+    PIX: "PIX",
+    DINHEIRO: "Dinheiro",
+    CARTAO_DEBITO: "Cartao de Debito",
+    CARTAO_CREDITO: "Cartao de Credito",
+    BOLETO: "Boleto",
+    CREDIARIO: "Crediario",
+    EMPENHO_PUBLICO: "Empenho Publico",
+  };
+
+  return mapa[formaPagamento] ?? formaPagamento;
+};
+
 /**
  * Página do módulo PDV (Ponto de Venda)
  * Catálogo de produtos + carrinho com descontos
  */
 export default function PDVPage() {
+  return (
+    <Suspense fallback={<div className="w-full h-full" />}>
+      <PDVPageConteudo />
+    </Suspense>
+  );
+}
+
+function PDVPageConteudo() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const osIdNaUrl = searchParams.get("osId") ?? "";
+
   const [busca, setBusca] = useState("");
+  const [produtosCatalogo, setProdutosCatalogo] = useState<ProdutoPDV[]>([]);
+  const [carregandoProdutos, setCarregandoProdutos] = useState(false);
+  const [buscaCliente, setBuscaCliente] = useState("");
+  const [clientes, setClientes] = useState<ClientePDV[]>([]);
+  const [clienteSelecionadoId, setClienteSelecionadoId] = useState<string>("");
+  const [carregandoClientes, setCarregandoClientes] = useState(false);
   const [modalPagamentoAberto, setModalPagamentoAberto] = useState(false);
+  const [modalAbrirCaixaAberto, setModalAbrirCaixaAberto] = useState(false);
+  const [modalFecharCaixaAberto, setModalFecharCaixaAberto] = useState(false);
+  const [pedidoOS, setPedidoOS] = useState<PedidoOSPDV | null>(null);
+  const [carregandoPedidoOS, setCarregandoPedidoOS] = useState(false);
+  const [sheetResumoAberto, setSheetResumoAberto] = useState(false);
+  const [confirmarLimpezaAberto, setConfirmarLimpezaAberto] = useState(false);
+  const [valorAberturaCaixa, setValorAberturaCaixa] = useState<string>("0");
+  const [valorFechamentoCaixa, setValorFechamentoCaixa] = useState<string>("0");
+  const [carregandoResumoFechamento, setCarregandoResumoFechamento] = useState(false);
+  const [caixaAberto, setCaixaAberto] = useState(false);
+  const [abrindoCaixa, setAbrindoCaixa] = useState(false);
+  const [fechandoCaixa, setFechandoCaixa] = useState(false);
+  const [resumoCaixaDiario, setResumoCaixaDiario] = useState<ResumoCaixaDiario | null>(null);
+  const [carregandoResumoCaixa, setCarregandoResumoCaixa] = useState(false);
   const {
     itens,
     desconto,
@@ -73,35 +155,321 @@ export default function PDVPage() {
     const termo = busca.trim().toLowerCase();
     if (!termo) return produtosCatalogo;
     return produtosCatalogo.filter((p) => p.nome.toLowerCase().includes(termo));
-  }, [busca]);
+  }, [busca, produtosCatalogo]);
+
+  const normalizarBuscaCliente = (valor: string) =>
+    valor
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]/g, "");
+
+  const clientesFiltrados = useMemo(() => {
+    const termo = normalizarBuscaCliente(buscaCliente.trim());
+
+    if (!termo) {
+      return [];
+    }
+
+    return clientes
+      .filter((cliente) => {
+        const nome = normalizarBuscaCliente(cliente.nomeRazaoSocial);
+        const documento = normalizarBuscaCliente(cliente.documento);
+        const telefone = normalizarBuscaCliente(cliente.telefone);
+
+        return (
+          nome.includes(termo) ||
+          documento.includes(termo) ||
+          telefone.includes(termo)
+        );
+      })
+      .slice(0, 8);
+  }, [buscaCliente, clientes]);
+
+  const clienteSelecionado = useMemo(
+    () => clientes.find((cliente) => cliente.id === clienteSelecionadoId) || null,
+    [clienteSelecionadoId, clientes]
+  );
+
+  useEffect(() => {
+    const carregarPedidoOS = async () => {
+      if (!osIdNaUrl) {
+        setPedidoOS(null);
+        return;
+      }
+
+      try {
+        setCarregandoPedidoOS(true);
+        const pedido = await obterPedidoOSParaPDV(osIdNaUrl);
+        limparCarrinho();
+        setPedidoOS(pedido);
+        setClienteSelecionadoId(pedido.clienteId);
+        setBuscaCliente(pedido.nomeCliente);
+      } catch (error) {
+        setPedidoOS(null);
+        const mensagem = error instanceof Error ? error.message : "Nao foi possivel carregar a OS no PDV.";
+        toast.error(mensagem);
+        router.replace("/pdv");
+      } finally {
+        setCarregandoPedidoOS(false);
+      }
+    };
+
+    carregarPedidoOS();
+  }, [osIdNaUrl, router]);
+
+  useEffect(() => {
+    let ativo = true;
+
+    const carregarProdutos = async () => {
+      try {
+        setCarregandoProdutos(true);
+        const lista = await listarProdutosPDV();
+        if (!ativo) return;
+        setProdutosCatalogo(lista);
+      } catch {
+        if (!ativo) return;
+        toast.error("Nao foi possivel carregar os produtos do estoque.");
+      } finally {
+        if (!ativo) return;
+        setCarregandoProdutos(false);
+      }
+    };
+
+    const carregarClientes = async () => {
+      try {
+        setCarregandoClientes(true);
+        const lista = await listarClientesPDV();
+        if (!ativo) return;
+        setClientes(lista);
+      } catch {
+        if (!ativo) return;
+        toast.error("Nao foi possivel carregar os clientes do CRM.");
+      } finally {
+        if (!ativo) return;
+        setCarregandoClientes(false);
+      }
+    };
+
+    carregarProdutos();
+    carregarClientes();
+
+    const carregarStatusCaixa = async () => {
+      try {
+        const status = await verificarStatusCaixa();
+        if (!ativo) return;
+        setCaixaAberto(status);
+      } catch {
+        if (!ativo) return;
+        setCaixaAberto(false);
+      }
+    };
+
+    carregarStatusCaixa();
+
+    return () => {
+      ativo = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!sheetResumoAberto) return;
+
+    let ativo = true;
+
+    const carregarResumoCaixa = async () => {
+      try {
+        setCarregandoResumoCaixa(true);
+        const resumo = await obterResumoCaixaDiario();
+        if (!ativo) return;
+        setResumoCaixaDiario(resumo);
+      } catch {
+        if (!ativo) return;
+        toast.error("Nao foi possivel carregar o resumo do caixa de hoje.");
+      } finally {
+        if (!ativo) return;
+        setCarregandoResumoCaixa(false);
+      }
+    };
+
+    carregarResumoCaixa();
+
+    return () => {
+      ativo = false;
+    };
+  }, [sheetResumoAberto]);
 
   const resumo = getResumo();
+  const totalGeral = (pedidoOS?.valor ?? 0) + resumo.total;
 
   const finalizarVenda = () => {
-    if (itens.length === 0) return;
+    if (itens.length === 0 && !pedidoOS) return;
+
+    if (!caixaAberto) {
+      toast.error("Abra o caixa para finalizar a venda.");
+      return;
+    }
+
+    if (!clienteSelecionadoId) {
+      toast.error("Selecione um cliente antes de finalizar a venda.");
+      return;
+    }
+
     setModalPagamentoAberto(true);
   };
 
-  const aoConfirmarPagamento = (dados: DadosPagamento) => {
-    // Aqui seria registrada a venda no backend (forma de pagamento, taxas, etc.)
-    console.log("Venda finalizada:", dados);
+  const aoConfirmarPagamento = async (dados: DadosPagamento) => {
+    try {
+      const venda = pedidoOS
+        ? await processarVendaComOSNoPDV(pedidoOS.osId, itens, dados.formaPagamento)
+        : await processarVenda(
+            itens,
+            resumo.total,
+            dados.formaPagamento,
+            clienteSelecionadoId || undefined
+          );
+
+      console.log("Venda finalizada no banco:", venda.vendaId);
+      return { sucesso: true, vendaId: venda.vendaId };
+    } catch (erro) {
+      const mensagem =
+        erro instanceof Error
+          ? erro.message
+          : "Nao foi possivel processar a venda. Tente novamente.";
+
+      return {
+        sucesso: false,
+        mensagem,
+      };
+    }
   };
 
   const aoNovaVenda = () => {
     limparCarrinho();
+    setClienteSelecionadoId("");
+    setBuscaCliente("");
+    setPedidoOS(null);
+    router.replace("/pdv");
+  };
+
+  const atualizarResumoCaixa = async () => {
+    try {
+      setCarregandoResumoCaixa(true);
+      const resumo = await obterResumoCaixaDiario();
+      setResumoCaixaDiario(resumo);
+    } catch {
+      toast.error("Nao foi possivel atualizar o resumo do caixa.");
+    } finally {
+      setCarregandoResumoCaixa(false);
+    }
+  };
+
+  const confirmarLimpezaCarrinho = () => {
+    limparCarrinho();
+    toast.success("Carrinho limpo com sucesso.");
+    setConfirmarLimpezaAberto(false);
+  };
+
+  const abrirCaixa = async () => {
+    const valor = Number(valorAberturaCaixa || 0);
+
+    try {
+      setAbrindoCaixa(true);
+      await abrirNovaCaixaSession(valor);
+      setCaixaAberto(true);
+      setModalAbrirCaixaAberto(false);
+      toast.success("Caixa aberto com sucesso.");
+    } catch (error) {
+      const mensagem = error instanceof Error ? error.message : "Não foi possível abrir o caixa.";
+      toast.error(mensagem);
+    } finally {
+      setAbrindoCaixa(false);
+    }
+  };
+
+  const fecharCaixa = async () => {
+    const valor = Number(valorFechamentoCaixa || 0);
+
+    try {
+      setFechandoCaixa(true);
+      await fecharCaixaSessionAtual(Number.isFinite(valor) ? valor : null);
+      setCaixaAberto(false);
+      setModalFecharCaixaAberto(false);
+      toast.success("Caixa fechado com sucesso.");
+    } catch (error) {
+      const mensagem = error instanceof Error ? error.message : "Nao foi possivel fechar o caixa.";
+      toast.error(mensagem);
+    } finally {
+      setFechandoCaixa(false);
+    }
   };
 
   return (
     <div className="w-full h-full flex flex-col overflow-hidden bg-slate-50 dark:bg-slate-900">
       {/* Cabeçalho */}
       <div className="px-6 lg:px-8 py-6 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
-        <div className="max-w-7xl mx-auto w-full">
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-50">
-            PDV - Ponto de Venda
-          </h1>
-          <p className="text-slate-600 dark:text-slate-400 mt-2 text-sm">
-            Realize vendas rápidas com catálogo, carrinho e descontos
-          </p>
+        <div className="max-w-7xl mx-auto w-full flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-50">
+              PDV - Ponto de Venda
+            </h1>
+            <p className="text-slate-600 dark:text-slate-400 mt-2 text-sm">
+              Realize vendas rápidas com catálogo, carrinho e descontos
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2 sm:self-start">
+            <Button
+              type="button"
+              variant={caixaAberto ? "secondary" : "outline"}
+              onClick={() => setModalAbrirCaixaAberto(true)}
+              disabled={caixaAberto}
+            >
+              <Wallet className="h-4 w-4 mr-2" />
+              {caixaAberto ? "Caixa Aberto" : "Abrir Caixa"}
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={async () => {
+                try {
+                  setCarregandoResumoFechamento(true);
+                  const resumoFechamento = await obterResumoCaixaAbertoAtual();
+                  setValorFechamentoCaixa(resumoFechamento.valorSugeridoFechamento.toFixed(2));
+                  setModalFecharCaixaAberto(true);
+                } catch (error) {
+                  const mensagem = error instanceof Error ? error.message : "Nao foi possivel carregar o resumo de fechamento.";
+                  toast.error(mensagem);
+                } finally {
+                  setCarregandoResumoFechamento(false);
+                }
+              }}
+              disabled={!caixaAberto}
+            >
+              <Lock className="h-4 w-4 mr-2" />
+              {carregandoResumoFechamento ? "Preparando..." : "Fechar Caixa"}
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setConfirmarLimpezaAberto(true)}
+              disabled={itens.length === 0}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Limpar Carrinho
+            </Button>
+
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setSheetResumoAberto(true)}
+            >
+              <BarChart3 className="h-4 w-4 mr-2" />
+              Resumo do Dia
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -122,15 +490,32 @@ export default function PDVPage() {
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                {carregandoProdutos && (
+                  <p className="col-span-full text-center text-zinc-500 dark:text-zinc-400 py-8">
+                    Carregando produtos...
+                  </p>
+                )}
+
                 {produtosFiltrados.map((produto) => (
                   <button
                     key={produto.id}
                     onClick={() => adicionarItem(produto)}
                     className="text-left rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-slate-800 p-4 hover:border-blue-400 dark:hover:border-blue-600 hover:shadow-md transition-all"
                   >
-                    <div className="h-20 rounded-md bg-slate-100 dark:bg-slate-700 flex items-center justify-center mb-3">
-                      <ShoppingCart className="h-8 w-8 text-slate-400" />
-                    </div>
+                    {produto.imagemUrl ? (
+                      <div className="h-20 rounded-md overflow-hidden border border-zinc-200 dark:border-zinc-700 mb-3 bg-slate-100 dark:bg-slate-700">
+                        <img
+                          src={produto.imagemUrl}
+                          alt={produto.nome}
+                          className="h-full w-full object-cover"
+                          loading="lazy"
+                        />
+                      </div>
+                    ) : (
+                      <div className="h-20 rounded-md bg-slate-100 dark:bg-slate-700 flex items-center justify-center mb-3">
+                        <ShoppingCart className="h-8 w-8 text-slate-400" />
+                      </div>
+                    )}
                     <p className="text-sm font-medium text-slate-900 dark:text-slate-100 line-clamp-2">
                       {produto.nome}
                     </p>
@@ -140,9 +525,15 @@ export default function PDVPage() {
                   </button>
                 ))}
 
-                {produtosFiltrados.length === 0 && (
+                {!carregandoProdutos && produtosFiltrados.length === 0 && (
                   <p className="col-span-full text-center text-zinc-500 dark:text-zinc-400 py-8">
                     Nenhum produto encontrado.
+                  </p>
+                )}
+
+                {pedidoOS && (
+                  <p className="col-span-full text-xs text-emerald-600 dark:text-emerald-400">
+                    Modo OS ativo: voce pode adicionar capa, cabo, pelicula e outros produtos junto com esta OS no mesmo pedido.
                   </p>
                 )}
               </div>
@@ -160,7 +551,7 @@ export default function PDVPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={limparCarrinho}
+                      onClick={() => setConfirmarLimpezaAberto(true)}
                       className="text-red-600 hover:text-red-700"
                     >
                       Limpar
@@ -168,7 +559,122 @@ export default function PDVPage() {
                   )}
                 </div>
 
+                <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                    Ordem de Serviço no PDV
+                  </p>
+
+                  {carregandoPedidoOS && (
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                      Carregando dados da OS...
+                    </p>
+                  )}
+
+                  {!carregandoPedidoOS && !pedidoOS && (
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                      Nenhuma OS enviada para este atendimento.
+                    </p>
+                  )}
+
+                  {!carregandoPedidoOS && pedidoOS && (
+                    <div className="rounded-md border border-blue-200 dark:border-blue-900/50 bg-blue-50 dark:bg-blue-950/30 p-3 space-y-2">
+                      <p className="text-xs font-semibold text-blue-700 dark:text-blue-300">
+                        OS #{pedidoOS.numeroOs}
+                      </p>
+                      <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                        Cliente: {pedidoOS.nomeCliente}
+                      </p>
+                      <p className="text-xs text-zinc-700 dark:text-zinc-300">
+                        Aparelho: {pedidoOS.aparelho}
+                      </p>
+                      <p className="text-xs text-zinc-700 dark:text-zinc-300 line-clamp-2">
+                        Defeito: {pedidoOS.defeito}
+                      </p>
+                      <p className="text-sm font-bold text-blue-700 dark:text-blue-300">
+                        Valor OS: {formatarMoeda(pedidoOS.valor)}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
                 {/* Itens */}
+                <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                    Cliente da Venda
+                  </p>
+
+                  <Input
+                    placeholder="Buscar por nome, CPF ou telefone"
+                    value={buscaCliente}
+                    onChange={(e) => setBuscaCliente(e.target.value)}
+                  />
+
+                  <div className="max-h-40 overflow-y-auto rounded-md border border-zinc-200 dark:border-zinc-800 divide-y divide-zinc-100 dark:divide-zinc-800">
+                    {carregandoClientes && (
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400 p-3">
+                        Carregando clientes...
+                      </p>
+                    )}
+
+                    {!carregandoClientes && !buscaCliente.trim() && (
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400 p-3">
+                        Digite para buscar um cliente.
+                      </p>
+                    )}
+
+                    {!carregandoClientes && !!buscaCliente.trim() && clientesFiltrados.length === 0 && (
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400 p-3">
+                        Nenhum cliente encontrado.
+                      </p>
+                    )}
+
+                    {!carregandoClientes &&
+                      clientesFiltrados.map((cliente) => (
+                        <button
+                          key={cliente.id}
+                          type="button"
+                          onClick={() => {
+                            setClienteSelecionadoId(cliente.id);
+                            setBuscaCliente(cliente.nomeRazaoSocial);
+                          }}
+                          className={`w-full text-left p-3 transition-colors ${
+                            clienteSelecionadoId === cliente.id
+                              ? "bg-blue-50 dark:bg-blue-950/40"
+                              : "hover:bg-zinc-50 dark:hover:bg-slate-700/40"
+                          }`}
+                        >
+                          <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
+                            {cliente.nomeRazaoSocial}
+                          </p>
+                        </button>
+                      ))}
+                  </div>
+
+                  {clienteSelecionado && (
+                    <div className="flex items-center justify-between rounded-md bg-emerald-50 dark:bg-emerald-950/30 px-3 py-2">
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                          Cliente selecionado
+                        </p>
+                        <p className="text-sm text-emerald-800 dark:text-emerald-200 truncate">
+                          {clienteSelecionado.nomeRazaoSocial}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setClienteSelecionadoId("");
+                          setBuscaCliente("");
+                        }}
+                      >
+                        Limpar
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
                 <div className="max-h-80 overflow-y-auto divide-y divide-zinc-100 dark:divide-zinc-800">
                   {itens.length === 0 && (
                     <p className="text-center text-zinc-500 dark:text-zinc-400 py-10 text-sm">
@@ -266,23 +772,25 @@ export default function PDVPage() {
                       <span>Subtotal</span>
                       <span>{formatarMoeda(resumo.subtotal)}</span>
                     </div>
+                    {pedidoOS && (
+                      <div className="flex justify-between text-blue-600 dark:text-blue-400">
+                        <span>OS enviada para PDV</span>
+                        <span>{formatarMoeda(pedidoOS.valor)}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
                       <span>Desconto</span>
                       <span>- {formatarMoeda(resumo.descontoAplicado)}</span>
                     </div>
                     <div className="flex justify-between text-lg font-bold text-slate-900 dark:text-slate-100 pt-2 border-t border-zinc-100 dark:border-zinc-800">
                       <span>Total</span>
-                      <span>{formatarMoeda(resumo.total)}</span>
+                      <span>{formatarMoeda(totalGeral)}</span>
                     </div>
                   </div>
 
-                  <Button
-                    className="w-full"
-                    disabled={itens.length === 0}
-                    onClick={finalizarVenda}
-                  >
+                  <Button className="w-full" disabled={(itens.length === 0 && !pedidoOS) || !clienteSelecionadoId} onClick={finalizarVenda}>
                     <CreditCard className="h-4 w-4 mr-2" />
-                    Finalizar Venda
+                    {caixaAberto ? "Finalizar Venda" : "Abra o Caixa"}
                   </Button>
                 </div>
               </div>
@@ -294,11 +802,278 @@ export default function PDVPage() {
       {/* Modal de pagamento */}
       <ModalPagamento
         aberto={modalPagamentoAberto}
-        total={resumo.total}
+        total={totalGeral}
         aoFechar={() => setModalPagamentoAberto(false)}
         aoConfirmar={aoConfirmarPagamento}
         aoNovaVenda={aoNovaVenda}
       />
+
+      <Dialog open={modalAbrirCaixaAberto} onOpenChange={setModalAbrirCaixaAberto}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Abertura de Caixa</DialogTitle>
+            <DialogDescription>
+              Informe o valor inicial para troco e abertura da sessão.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            <label htmlFor="valor-abertura-caixa" className="text-sm font-medium text-slate-700 dark:text-slate-200">
+              Valor Inicial/Troco (R$)
+            </label>
+            <Input
+              id="valor-abertura-caixa"
+              type="number"
+              min="0"
+              step="0.01"
+              value={valorAberturaCaixa}
+              onChange={(evento) => setValorAberturaCaixa(evento.target.value)}
+              placeholder="0,00"
+            />
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setModalAbrirCaixaAberto(false)}>
+              Cancelar
+            </Button>
+            <Button type="button" onClick={abrirCaixa} disabled={abrindoCaixa}>
+              {abrindoCaixa ? "Abrindo..." : "Confirmar Abertura"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={modalFecharCaixaAberto} onOpenChange={setModalFecharCaixaAberto}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Fechamento de Caixa</DialogTitle>
+            <DialogDescription>
+              Informe o valor final conferido para encerrar esta sessao.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            <label htmlFor="valor-fechamento-caixa" className="text-sm font-medium text-slate-700 dark:text-slate-200">
+              Valor Final (R$)
+            </label>
+            <Input
+              id="valor-fechamento-caixa"
+              type="number"
+              min="0"
+              step="0.01"
+              value={valorFechamentoCaixa}
+              onChange={(evento) => setValorFechamentoCaixa(evento.target.value)}
+              placeholder="0,00"
+            />
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setModalFecharCaixaAberto(false)}>
+              Cancelar
+            </Button>
+            <Button type="button" onClick={fecharCaixa} disabled={fechandoCaixa}>
+              {fechandoCaixa ? "Fechando..." : "Confirmar Fechamento"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={confirmarLimpezaAberto} onOpenChange={setConfirmarLimpezaAberto}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Limpar carrinho</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja limpar todo o carrinho?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmarLimpezaCarrinho}>Limpar Carrinho</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Sheet open={sheetResumoAberto} onOpenChange={setSheetResumoAberto}>
+        <SheetContent side="right" className="w-full sm:max-w-2xl p-0">
+          <div className="h-full flex flex-col">
+            <SheetHeader className="px-6 py-5 border-b border-zinc-200 dark:border-zinc-800">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <SheetTitle>Resumo do Dia</SheetTitle>
+                  <SheetDescription>
+                    Fechamento diario do caixa com faturamento, custos e lucro bruto.
+                  </SheetDescription>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={atualizarResumoCaixa}
+                  disabled={carregandoResumoCaixa}
+                >
+                  <RefreshCw
+                    className={`h-4 w-4 mr-2 ${carregandoResumoCaixa ? "animate-spin" : ""}`}
+                  />
+                  Atualizar
+                </Button>
+              </div>
+            </SheetHeader>
+
+            <div className="px-6 pt-5">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-900/60 dark:bg-blue-950/30 p-4">
+                  <p className="text-xs font-medium text-blue-700 dark:text-blue-300">
+                    Faturamento Hoje
+                  </p>
+                  <p className="text-xl font-bold text-blue-900 dark:text-blue-100 mt-2">
+                    {formatarMoeda(resumoCaixaDiario?.totalVendas ?? 0)}
+                  </p>
+                </div>
+
+                <div className="rounded-lg border border-orange-200 bg-orange-50 dark:border-orange-900/60 dark:bg-orange-950/30 p-4">
+                  <p className="text-xs font-medium text-orange-700 dark:text-orange-300">
+                    Custo de Mercadoria
+                  </p>
+                  <p className="text-xl font-bold text-orange-900 dark:text-orange-100 mt-2">
+                    {formatarMoeda(resumoCaixaDiario?.custoTotal ?? 0)}
+                  </p>
+                </div>
+
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 dark:border-emerald-900/60 dark:bg-emerald-950/30 p-4">
+                  <p className="text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                    Lucro Bruto
+                  </p>
+                  <p className="text-xl font-bold text-emerald-900 dark:text-emerald-100 mt-2">
+                    {formatarMoeda(resumoCaixaDiario?.lucroBruto ?? 0)}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-4">
+              <div className="border-t border-zinc-200 dark:border-zinc-800" />
+            </div>
+
+            <div className="px-6 pb-2">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                Sessoes Fechadas Hoje
+              </h3>
+            </div>
+
+            <div className="px-6 pb-4 space-y-3">
+              {!carregandoResumoCaixa && (resumoCaixaDiario?.sessoesFechadasHoje.length ?? 0) === 0 && (
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                  Nenhum fechamento de caixa registrado hoje.
+                </p>
+              )}
+
+              {!carregandoResumoCaixa &&
+                (resumoCaixaDiario?.sessoesFechadasHoje ?? []).map((sessao) => (
+                  <div
+                    key={sessao.id}
+                    className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-4 bg-white dark:bg-slate-900"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                        {formatarHora(sessao.dataAbertura)} - {formatarHora(sessao.dataFechamento)}
+                      </p>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                        #{sessao.id.slice(0, 8)}
+                      </p>
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                      <p className="text-zinc-600 dark:text-zinc-300">
+                        Abertura: <span className="font-semibold">{formatarMoeda(sessao.valorAbertura)}</span>
+                      </p>
+                      <p className="text-zinc-600 dark:text-zinc-300">
+                        Vendas: <span className="font-semibold">{formatarMoeda(sessao.totalVendasSessao)}</span>
+                      </p>
+                      <p className="text-zinc-600 dark:text-zinc-300">
+                        Esperado: <span className="font-semibold">{formatarMoeda(sessao.valorEsperadoFechamento)}</span>
+                      </p>
+                      <p className="text-zinc-600 dark:text-zinc-300">
+                        Fechamento: <span className="font-semibold">{formatarMoeda(sessao.valorFechamento)}</span>
+                      </p>
+                    </div>
+
+                    <p
+                      className={`mt-3 text-xs font-semibold ${
+                        sessao.diferencaFechamento === 0
+                          ? "text-emerald-600 dark:text-emerald-400"
+                          : sessao.diferencaFechamento > 0
+                            ? "text-blue-600 dark:text-blue-400"
+                            : "text-red-600 dark:text-red-400"
+                      }`}
+                    >
+                      Diferenca: {formatarMoeda(sessao.diferencaFechamento)}
+                    </p>
+                  </div>
+                ))}
+            </div>
+
+            <div className="px-6 py-4">
+              <div className="border-t border-zinc-200 dark:border-zinc-800" />
+            </div>
+
+            <div className="px-6 pb-2">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                Vendas de Hoje
+              </h3>
+            </div>
+
+            <ScrollArea className="flex-1 px-6 pb-6">
+              {carregandoResumoCaixa && (
+                <p className="text-sm text-zinc-500 dark:text-zinc-400 py-8 text-center">
+                  Carregando resumo do caixa...
+                </p>
+              )}
+
+              {!carregandoResumoCaixa && (resumoCaixaDiario?.vendas.length ?? 0) === 0 && (
+                <p className="text-sm text-zinc-500 dark:text-zinc-400 py-8 text-center">
+                  Nenhuma venda registrada hoje.
+                </p>
+              )}
+
+              {!carregandoResumoCaixa &&
+                (resumoCaixaDiario?.vendas ?? []).map((venda) => (
+                  <div
+                    key={venda.id}
+                    className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-4 mb-3 bg-white dark:bg-slate-900"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                        {formatarHora(venda.criadoEm)}
+                      </p>
+                      <p className="text-sm font-bold text-blue-600 dark:text-blue-400">
+                        {formatarMoeda(venda.valorTotal)}
+                      </p>
+                    </div>
+
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                      Cliente: {venda.nomeCliente || "Nao identificado"}
+                    </p>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                      Forma de pagamento: {formatarFormaPagamento(venda.formaPagamento)}
+                    </p>
+
+                    <div className="mt-3 space-y-1">
+                      {venda.itens.map((item) => (
+                        <p
+                          key={item.id}
+                          className="text-xs text-zinc-600 dark:text-zinc-300"
+                        >
+                          {item.quantidade}x {item.nomeProduto} - {formatarMoeda(item.subtotal)}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+            </ScrollArea>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

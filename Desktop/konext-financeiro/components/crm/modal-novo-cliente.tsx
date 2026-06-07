@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useForm, Controller } from "react-hook-form";
+import { useEffect, useState } from "react";
+import { useForm, Controller, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Dialog,
@@ -25,13 +25,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
+import { Loader2, Search } from "lucide-react";
+import { toast } from "sonner";
 import { formClienteSchema, type FormCliente } from "@/lib/validations/crm";
+import { consultarCnpjReceitaCliente } from "@/app/actions/crm";
 
 interface PropsModalNovoCliente {
   aberto: boolean;
   aoFechar: () => void;
-  aoSalvar: (dados: FormCliente) => void;
+  aoSalvar: (dados: FormCliente) => Promise<{ sucesso: boolean }>;
   carregando?: boolean;
 }
 
@@ -61,30 +63,139 @@ export function ModalNovoCliente({
   carregando = false,
 }: PropsModalNovoCliente) {
   const [abaAtiva, setAbaAtiva] = useState("dados-principais");
+  const [buscandoCep, setBuscandoCep] = useState(false);
+  const [buscandoCnpj, setBuscandoCnpj] = useState(false);
+  const [mensagemCep, setMensagemCep] = useState<string | null>(null);
 
   const {
     control,
     handleSubmit,
     watch,
     reset,
-    formState: { errors },
+    setValue,
+    getValues,
+    formState: { errors, isSubmitting },
   } = useForm<FormCliente>({
-    resolver: zodResolver(formClienteSchema),
+    resolver: zodResolver(formClienteSchema) as unknown as Resolver<FormCliente>,
     defaultValues: valoresPadrao,
   });
 
   const tipoPessoa = watch("tipoPessoa");
+  const categoriaAtual = watch("categoria");
+
+  useEffect(() => {
+    if (tipoPessoa === "JURIDICA" && categoriaAtual === "CLIENTE_FINAL") {
+      setValue("categoria", "EMPRESA", { shouldDirty: true });
+    }
+  }, [tipoPessoa, categoriaAtual, setValue]);
 
   const aoCancelar = () => {
     reset(valoresPadrao);
     setAbaAtiva("dados-principais");
+    setMensagemCep(null);
     aoFechar();
   };
 
-  const aoSubmeter = (dados: FormCliente) => {
-    aoSalvar(dados);
+  const aoSubmeter = async (dados: FormCliente) => {
+    const resultado = await aoSalvar(dados);
+    if (!resultado.sucesso) return;
+
     reset(valoresPadrao);
     setAbaAtiva("dados-principais");
+    setMensagemCep(null);
+  };
+
+  const limparCep = (valor: string) => valor.replace(/\D/g, "").slice(0, 8);
+
+  const formatarCep = (valor: string) => {
+    const cepLimpo = limparCep(valor);
+
+    if (cepLimpo.length <= 5) return cepLimpo;
+
+    return `${cepLimpo.slice(0, 5)}-${cepLimpo.slice(5)}`;
+  };
+
+  const buscarEnderecoPorCep = async (cepInformado: string) => {
+    const cepLimpo = limparCep(cepInformado);
+
+    if (cepLimpo.length !== 8) {
+      setMensagemCep(null);
+      return;
+    }
+
+    try {
+      setBuscandoCep(true);
+      setMensagemCep("Buscando endereco pelo CEP...");
+
+      const resposta = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`);
+
+      if (!resposta.ok) {
+        throw new Error("Falha ao consultar CEP");
+      }
+
+      const dados = (await resposta.json()) as {
+        erro?: boolean;
+        logradouro?: string;
+        bairro?: string;
+        localidade?: string;
+        uf?: string;
+      };
+
+      if (dados.erro) {
+        setMensagemCep("CEP nao encontrado.");
+        return;
+      }
+
+      setValue("logradouro", dados.logradouro || "", { shouldDirty: true });
+      setValue("bairro", dados.bairro || "", { shouldDirty: true });
+      setValue("cidade", dados.localidade || "", { shouldDirty: true });
+      setValue("estado", (dados.uf || "").toUpperCase(), { shouldDirty: true });
+
+      setMensagemCep("Endereco preenchido automaticamente.");
+    } catch {
+      setMensagemCep("Nao foi possivel buscar o CEP agora.");
+    } finally {
+      setBuscandoCep(false);
+    }
+  };
+
+  const buscarDadosCnpj = async () => {
+    const documentoAtual = getValues("documento");
+
+    if (tipoPessoa !== "JURIDICA") {
+      toast.error("A busca na Receita e valida apenas para Pessoa Juridica.");
+      return;
+    }
+
+    try {
+      setBuscandoCnpj(true);
+      const resultado = await consultarCnpjReceitaCliente(documentoAtual);
+
+      if (!resultado.sucesso) {
+        toast.error("CNPJ invalido ou nao encontrado na Receita.");
+        return;
+      }
+
+      const dados = resultado.dados;
+
+      setValue("nomeRazaoSocial", dados.nomeRazaoSocial, { shouldDirty: true });
+      setValue("nomeFantasia", dados.nomeFantasia, { shouldDirty: true });
+      setValue("documento", dados.documento, { shouldDirty: true });
+      setValue("inscricaoEstadual", dados.inscricaoEstadual, { shouldDirty: true });
+      setValue("telefone", dados.telefone, { shouldDirty: true });
+      setValue("cep", formatarCep(dados.cep), { shouldDirty: true });
+      setValue("logradouro", dados.logradouro, { shouldDirty: true });
+      setValue("numero", dados.numero, { shouldDirty: true });
+      setValue("bairro", dados.bairro, { shouldDirty: true });
+      setValue("cidade", dados.cidade, { shouldDirty: true });
+      setValue("estado", dados.estado, { shouldDirty: true });
+
+      toast.success("Dados da empresa carregados com sucesso.");
+    } catch {
+      toast.error("Nao foi possivel consultar o CNPJ agora.");
+    } finally {
+      setBuscandoCnpj(false);
+    }
   };
 
   return (
@@ -177,17 +288,35 @@ export function ModalNovoCliente({
 
                 <div>
                   <Label htmlFor="documento">CPF / CNPJ</Label>
-                  <Controller
-                    name="documento"
-                    control={control}
-                    render={({ field }) => (
-                      <Input
-                        id="documento"
-                        {...field}
-                        className={errors.documento ? "border-destructive" : ""}
-                      />
+                  <div className="flex items-end gap-2">
+                    <Controller
+                      name="documento"
+                      control={control}
+                      render={({ field }) => (
+                        <Input
+                          id="documento"
+                          {...field}
+                          className={errors.documento ? "border-destructive" : ""}
+                        />
+                      )}
+                    />
+                    {tipoPessoa === "JURIDICA" && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={buscarDadosCnpj}
+                        disabled={buscandoCnpj}
+                        className="whitespace-nowrap"
+                      >
+                        {buscandoCnpj ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Search className="h-4 w-4 mr-2" />
+                        )}
+                        {buscandoCnpj ? "Buscando..." : "Buscar Dados"}
+                      </Button>
                     )}
-                  />
+                  </div>
                   {errors.documento?.message && (
                     <p className="text-xs text-destructive mt-1">
                       {errors.documento.message}
@@ -301,9 +430,27 @@ export function ModalNovoCliente({
                     name="cep"
                     control={control}
                     render={({ field }) => (
-                      <Input id="cep" {...field} value={field.value || ""} />
+                      <Input
+                        id="cep"
+                        {...field}
+                        maxLength={9}
+                        value={formatarCep(field.value || "")}
+                        onChange={(evento) => {
+                          field.onChange(formatarCep(evento.target.value));
+                          if (mensagemCep && !buscandoCep) {
+                            setMensagemCep(null);
+                          }
+                        }}
+                        onBlur={async (evento) => {
+                          field.onBlur();
+                          await buscarEnderecoPorCep(evento.target.value);
+                        }}
+                      />
                     )}
                   />
+                  {mensagemCep && (
+                    <p className="text-xs text-muted-foreground mt-1">{mensagemCep}</p>
+                  )}
                 </div>
 
                 <div>
@@ -399,12 +546,12 @@ export function ModalNovoCliente({
               type="button"
               variant="outline"
               onClick={aoCancelar}
-              disabled={carregando}
+              disabled={carregando || isSubmitting}
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={carregando}>
-              {carregando && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            <Button type="submit" disabled={carregando || isSubmitting}>
+              {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Salvar Cliente
             </Button>
           </DialogFooter>

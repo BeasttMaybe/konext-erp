@@ -1,13 +1,89 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
-import { Avatar, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import {
+  atualizarLogoEmpresa,
+  atualizarPerfil,
+  obterDadosPerfilConfiguracao,
+} from "@/app/actions/configuracoes";
 
 export default function PerfilPage() {
+  const [usuarioId, setUsuarioId] = useState<string | null>(null);
+  const [configId, setConfigId] = useState<string | null>(null);
+  const [nomeCompleto, setNomeCompleto] = useState("");
+  const [email, setEmail] = useState("");
+  const [fotoPerfilUrl, setFotoPerfilUrl] = useState("");
+  const [logoEmpresaUrl, setLogoEmpresaUrl] = useState("");
+  const [carregando, setCarregando] = useState(true);
+  const [salvando, setSalvando] = useState(false);
+
+  useEffect(() => {
+    let ativo = true;
+
+    const carregarDados = async () => {
+      try {
+        setCarregando(true);
+        const dados = await obterDadosPerfilConfiguracao();
+        if (!ativo) return;
+
+        setUsuarioId(dados.usuario?.id ?? null);
+        setConfigId(dados.configuracao?.id ?? null);
+        setNomeCompleto(dados.usuario?.nome ?? "");
+        setEmail(dados.usuario?.email ?? "");
+        setFotoPerfilUrl(dados.usuario?.fotoPerfilUrl ?? "");
+        setLogoEmpresaUrl(dados.configuracao?.logoUrl ?? "");
+      } catch {
+        if (!ativo) return;
+        toast.error("Nao foi possivel carregar os dados do perfil.");
+      } finally {
+        if (!ativo) return;
+        setCarregando(false);
+      }
+    };
+
+    carregarDados();
+
+    return () => {
+      ativo = false;
+    };
+  }, []);
+
+  const iniciais = useMemo(() => {
+    const partes = nomeCompleto.trim().split(/\s+/).filter(Boolean);
+    if (partes.length === 0) return "KP";
+    if (partes.length === 1) return partes[0].slice(0, 2).toUpperCase();
+    return `${partes[0][0]}${partes[partes.length - 1][0]}`.toUpperCase();
+  }, [nomeCompleto]);
+
+  const onSalvar = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    try {
+      setSalvando(true);
+      await atualizarPerfil(usuarioId, {
+        nome: nomeCompleto,
+        email,
+        fotoPerfilUrl,
+      });
+
+      await atualizarLogoEmpresa(configId, logoEmpresaUrl);
+
+      toast.success("Alteracoes salvas com sucesso.");
+    } catch (error) {
+      const mensagem = error instanceof Error ? error.message : "Nao foi possivel salvar as alteracoes.";
+      toast.error(mensagem);
+    } finally {
+      setSalvando(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="space-y-2">
@@ -22,58 +98,81 @@ export default function PerfilPage() {
           <div className="flex flex-col items-center text-center space-y-4">
             <Avatar className="h-24 w-24">
               <AvatarImage
-                src="https://api.dicebear.com/7.x/avataaars/svg?seed=Gabriel%20Vieira"
-                alt="Gabriel Vieira"
+                src={fotoPerfilUrl || undefined}
+                alt={nomeCompleto || "Usuario"}
               />
+              <AvatarFallback>{iniciais}</AvatarFallback>
             </Avatar>
 
             <div>
-              <p className="text-lg font-semibold text-foreground">Gabriel Vieira</p>
-              <p className="text-sm text-muted-foreground">gabriel@konext.com.br</p>
+              <p className="text-lg font-semibold text-foreground">{nomeCompleto || "Usuario Konext"}</p>
+              <p className="text-sm text-muted-foreground">{email || "usuario@konext.local"}</p>
             </div>
 
             <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white">
-              Administrador / Tech Lead
+              Perfil de Usuario
             </Badge>
           </div>
         </Card>
 
         <Card className="border-border bg-card p-6">
-          <form className="space-y-4">
+          <form className="space-y-4" onSubmit={onSalvar}>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="nomeCompleto">Nome Completo</Label>
-                <Input id="nomeCompleto" defaultValue="Gabriel Vieira" placeholder="Informe seu nome completo" />
+                <Input
+                  id="nomeCompleto"
+                  value={nomeCompleto}
+                  onChange={(e) => setNomeCompleto(e.target.value)}
+                  placeholder="Informe seu nome completo"
+                  disabled={carregando || salvando}
+                />
               </div>
 
               <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="email">E-mail</Label>
-                <Input id="email" type="email" defaultValue="gabriel@konext.com.br" placeholder="seu@email.com.br" />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="senhaAtual">Senha Atual</Label>
-                <Input id="senhaAtual" type="password" placeholder="Digite sua senha atual" />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="novaSenha">Nova Senha</Label>
-                <Input id="novaSenha" type="password" placeholder="Digite a nova senha" />
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="seu@email.com.br"
+                  disabled={carregando || salvando}
+                />
               </div>
 
               <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="confirmarNovaSenha">Confirmar Nova Senha</Label>
+                <Label htmlFor="fotoPerfilUrl">URL da Foto de Perfil</Label>
                 <Input
-                  id="confirmarNovaSenha"
-                  type="password"
-                  placeholder="Digite novamente a nova senha"
+                  id="fotoPerfilUrl"
+                  type="url"
+                  value={fotoPerfilUrl}
+                  onChange={(e) => setFotoPerfilUrl(e.target.value)}
+                  placeholder="https://exemplo.com/minha-foto.png"
+                  disabled={carregando || salvando}
+                />
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="logoEmpresaUrl">URL da Logo da Empresa</Label>
+                <Input
+                  id="logoEmpresaUrl"
+                  type="url"
+                  value={logoEmpresaUrl}
+                  onChange={(e) => setLogoEmpresaUrl(e.target.value)}
+                  placeholder="https://exemplo.com/logo-da-empresa.png"
+                  disabled={carregando || salvando}
                 />
               </div>
             </div>
 
             <div className="pt-2">
-              <Button className="bg-emerald-600 hover:bg-emerald-700 text-white">
-                Atualizar Perfil
+              <Button
+                type="submit"
+                disabled={carregando || salvando}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                {salvando ? "Salvando..." : "Salvar Alteracoes"}
               </Button>
             </div>
           </form>

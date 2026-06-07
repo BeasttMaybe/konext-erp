@@ -37,13 +37,14 @@ export const formOsSchema = z.object({
   equipamento: z.string().nonempty("Ex: iPhone 13, Notebook Dell, FZ25..."),
   marca: z.string().optional(),
   modelo: z.string().optional(),
-  numeroSerieImei: z.string().optional(),
-  senhaAcesso: z.string().optional(),
+  imei: z.string().optional(),
+  senha: z.string().optional(),
+  senhaDesenho: z.string().optional(),
   
   // ===== Checklist de Entrada =====
   relatoCliente: z.string().nonempty("Descreva o que o cliente informou."),
   condicaoFisica: z.string().optional(), // Arranhões, tela trincada, etc
-  acessoriosDeixados: z.string().optional(), // Capinha, carregador, etc
+  acessorios: z.string().optional(), // Capinha, carregador, etc
   
   // ===== Orçamento (Motor de Cálculo) =====
   itensOrcamento: z

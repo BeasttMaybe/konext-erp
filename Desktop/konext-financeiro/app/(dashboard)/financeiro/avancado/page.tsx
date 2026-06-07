@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -172,6 +172,28 @@ function formatarMoeda(valor: number): string {
 function calcularPercentualTendencia(valorAtual: number, valorAnterior: number): number {
   if (valorAnterior === 0) return 0;
   return ((valorAtual - valorAnterior) / valorAnterior) * 100;
+}
+
+interface ContainerGraficoSeguroProps {
+  children: ReactNode;
+}
+
+function ContainerGraficoSeguro({ children }: ContainerGraficoSeguroProps) {
+  const [montado, setMontado] = useState(false);
+
+  useEffect(() => {
+    setMontado(true);
+  }, []);
+
+  if (!montado) {
+    return <div className="h-full w-full" />;
+  }
+
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      {children}
+    </ResponsiveContainer>
+  );
 }
 
 function CartaoKPI({
@@ -414,7 +436,7 @@ export default function PaginaFinanceiroAvancado() {
                   Evolução do Faturamento vs Despesas
                 </h2>
                 <div className="h-[360px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
+                    <ContainerGraficoSeguro>
                     <AreaChart data={dadosEvolucao}>
                       <defs>
                         <linearGradient id="corReceita" x1="0" y1="0" x2="0" y2="1">
@@ -437,7 +459,7 @@ export default function PaginaFinanceiroAvancado() {
                         }
                       />
                       <Tooltip
-                        formatter={(valor: number) => formatarMoeda(valor)}
+                        formatter={(valor) => formatarMoeda(Number(valor ?? 0))}
                         labelFormatter={(rotulo) => `Período: ${rotulo}`}
                       />
                       <Legend />
@@ -458,14 +480,14 @@ export default function PaginaFinanceiroAvancado() {
                         dot={{ r: 3 }}
                       />
                     </AreaChart>
-                  </ResponsiveContainer>
+                  </ContainerGraficoSeguro>
                 </div>
               </Card>
 
               <Card className="p-5 border-border bg-card min-w-0">
                 <h2 className="text-base font-semibold text-foreground mb-4">Receita por Segmento</h2>
                 <div className="h-[360px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ContainerGraficoSeguro>
                     <PieChart>
                       <Pie
                         data={dadosPizzaSegmento}
@@ -482,17 +504,18 @@ export default function PaginaFinanceiroAvancado() {
                         ))}
                       </Pie>
                       <Tooltip
-                        formatter={(valor: number, _nome, contexto: any) => {
+                        formatter={(valor, _nome, contexto: any) => {
+                          const valorNumerico = Number(valor ?? 0);
                           const percentual = contexto?.payload?.percentual ?? 0;
                           return [
-                            `${formatarMoeda(valor)} (${percentual.toFixed(1)}%)`,
+                            `${formatarMoeda(valorNumerico)} (${percentual.toFixed(1)}%)`,
                             "Receita",
                           ];
                         }}
                       />
                       <Legend />
                     </PieChart>
-                  </ResponsiveContainer>
+                  </ContainerGraficoSeguro>
                 </div>
               </Card>
             </div>
@@ -550,7 +573,7 @@ export default function PaginaFinanceiroAvancado() {
                   Mapa de Liquidez Pública
                 </h2>
                 <div className="h-[360px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ContainerGraficoSeguro>
                     <ComposedChart data={dadosLiquidezPublicaMock}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                       <XAxis dataKey="periodo" />
@@ -564,9 +587,9 @@ export default function PaginaFinanceiroAvancado() {
                       />
                       <Tooltip
                         labelFormatter={(rotulo) => `Período: ${rotulo}`}
-                        formatter={(valor: number, nome: string) => [
-                          formatarMoeda(valor),
-                          nome,
+                        formatter={(valor, nome) => [
+                          formatarMoeda(Number(valor ?? 0)),
+                          String(nome),
                         ]}
                       />
                       <Legend />
@@ -585,7 +608,7 @@ export default function PaginaFinanceiroAvancado() {
                         dot={{ r: 4 }}
                       />
                     </ComposedChart>
-                  </ResponsiveContainer>
+                  </ContainerGraficoSeguro>
                 </div>
               </Card>
 
@@ -594,7 +617,7 @@ export default function PaginaFinanceiroAvancado() {
                   Rentabilidade por Unidade de Negócio
                 </h2>
                 <div className="h-[360px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ContainerGraficoSeguro>
                     <BarChart data={dadosRentabilidadeUnidadeMock} barGap={8}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                       <XAxis dataKey="unidadeNegocio" tick={{ fontSize: 11 }} />
@@ -608,19 +631,20 @@ export default function PaginaFinanceiroAvancado() {
                       />
                       <Tooltip
                         labelFormatter={(rotulo) => `Unidade: ${rotulo}`}
-                        formatter={(valor: number, nome: string, contexto: any) => {
+                        formatter={(valor, nome, contexto: any) => {
+                          const valorNumerico = Number(valor ?? 0);
                           const faturamentoBruto = Number(contexto?.payload?.faturamentoBruto ?? 0);
                           const lucroLiquido = Number(contexto?.payload?.lucroLiquido ?? 0);
                           const margemLucro = faturamentoBruto > 0 ? (lucroLiquido / faturamentoBruto) * 100 : 0;
 
                           if (nome === "Lucro Líquido") {
                             return [
-                              `${formatarMoeda(valor)} (Margem ${margemLucro.toFixed(1)}%)`,
-                              nome,
+                              `${formatarMoeda(valorNumerico)} (Margem ${margemLucro.toFixed(1)}%)`,
+                              String(nome),
                             ];
                           }
 
-                          return [formatarMoeda(valor), nome];
+                          return [formatarMoeda(valorNumerico), String(nome)];
                         }}
                       />
                       <Legend />
@@ -637,7 +661,7 @@ export default function PaginaFinanceiroAvancado() {
                         radius={[6, 6, 0, 0]}
                       />
                     </BarChart>
-                  </ResponsiveContainer>
+                  </ContainerGraficoSeguro>
                 </div>
               </Card>
             </div>

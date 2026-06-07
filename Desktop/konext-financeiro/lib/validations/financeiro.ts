@@ -26,7 +26,15 @@ export const schemaFormContaAPagar = z.object({
     ),
   
   formaPagamento: z
-    .enum(["BOLETO", "PIX", "CARTAO", "TRANSFERENCIA"])
+    .enum([
+      "PIX",
+      "DINHEIRO",
+      "CARTAO_CREDITO",
+      "CARTAO_DEBITO",
+      "BOLETO",
+      "CREDIARIO",
+      "EMPENHO_PUBLICO",
+    ])
     .refine(
       val => !!val,
       "Selecione uma forma de pagamento válida."
@@ -136,10 +144,13 @@ export const opçõesCentroCusto = [
  * Opções de Forma de Pagamento
  */
 export const opçõesFormaPagamento = [
-  { valor: "BOLETO", rótulo: "Boleto" },
   { valor: "PIX", rótulo: "PIX" },
-  { valor: "CARTAO", rótulo: "Cartão de Crédito" },
-  { valor: "TRANSFERENCIA", rótulo: "Transferência Bancária" },
+  { valor: "DINHEIRO", rótulo: "Dinheiro" },
+  { valor: "CARTAO_CREDITO", rótulo: "Cartão de Crédito" },
+  { valor: "CARTAO_DEBITO", rótulo: "Cartão de Débito" },
+  { valor: "BOLETO", rótulo: "Boleto" },
+  { valor: "CREDIARIO", rótulo: "Crediário" },
+  { valor: "EMPENHO_PUBLICO", rótulo: "Empenho Público" },
 ];
 
 // ============================================================================
@@ -180,7 +191,15 @@ export const formContaAReceberSchema = z.object({
 
   // Como e de onde vem (Rastreamento de Origem)
   formaRecebimento: z
-    .enum(["BOLETO", "PIX", "CARTAO", "TRANSFERENCIA", "EMPENHO_PUBLICO"])
+    .enum([
+      "PIX",
+      "DINHEIRO",
+      "CARTAO_CREDITO",
+      "CARTAO_DEBITO",
+      "BOLETO",
+      "CREDIARIO",
+      "EMPENHO_PUBLICO",
+    ])
     .refine(
       val => !!val,
       "Selecione uma forma de recebimento válida."
@@ -261,10 +280,12 @@ export const clientesMock = [
  * Opções de Forma de Recebimento
  */
 export const opçõesFormaRecebimento = [
-  { valor: "BOLETO", rótulo: "Boleto" },
   { valor: "PIX", rótulo: "PIX" },
-  { valor: "CARTAO", rótulo: "Cartão de Crédito" },
-  { valor: "TRANSFERENCIA", rótulo: "Transferência Bancária" },
+  { valor: "DINHEIRO", rótulo: "Dinheiro" },
+  { valor: "CARTAO_CREDITO", rótulo: "Cartão de Crédito" },
+  { valor: "CARTAO_DEBITO", rótulo: "Cartão de Débito" },
+  { valor: "BOLETO", rótulo: "Boleto" },
+  { valor: "CREDIARIO", rótulo: "Crediário" },
   { valor: "EMPENHO_PUBLICO", rótulo: "Empenho Público" },
 ];
 
