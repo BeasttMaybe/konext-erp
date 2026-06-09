@@ -66,6 +66,78 @@ export async function listarProdutos() {
   });
 }
 
+// ── Paginação de Produtos ──────────────────────────────────────────────────────
+
+export interface PaginatedResult<T> {
+  data: T[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
+
+export async function listarProdutosPaginado(
+  page: number = 1,
+  limit: number = 20,
+  busca?: string,
+  categoria?: string
+): Promise<PaginatedResult<{
+  id: string;
+  nome: string;
+  codigoBarras: string | null;
+  imagemUrl: string | null;
+  descricao: string | null;
+  categoria: string;
+  custo: number;
+  precoVenda: number;
+  quantidadeEstoque: number;
+  estoqueMinimo: number;
+}>> {
+  const skip = (page - 1) * limit;
+
+  const where: any = { ativo: true };
+
+  if (categoria && categoria !== "TODAS") {
+    where.categoria = categoria;
+  }
+
+  if (busca && busca.trim().length > 0) {
+    const termo = busca.trim();
+    where.OR = [
+      { nome:          { contains: termo, mode: "insensitive" } },
+      { codigoBarras:  { contains: termo, mode: "insensitive" } },
+    ];
+  }
+
+  const [total, produtos] = await Promise.all([
+    prisma.produto.count({ where }),
+    prisma.produto.findMany({
+      where,
+      orderBy: { nome: "asc" },
+      skip,
+      take: limit,
+      select: {
+        id: true,
+        nome: true,
+        codigoBarras: true,
+        imagemUrl: true,
+        descricao: true,
+        categoria: true,
+        custo: true,
+        precoVenda: true,
+        quantidadeEstoque: true,
+        estoqueMinimo: true,
+      },
+    }),
+  ]);
+
+  return {
+    data: produtos as any[],
+    total,
+    page,
+    totalPages: Math.ceil(total / limit),
+  };
+}
+
 export async function atualizarProduto(
   id: string,
   data: FormProduto

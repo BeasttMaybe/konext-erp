@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Users,
   Building2,
@@ -39,9 +40,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ModalNovoCliente } from "@/components/crm/modal-novo-cliente";
-import { criarCliente, excluirCliente, listarClientes } from "@/app/actions/crm";
+import { criarCliente, excluirCliente, listarClientesPaginado } from "@/app/actions/crm";
+import { PaginationControls } from "@/components/ui/pagination-controls";
 import type { FormCliente } from "@/lib/validations/crm";
 import { toast } from "sonner";
+
+const LIMITE_POR_PAGINA = 20;
 
 type CategoriaCliente = "CLIENTE_FINAL" | "EMPRESA" | "ORGAO_PUBLICO";
 
@@ -75,24 +79,47 @@ function normalizarTextoBusca(texto: string): string {
 }
 
 export default function PaginaCRM() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Página atual lida da URL (?page=N), com fallback para 1
+  const currentPage = Math.max(1, Number(searchParams.get("page") ?? "1"));
+
   const [clientes, setClientes] = useState<ClienteCadastrado[]>([]);
+  const [totalClientes, setTotalClientes] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [carregandoLista, setCarregandoLista] = useState(false);
   const [termoBusca, setTermoBusca] = useState("");
-  const [filtroCategoria, setFiltroCategoria] = useState<"TODOS" | CategoriaCliente>(
-    "TODOS"
-  );
+  const [filtroCategoria, setFiltroCategoria] = useState<"TODOS" | CategoriaCliente>("TODOS");
   const [modalNovoClienteAberto, setModalNovoClienteAberto] = useState(false);
   const [deletandoClienteId, setDeletandoClienteId] = useState<string | null>(null);
+
+  // Navega para uma página específica, preservando os demais query params
+  const irParaPagina = useCallback(
+    (pagina: number) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("page", String(pagina));
+      router.push(`?${params.toString()}`);
+    },
+    [router, searchParams]
+  );
 
   useEffect(() => {
     let ativo = true;
 
     const carregarClientes = async () => {
       try {
-        const clientesBanco = await listarClientes();
+        setCarregandoLista(true);
+        const resultado = await listarClientesPaginado(
+          currentPage,
+          LIMITE_POR_PAGINA,
+          termoBusca,
+          filtroCategoria
+        );
         if (!ativo) return;
 
         setClientes(
-          clientesBanco.map((cliente) => ({
+          resultado.data.map((cliente) => ({
             id: cliente.id,
             tipoPessoa: cliente.tipoPessoa,
             nomeRazaoSocial: cliente.nomeRazaoSocial,
@@ -102,9 +129,13 @@ export default function PaginaCRM() {
             categoria: cliente.categoria,
           }))
         );
+        setTotalClientes(resultado.total);
+        setTotalPages(resultado.totalPages);
       } catch {
         if (!ativo) return;
-        toast.error("Nao foi possivel carregar os clientes cadastrados.");
+        toast.error("Não foi possível carregar os clientes cadastrados.");
+      } finally {
+        if (ativo) setCarregandoLista(false);
       }
     };
 
@@ -113,38 +144,30 @@ export default function PaginaCRM() {
     return () => {
       ativo = false;
     };
-  }, []);
+  // Recarrega sempre que a página, busca ou filtro mudam
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, termoBusca, filtroCategoria]);
 
-  const metricas = useMemo(() => {
-    return {
-      totalClientes: clientes.length,
-      totalEmpresas: clientes.filter((c) => c.categoria === "EMPRESA").length,
-      totalOrgaos: clientes.filter((c) => c.categoria === "ORGAO_PUBLICO").length,
-    };
-  }, [clientes]);
+  // Métricas exibem o total vindo do banco (não apenas a página atual)
+  const metricas = useMemo(() => ({
+    totalClientes,
+    totalEmpresas: clientes.filter((c) => c.categoria === "EMPRESA").length,
+    totalOrgaos:   clientes.filter((c) => c.categoria === "ORGAO_PUBLICO").length,
+  }), [clientes, totalClientes]);
 
-  const clientesFiltrados = useMemo(() => {
-    const buscaNormalizada = normalizarTextoBusca(termoBusca);
+  // Ao alterar busca ou filtro, volta para a página 1
+  const aoAlterarBusca = (valor: string) => {
+    setTermoBusca(valor);
+    irParaPagina(1);
+  };
 
-    return clientes.filter((cliente) => {
-      const passouCategoria =
-        filtroCategoria === "TODOS" || cliente.categoria === filtroCategoria;
+  const aoAlterarFiltro = (valor: string) => {
+    setFiltroCategoria(valor as "TODOS" | CategoriaCliente);
+    irParaPagina(1);
+  };
 
-      if (!passouCategoria) return false;
-
-      if (!buscaNormalizada) return true;
-
-      const campoNome = normalizarTextoBusca(cliente.nomeRazaoSocial);
-      const campoDocumento = normalizarTextoBusca(cliente.documento);
-      const campoTelefone = normalizarTextoBusca(cliente.telefone);
-
-      return (
-        campoNome.includes(buscaNormalizada) ||
-        campoDocumento.includes(buscaNormalizada) ||
-        campoTelefone.includes(buscaNormalizada)
-      );
-    });
-  }, [clientes, termoBusca, filtroCategoria]);
+  // Filtro e busca são feitos no servidor — exibe a lista recebida diretamente
+  const clientesFiltrados = clientes;
 
   const aoSalvarNovoCliente = async (
     dados: FormCliente
@@ -211,7 +234,7 @@ export default function PaginaCRM() {
                   <div>
                     <p className="text-sm text-muted-foreground">Total de Clientes</p>
                     <p className="text-3xl font-bold text-foreground mt-2">
-                      {metricas.totalClientes}
+                      {totalClientes}
                     </p>
                   </div>
                   <Users className="h-5 w-5 text-muted-foreground" />
@@ -249,7 +272,7 @@ export default function PaginaCRM() {
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     value={termoBusca}
-                    onChange={(e) => setTermoBusca(e.target.value)}
+                    onChange={(e) => aoAlterarBusca(e.target.value)}
                     placeholder="Buscar por nome, CPF/CNPJ ou telefone"
                     className="pl-9"
                   />
@@ -257,9 +280,7 @@ export default function PaginaCRM() {
 
                 <Select
                   value={filtroCategoria}
-                  onValueChange={(valor) =>
-                    setFiltroCategoria(valor as "TODOS" | CategoriaCliente)
-                  }
+                  onValueChange={aoAlterarFiltro}
                 >
                   <SelectTrigger className="w-full lg:w-[220px]">
                     <SelectValue placeholder="Filtrar categoria" />
@@ -344,16 +365,30 @@ export default function PaginaCRM() {
                       </TableRow>
                     ))}
 
-                    {clientesFiltrados.length === 0 && (
+                    {!carregandoLista && clientesFiltrados.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                           Nenhum cliente encontrado para os filtros atuais.
                         </TableCell>
                       </TableRow>
                     )}
+                    {carregandoLista && (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                          Carregando clientes...
+                        </TableCell>
+                      </TableRow>
+                    )}
                   </TableBody>
                 </Table>
               </div>
+
+              <PaginationControls
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={irParaPagina}
+                disabled={carregandoLista}
+              />
             </Card>
           </div>
         </div>

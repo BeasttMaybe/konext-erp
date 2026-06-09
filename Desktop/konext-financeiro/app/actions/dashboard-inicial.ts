@@ -53,6 +53,149 @@ const formatarMesCurtoPtBr = (data: Date): string => {
 
 const chaveMes = (data: Date): string => `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, "0")}`;
 
+import {
+  META_DIARIA_REAIS,
+  type ItemFormaFechamento,
+  type DadosFechamentoCaixa,
+} from "@/types/fechamento-caixa";
+
+// ── Tipos do Fechamento de Caixa ─────────────────────────────────────────────
+
+/** Rótulos em PT-BR para as formas de pagamento do enum FormaPagamento. */
+const ROTULOS_FORMA_PAGAMENTO: Record<string, string> = {
+  PIX: "PIX",
+  DINHEIRO: "Dinheiro",
+  CARTAO_CREDITO: "Cartão de Crédito",
+  CARTAO_DEBITO: "Cartão de Débito",
+  BOLETO: "Boleto",
+  CREDIARIO: "Crediário",
+  EMPENHO_PUBLICO: "Empenho Público",
+};
+
+// ── Action: Fechamento de Caixa ───────────────────────────────────────────────
+
+/**
+ * Busca todos os dados necessários para o Fechamento de Caixa do dia atual.
+ * Combina receitas e custos de PDV e OS para um relatório unificado.
+ */
+export async function obterDadosFechamentoCaixa(): Promise<DadosFechamentoCaixa> {
+  const agora = new Date();
+  // Intervalos do dia corrente (00:00:00 – 23:59:59)
+  const inicioDia = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 0, 0, 0, 0);
+  const fimDia = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 23, 59, 59, 999);
+
+  const prismaAny = prisma as any;
+  const vendaDelegate = prismaAny.venda ?? prismaAny.Venda;
+  const contaReceberDelegate = prismaAny.contaReceber ?? prismaAny.ContaReceber;
+  const ordemServicoDelegate = prismaAny.ordemServico ?? prismaAny.OrdemServico;
+
+  if (!vendaDelegate?.findMany || !contaReceberDelegate?.findMany || !ordemServicoDelegate?.findMany) {
+    // Retorna estrutura vazia em vez de quebrar a página quando os delegates ainda não estão disponíveis.
+    return {
+      faturamentoPdv: 0, faturamentoOs: 0, faturamentoTotal: 0,
+      custoPdv: 0, custoOs: 0, custoTotal: 0, lucroBruto: 0, porForma: [],
+    };
+  }
+
+  const [vendasHoje, recebimentosOsHoje, osEntreguesHoje] = await Promise.all([
+    // (a) Vendas PDV criadas hoje — inclui itens para cálculo de custo de mercadoria
+    vendaDelegate.findMany({
+      where: { criadoEm: { gte: inicioDia, lte: fimDia } },
+      select: {
+        valorTotal: true,
+        formaPagamento: true,
+        itens: { select: { custoUnitario: true, quantidade: true } },
+      },
+    }),
+    // (b) Receitas de OS recebidas hoje via ContaReceber
+    contaReceberDelegate.findMany({
+      where: {
+        status: "RECEBIDO",
+        origem: "ORDEM_SERVICO",
+        OR: [
+          { dataRecebimento: { gte: inicioDia, lte: fimDia } },
+          { AND: [{ dataRecebimento: null }, { criadoEm: { gte: inicioDia, lte: fimDia } }] },
+        ],
+      },
+      select: { valor: true, formaRecebimento: true },
+    }),
+    // (c) OS marcadas como ENTREGUE hoje — itens usados para custo de peças
+    ordemServicoDelegate.findMany({
+      where: {
+        status: "ENTREGUE",
+        atualizadoEm: { gte: inicioDia, lte: fimDia },
+      },
+      select: { itens: { select: { custoPeca: true } } },
+    }),
+  ]);
+
+  // ── Cálculo de faturamento ────────────────────────────────────────────────
+  const faturamentoPdv = vendasHoje.reduce(
+    (acc: number, v: any) => acc + paraCentavos(Number(v.valorTotal ?? 0)), 0
+  );
+  const faturamentoOs = recebimentosOsHoje.reduce(
+    (acc: number, r: any) => acc + paraCentavos(Number(r.valor ?? 0)), 0
+  );
+  const faturamentoTotal = faturamentoPdv + faturamentoOs;
+
+  // ── Cálculo de custos ─────────────────────────────────────────────────────
+  // Custo PDV: soma de (custoUnitario * quantidade) por item de venda
+  const custoPdv = vendasHoje.reduce((acc: number, v: any) => {
+    const custoVenda = (v.itens ?? []).reduce(
+      (s: number, item: any) =>
+        s + paraCentavos(Number(item.custoUnitario ?? 0) * Number(item.quantidade ?? 1)),
+      0
+    );
+    return acc + custoVenda;
+  }, 0);
+
+  // Custo OS: soma de custoPeca de cada ItemOS das OS entregues hoje
+  const custoOs = osEntreguesHoje.reduce((acc: number, os: any) => {
+    const custoOs = (os.itens ?? []).reduce(
+      (s: number, item: any) => s + paraCentavos(Number(item.custoPeca ?? 0)),
+      0
+    );
+    return acc + custoOs;
+  }, 0);
+
+  const custoTotal = custoPdv + custoOs;
+  const lucroBruto = faturamentoTotal - custoTotal;
+
+  // ── Agrupamento por forma de pagamento ───────────────────────────────────
+  const mapaFormas: Record<string, number> = {};
+
+  vendasHoje.forEach((v: any) => {
+    const forma = String(v.formaPagamento ?? "OUTROS");
+    mapaFormas[forma] = (mapaFormas[forma] ?? 0) + paraCentavos(Number(v.valorTotal ?? 0));
+  });
+  recebimentosOsHoje.forEach((r: any) => {
+    const forma = String(r.formaRecebimento ?? "OUTROS");
+    mapaFormas[forma] = (mapaFormas[forma] ?? 0) + paraCentavos(Number(r.valor ?? 0));
+  });
+
+  const porForma: ItemFormaFechamento[] = Object.entries(mapaFormas)
+    .filter(([, centavos]) => centavos > 0)
+    .map(([forma, centavos]) => ({
+      forma,
+      rotulo: ROTULOS_FORMA_PAGAMENTO[forma] ?? forma.replaceAll("_", " "),
+      valor: paraMoeda(centavos),
+    }))
+    .sort((a, b) => b.valor - a.valor);
+
+  return {
+    faturamentoPdv: paraMoeda(faturamentoPdv),
+    faturamentoOs: paraMoeda(faturamentoOs),
+    faturamentoTotal: paraMoeda(faturamentoTotal),
+    custoPdv: paraMoeda(custoPdv),
+    custoOs: paraMoeda(custoOs),
+    custoTotal: paraMoeda(custoTotal),
+    lucroBruto: paraMoeda(lucroBruto),
+    porForma,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 const mapaStatusOs: Record<string, { nome: string; cor: string }> = {
   AGUARDANDO_ORCAMENTO: { nome: "Aguardando Orçamento", cor: "hsl(43 96% 56%)" },
   AGUARDANDO_APROVACAO: { nome: "Aguardando Aprovação", cor: "hsl(262 83% 58%)" },

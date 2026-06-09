@@ -18,6 +18,7 @@ import {
   obterResumoDashboardFinanceiro,
   type ResumoDashboardFinanceiro,
 } from "@/app/actions/financeiro-hub";
+import { SheetHistoricoFechamentos } from "@/components/financeiro/sheet-historico-fechamentos";
 import { toast } from "sonner";
 
 const formatarMoeda = (valor: number) =>
@@ -33,6 +34,8 @@ const formatarMoeda = (valor: number) =>
 export default function FinanceiroPage() {
   const [resumo, setResumo] = useState<ResumoDashboardFinanceiro | null>(null);
   const [carregando, setCarregando] = useState(false);
+  // Controla a abertura do Sheet de histórico de fechamentos
+  const [sheetHistoricoAberto, setSheetHistoricoAberto] = useState(false);
 
   const carregarResumo = async () => {
     try {
@@ -51,6 +54,7 @@ export default function FinanceiroPage() {
   }, []);
 
   return (
+    <>
     <div className="w-full min-h-full flex flex-col bg-slate-50 dark:bg-slate-900">
       {/* Cabeçalho */}
       <div className="px-6 lg:px-8 py-6 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
@@ -131,12 +135,20 @@ export default function FinanceiroPage() {
                 </div>
               </Card>
 
-              <Card className="border-amber-200/60 bg-amber-50/60 dark:border-amber-900/60 dark:bg-amber-950/20">
+              {/* Cartão de Faturamento (Caixa Fechado) — clicável para abrir o histórico */}
+              <Card
+                className="border-amber-200/60 bg-amber-50/60 dark:border-amber-900/60 dark:bg-amber-950/20 cursor-pointer hover:ring-2 hover:ring-amber-400/50 hover:shadow-md transition-all"
+                onClick={() => setSheetHistoricoAberto(true)}
+                title="Clique para ver o histórico de fechamentos"
+              >
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-sm text-amber-700 dark:text-amber-300">Faturamento (Caixa Fechado)</p>
                     <p className="text-2xl font-bold text-amber-900 dark:text-amber-100 mt-2">
                       {formatarMoeda(resumo?.faturamentoCaixaFechadoHoje ?? 0)}
+                    </p>
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                      Ver histórico →
                     </p>
                   </div>
                   <Wallet className="h-5 w-5 text-amber-600 dark:text-amber-300" />
@@ -202,5 +214,12 @@ export default function FinanceiroPage() {
         </div>
       </div>
     </div>
+
+    {/* Sheet do histórico de fechamentos de caixa */}
+    <SheetHistoricoFechamentos
+      aberto={sheetHistoricoAberto}
+      aoFechar={() => setSheetHistoricoAberto(false)}
+    />
+  </>
   );
 }

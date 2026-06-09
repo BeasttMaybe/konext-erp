@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { MoreHorizontal, Package, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -32,9 +33,10 @@ import {
   atualizarProduto,
   criarProduto,
   excluirProduto,
-  listarProdutos,
+  listarProdutosPaginado,
 } from "@/app/actions/estoque";
 import { ModalNovoProduto } from "@/components/estoque/modal-novo-produto";
+import { PaginationControls } from "@/components/ui/pagination-controls";
 import { categoriasProduto, type FormProduto } from "@/lib/validations/estoque";
 import {
   AlertDialog,
@@ -46,6 +48,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+
+const LIMITE_POR_PAGINA = 20;
 
 type CategoriaProduto = (typeof categoriasProduto)[number];
 
@@ -79,22 +83,43 @@ const formatarMoeda = (valor: number) =>
 const normalizarTexto = (texto: string) => texto.toLowerCase().replace(/[^a-z0-9]/gi, "");
 
 export default function PaginaEstoque() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Página atual lida da URL (?page=N), com fallback para 1
+  const currentPage = Math.max(1, Number(searchParams.get("page") ?? "1"));
+
   const [produtos, setProdutos] = useState<ProdutoTabela[]>([]);
+  const [totalProdutos, setTotalProdutos] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [busca, setBusca] = useState("");
-  const [categoriaSelecionada, setCategoriaSelecionada] = useState<"TODAS" | CategoriaProduto>(
-    "TODAS"
-  );
+  const [categoriaSelecionada, setCategoriaSelecionada] = useState<"TODAS" | CategoriaProduto>("TODAS");
   const [modalNovoProdutoAberto, setModalNovoProdutoAberto] = useState(false);
   const [produtoEditando, setProdutoEditando] = useState<ProdutoTabela | null>(null);
   const [produtoParaExcluir, setProdutoParaExcluir] = useState<ProdutoTabela | null>(null);
   const [carregando, setCarregando] = useState(false);
 
+  // Navega para uma página específica, preservando os demais query params
+  const irParaPagina = useCallback(
+    (pagina: number) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("page", String(pagina));
+      router.push(`?${params.toString()}`);
+    },
+    [router, searchParams]
+  );
+
   const carregarProdutos = async () => {
     try {
       setCarregando(true);
-      const lista = await listarProdutos();
+      const resultado = await listarProdutosPaginado(
+        currentPage,
+        LIMITE_POR_PAGINA,
+        busca,
+        categoriaSelecionada
+      );
       setProdutos(
-        lista.map((produto) => ({
+        resultado.data.map((produto) => ({
           id: produto.id,
           nome: produto.nome,
           codigoBarras: produto.codigoBarras,
@@ -107,34 +132,33 @@ export default function PaginaEstoque() {
           estoqueMinimo: produto.estoqueMinimo,
         }))
       );
+      setTotalProdutos(resultado.total);
+      setTotalPages(resultado.totalPages);
     } catch {
-      toast.error("Nao foi possivel carregar os produtos.");
+      toast.error("Não foi possível carregar os produtos.");
     } finally {
       setCarregando(false);
     }
   };
 
+  // Ao alterar busca ou filtro, volta para a página 1
+  const aoAlterarBusca = (valor: string) => {
+    setBusca(valor);
+    irParaPagina(1);
+  };
+
+  const aoAlterarCategoria = (valor: string) => {
+    setCategoriaSelecionada(valor as "TODAS" | CategoriaProduto);
+    irParaPagina(1);
+  };
+
   useEffect(() => {
     carregarProdutos();
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, busca, categoriaSelecionada]);
 
-  const produtosFiltrados = useMemo(() => {
-    const buscaNormalizada = normalizarTexto(busca);
-
-    return produtos.filter((produto) => {
-      const passouCategoria =
-        categoriaSelecionada === "TODAS" || produto.categoria === categoriaSelecionada;
-
-      if (!passouCategoria) return false;
-
-      if (!buscaNormalizada) return true;
-
-      const nome = normalizarTexto(produto.nome);
-      const codigoBarras = normalizarTexto(produto.codigoBarras || "");
-
-      return nome.includes(buscaNormalizada) || codigoBarras.includes(buscaNormalizada);
-    });
-  }, [produtos, busca, categoriaSelecionada]);
+  // A filtragem é feita no servidor — exibe a lista recebida diretamente
+  const produtosFiltrados = produtos;
 
   const aoSalvarProduto = async (dados: FormProduto) => {
     const resultado = produtoEditando
@@ -206,7 +230,7 @@ export default function PaginaEstoque() {
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     value={busca}
-                    onChange={(evento) => setBusca(evento.target.value)}
+                    onChange={(evento) => aoAlterarBusca(evento.target.value)}
                     placeholder="Buscar por nome ou codigo de barras"
                     className="pl-9"
                   />
@@ -214,9 +238,7 @@ export default function PaginaEstoque() {
 
                 <Select
                   value={categoriaSelecionada}
-                  onValueChange={(valor) =>
-                    setCategoriaSelecionada(valor as "TODAS" | CategoriaProduto)
-                  }
+                  onValueChange={aoAlterarCategoria}
                 >
                   <SelectTrigger className="w-full lg:w-[220px]">
                     <SelectValue placeholder="Filtrar categoria" />
@@ -320,6 +342,13 @@ export default function PaginaEstoque() {
                   </TableBody>
                 </Table>
               </div>
+
+              <PaginationControls
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={irParaPagina}
+                disabled={carregando}
+              />
             </Card>
           </div>
         </div>

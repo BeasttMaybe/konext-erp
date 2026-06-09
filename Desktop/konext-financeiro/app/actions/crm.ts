@@ -339,6 +339,75 @@ export async function listarClientes() {
   });
 }
 
+// ── Paginação de Clientes ──────────────────────────────────────────────────────
+
+export interface PaginatedResult<T> {
+  data: T[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
+
+export async function listarClientesPaginado(
+  page: number = 1,
+  limit: number = 20,
+  busca?: string,
+  categoria?: string
+): Promise<PaginatedResult<{
+  id: string;
+  tipoPessoa: "FISICA" | "JURIDICA";
+  nomeRazaoSocial: string;
+  nomeFantasia: string | null;
+  documento: string;
+  telefone: string;
+  categoria: "CLIENTE_FINAL" | "EMPRESA" | "ORGAO_PUBLICO";
+}>> {
+  const skip = (page - 1) * limit;
+
+  // Filtro de busca aplicado no banco (case-insensitive via Prisma)
+  const where: any = {};
+
+  if (categoria && categoria !== "TODOS") {
+    where.categoria = categoria;
+  }
+
+  if (busca && busca.trim().length > 0) {
+    const termo = busca.trim();
+    where.OR = [
+      { nomeRazaoSocial: { contains: termo, mode: "insensitive" } },
+      { nomeFantasia:     { contains: termo, mode: "insensitive" } },
+      { documento:        { contains: termo, mode: "insensitive" } },
+      { telefone:         { contains: termo, mode: "insensitive" } },
+    ];
+  }
+
+  const [total, clientes] = await Promise.all([
+    prisma.cliente.count({ where }),
+    prisma.cliente.findMany({
+      where,
+      orderBy: { nomeRazaoSocial: "asc" },
+      skip,
+      take: limit,
+      select: {
+        id: true,
+        tipoPessoa: true,
+        nomeRazaoSocial: true,
+        nomeFantasia: true,
+        documento: true,
+        telefone: true,
+        categoria: true,
+      },
+    }),
+  ]);
+
+  return {
+    data: clientes as any[],
+    total,
+    page,
+    totalPages: Math.ceil(total / limit),
+  };
+}
+
 export interface ClienteBuscaCRM {
   id: string;
   nomeRazaoSocial: string;

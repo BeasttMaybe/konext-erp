@@ -228,24 +228,21 @@ export async function listarContasReceberFiltradas(
 
   const where: Record<string, unknown> = {};
 
-  // Filtro de período por mês e/ou ano
-  if (filtros?.mes && filtros?.ano) {
-    const mes = parseInt(filtros.mes, 10);
-    const ano = parseInt(filtros.ano, 10);
-    if (!Number.isNaN(mes) && !Number.isNaN(ano)) {
-      where.dataVencimento = {
-        gte: new Date(ano, mes - 1, 1),
-        lte: new Date(ano, mes, 0, 23, 59, 59, 999),
-      };
-    }
-  } else if (filtros?.ano) {
-    const ano = parseInt(filtros.ano, 10);
-    if (!Number.isNaN(ano)) {
-      where.dataVencimento = {
-        gte: new Date(ano, 0, 1),
-        lte: new Date(ano, 11, 31, 23, 59, 59, 999),
-      };
-    }
+  // Usa os valores da URL quando presentes; caso contrário, adota o mês/ano atual.
+  const hoje = new Date();
+  const mesFiltro = filtros?.mes ? parseInt(filtros.mes, 10) : hoje.getMonth() + 1;
+  const anoFiltro = filtros?.ano ? parseInt(filtros.ano, 10) : hoje.getFullYear();
+
+  if (!Number.isNaN(mesFiltro) && !Number.isNaN(anoFiltro)) {
+    // Início: primeiro dia do mês às 00:00:00.000
+    const dataInicio = new Date(anoFiltro, mesFiltro - 1, 1);
+    // Fim: último dia do mês às 23:59:59.999 (dia 0 do mês seguinte = último dia do atual)
+    const dataFim = new Date(anoFiltro, mesFiltro, 0, 23, 59, 59, 999);
+
+    where.dataVencimento = {
+      gte: dataInicio,
+      lte: dataFim,
+    };
   }
 
   // Filtro por categoria de cliente

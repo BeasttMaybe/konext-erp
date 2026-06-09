@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SecaoItensOS } from "@/components/os/secao-itens-os";
 import { BotaoGerarPedidoVenda } from "@/components/os/botao-gerar-pedido-venda";
+import { BotaoCopiarLinkRastreio } from "@/components/os/botao-copiar-link-rastreio";
 
 type PropsPaginaDetalheOS = {
   params: Promise<{
@@ -177,6 +178,7 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
                 Imprimir OS
               </Link>
             </Button>
+            <BotaoCopiarLinkRastreio osId={idOs} />
             {podeGerarPedidoVenda && <BotaoGerarPedidoVenda osId={idOs} />}
             {!podeGerarPedidoVenda && possuiPedidoVenda && (
               <Badge variant="outline" className="border-emerald-500 text-emerald-600">

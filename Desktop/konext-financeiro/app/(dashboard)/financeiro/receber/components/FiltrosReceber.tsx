@@ -21,8 +21,10 @@ export function FiltrosReceber() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const mes = searchParams.get("mes") ?? "";
-  const ano = searchParams.get("ano") ?? String(new Date().getFullYear());
+  // Adota o mês e ano correntes como padrão quando não informados na URL.
+  const hoje = new Date();
+  const mes = searchParams.get("mes") ?? String(hoje.getMonth() + 1);
+  const ano = searchParams.get("ano") ?? String(hoje.getFullYear());
   const categoriaCliente = searchParams.get("categoriaCliente") ?? "";
 
   function atualizarFiltro(chave: string, valor: string) {
@@ -39,14 +41,18 @@ export function FiltrosReceber() {
     router.push(pathname);
   }
 
-  const temFiltrosAtivos = mes || categoriaCliente;
+  // Considera filtros "ativos" quando difere dos padrões do mês corrente ou há categoria selecionada.
+  const mesHoje = String(hoje.getMonth() + 1);
+  const anoHoje = String(hoje.getFullYear());
+  const temFiltrosAtivos =
+    categoriaCliente || mes !== mesHoje || ano !== anoHoje;
 
   return (
     <div className="flex flex-wrap gap-3 items-end">
       {/* Filtro: Mês */}
       <div className="space-y-1">
         <p className="text-xs font-medium text-muted-foreground">Mês</p>
-        <Select value={mes || undefined} onValueChange={(v) => atualizarFiltro("mes", v)}>
+        <Select value={mes} onValueChange={(v) => atualizarFiltro("mes", v)}>
           <SelectTrigger className="w-40">
             <SelectValue placeholder="Todos os meses" />
           </SelectTrigger>

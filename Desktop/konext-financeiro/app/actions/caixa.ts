@@ -54,47 +54,74 @@ export async function obterResumoCaixaDiario(): Promise<ResumoCaixaDiario> {
   const fimHoje = new Date();
   fimHoje.setHours(23, 59, 59, 999);
 
-  const vendasHoje = await prisma.venda.findMany({
-    where: {
-      criadoEm: {
-        gte: inicioHoje,
-        lte: fimHoje,
-      },
-    },
-    include: {
-      cliente: {
-        select: {
-          nomeRazaoSocial: true,
+  const prismaAny = prisma as any;
+  const ordemServicoDelegate = prismaAny.ordemServico ?? prismaAny.OrdemServico;
+
+  // Busca vendas PDV e peças de OS em paralelo para melhor performance
+  const [vendasHoje, osEntreguesHoje] = await Promise.all([
+    prisma.venda.findMany({
+      where: {
+        criadoEm: {
+          gte: inicioHoje,
+          lte: fimHoje,
         },
       },
-      itens: {
-        include: {
-          produto: {
-            select: {
-              nome: true,
+      include: {
+        cliente: {
+          select: {
+            nomeRazaoSocial: true,
+          },
+        },
+        itens: {
+          include: {
+            produto: {
+              select: {
+                nome: true,
+              },
             },
           },
         },
       },
-    },
-    orderBy: {
-      criadoEm: "desc",
-    },
-  });
+      orderBy: {
+        criadoEm: "desc",
+      },
+    }),
+    // Custo das peças usadas em OS entregues hoje
+    ordemServicoDelegate?.findMany
+      ? ordemServicoDelegate.findMany({
+          where: {
+            status: "ENTREGUE",
+            atualizadoEm: { gte: inicioHoje, lte: fimHoje },
+          },
+          select: { itens: { select: { custoPeca: true } } },
+        })
+      : Promise.resolve([]),
+  ]);
 
   const totalVendasCentavos = vendasHoje.reduce(
-    (acumulado, venda) => acumulado + paraCentavos(venda.valorTotal),
+    (acumulado: number, venda: typeof vendasHoje[number]) => acumulado + paraCentavos(venda.valorTotal),
     0
   );
 
-  const custoTotalCentavos = vendasHoje.reduce((acumuladoVendas, venda) => {
-    const custoVendaCentavos = venda.itens.reduce((acumuladoItens, item) => {
+  // Custo PDV: custoUnitario * quantidade por item de venda
+  const custoPdvCentavos = vendasHoje.reduce((acumuladoVendas: number, venda: typeof vendasHoje[number]) => {
+    const custoVendaCentavos = venda.itens.reduce((acumuladoItens: number, item: typeof venda.itens[number]) => {
       const custoUnitarioCentavos = paraCentavos(item.custoUnitario);
       return acumuladoItens + custoUnitarioCentavos * item.quantidade;
     }, 0);
 
     return acumuladoVendas + custoVendaCentavos;
   }, 0);
+
+  // Custo OS: soma de custoPeca de cada ItemOS das OS entregues hoje
+  const custoOsCentavos = (osEntreguesHoje as any[]).reduce((accOs: number, os: any) => {
+    return accOs + (os.itens ?? []).reduce(
+      (accItens: number, item: any) => accItens + paraCentavos(Number(item.custoPeca ?? 0)),
+      0
+    );
+  }, 0);
+
+  const custoTotalCentavos = custoPdvCentavos + custoOsCentavos;
 
   const lucroBrutoCentavos = totalVendasCentavos - custoTotalCentavos;
 
@@ -181,3 +208,167 @@ export async function obterResumoCaixaDiario(): Promise<ResumoCaixaDiario> {
     sessoesFechadasHoje,
   };
 }
+
+// ── Histórico de Fechamentos ──────────────────────────────────────────────────
+
+export interface ItemHistoricoFechamento {
+  id: string;
+  /** Data de fechamento da sessão (usada como chave do dia). */
+  dataFechamento: Date;
+  /** Valor informado pelo operador no momento do fechamento. */
+  valorFechamento: number;
+  /** Total de vendas vinculadas a esta sessão. */
+  totalVendas: number;
+  /** Diferença entre valor informado e esperado (positivo = sobra, negativo = falta). */
+  diferenca: number;
+}
+
+/**
+ * Retorna as sessões de caixa fechadas de forma paginada, ordenadas da mais recente
+ * para a mais antiga. Usado para popular o histórico de fechamentos.
+ */
+export async function obterHistoricoFechamentos(
+  page: number = 1,
+  limit: number = 15
+): Promise<{ data: ItemHistoricoFechamento[]; total: number; page: number; totalPages: number }> {
+  const offset = (page - 1) * limit;
+
+  // Total de sessões fechadas (para calcular totalPages)
+  const totalRaw = await prisma.$queryRaw<Array<{ count: bigint }>>`
+    SELECT COUNT(*) AS count
+    FROM "CaixaSession"
+    WHERE status::text = 'FECHADO'
+      AND "dataFechamento" IS NOT NULL
+  `;
+  const total = Number(totalRaw[0]?.count ?? 0);
+
+  const linhas = await prisma.$queryRaw<
+    Array<{
+      id: string;
+      dataFechamento: Date;
+      valorAbertura: number;
+      valorFechamento: number;
+      totalVendasSessao: number;
+    }>
+  >`
+    SELECT
+      c.id,
+      c."dataFechamento",
+      c."valorAbertura",
+      COALESCE(c."valorFechamento", 0) AS "valorFechamento",
+      COALESCE(SUM(v."valorTotal"), 0) AS "totalVendasSessao"
+    FROM "CaixaSession" c
+    LEFT JOIN "Venda" v ON v."caixaSessionId" = c.id
+    WHERE c.status::text = 'FECHADO'
+      AND c."dataFechamento" IS NOT NULL
+    GROUP BY c.id, c."dataFechamento", c."valorAbertura", c."valorFechamento"
+    ORDER BY c."dataFechamento" DESC
+    LIMIT ${limit} OFFSET ${offset}
+  `;
+
+  const data = linhas.map((row) => {
+    const valorAberturaCentavos = paraCentavos(Number(row.valorAbertura ?? 0));
+    const totalVendasCentavos = paraCentavos(Number(row.totalVendasSessao ?? 0));
+    const valorFechamentoCentavos = paraCentavos(Number(row.valorFechamento ?? 0));
+    const valorEsperadoCentavos = valorAberturaCentavos + totalVendasCentavos;
+
+    return {
+      id: String(row.id),
+      dataFechamento: new Date(row.dataFechamento),
+      valorFechamento: paraMoeda(valorFechamentoCentavos),
+      totalVendas: paraMoeda(totalVendasCentavos),
+      diferenca: paraMoeda(valorFechamentoCentavos - valorEsperadoCentavos),
+    };
+  });
+
+  return {
+    data,
+    total,
+    page,
+    totalPages: Math.max(1, Math.ceil(total / limit)),
+  };
+}
+
+// ── Relatório detalhado de uma data específica ────────────────────────────────
+
+export interface ResumoDataEspecifica {
+  totalVendas: number;
+  custoTotal: number;
+  lucroBruto: number;
+  totaisPorFormaPagamento: TotalPorFormaPagamentoDiario[];
+}
+
+/**
+ * Reproduz o resumo financeiro consolidado para uma data específica.
+ * Calcula vendas PDV e custo de peças de OS entregues naquele dia.
+ */
+export async function obterResumoDataEspecifica(
+  data: Date
+): Promise<ResumoDataEspecifica> {
+  const inicioData = new Date(data.getFullYear(), data.getMonth(), data.getDate(), 0, 0, 0, 0);
+  const fimData = new Date(data.getFullYear(), data.getMonth(), data.getDate(), 23, 59, 59, 999);
+
+  const prismaAny = prisma as any;
+  const ordemServicoDelegate = prismaAny.ordemServico ?? prismaAny.OrdemServico;
+
+  const [vendasData, osEntreguesData] = await Promise.all([
+    prisma.venda.findMany({
+      where: { criadoEm: { gte: inicioData, lte: fimData } },
+      select: {
+        valorTotal: true,
+        formaPagamento: true,
+        itens: { select: { custoUnitario: true, quantidade: true, subtotal: true } },
+      },
+    }),
+    ordemServicoDelegate?.findMany
+      ? ordemServicoDelegate.findMany({
+          where: { status: "ENTREGUE", atualizadoEm: { gte: inicioData, lte: fimData } },
+          select: { itens: { select: { custoPeca: true } } },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const totalVendasCentavos = vendasData.reduce(
+    (acc: number, v: any) => acc + paraCentavos(Number(v.valorTotal ?? 0)),
+    0
+  );
+
+  const custoPdvCentavos = vendasData.reduce((accV: number, v: any) => {
+    return accV + (v.itens ?? []).reduce(
+      (accI: number, item: any) =>
+        accI + paraCentavos(Number(item.custoUnitario ?? 0)) * Number(item.quantidade ?? 1),
+      0
+    );
+  }, 0);
+
+  const custoOsCentavos = (osEntreguesData as any[]).reduce((accOs: number, os: any) => {
+    return accOs + (os.itens ?? []).reduce(
+      (accI: number, item: any) => accI + paraCentavos(Number(item.custoPeca ?? 0)),
+      0
+    );
+  }, 0);
+
+  const custoTotalCentavos = custoPdvCentavos + custoOsCentavos;
+
+  // Agrupa por forma de pagamento
+  const mapaFormas: Record<string, number> = {};
+  vendasData.forEach((v: any) => {
+    const forma = String(v.formaPagamento ?? "OUTROS");
+    mapaFormas[forma] = (mapaFormas[forma] ?? 0) + paraCentavos(Number(v.valorTotal ?? 0));
+  });
+
+  const totaisPorFormaPagamento: TotalPorFormaPagamentoDiario[] = Object.entries(mapaFormas)
+    .map(([formaPagamento, centavos]) => ({
+      formaPagamento,
+      total: paraMoeda(centavos),
+    }))
+    .sort((a, b) => b.total - a.total);
+
+  return {
+    totalVendas: paraMoeda(totalVendasCentavos),
+    custoTotal: paraMoeda(custoTotalCentavos),
+    lucroBruto: paraMoeda(totalVendasCentavos - custoTotalCentavos),
+    totaisPorFormaPagamento,
+  };
+}
+
