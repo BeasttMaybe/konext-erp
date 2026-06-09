@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
@@ -15,13 +15,20 @@ import { Badge } from "@/components/ui/badge";
 
 interface DashboardOSProps {
   ordensServico: OrdemServico[];
+  /** Quando fornecido, abre o modal de nova OS automaticamente e pré-seleciona o cliente. */
+  clienteIdInicial?: string | null;
 }
 
-export function DashboardOS({ ordensServico }: DashboardOSProps) {
+export function DashboardOS({ ordensServico, clienteIdInicial }: DashboardOSProps) {
   const router = useRouter();
   const [modalAberta, setModalAberta] = useState(false);
   const [buscaTexto, setBuscaTexto] = useState("");
   const [modoVisualizacao, setModoVisualizacao] = useState<"KANBAN" | "LISTA_FINALIZADAS">("KANBAN");
+
+  // Abre o modal automaticamente quando um cliente é passado via URL
+  useEffect(() => {
+    if (clienteIdInicial) setModalAberta(true);
+  }, [clienteIdInicial]);
 
   // Filtrar ordens por busca
   const ordensFiltradas = ordensServico.filter((os) =>
@@ -255,6 +262,7 @@ export function DashboardOS({ ordensServico }: DashboardOSProps) {
         aberta={modalAberta}
         onAbrirMudar={setModalAberta}
         onSalvar={handleSalvarNovaOS}
+        clienteIdInicial={clienteIdInicial ?? undefined}
       />
     </div>
   );

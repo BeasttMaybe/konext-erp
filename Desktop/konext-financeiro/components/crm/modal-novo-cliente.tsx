@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm, Controller, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -35,6 +35,8 @@ interface PropsModalNovoCliente {
   aoFechar: () => void;
   aoSalvar: (dados: FormCliente) => Promise<{ sucesso: boolean }>;
   carregando?: boolean;
+  /** Quando fornecido, o modal opera em modo de edição e pré-preenche o formulário. */
+  dadosIniciais?: Partial<FormCliente>;
 }
 
 const valoresPadrao: FormCliente = {
@@ -61,11 +63,19 @@ export function ModalNovoCliente({
   aoFechar,
   aoSalvar,
   carregando = false,
+  dadosIniciais,
 }: PropsModalNovoCliente) {
+  const modoEdicao = Boolean(dadosIniciais);
   const [abaAtiva, setAbaAtiva] = useState("dados-principais");
   const [buscandoCep, setBuscandoCep] = useState(false);
   const [buscandoCnpj, setBuscandoCnpj] = useState(false);
   const [mensagemCep, setMensagemCep] = useState<string | null>(null);
+
+  // Ref sempre atualizado com o valor mais recente de dadosIniciais.
+  // Isso evita que o useEffect de reset dispare toda vez que o pai re-renderizar
+  // e criar uma nova referência de objeto para dadosIniciais.
+  const dadosIniciaisRef = useRef(dadosIniciais);
+  dadosIniciaisRef.current = dadosIniciais;
 
   const {
     control,
@@ -77,7 +87,13 @@ export function ModalNovoCliente({
     formState: { errors, isSubmitting },
   } = useForm<FormCliente>({
     resolver: zodResolver(formClienteSchema) as unknown as Resolver<FormCliente>,
-    defaultValues: valoresPadrao,
+    // Inicializa imediatamente com os dados do cliente em modo de edição.
+    // Evita que os campos montem com valores vazios antes do useEffect de reset.
+    defaultValues: dadosIniciais
+      ? { ...valoresPadrao, ...dadosIniciais }
+      : valoresPadrao,
+    // Garante que valores de campos desmontados (abas inativas) sejam preservados
+    shouldUnregister: false,
   });
 
   const tipoPessoa = watch("tipoPessoa");
@@ -89,6 +105,16 @@ export function ModalNovoCliente({
     }
   }, [tipoPessoa, categoriaAtual, setValue]);
 
+  // Quando o modal abre, garante que o formulário receba os valores corretos.
+  // Em modo de edição usa dadosIniciais; caso contrário, reinicia com os valores padrão.
+  // Usa ref para ler dadosIniciais sem adicioná-lo como dependência e evitar resets duplos.
+  useEffect(() => {
+    if (aberto) {
+      const dados = dadosIniciaisRef.current;
+      reset(dados ? { ...valoresPadrao, ...dados } : valoresPadrao);
+    }
+  }, [aberto, reset]);
+
   const aoCancelar = () => {
     reset(valoresPadrao);
     setAbaAtiva("dados-principais");
@@ -97,12 +123,21 @@ export function ModalNovoCliente({
   };
 
   const aoSubmeter = async (dados: FormCliente) => {
-    const resultado = await aoSalvar(dados);
-    if (!resultado.sucesso) return;
-
-    reset(valoresPadrao);
-    setAbaAtiva("dados-principais");
-    setMensagemCep(null);
+    try {
+      const resultado = await aoSalvar(dados);
+      if (!resultado.sucesso) {
+        // O componente pai já exibe toast de erro, mas garantimos feedback aqui também
+        return;
+      }
+      toast.success(
+        modoEdicao ? "Cliente atualizado com êxito!" : "Cliente cadastrado com êxito!"
+      );
+      reset(valoresPadrao);
+      setAbaAtiva("dados-principais");
+      setMensagemCep(null);
+    } catch {
+      toast.error("Falha ao salvar o cliente. Tente novamente.");
+    }
   };
 
   const limparCep = (valor: string) => valor.replace(/\D/g, "").slice(0, 8);
@@ -118,8 +153,8 @@ export function ModalNovoCliente({
   const buscarEnderecoPorCep = async (cepInformado: string) => {
     const cepLimpo = limparCep(cepInformado);
 
-    if (cepLimpo.length !== 8) {
-      setMensagemCep(null);
+    // DEFESA: CEP incompleto ou vazio — não faz nada e não sobrescreve os campos preenchidos
+    if (!cepLimpo || cepLimpo.length !== 8) {
       return;
     }
 
@@ -207,7 +242,9 @@ export function ModalNovoCliente({
     >
       <DialogContent className="max-w-4xl bg-background border-border">
         <DialogHeader>
-          <DialogTitle className="text-foreground">Novo Cliente</DialogTitle>
+          <DialogTitle className="text-foreground">
+            {modoEdicao ? "Editar Cliente" : "Novo Cliente"}
+          </DialogTitle>
           <DialogDescription>
             Cadastre clientes de varejo, empresas B2B e orgaos publicos.
           </DialogDescription>
@@ -217,11 +254,13 @@ export function ModalNovoCliente({
           <Tabs value={abaAtiva} onValueChange={setAbaAtiva} className="w-full">
             <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3">
               <TabsTrigger value="dados-principais">Dados Principais</TabsTrigger>
-              <TabsTrigger value="contato-endereco">Contato e Endereco</TabsTrigger>
-              <TabsTrigger value="observacoes">Observacoes</TabsTrigger>
+              <TabsTrigger value="contato-endereco">Contato e Endereço</TabsTrigger>
+              <TabsTrigger value="observacoes">Observações</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="dados-principais" className="space-y-4 pt-2">
+            {/* Usamos 'hidden' no estilo em vez de renderização condicional para manter o estado no DOM */}
+
+            <div className={abaAtiva !== "dados-principais" ? "hidden" : "space-y-4 pt-2"}>
               <div className="space-y-2">
                 <Label className="text-foreground">Tipo de Pessoa</Label>
                 <Controller
@@ -361,9 +400,9 @@ export function ModalNovoCliente({
                   />
                 </div>
               </div>
-            </TabsContent>
+            </div>
 
-            <TabsContent value="contato-endereco" className="space-y-4 pt-2">
+            <div className={abaAtiva !== "contato-endereco" ? "hidden" : "space-y-4 pt-2"}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="telefone">Telefone</Label>
@@ -519,9 +558,9 @@ export function ModalNovoCliente({
                   )}
                 </div>
               </div>
-            </TabsContent>
+            </div>
 
-            <TabsContent value="observacoes" className="space-y-4 pt-2">
+            <div className={abaAtiva !== "observacoes" ? "hidden" : "space-y-4 pt-2"}>
               <div>
                 <Label htmlFor="observacoes">Observacoes / Historico Inicial</Label>
                 <Controller
@@ -538,7 +577,7 @@ export function ModalNovoCliente({
                   )}
                 />
               </div>
-            </TabsContent>
+            </div>
           </Tabs>
 
           <DialogFooter className="gap-2">
@@ -551,8 +590,14 @@ export function ModalNovoCliente({
               Cancelar
             </Button>
             <Button type="submit" disabled={carregando || isSubmitting}>
-              {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Salvar Cliente
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Salvando...
+                </>
+              ) : (
+                modoEdicao ? "Salvar Alterações" : "Salvar Cliente"
+              )}
             </Button>
           </DialogFooter>
         </form>

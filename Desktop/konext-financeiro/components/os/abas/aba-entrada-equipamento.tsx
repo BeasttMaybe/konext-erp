@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useFormContext } from "react-hook-form";
-import { buscarClientesOS, type ClienteBuscaOS } from "@/app/actions/os";
+import { buscarClientesOS, buscarClientePorId, type ClienteBuscaOS } from "@/app/actions/os";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -11,7 +11,12 @@ import { Badge } from "@/components/ui/badge";
 import { Eye, EyeOff } from "lucide-react";
 import { Card } from "@/components/ui/card";
 
-export function AbaEntradaEquipamento() {
+interface AbaEntradaEquipamentoProps {
+  /** Quando fornecido, o seletor de cliente é pré-preenchido automaticamente via busca por ID. */
+  clienteIdInicial?: string;
+}
+
+export function AbaEntradaEquipamento({ clienteIdInicial }: AbaEntradaEquipamentoProps) {
   const { register, setValue, formState: { errors } } = useFormContext();
   const [mostrarSenhaAcesso, setMostrarSenhaAcesso] = useState(false);
   const [padraoDesenho, setPadraoDesenho] = useState<number[]>([]);
@@ -19,6 +24,20 @@ export function AbaEntradaEquipamento() {
   const [carregandoClientes, setCarregandoClientes] = useState(false);
   const [clientesEncontrados, setClientesEncontrados] = useState<ClienteBuscaOS[]>([]);
   const [clienteSelecionadoTexto, setClienteSelecionadoTexto] = useState("");
+
+  // Pré-preenche o cliente quando um clienteIdInicial é fornecido via URL
+  useEffect(() => {
+    if (!clienteIdInicial) return;
+    let ativo = true;
+
+    buscarClientePorId(clienteIdInicial).then((cliente) => {
+      if (!ativo || !cliente) return;
+      selecionarCliente(cliente);
+    });
+
+    return () => { ativo = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clienteIdInicial]);
 
   useEffect(() => {
     const termo = buscaCliente.trim();

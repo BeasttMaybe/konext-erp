@@ -304,12 +304,14 @@ export async function excluirCliente(
 
     if (
       erro instanceof Prisma.PrismaClientKnownRequestError &&
-      erro.code === "P2003"
+      (erro.code === "P2003" || erro.code === "P2014")
     ) {
+      // Erro de chave estrangeira: cliente possui registros vinculados (OS, vendas, etc.)
+      console.error("Erro FK ao excluir cliente:", erro.code, erro.meta);
       return {
         sucesso: false,
         mensagem:
-          "Nao foi possivel excluir: este cliente possui registros vinculados.",
+          "Não é possível excluir este cliente pois ele possui Ordens de Serviço ou outros registros vinculados.",
       };
     }
 
@@ -317,8 +319,80 @@ export async function excluirCliente(
 
     return {
       sucesso: false,
-      mensagem: "Nao foi possivel excluir o cliente. Tente novamente.",
+      mensagem: "Não foi possível excluir o cliente. Tente novamente.",
     };
+  }
+}
+
+// ── Atualizar Cliente ───────────────────────────────────────────────────────────
+
+export async function atualizarCliente(
+  clienteId: string,
+  dados: FormCliente
+): Promise<ResultadoCriarCliente> {
+  try {
+    await exigirSessao();
+    const dadosValidados = formClienteSchema.parse(dados);
+
+    const clienteAtualizado = await prisma.cliente.update({
+      where: { id: clienteId },
+      data: {
+        tipoPessoa: dadosValidados.tipoPessoa,
+        nomeRazaoSocial: dadosValidados.nomeRazaoSocial.trim(),
+        nomeFantasia: dadosValidados.nomeFantasia?.trim() || null,
+        documento: dadosValidados.documento.trim(),
+        inscricaoEstadual: dadosValidados.inscricaoEstadual?.trim() || null,
+        email: dadosValidados.email?.trim() || null,
+        telefone: dadosValidados.telefone.trim(),
+        isWhatsapp: dadosValidados.isWhatsapp,
+        cep: dadosValidados.cep?.trim() || null,
+        logradouro: dadosValidados.logradouro?.trim() || null,
+        numero: dadosValidados.numero?.trim() || null,
+        bairro: dadosValidados.bairro?.trim() || null,
+        cidade: dadosValidados.cidade?.trim() || null,
+        estado: dadosValidados.estado?.trim() || null,
+        categoria: dadosValidados.categoria,
+        observacoes: dadosValidados.observacoes?.trim() || null,
+      },
+    });
+
+    revalidatePath("/crm");
+
+    return {
+      sucesso: true,
+      mensagem: "Cliente atualizado com sucesso.",
+      cliente: {
+        id: clienteAtualizado.id,
+        tipoPessoa: clienteAtualizado.tipoPessoa,
+        nomeRazaoSocial: clienteAtualizado.nomeRazaoSocial,
+        nomeFantasia: clienteAtualizado.nomeFantasia,
+        documento: clienteAtualizado.documento,
+        inscricaoEstadual: clienteAtualizado.inscricaoEstadual,
+        email: clienteAtualizado.email,
+        telefone: clienteAtualizado.telefone,
+        isWhatsapp: clienteAtualizado.isWhatsapp,
+        cep: clienteAtualizado.cep,
+        logradouro: clienteAtualizado.logradouro,
+        numero: clienteAtualizado.numero,
+        bairro: clienteAtualizado.bairro,
+        cidade: clienteAtualizado.cidade,
+        estado: clienteAtualizado.estado,
+        categoria: clienteAtualizado.categoria,
+        observacoes: clienteAtualizado.observacoes,
+      },
+    };
+  } catch (erro) {
+    if (erro instanceof Error && erro.message.includes("Sessão")) {
+      return { sucesso: false, mensagem: erro.message };
+    }
+    if (erro instanceof ZodError) {
+      return {
+        sucesso: false,
+        mensagem: erro.errors[0]?.message ?? "Dados inválidos.",
+      };
+    }
+    console.error("Erro ao atualizar cliente:", erro);
+    return { sucesso: false, mensagem: "Não foi possível atualizar o cliente." };
   }
 }
 
@@ -359,8 +433,18 @@ export async function listarClientesPaginado(
   nomeRazaoSocial: string;
   nomeFantasia: string | null;
   documento: string;
+  inscricaoEstadual: string | null;
+  email: string | null;
   telefone: string;
+  isWhatsapp: boolean;
+  cep: string | null;
+  logradouro: string | null;
+  numero: string | null;
+  bairro: string | null;
+  cidade: string | null;
+  estado: string | null;
   categoria: "CLIENTE_FINAL" | "EMPRESA" | "ORGAO_PUBLICO";
+  observacoes: string | null;
 }>> {
   const skip = (page - 1) * limit;
 
@@ -394,8 +478,18 @@ export async function listarClientesPaginado(
         nomeRazaoSocial: true,
         nomeFantasia: true,
         documento: true,
+        inscricaoEstadual: true,
+        email: true,
         telefone: true,
+        isWhatsapp: true,
+        cep: true,
+        logradouro: true,
+        numero: true,
+        bairro: true,
+        cidade: true,
+        estado: true,
         categoria: true,
+        observacoes: true,
       },
     }),
   ]);

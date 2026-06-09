@@ -197,6 +197,72 @@ export async function darBaixaConta(id: string, observacaoPagamento?: string) {
   revalidatePath("/financeiro");
 }
 
+// ── Editar Conta a Receber ────────────────────────────────────────────────────
+
+export interface EditarContaReceberInput {
+  dataVencimento: Date;
+  valor: number;
+}
+
+/**
+ * Atualiza o vencimento e o valor de uma conta a receber ainda não baixada.
+ * Só permite editar contas com status PENDENTE.
+ */
+export async function editarContaReceber(
+  id: string,
+  input: EditarContaReceberInput
+): Promise<void> {
+  await exigirSessao();
+
+  const conta = await prisma.contaReceber.findUnique({
+    where: { id },
+    select: { status: true },
+  });
+
+  if (!conta) throw new Error("Conta não encontrada.");
+  if (conta.status === "RECEBIDO") {
+    throw new Error("Não é possível editar uma conta já baixada.");
+  }
+
+  await prisma.contaReceber.update({
+    where: { id },
+    data: {
+      dataVencimento: input.dataVencimento,
+      valor: input.valor,
+    },
+  });
+
+  revalidatePath("/financeiro/receber");
+  revalidatePath("/financeiro");
+}
+
+// ── Excluir Conta a Receber ───────────────────────────────────────────────────
+
+/**
+ * Remove uma conta a receber do banco.
+ * Contas vinculadas a vendas não podem ser excluídas manualmente.
+ */
+export async function excluirContaReceber(id: string): Promise<void> {
+  await exigirSessao();
+
+  const conta = await prisma.contaReceber.findUnique({
+    where: { id },
+    select: { vendaId: true },
+  });
+
+  if (!conta) throw new Error("Conta não encontrada.");
+  if (conta.vendaId) {
+    throw new Error(
+      "Esta conta está vinculada a uma venda e não pode ser excluída manualmente."
+    );
+  }
+
+  await prisma.contaReceber.delete({ where: { id } });
+
+  revalidatePath("/financeiro/receber");
+  revalidatePath("/financeiro");
+}
+
 // ── Tipos e funções para consulta filtrada ──────────────────────────────────
 
 export interface FiltrosReceber {

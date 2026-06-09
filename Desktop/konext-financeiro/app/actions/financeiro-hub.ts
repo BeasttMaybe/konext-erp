@@ -58,7 +58,11 @@ function obterDelegateVendaFindMany(clientePrisma: PrismaFinanceiroAny): Delegat
 export async function obterResumoDashboardFinanceiro(): Promise<ResumoDashboardFinanceiro> {
   const agora = new Date();
   const inicioHoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 0, 0, 0, 0);
-  const fimHoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 23, 59, 59, 999);
+  const fimHoje    = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 23, 59, 59, 999);
+
+  // Escopo do mês atual para o Saldo Previsto
+  const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1, 0, 0, 0, 0);
+  const fimMes    = new Date(agora.getFullYear(), agora.getMonth() + 1, 0, 23, 59, 59, 999);
 
   const prismaAny = prisma as PrismaFinanceiroAny;
   const parcelaDespesaDelegate = obterDelegateFindMany(
@@ -73,46 +77,45 @@ export async function obterResumoDashboardFinanceiro(): Promise<ResumoDashboardF
   );
   const vendaDelegate = obterDelegateVendaFindMany(prismaAny);
 
-  const [parcelasPagarHoje, contasReceberHoje, parcelasPagarPendentes, contasReceberPendentes] = await Promise.all([
+  const [
+    parcelasPagarHoje,
+    contasReceberHoje,
+    // Contas em atraso (vencidas antes do início do mês, ainda não pagas)
+    parcelasPagarAtrasadas,
+    contasReceberAtrasadas,
+    // Contas com vencimento no mês atual (pendentes)
+    parcelasPagarMes,
+    contasReceberMes,
+  ] = await Promise.all([
+    // A pagar hoje
     parcelaDespesaDelegate.findMany({
-      where: {
-        status: "PENDENTE",
-        dataVencimento: {
-          gte: inicioHoje,
-          lte: fimHoje,
-        },
-      },
-      select: {
-        valor: true,
-      },
+      where: { status: "PENDENTE", dataVencimento: { gte: inicioHoje, lte: fimHoje } },
+      select: { valor: true },
     }),
+    // A receber hoje
     contaReceberDelegate.findMany({
-      where: {
-        status: "PENDENTE",
-        dataVencimento: {
-          gte: inicioHoje,
-          lte: fimHoje,
-        },
-      },
-      select: {
-        valor: true,
-      },
+      where: { status: "PENDENTE", dataVencimento: { gte: inicioHoje, lte: fimHoje } },
+      select: { valor: true },
     }),
+    // A pagar atrasadas (vencidas antes do início do mês atual, não pagas)
     parcelaDespesaDelegate.findMany({
-      where: {
-        status: "PENDENTE",
-      },
-      select: {
-        valor: true,
-      },
+      where: { status: "PENDENTE", dataVencimento: { lt: inicioMes } },
+      select: { valor: true },
     }),
+    // A receber atrasadas (vencidas antes do início do mês atual, não recebidas)
     contaReceberDelegate.findMany({
-      where: {
-        status: "PENDENTE",
-      },
-      select: {
-        valor: true,
-      },
+      where: { status: "PENDENTE", dataVencimento: { lt: inicioMes } },
+      select: { valor: true },
+    }),
+    // A pagar com vencimento no mês atual
+    parcelaDespesaDelegate.findMany({
+      where: { status: "PENDENTE", dataVencimento: { gte: inicioMes, lte: fimMes } },
+      select: { valor: true },
+    }),
+    // A receber com vencimento no mês atual
+    contaReceberDelegate.findMany({
+      where: { status: "PENDENTE", dataVencimento: { gte: inicioMes, lte: fimMes } },
+      select: { valor: true },
     }),
   ]);
 
@@ -182,24 +185,24 @@ export async function obterResumoDashboardFinanceiro(): Promise<ResumoDashboardF
     }
   }
 
-  const totalPagarHojeCentavos = parcelasPagarHoje.reduce((acumulado, conta) => {
-    return acumulado + paraCentavos(conta.valor);
-  }, 0);
+  const totalPagarHojeCentavos = parcelasPagarHoje.reduce(
+    (acc, c) => acc + paraCentavos(c.valor), 0
+  );
+  const totalReceberHojeCentavos = contasReceberHoje.reduce(
+    (acc, c) => acc + paraCentavos(c.valor), 0
+  );
 
-  const totalReceberHojeCentavos = contasReceberHoje.reduce((acumulado, conta) => {
-    return acumulado + paraCentavos(conta.valor);
-  }, 0);
+  // Saldo Previsto = (a receber atrasado + a receber no mês) - (a pagar atrasado + a pagar no mês)
+  // Inclui inadimplência acumulada de meses anteriores + posição do mês corrente.
+  const totalReceberSaldoCentavos =
+    contasReceberAtrasadas.reduce((acc, c) => acc + paraCentavos(c.valor), 0) +
+    contasReceberMes.reduce((acc, c) => acc + paraCentavos(c.valor), 0);
 
-  const totalPagarPendenteCentavos = parcelasPagarPendentes.reduce((acumulado, conta) => {
-    return acumulado + paraCentavos(conta.valor);
-  }, 0);
+  const totalPagarSaldoCentavos =
+    parcelasPagarAtrasadas.reduce((acc, c) => acc + paraCentavos(c.valor), 0) +
+    parcelasPagarMes.reduce((acc, c) => acc + paraCentavos(c.valor), 0);
 
-  const totalReceberPendenteCentavos = contasReceberPendentes.reduce((acumulado, conta) => {
-    return acumulado + paraCentavos(conta.valor);
-  }, 0);
-
-  const saldoPrevistoCentavos =
-    totalVendasHojeCentavos + totalReceberPendenteCentavos - totalPagarPendenteCentavos;
+  const saldoPrevistoCentavos = totalReceberSaldoCentavos - totalPagarSaldoCentavos;
 
   return {
     totalVendasHoje: paraMoeda(totalVendasHojeCentavos),

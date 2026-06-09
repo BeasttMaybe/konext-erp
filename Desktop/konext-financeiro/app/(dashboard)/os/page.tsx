@@ -11,7 +11,14 @@ function formatarNumeroOS(numero: number): string {
   return `OS-${String(new Date().getFullYear())}-${String(numero).padStart(3, "0")}`;
 }
 
-export default async function OSPage() {
+export default async function OSPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
+  const params = await searchParams;
+  const clienteIdInicial = params.clienteId ?? null;
+
   const prismaAny = prisma as any;
   const ordemServicoDelegate = prismaAny.ordemServico ?? prismaAny.OrdemServico;
 
@@ -88,7 +95,7 @@ export default async function OSPage() {
       <div className="flex-1 overflow-y-auto">
         <div className="px-6 lg:px-8 py-6">
           <div className="max-w-7xl mx-auto">
-            <DashboardOS ordensServico={ordensServico} />
+            <DashboardOS ordensServico={ordensServico} clienteIdInicial={clienteIdInicial} />
           </div>
         </div>
       </div>

@@ -27,7 +27,8 @@ export const formClienteSchema = z.object({
   estado: z
     .string()
     .length(2, "Use a sigla do estado (ex: SP).")
-    .optional(),
+    .optional()
+    .or(z.literal("")),
 
   // Classificação
   categoria: z

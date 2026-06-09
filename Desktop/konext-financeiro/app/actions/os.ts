@@ -109,6 +109,33 @@ export async function buscarClientesOS(termoBusca: string): Promise<ClienteBusca
   }));
 }
 
+/**
+ * Retorna os dados de um cliente pelo ID.
+ * Usado para pré-preencher o seletor de cliente na OS quando o clienteId vem via URL.
+ */
+export async function buscarClientePorId(clienteId: string): Promise<ClienteBuscaOS | null> {
+  if (!clienteId) return null;
+
+  const prismaAny = prisma as any;
+  const clienteDelegate = prismaAny.cliente ?? prismaAny.Cliente;
+
+  if (!clienteDelegate?.findUnique) return null;
+
+  const cliente = await clienteDelegate.findUnique({
+    where: { id: clienteId },
+    select: { id: true, nomeRazaoSocial: true, documento: true, telefone: true },
+  });
+
+  if (!cliente) return null;
+
+  return {
+    id: String(cliente.id),
+    nomeRazaoSocial: String(cliente.nomeRazaoSocial),
+    documento: String(cliente.documento),
+    telefone: String(cliente.telefone),
+  };
+}
+
 export async function criarOrdemServico(dados: DadosNovaOS) {
   // C1: rejeita chamadas nao autenticadas diretamente no backend.
   await exigirSessao();

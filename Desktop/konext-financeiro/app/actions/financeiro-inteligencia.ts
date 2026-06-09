@@ -225,6 +225,7 @@ export async function obterDadosAnaliticos(
           valor: true,
           origem: true,
           dataRecebimento: true,
+          vendaId: true,
         },
       }),
       prisma.itemVenda.findMany({
@@ -334,7 +335,12 @@ export async function obterDadosAnaliticos(
     0
   );
 
-  const faturamentoBrutoCentavos = faturamentoVendasCentavos;
+  // Receita de Contas a Receber efetivamente recebidas (somente status RECEBIDO)
+  const faturamentoContasReceberCentavos = recebimentosPeriodo
+    .filter((conta) => !conta.vendaId) // evita duplicidade com vendas PDV que já geram conta
+    .reduce((acumulado, conta) => acumulado + paraCentavos(conta.valor), 0);
+
+  const faturamentoBrutoCentavos = faturamentoVendasCentavos + faturamentoContasReceberCentavos;
 
   const cmvCentavos = itensVendaPeriodo.reduce((acumulado, item) => {
     return acumulado + paraCentavos(item.custoUnitario) * item.quantidade;
@@ -373,6 +379,13 @@ export async function obterDadosAnaliticos(
     );
   }
 
+  // Adiciona recebimentos manuais (sem vínculo com venda PDV) à série temporal
+  for (const conta of recebimentosPeriodo) {
+    if (conta.vendaId || !conta.dataRecebimento) continue;
+    const chave = chaveBucket(conta.dataRecebimento, filtroData);
+    mapaFaturamento.set(chave, (mapaFaturamento.get(chave) ?? 0) + paraCentavos(conta.valor));
+  }
+
   for (const parcela of parcelasPeriodo) {
     const referencia = parcela.status === "PAGO" && parcela.dataPagamento ? parcela.dataPagamento : parcela.dataVencimento;
     const chave = chaveBucket(referencia, filtroData);
@@ -390,6 +403,18 @@ export async function obterDadosAnaliticos(
   for (const venda of vendasPeriodo) {
     const nome = venda.formaPagamento.replaceAll("_", " ");
     mapaFontesReceita.set(nome, (mapaFontesReceita.get(nome) ?? 0) + paraCentavos(venda.valorTotal));
+  }
+
+  // Agrupa recebimentos manuais sob a origem da conta (ex: "OS", "CONTRATO_RECORRENTE", etc.)
+  for (const conta of recebimentosPeriodo) {
+    if (conta.vendaId) continue; // já contabilizado nas vendas PDV
+    const nomeFonte = conta.origem
+      ? conta.origem.replaceAll("_", " ")
+      : "Recebimento Manual";
+    mapaFontesReceita.set(
+      nomeFonte,
+      (mapaFontesReceita.get(nomeFonte) ?? 0) + paraCentavos(conta.valor)
+    );
   }
 
   const fontesReceita: DadoFonteReceita[] = Array.from(mapaFontesReceita.entries())

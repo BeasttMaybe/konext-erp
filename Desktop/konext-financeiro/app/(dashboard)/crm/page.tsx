@@ -37,11 +37,30 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ModalNovoCliente } from "@/components/crm/modal-novo-cliente";
-import { criarCliente, excluirCliente, listarClientesPaginado } from "@/app/actions/crm";
+import { criarCliente, excluirCliente, atualizarCliente, listarClientesPaginado } from "@/app/actions/crm";
 import { PaginationControls } from "@/components/ui/pagination-controls";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import type { FormCliente } from "@/lib/validations/crm";
 import { toast } from "sonner";
 
@@ -110,8 +129,18 @@ interface ClienteCadastrado {
   nomeRazaoSocial: string;
   nomeFantasia?: string;
   documento: string;
+  inscricaoEstadual?: string;
+  email?: string;
   telefone: string;
+  isWhatsapp?: boolean;
+  cep?: string;
+  logradouro?: string;
+  numero?: string;
+  bairro?: string;
+  cidade?: string;
+  estado?: string;
   categoria: CategoriaCliente;
+  observacoes?: string;
 }
 
 const mapaCategoriaRotulo: Record<CategoriaCliente, string> = {
@@ -148,6 +177,12 @@ function ConteudoCRM() {
   const [filtroCategoria, setFiltroCategoria] = useState<"TODOS" | CategoriaCliente>("TODOS");
   const [modalNovoClienteAberto, setModalNovoClienteAberto] = useState(false);
   const [deletandoClienteId, setDeletandoClienteId] = useState<string | null>(null);
+  // Estado para editar cliente
+  const [clienteEditando, setClienteEditando] = useState<ClienteCadastrado | null>(null);
+  // Estado para ver perfil
+  const [clientePerfil, setClientePerfil] = useState<ClienteCadastrado | null>(null);
+  // Estado para confirmação de exclusão
+  const [clienteParaExcluir, setClienteParaExcluir] = useState<ClienteCadastrado | null>(null);
 
   // Navega para uma página específica, preservando os demais query params
   const irParaPagina = useCallback(
@@ -227,6 +262,34 @@ function ConteudoCRM() {
   const aoSalvarNovoCliente = async (
     dados: FormCliente
   ): Promise<{ sucesso: boolean }> => {
+    // Modo edição: atualiza cliente existente
+    if (clienteEditando) {
+      const resultado = await atualizarCliente(clienteEditando.id, dados);
+      if (!resultado.sucesso) {
+        toast.error(resultado.mensagem);
+        return { sucesso: false };
+      }
+      // Atualiza o cliente na lista local
+      setClientes((anterior) =>
+        anterior.map((c) =>
+          c.id === clienteEditando.id
+            ? {
+                ...c,
+                tipoPessoa: resultado.cliente.tipoPessoa,
+                nomeRazaoSocial: resultado.cliente.nomeRazaoSocial,
+                nomeFantasia: resultado.cliente.nomeFantasia ?? "",
+                documento: resultado.cliente.documento,
+                telefone: resultado.cliente.telefone,
+                categoria: resultado.cliente.categoria,
+              }
+            : c
+        )
+      );
+      setClienteEditando(null);
+      setModalNovoClienteAberto(false);
+      toast.success("Cliente atualizado com sucesso!");
+      return { sucesso: true };
+    }
     const resultado = await criarCliente(dados);
 
     if (!resultado.sucesso) {
@@ -253,7 +316,6 @@ function ConteudoCRM() {
 
   const aoExcluirCliente = async (clienteId: string) => {
     if (deletandoClienteId) return;
-
     setDeletandoClienteId(clienteId);
 
     const resultado = await excluirCliente(clienteId);
@@ -265,8 +327,10 @@ function ConteudoCRM() {
     }
 
     setClientes((anterior) => anterior.filter((cliente) => cliente.id !== clienteId));
-    toast.success(resultado.mensagem);
+    setTotalClientes((t) => Math.max(0, t - 1));
+    toast.success("Cliente excluído com sucesso!");
     setDeletandoClienteId(null);
+    setClienteParaExcluir(null);
   };
 
   return (
@@ -386,30 +450,36 @@ function ConteudoCRM() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="min-w-52">
+                              {/* Ver Perfil: abre dialog de detalhes */}
                               <DropdownMenuItem
-                                onClick={() => console.log("Ver perfil", cliente.id)}
+                                onClick={() => setClientePerfil(cliente)}
                               >
                                 <Eye className="h-4 w-4 mr-2" />
                                 Ver Perfil
                               </DropdownMenuItem>
+                              {/* Nova OS: navega para a criação de OS pré-vinculada ao cliente */}
                               <DropdownMenuItem
-                                onClick={() =>
-                                  console.log("Nova OS para cliente", cliente.id)
-                                }
+                                onClick={() => router.push(`/os?clienteId=${cliente.id}`)}
                               >
                                 <Wrench className="h-4 w-4 mr-2" />
                                 Nova OS para este cliente
                               </DropdownMenuItem>
+                              {/* Editar: abre o modal com dados pré-preenchidos */}
                               <DropdownMenuItem
-                                onClick={() => console.log("Editar cliente", cliente.id)}
+                                onClick={() => {
+                                  setClienteEditando(cliente);
+                                  setModalNovoClienteAberto(true);
+                                }}
                               >
                                 <SquarePen className="h-4 w-4 mr-2" />
                                 Editar
                               </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              {/* Excluir: abre confirmação antes de deletar */}
                               <DropdownMenuItem
-                                onClick={() => aoExcluirCliente(cliente.id)}
+                                onClick={() => setClienteParaExcluir(cliente)}
                                 disabled={deletandoClienteId === cliente.id}
-                                className="text-destructive"
+                                className="text-destructive focus:text-destructive"
                               >
                                 <Trash2 className="h-4 w-4 mr-2" />
                                 Excluir
@@ -451,9 +521,121 @@ function ConteudoCRM() {
 
       <ModalNovoCliente
         aberto={modalNovoClienteAberto}
-        aoFechar={() => setModalNovoClienteAberto(false)}
+        aoFechar={() => {
+          setModalNovoClienteAberto(false);
+          setClienteEditando(null);
+        }}
         aoSalvar={aoSalvarNovoCliente}
+        dadosIniciais={
+          clienteEditando
+            ? {
+                tipoPessoa: clienteEditando.tipoPessoa,
+                nomeRazaoSocial: clienteEditando.nomeRazaoSocial,
+                nomeFantasia: clienteEditando.nomeFantasia ?? "",
+                documento: clienteEditando.documento,
+                inscricaoEstadual: clienteEditando.inscricaoEstadual ?? "",
+                email: clienteEditando.email ?? "",
+                telefone: clienteEditando.telefone,
+                isWhatsapp: clienteEditando.isWhatsapp ?? true,
+                cep: clienteEditando.cep ?? "",
+                logradouro: clienteEditando.logradouro ?? "",
+                numero: clienteEditando.numero ?? "",
+                bairro: clienteEditando.bairro ?? "",
+                cidade: clienteEditando.cidade ?? "",
+                estado: clienteEditando.estado ?? "",
+                categoria: clienteEditando.categoria,
+                observacoes: clienteEditando.observacoes ?? "",
+              }
+            : undefined
+        }
       />
+
+      {/* Dialog: Ver Perfil do cliente */}
+      <Dialog
+        open={Boolean(clientePerfil)}
+        onOpenChange={(aberto) => { if (!aberto) setClientePerfil(null); }}
+      >
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Perfil do Cliente</DialogTitle>
+            <DialogDescription>
+              Informações cadastrais resumidas.
+            </DialogDescription>
+          </DialogHeader>
+          {clientePerfil && (
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm py-1">
+              <div className="col-span-2">
+                <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Nome / Razão Social</dt>
+                <dd className="mt-0.5 font-medium text-foreground">{clientePerfil.nomeRazaoSocial}</dd>
+              </div>
+              {clientePerfil.nomeFantasia && (
+                <div className="col-span-2">
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Nome Fantasia</dt>
+                  <dd className="mt-0.5 text-foreground">{clientePerfil.nomeFantasia}</dd>
+                </div>
+              )}
+              <div>
+                <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Documento</dt>
+                <dd className="mt-0.5 text-foreground">{clientePerfil.documento}</dd>
+              </div>
+              <div>
+                <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Telefone</dt>
+                <dd className="mt-0.5 text-foreground">{clientePerfil.telefone}</dd>
+              </div>
+              <div className="col-span-2">
+                <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Categoria</dt>
+                <dd className="mt-0.5">
+                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${
+                    mapaCategoriaCor[clientePerfil.categoria]
+                  }`}>
+                    {mapaCategoriaRotulo[clientePerfil.categoria]}
+                  </span>
+                </dd>
+              </div>
+            </dl>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setClientePerfil(null)}>Fechar</Button>
+            <Button
+              onClick={() => {
+                setClienteEditando(clientePerfil);
+                setClientePerfil(null);
+                setModalNovoClienteAberto(true);
+              }}
+            >
+              <SquarePen className="h-4 w-4 mr-2" />
+              Editar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* AlertDialog: Confirmar exclusão */}
+      <AlertDialog
+        open={Boolean(clienteParaExcluir)}
+        onOpenChange={(aberto) => { if (!aberto) setClienteParaExcluir(null); }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir cliente?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir{" "}
+              <span className="font-semibold">{clienteParaExcluir?.nomeRazaoSocial}</span>?{" "}
+              Esta ação não pode ser desfeita. Clientes com Ordens de Serviço vinculadas não podem ser excluídos.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={Boolean(deletandoClienteId)}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={Boolean(deletandoClienteId)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => clienteParaExcluir && aoExcluirCliente(clienteParaExcluir.id)}
+            >
+              {deletandoClienteId ? "Excluindo..." : "Confirmar Exclusão"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

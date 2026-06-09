@@ -66,12 +66,15 @@ interface ModalNovaOSProps {
   aberta: boolean;
   onAbrirMudar: (aberta: boolean) => void;
   onSalvar?: (dados: DadosNovaOS) => Promise<void>;
+  /** Quando informado, o cliente é pré-selecionado automaticamente ao abrir o modal. */
+  clienteIdInicial?: string;
 }
 
 export function ModalNovaOS({
   aberta,
   onAbrirMudar,
   onSalvar,
+  clienteIdInicial,
 }: ModalNovaOSProps) {
   const [abaAtiva, setAbaAtiva] = useState("entrada");
   const [salvando, setSalvando] = useState(false);
@@ -138,7 +141,7 @@ export function ModalNovaOS({
               </TabsList>
 
               <TabsContent value="entrada" className="space-y-4 mt-4">
-                <AbaEntradaEquipamento />
+                <AbaEntradaEquipamento clienteIdInicial={clienteIdInicial} />
               </TabsContent>
 
               <TabsContent value="orcamento" className="space-y-4 mt-4">
