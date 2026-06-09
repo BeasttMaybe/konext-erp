@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import type { TipoPeca } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { calcularPrecoVendaPeca } from "@/lib/utils/precificacao";
 import { exigirSessao } from "@/lib/auth/sessao";
 
 const tiposPecaValidos: TipoPeca[] = [
@@ -46,11 +45,11 @@ export async function adicionarItemOS(osId: string, data: any) {
     throw new Error("O custo da peca nao pode ser negativo.");
   }
 
-  const valorCobrado =
-    tipoPeca === "OUTROS" ? valorManual : calcularPrecoVendaPeca(tipoPeca, custoPeca);
+  // O valor cobrado ao cliente é sempre o informado manualmente — sem cálculo automático de markup.
+  const valorCobrado = valorManual;
 
   if (valorCobrado <= 0) {
-    throw new Error("Informe um valor manual valido para itens do tipo OUTROS.");
+    throw new Error("Informe um valor cobrado ao cliente válido (maior que zero).");
   }
 
   const prismaAny = prisma as any;
@@ -60,29 +59,62 @@ export async function adicionarItemOS(osId: string, data: any) {
     throw new Error("Delegate Prisma de ItemOS nao disponivel.");
   }
 
-  try {
-    await delegate.create({
-      data: {
-        osId,
-        descricao,
-        tipoPeca,
-        custoPeca,
-        valorCobrado,
-      },
-    });
-  } catch {
-    // Fallback para schema antigo enquanto a migracao ainda nao foi aplicada.
-    await delegate.create({
-      data: {
-        ordemServicoId: osId,
-        descricao,
-        tipo: tipoPeca,
-        custoPeca,
-        valorCobrado,
-      },
-    });
-  }
+  // Usa transaction para garantir que o item e a despesa financeira sejam criados juntos.
+  await prisma.$transaction(async (tx) => {
+    const txAny = tx as any;
+    const txItemOS = txAny.itemOS ?? txAny.ItemOS;
+    const txDespesa = txAny.despesa ?? txAny.Despesa;
+    const txParcelaDespesa = txAny.parcelaDespesa ?? txAny.ParcelaDespesa;
+
+    if (!txItemOS?.create) {
+      throw new Error("Delegate Prisma de ItemOS nao disponivel na transacao.");
+    }
+
+    // 1. Insere o item na OS
+    try {
+      await txItemOS.create({
+        data: { osId, descricao, tipoPeca, custoPeca, valorCobrado },
+      });
+    } catch {
+      // Fallback para schema antigo enquanto a migração ainda não foi aplicada.
+      await txItemOS.create({
+        data: { ordemServicoId: osId, descricao, tipo: tipoPeca, custoPeca, valorCobrado },
+      });
+    }
+
+    // 2. Cria despesa financeira automática caso a peça tenha custo registrado.
+    if (custoPeca > 0 && txDespesa?.create && txParcelaDespesa?.create) {
+      // Busca o número da OS para compor a descrição legível
+      const osAny = txAny.ordemServico ?? txAny.OrdemServico;
+      const numeroOs = osAny?.findUnique
+        ? (await osAny.findUnique({ where: { id: osId }, select: { numeroOs: true } }))?.numeroOs ?? osId
+        : osId;
+
+      const despesa = await txDespesa.create({
+        data: {
+          fornecedor: "Custo de peça (OS)",
+          descricao: `Custo de Peça - OS #${numeroOs} - ${descricao}`,
+          valorTotal: custoPeca,
+          tipo: "UNICA",
+          qtdParcelas: 1,
+        },
+      });
+
+      // Cria a parcela única com vencimento para hoje e status PENDENTE
+      await txParcelaDespesa.create({
+        data: {
+          despesaId: despesa.id,
+          numeroParcela: 1,
+          valor: custoPeca,
+          dataVencimento: new Date(),
+          status: "PENDENTE",
+        },
+      });
+    }
+  });
 
   revalidatePath(`/os/${osId}`);
   revalidatePath("/os");
+  revalidatePath("/financeiro/pagar");
+  revalidatePath("/financeiro");
 }

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import type { StatusOS, TipoPeca } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { calcularPrecoVendaPeca } from "@/lib/utils/precificacao";
+// Importação de calcularPrecoVendaPeca removida — preços são definidos manualmente pelo operador.
 import { exigirSessao } from "@/lib/auth/sessao";
 
 type ItemEntrada = {
@@ -138,10 +138,8 @@ export async function criarOrdemServico(dados: DadosNovaOS) {
       if (!descricao) return null;
       if (custoPeca < 0) return null;
 
-      const valorCobrado =
-        item.tipo === "OUTROS"
-          ? valorCobradoEntrada
-          : calcularPrecoVendaPeca(item.tipo, custoPeca);
+      // Valor cobrado ao cliente: sempre o informado manualmente, sem markup automático.
+      const valorCobrado = valorCobradoEntrada;
 
       if (valorCobrado <= 0) return null;
 
@@ -234,6 +232,38 @@ export async function atualizarStatusOrdemServico(osId: string, status: StatusOS
       status,
     },
   });
+
+  // Cria notificação para status relevantes — falha silenciosa para não bloquear a operação principal.
+  const statusComNotificacao: Record<string, { titulo: string; mensagem: (n: number) => string }> = {
+    APROVADO:         { titulo: "OS Aprovada",             mensagem: (n) => `A OS #${n} foi aprovada pelo cliente e pode seguir para a manutenção.` },
+    AGUARDANDO_PECA:  { titulo: "OS Aguardando Peça",      mensagem: (n) => `A OS #${n} está aguardando chegada de peça para prosseguir.` },
+    EM_MANUTENCAO:    { titulo: "OS em Manutenção",        mensagem: (n) => `A OS #${n} está em manutenção pelo técnico.` },
+    PRONTO:           { titulo: "OS Pronta para Retirada", mensagem: (n) => `A OS #${n} foi concluída e está pronta para retirada pelo cliente.` },
+    ENTREGUE:         { titulo: "OS Entregue",             mensagem: (n) => `A OS #${n} foi entregue ao cliente com sucesso.` },
+  };
+
+  const config = statusComNotificacao[status];
+  if (config) {
+    try {
+      const os = await ordemServicoDelegate.findUnique({
+        where: { id: osId },
+        select: { numeroOs: true },
+      });
+      const numeroOs = os?.numeroOs ?? osId;
+
+      const notifDelegate = (prismaAny as any).notificacao ?? (prismaAny as any).Notificacao;
+      if (notifDelegate?.create) {
+        await notifDelegate.create({
+          data: {
+            titulo: config.titulo,
+            mensagem: config.mensagem(Number(numeroOs)),
+          },
+        });
+      }
+    } catch {
+      // Notificação opcional — não bloqueia a atualização de status em caso de falha.
+    }
+  }
 
   revalidatePath("/os");
   revalidatePath(`/os/${osId}`);

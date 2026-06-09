@@ -379,7 +379,44 @@ export async function processarVenda(
         }
       }
 
-      // Pagamentos a prazo geram Conta a Receber pendente; pagamentos instantaneos finalizam na Venda.
+      // Verifica estoque baixo após decrementar e cria notificações de forma assíncrona e silenciosa.
+      setImmediate(async () => {
+        try {
+          const prismaAny2 = prisma as any;
+          const produtoDelegate = prismaAny2.produto ?? prismaAny2.Produto;
+          const notifDelegate = prismaAny2.notificacao ?? prismaAny2.Notificacao;
+          if (!produtoDelegate?.findUnique || !notifDelegate?.create) return;
+
+          for (const item of carrinho) {
+            const produto = await produtoDelegate.findUnique({
+              where: { id: item.id },
+              select: { nome: true, quantidadeEstoque: true, estoqueMinimo: true },
+            });
+            if (!produto) continue;
+
+            const limite = produto.estoqueMinimo ?? 3;
+            if (produto.quantidadeEstoque <= limite) {
+              const notifExistente = await notifDelegate.findFirst({
+                where: {
+                  lida: false,
+                  titulo: "Estoque Baixo",
+                  mensagem: { contains: produto.nome },
+                },
+              });
+              if (!notifExistente) {
+                await notifDelegate.create({
+                  data: {
+                    titulo: "Estoque Baixo",
+                    mensagem: `Atenção: O estoque do item "${produto.nome}" está baixo (Restam: ${produto.quantidadeEstoque} unidades).`,
+                  },
+                });
+              }
+            }
+          }
+        } catch {
+          // Notificação de estoque é opcional — falha silenciosa para não impactar a venda.
+        }
+      });
       if ((deferredPayments as readonly string[]).includes(formaPagamentoBanco)) {
         const contaReceberDelegate = obterDelegateComFallback(
           txAny,

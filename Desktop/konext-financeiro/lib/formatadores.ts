@@ -48,3 +48,12 @@ export const calcularVariacao = (
   if (valorAnterior === 0) return 0;
   return ((valorAtual - valorAnterior) / valorAnterior) * 100;
 };
+
+/**
+ * Objeto com funções de formatação
+ */
+export const formatador = {
+  moeda: formatarMoedaBrasileira,
+  data: formatarDataBrasileira,
+  dataHora: formatarDataHoraBrasileira,
+};

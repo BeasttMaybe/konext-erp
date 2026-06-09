@@ -1,260 +1,151 @@
-"use client";
-
-import { useEffect, useMemo, useState } from "react";
+import { Suspense } from "react";
 import Link from "next/link";
-import { format } from "date-fns";
-import { ChevronLeft, MoreHorizontal } from "lucide-react";
-import { toast } from "sonner";
-import { darBaixaConta, listarContasReceber, type ContaReceberFinanceiro } from "@/app/actions/financeiro-receber";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { ChevronLeft, TrendingUp, AlertTriangle, CheckCircle2, Wallet } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  listarContasReceberFiltradas,
+  obterResumoReceber,
+} from "@/app/actions/financeiro-receber";
+import { FiltrosReceber } from "./components/FiltrosReceber";
+import { ConteudoReceber } from "./components/ConteudoReceber";
 
-const formatadorMoeda = new Intl.NumberFormat("pt-BR", {
-  style: "currency",
-  currency: "BRL",
-});
+export const metadata = { title: "Contas a Receber | Konext" };
 
-type StatusExibicao = "PENDENTE" | "ATRASADO" | "RECEBIDO";
-
-const mapaFormaPagamento: Record<ContaReceberFinanceiro["formaRecebimento"], string> = {
-  PIX: "PIX",
-  BOLETO: "Boleto",
-  CARTAO_CREDITO: "Cartao de Credito",
-  CARTAO_DEBITO: "Cartao de Debito",
-  DINHEIRO: "Dinheiro",
-  CREDIARIO: "Crediario",
-  EMPENHO_PUBLICO: "Empenho Publico",
-};
-
-function obterInicioDiaAtual(): Date {
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
-  return hoje;
+interface PageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
-function obterStatusExibicao(conta: ContaReceberFinanceiro, inicioDiaAtual: Date): StatusExibicao {
-  if (conta.status === "RECEBIDO") return "RECEBIDO";
-  if (conta.dataVencimento < inicioDiaAtual) return "ATRASADO";
-  return "PENDENTE";
+function obterParam(
+  params: Record<string, string | string[] | undefined>,
+  chave: string
+): string | undefined {
+  const valor = params[chave];
+  return Array.isArray(valor) ? valor[0] : valor;
 }
 
-function obterBadgeStatus(status: StatusExibicao) {
-  if (status === "RECEBIDO") {
-    return <Badge className="border-emerald-300 bg-emerald-100 text-emerald-800 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">Recebido</Badge>;
-  }
+/**
+ * Página de Contas a Receber — Server Component.
+ *
+ * Arquitetura:
+ * - page.tsx (Server): lê searchParams, busca dados do Prisma, renderiza KPIs reativos
+ * - <FiltrosReceber> (Client): atualiza URL Search Params sem useState para filtros
+ * - <ConteudoReceber> (Client): tabela + modais de CRUD; chama router.refresh() após mutações
+ *
+ * URL de filtros: /financeiro/receber?mes=6&ano=2026&categoriaCliente=EMPRESA
+ */
+export default async function FinanceiroReceberPage({ searchParams }: PageProps) {
+  const params = await searchParams;
 
-  if (status === "ATRASADO") {
-    return <Badge variant="destructive">Atrasado</Badge>;
-  }
-
-  return <Badge className="border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300">Pendente</Badge>;
-}
-
-export default function FinanceiroReceberPage() {
-  const [contas, setContas] = useState<ContaReceberFinanceiro[]>([]);
-  const [carregando, setCarregando] = useState(false);
-  const [contaSelecionada, setContaSelecionada] = useState<ContaReceberFinanceiro | null>(null);
-  const [baixandoConta, setBaixandoConta] = useState(false);
-
-  const carregarContas = async () => {
-    try {
-      setCarregando(true);
-      const lista = await listarContasReceber();
-      setContas(lista);
-    } catch {
-      toast.error("Nao foi possivel carregar as contas a receber.");
-    } finally {
-      setCarregando(false);
-    }
+  const filtros = {
+    mes: obterParam(params, "mes"),
+    ano: obterParam(params, "ano"),
+    categoriaCliente: obterParam(params, "categoriaCliente"),
   };
 
-  useEffect(() => {
-    carregarContas();
-  }, []);
+  const [contas, resumo] = await Promise.all([
+    listarContasReceberFiltradas(filtros),
+    obterResumoReceber(filtros),
+  ]);
 
-  const inicioDiaAtual = useMemo(() => obterInicioDiaAtual(), []);
-
-  const metricas = useMemo(() => {
-    const totalPendente = contas.reduce((acumulado, conta) => {
-      const estaPendente = conta.status === "PENDENTE" && conta.dataVencimento >= inicioDiaAtual;
-      return acumulado + (estaPendente ? conta.valor : 0);
-    }, 0);
-
-    const totalAtrasado = contas.reduce((acumulado, conta) => {
-      const estaAtrasada = conta.status === "PENDENTE" && conta.dataVencimento < inicioDiaAtual;
-      return acumulado + (estaAtrasada ? conta.valor : 0);
-    }, 0);
-
-    return { totalPendente, totalAtrasado };
-  }, [contas, inicioDiaAtual]);
-
-  const aoConfirmarBaixa = async () => {
-    if (!contaSelecionada) return;
-
-    try {
-      setBaixandoConta(true);
-      await darBaixaConta(contaSelecionada.id);
-      toast.success("Conta baixada com sucesso.");
-      setContaSelecionada(null);
-      await carregarContas();
-    } catch {
-      toast.error("Nao foi possivel dar baixa nesta conta.");
-    } finally {
-      setBaixandoConta(false);
-    }
-  };
+  const fmt = (v: number) =>
+    v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
   return (
     <div className="w-full min-h-full flex flex-col bg-slate-50 dark:bg-slate-900">
+      {/* Cabeçalho */}
       <div className="px-6 lg:px-8 py-6 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
-        <div className="max-w-7xl mx-auto w-full space-y-2">
+        <div className="max-w-7xl mx-auto w-full">
           <Link
             href="/financeiro"
             className="inline-flex items-center text-sm text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 transition-colors"
           >
             <ChevronLeft className="h-4 w-4 mr-1" />
-            Voltar
+            Voltar ao Financeiro
           </Link>
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-50">Contas a Receber</h1>
-          <p className="text-slate-600 dark:text-slate-400 text-sm">
-            Controle de titulos pendentes, inadimplencia e confirmacao de recebimento.
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-50 mt-2">
+            Contas a Receber
+          </h1>
+          <p className="text-slate-600 dark:text-slate-400 mt-1 text-sm">
+            Controle de títulos pendentes, inadimplência e confirmação de recebimento.
           </p>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
-        <div className="px-6 lg:px-8 py-6">
-          <div className="max-w-7xl mx-auto space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Card className="border-border bg-card p-5">
-                <p className="text-sm text-muted-foreground">Total Pendente</p>
-                <p className="text-3xl font-bold text-foreground mt-2">
-                  {formatadorMoeda.format(metricas.totalPendente)}
-                </p>
-              </Card>
+      {/* Conteúdo */}
+      <div className="flex-1 overflow-y-auto px-6 lg:px-8 py-6">
+        <div className="max-w-7xl mx-auto space-y-6">
 
-              <Card className="border-border bg-card p-5">
-                <p className="text-sm text-muted-foreground">Total Atrasado</p>
-                <p className="text-3xl font-bold text-red-600 dark:text-red-400 mt-2">
-                  {formatadorMoeda.format(metricas.totalAtrasado)}
-                </p>
-              </Card>
-            </div>
+          {/* KPIs — calculados server-side com base nos filtros da URL */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card className="p-5 border-border bg-card">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Pendente</p>
+                  <p className="text-2xl font-bold text-foreground mt-1">
+                    {fmt(resumo.totalPendente)}
+                  </p>
+                </div>
+                <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/20">
+                  <Wallet className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                </div>
+              </div>
+            </Card>
 
-            <Card className="border-border bg-card p-0 overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Origem</TableHead>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead>Vencimento</TableHead>
-                    <TableHead>Valor</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Acoes</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {contas.map((conta) => {
-                    const statusExibicao = obterStatusExibicao(conta, inicioDiaAtual);
-                    const origem = `${mapaFormaPagamento[conta.formaRecebimento]} / ${conta.vendaId ? `Venda ${conta.vendaId.slice(0, 8)}` : "Sem venda"}`;
+            <Card className="p-5 border-border bg-card">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Atrasado</p>
+                  <p className="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">
+                    {fmt(resumo.totalAtrasado)}
+                  </p>
+                </div>
+                <div className="p-2 rounded-lg bg-red-100 dark:bg-red-900/20">
+                  <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
+                </div>
+              </div>
+            </Card>
 
-                    return (
-                      <TableRow key={conta.id}>
-                        <TableCell className="font-medium text-foreground">{origem}</TableCell>
-                        <TableCell>{conta.cliente?.nomeRazaoSocial || "Cliente nao identificado"}</TableCell>
-                        <TableCell>{format(new Date(conta.dataVencimento), "dd/MM/yyyy")}</TableCell>
-                        <TableCell>{formatadorMoeda.format(conta.valor)}</TableCell>
-                        <TableCell>{obterBadgeStatus(statusExibicao)}</TableCell>
-                        <TableCell className="text-right">
-                          {statusExibicao !== "RECEBIDO" ? (
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" aria-label="Abrir acoes da conta">
-                                  <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => setContaSelecionada(conta)}>
-                                  Dar Baixa
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          ) : (
-                            <span className="text-sm text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+            <Card className="p-5 border-border bg-card">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Recebido</p>
+                  <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">
+                    {fmt(resumo.totalRecebido)}
+                  </p>
+                </div>
+                <div className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-900/20">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                </div>
+              </div>
+            </Card>
 
-                  {!carregando && contas.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                        Nenhuma conta a receber encontrada.
-                      </TableCell>
-                    </TableRow>
-                  )}
-
-                  {carregando && (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                        Carregando contas a receber...
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+            <Card className="p-5 border-border bg-card">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">
+                    {filtros.mes ? "Total no Mês" : "Total no Período"}
+                  </p>
+                  <p className="text-2xl font-bold text-foreground mt-1">
+                    {fmt(resumo.totalPeriodo)}
+                  </p>
+                </div>
+                <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800">
+                  <TrendingUp className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+                </div>
+              </div>
             </Card>
           </div>
+
+          {/* Filtros (Client Component) — requer Suspense por usar useSearchParams */}
+          <Suspense fallback={<div className="h-10 animate-pulse bg-muted rounded-md" />}>
+            <FiltrosReceber />
+          </Suspense>
+
+          {/* Tabela e modais (Client Component) */}
+          <ConteudoReceber contas={contas} />
         </div>
       </div>
-
-      <AlertDialog
-        open={Boolean(contaSelecionada)}
-        onOpenChange={(aberto) => {
-          if (!aberto) setContaSelecionada(null);
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar Recebimento?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Tem certeza que este valor ja consta na conta bancaria?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={baixandoConta}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={aoConfirmarBaixa} disabled={baixandoConta}>
-              {baixandoConta ? "Confirmando..." : "Dar Baixa"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
+

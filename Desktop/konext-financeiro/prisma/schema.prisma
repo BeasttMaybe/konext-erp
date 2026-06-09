@@ -72,8 +72,10 @@ model Cliente {
   // Relações
   ordensServico OrdemServico[]
   contasReceber ContaReceber[]
+  despesas      Despesa[]
   vendas        Venda[]
   notasFiscais  NotaFiscal[]
+  contas        Conta[]
 
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
@@ -161,6 +163,15 @@ model ContaReceber {
   id        String @id @default(uuid())
   descricao String
   valor     Float
+  observacaoLancamento String?
+  observacaoPagamento  String?
+
+  parcelamentoId String?
+  numeroParcela  Int     @default(1)
+  totalParcelas  Int     @default(1)
+
+  dataInicio      DateTime?
+  dataFinalizacao DateTime?
 
   clienteId String?
   cliente   Cliente? @relation(fields: [clienteId], references: [id])
@@ -182,6 +193,8 @@ model ContaReceber {
 
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
+
+  @@index([parcelamentoId])
 }
 
 enum StatusPagamento {
@@ -221,6 +234,10 @@ model Despesa {
   valorTotal   Float
   tipo         TipoDespesa
   qtdParcelas  Int
+
+  clienteId String?
+  cliente   Cliente? @relation(fields: [clienteId], references: [id])
+
   criadoEm     DateTime    @default(now())
   atualizadoEm DateTime    @updatedAt
 
@@ -299,8 +316,29 @@ model Produto {
   estoqueMinimo     Int @default(3) // Alerta quando estiver acabando
 
   ativo Boolean @default(true)
+}
 
-  criadoEm     DateTime @default(now())
+// ==========================================
+// MÓDULO: CONTAS UNIFICADAS (Receber e Pagar)
+// ==========================================
+enum TipoCliente {
+  CLIENTE_FINAL
+  EMPRESA
+  ORGAO_PUBLICO
+}
+
+model Conta {
+  id          String   @id @default(cuid())
+  descricao   String
+  valor       Float
+  vencimento  DateTime
+  status      String   // PAGO, PENDENTE, ATRASADO
+  tipo        String   // RECEBER ou PAGAR
+  
+  clienteId   String?
+  cliente     Cliente? @relation(fields: [clienteId], references: [id])
+  
+  criadoEm    DateTime @default(now())
   atualizadoEm DateTime @updatedAt
 }
 
@@ -371,4 +409,15 @@ model CaixaSession {
 enum CaixaStatus {
   ABERTO
   FECHADO
+}
+
+// ==========================================
+// MÓDULO: NOTIFICAÇÕES
+// ==========================================
+model Notificacao {
+  id       String @id @default(cuid())
+  titulo   String
+  mensagem String
+  lida     Boolean  @default(false)
+  criadoEm DateTime @default(now())
 }

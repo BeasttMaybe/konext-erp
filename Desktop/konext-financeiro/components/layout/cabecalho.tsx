@@ -7,7 +7,6 @@ import {
   Search,
   Sun,
   Moon,
-  Bell,
   ChevronDown,
   LogOut,
   Settings,
@@ -27,6 +26,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { logout } from "@/app/actions/auth";
+import { SinoNotificacoes } from "@/components/layout/sino-notificacoes";
 
 /**
  * Componente do Cabeçalho (Header) do Dashboard
@@ -102,11 +102,8 @@ export function Cabecalho() {
 
       {/* Ações do Cabeçalho */}
       <div className="flex items-center gap-3">
-        {/* Ícone de Notificação */}
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="h-5 w-5" />
-          <span className="absolute top-2 right-2 h-2 w-2 bg-red-500 rounded-full" />
-        </Button>
+        {/* Sino de Notificações */}
+        <SinoNotificacoes />
 
         {/* Botão de Alternância de Tema - Renderiza apenas após hidratação */}
         {montado && (

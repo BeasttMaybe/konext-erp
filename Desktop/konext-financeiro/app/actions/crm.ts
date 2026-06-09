@@ -338,3 +338,68 @@ export async function listarClientes() {
     },
   });
 }
+
+export interface ClienteBuscaCRM {
+  id: string;
+  nomeRazaoSocial: string;
+  nomeFantasia: string | null;
+  documento: string;
+  telefone: string;
+}
+
+export async function buscarClientesCRM(termo: string): Promise<ClienteBuscaCRM[]> {
+  const termoNormalizado = termo.trim();
+  if (termoNormalizado.length < 1) return [];
+
+  try {
+    const apenasDigitos = termoNormalizado.replace(/\D/g, "");
+    
+    const whereConditions: any[] = [
+      {
+        nomeRazaoSocial: {
+          contains: termoNormalizado,
+          mode: "insensitive",
+        },
+      },
+    ];
+
+    // Adiciona busca por nomeFantasia apenas se não for vazio
+    if (termoNormalizado) {
+      whereConditions.push({
+        nomeFantasia: {
+          contains: termoNormalizado,
+          mode: "insensitive",
+        },
+      });
+    }
+
+    // Adiciona busca por documento
+    if (apenasDigitos.length > 0) {
+      whereConditions.push({
+        documento: {
+          contains: apenasDigitos,
+        },
+      });
+    }
+
+    return await prisma.cliente.findMany({
+      where: {
+        OR: whereConditions,
+      },
+      orderBy: {
+        nomeRazaoSocial: "asc",
+      },
+      take: 20,
+      select: {
+        id: true,
+        nomeRazaoSocial: true,
+        nomeFantasia: true,
+        documento: true,
+        telefone: true,
+      },
+    });
+  } catch (erro) {
+    console.error("Erro ao buscar clientes:", erro);
+    return [];
+  }
+}
