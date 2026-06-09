@@ -388,7 +388,7 @@ export async function atualizarCliente(
     if (erro instanceof ZodError) {
       return {
         sucesso: false,
-        mensagem: erro.errors[0]?.message ?? "Dados inválidos.",
+        mensagem: erro.issues[0]?.message ?? "Dados inválidos.",
       };
     }
     console.error("Erro ao atualizar cliente:", erro);
