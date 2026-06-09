@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { MoreHorizontal, Package, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
@@ -51,6 +51,48 @@ import {
 
 const LIMITE_POR_PAGINA = 20;
 
+// ── Skeleton de carregamento ───────────────────────────────────────────────────
+
+function SkeletonEstoque() {
+  return (
+    <div className="w-full min-h-full flex flex-col bg-slate-50 dark:bg-slate-900">
+      <div className="px-6 lg:px-8 py-6 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+        <div className="max-w-7xl mx-auto w-full">
+          <div className="h-9 w-56 rounded-lg bg-slate-200 dark:bg-slate-700 animate-pulse" />
+          <div className="h-4 w-80 rounded bg-slate-100 dark:bg-slate-800 animate-pulse mt-2" />
+        </div>
+      </div>
+      <div className="flex-1 px-6 lg:px-8 py-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+            <div className="flex gap-3">
+              <div className="flex-1 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 animate-pulse" />
+              <div className="w-52 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 animate-pulse" />
+              <div className="w-36 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 animate-pulse" />
+            </div>
+            <div className="rounded-lg border border-border overflow-hidden">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="flex gap-4 items-center px-4 py-3 border-b border-border last:border-0"
+                >
+                  <div className="w-10 h-10 rounded-md bg-slate-100 dark:bg-slate-800 animate-pulse shrink-0" />
+                  <div className="flex-1 h-4 rounded bg-slate-100 dark:bg-slate-800 animate-pulse" />
+                  <div className="w-24 h-4 rounded bg-slate-100 dark:bg-slate-800 animate-pulse" />
+                  <div className="w-20 h-4 rounded bg-slate-100 dark:bg-slate-800 animate-pulse" />
+                  <div className="w-20 h-4 rounded bg-slate-100 dark:bg-slate-800 animate-pulse" />
+                  <div className="w-16 h-6 rounded-full bg-slate-100 dark:bg-slate-800 animate-pulse" />
+                  <div className="w-8 h-8 rounded-md bg-slate-100 dark:bg-slate-800 animate-pulse ml-auto" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 type CategoriaProduto = (typeof categoriasProduto)[number];
 
 interface ProdutoTabela {
@@ -82,7 +124,7 @@ const formatarMoeda = (valor: number) =>
 
 const normalizarTexto = (texto: string) => texto.toLowerCase().replace(/[^a-z0-9]/gi, "");
 
-export default function PaginaEstoque() {
+function ConteudoEstoque() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -390,5 +432,17 @@ export default function PaginaEstoque() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+// ── Página principal ───────────────────────────────────────────────────────────
+// useSearchParams() dentro de ConteudoEstoque precisa estar dentro de <Suspense>
+// para compatibilidade com renderização estática do Next.js.
+
+export default function PaginaEstoque() {
+  return (
+    <Suspense fallback={<SkeletonEstoque />}>
+      <ConteudoEstoque />
+    </Suspense>
   );
 }
