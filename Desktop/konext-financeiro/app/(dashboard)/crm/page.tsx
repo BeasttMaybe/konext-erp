@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Users,
@@ -47,6 +47,61 @@ import { toast } from "sonner";
 
 const LIMITE_POR_PAGINA = 20;
 
+// ── Skeleton de carregamento ───────────────────────────────────────────────────
+
+function SkeletonCRM() {
+  return (
+    <div className="w-full min-h-full flex flex-col bg-slate-50 dark:bg-slate-900">
+      <div className="px-6 lg:px-8 py-6 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+        <div className="max-w-7xl mx-auto w-full">
+          <div className="h-9 w-48 rounded-lg bg-slate-200 dark:bg-slate-700 animate-pulse" />
+          <div className="h-4 w-72 rounded bg-slate-100 dark:bg-slate-800 animate-pulse mt-2" />
+        </div>
+      </div>
+      <div className="flex-1 px-6 lg:px-8 py-6">
+        <div className="max-w-7xl mx-auto space-y-6">
+          {/* Cartões KPI */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="rounded-xl border border-border bg-card p-5 space-y-3">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-2">
+                    <div className="h-4 w-32 rounded bg-slate-100 dark:bg-slate-800 animate-pulse" />
+                    <div className="h-8 w-16 rounded-lg bg-slate-100 dark:bg-slate-800 animate-pulse" />
+                  </div>
+                  <div className="w-5 h-5 rounded bg-slate-100 dark:bg-slate-800 animate-pulse" />
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* Tabela */}
+          <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+            <div className="flex gap-3">
+              <div className="flex-1 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 animate-pulse" />
+              <div className="w-52 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 animate-pulse" />
+              <div className="w-36 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 animate-pulse" />
+            </div>
+            <div className="rounded-lg border border-border overflow-hidden">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="flex gap-4 items-center px-4 py-3 border-b border-border last:border-0"
+                >
+                  <div className="flex-1 h-4 rounded bg-slate-100 dark:bg-slate-800 animate-pulse" />
+                  <div className="w-28 h-4 rounded bg-slate-100 dark:bg-slate-800 animate-pulse" />
+                  <div className="w-24 h-4 rounded bg-slate-100 dark:bg-slate-800 animate-pulse" />
+                  <div className="w-20 h-6 rounded-full bg-slate-100 dark:bg-slate-800 animate-pulse" />
+                  <div className="w-8 h-8 rounded-md bg-slate-100 dark:bg-slate-800 animate-pulse ml-auto" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 type CategoriaCliente = "CLIENTE_FINAL" | "EMPRESA" | "ORGAO_PUBLICO";
 
 interface ClienteCadastrado {
@@ -78,7 +133,7 @@ function normalizarTextoBusca(texto: string): string {
   return texto.toLowerCase().replace(/[^a-z0-9]/gi, "");
 }
 
-export default function PaginaCRM() {
+function ConteudoCRM() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -400,5 +455,17 @@ export default function PaginaCRM() {
         aoSalvar={aoSalvarNovoCliente}
       />
     </div>
+  );
+}
+
+// ── Página principal ───────────────────────────────────────────────────────────
+// useSearchParams() dentro de ConteudoCRM precisa estar dentro de <Suspense>
+// para compatibilidade com renderização estática do Next.js.
+
+export default function PaginaCRM() {
+  return (
+    <Suspense fallback={<SkeletonCRM />}>
+      <ConteudoCRM />
+    </Suspense>
   );
 }
