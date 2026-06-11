@@ -205,6 +205,10 @@ export async function obterDadosAnaliticos(
             gte: inicio,
             lte: fim,
           },
+          OR: [
+            { cliente: { is: null } },
+            { cliente: { is: { papel: "CLIENTE" } } },
+          ],
         },
         select: {
           id: true,
@@ -220,6 +224,10 @@ export async function obterDadosAnaliticos(
             gte: inicio,
             lte: fim,
           },
+          OR: [
+            { cliente: { is: null } },
+            { cliente: { is: { papel: "CLIENTE" } } },
+          ],
         },
         select: {
           valor: true,
@@ -244,20 +252,30 @@ export async function obterDadosAnaliticos(
       }),
       prisma.parcelaDespesa.findMany({
         where: {
-          OR: [
+          AND: [
             {
-              status: "PAGO",
-              dataPagamento: {
-                gte: inicio,
-                lte: fim,
-              },
+              OR: [
+                { despesa: { cliente: { is: null } } },
+                { despesa: { cliente: { is: { papel: "FORNECEDOR" } } } },
+              ],
             },
             {
-              status: "PENDENTE",
-              dataVencimento: {
-                gte: inicio,
-                lte: fim,
-              },
+              OR: [
+                {
+                  status: "PAGO",
+                  dataPagamento: {
+                    gte: inicio,
+                    lte: fim,
+                  },
+                },
+                {
+                  status: "PENDENTE",
+                  dataVencimento: {
+                    gte: inicio,
+                    lte: fim,
+                  },
+                },
+              ],
             },
           ],
         },
@@ -278,15 +296,25 @@ export async function obterDadosAnaliticos(
             gte: inicio,
             lte: fim,
           },
-          OR: [
+          AND: [
             {
-              origem: "CONTRATO_RECORRENTE",
+              OR: [
+                { cliente: { is: null } },
+                { cliente: { is: { papel: "CLIENTE" } } },
+              ],
             },
             {
-              descricao: {
-                contains: "clube",
-                mode: "insensitive",
-              },
+              OR: [
+                {
+                  origem: "CONTRATO_RECORRENTE",
+                },
+                {
+                  descricao: {
+                    contains: "clube",
+                    mode: "insensitive",
+                  },
+                },
+              ],
             },
           ],
         },
@@ -299,6 +327,11 @@ export async function obterDadosAnaliticos(
           criadoEm: {
             gte: inicio,
             lte: fim,
+          },
+          cliente: {
+            is: {
+              papel: "CLIENTE",
+            },
           },
         },
         select: {
@@ -486,6 +519,10 @@ export async function obterDadosAnaliticos(
           gte: dataBasePrevisao,
           lte: fimPrevisao,
         },
+        OR: [
+          { despesa: { cliente: { is: null } } },
+          { despesa: { cliente: { is: { papel: "FORNECEDOR" } } } },
+        ],
       },
       select: {
         dataVencimento: true,

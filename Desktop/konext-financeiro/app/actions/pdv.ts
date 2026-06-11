@@ -56,16 +56,25 @@ type ClientePrismaAny = typeof prisma & {
   ContaReceber?: { create?: (args: unknown) => Promise<unknown> };
 };
 
+type TransacaoPdv = Record<string, unknown> & {
+  $executeRaw?: (query: TemplateStringsArray, ...values: unknown[]) => Promise<unknown>;
+  $queryRaw?: <T = unknown>(query: TemplateStringsArray, ...values: unknown[]) => Promise<T>;
+};
+
 function obterDelegateComFallback(
   tx: ClientePrismaAny,
   root: ClientePrismaAny,
   chaves: Array<keyof ClientePrismaAny>,
   nomeLogico: string
 ): { create: (args: unknown) => Promise<unknown> } {
+  // Sempre prioriza delegates do contexto transacional para evitar inconsistência
+  // entre create/update dentro da mesma transação.
   for (const chave of chaves) {
     const delegateTx = tx[chave] as { create?: (args: unknown) => Promise<unknown> } | undefined;
     if (delegateTx?.create) return delegateTx as { create: (args: unknown) => Promise<unknown> };
+  }
 
+  for (const chave of chaves) {
     const delegateRoot = root[chave] as
       | { create?: (args: unknown) => Promise<unknown> }
       | undefined;
@@ -109,8 +118,36 @@ async function criarVendaComFallbackFormaPagamento(
   }
 }
 
-async function vincularVendaAoCaixa(tx: any, vendaId: string, caixaSessionId: string) {
-  const vendaDelegate = tx?.venda ?? tx?.Venda;
+async function vincularVendaAoCaixa(tx: TransacaoPdv, vendaId: string, caixaSessionId: string) {
+  const vendaDelegate = (tx?.venda ?? tx?.Venda) as
+    | { update?: (args: unknown) => Promise<unknown> }
+    | undefined;
+
+  const ehRegistroNaoEncontrado = (erro: unknown): boolean => {
+    if (!erro || typeof erro !== "object") return false;
+
+    const erroComCodigo = erro as { code?: string; message?: string };
+    if (erroComCodigo.code === "P2025") return true;
+
+    const mensagem = erroComCodigo.message ?? "";
+    return mensagem.includes("No record was found for an update");
+  };
+
+  const vincularViaSql = async () => {
+    if (!tx.$executeRaw) {
+      throw new Error("Nao foi possivel vincular a venda ao caixa aberto.");
+    }
+
+    const linhasAfetadas = await tx.$executeRaw`
+      UPDATE "Venda"
+      SET "caixaSessionId" = ${caixaSessionId}
+      WHERE id = ${vendaId}
+    `;
+
+    if (!linhasAfetadas || Number(linhasAfetadas) === 0) {
+      throw new Error("Nao foi possivel vincular a venda ao caixa aberto.");
+    }
+  };
 
   if (vendaDelegate?.update) {
     try {
@@ -130,6 +167,10 @@ async function vincularVendaAoCaixa(tx: any, vendaId: string, caixaSessionId: st
     } catch (erro) {
       const mensagem = erro instanceof Error ? erro.message : "";
       if (!mensagem.includes("Unknown argument `caixaSession`")) {
+        if (ehRegistroNaoEncontrado(erro)) {
+          await vincularViaSql();
+          return;
+        }
         throw erro;
       }
     }
@@ -147,16 +188,16 @@ async function vincularVendaAoCaixa(tx: any, vendaId: string, caixaSessionId: st
     } catch (erro) {
       const mensagem = erro instanceof Error ? erro.message : "";
       if (!mensagem.includes("Unknown argument `caixaSessionId`")) {
+        if (ehRegistroNaoEncontrado(erro)) {
+          await vincularViaSql();
+          return;
+        }
         throw erro;
       }
     }
   }
 
-  await tx.$executeRaw`
-    UPDATE "Venda"
-    SET "caixaSessionId" = ${caixaSessionId}
-    WHERE id = ${vendaId}
-  `;
+  await vincularViaSql();
 }
 
 const mapearFormaPagamento = (
@@ -172,8 +213,10 @@ const mapearFormaPagamento = (
   return formaPagamento;
 };
 
-async function obterCaixaSessionAberta(tx: any): Promise<{ id: string }> {
-  const caixaDelegate = tx?.caixaSession ?? tx?.CaixaSession;
+async function obterCaixaSessionAberta(tx: TransacaoPdv): Promise<{ id: string }> {
+  const caixaDelegate = (tx?.caixaSession ?? tx?.CaixaSession) as
+    | { findFirst?: (args: unknown) => Promise<{ id?: string | number } | null> }
+    | undefined;
 
   const caixa = caixaDelegate?.findFirst
     ? await caixaDelegate.findFirst({
@@ -187,7 +230,8 @@ async function obterCaixaSessionAberta(tx: any): Promise<{ id: string }> {
           id: true,
         },
       })
-    : (
+    : tx.$queryRaw
+      ? (
         await tx.$queryRaw<Array<{ id: string }>>`
           SELECT id
           FROM "CaixaSession"
@@ -195,7 +239,8 @@ async function obterCaixaSessionAberta(tx: any): Promise<{ id: string }> {
           ORDER BY "dataAbertura" DESC
           LIMIT 1
         `
-      )?.[0];
+      )?.[0]
+      : null;
 
   if (!caixa?.id) {
     throw new Error("Nao existe caixa aberto. Abra o caixa para finalizar a venda.");
@@ -206,6 +251,9 @@ async function obterCaixaSessionAberta(tx: any): Promise<{ id: string }> {
 
 export async function listarClientesPDV(): Promise<ClientePDV[]> {
   const clientes = await prisma.cliente.findMany({
+    where: {
+      papel: "CLIENTE",
+    },
     select: {
       id: true,
       nomeRazaoSocial: true,
@@ -382,7 +430,7 @@ export async function processarVenda(
       // Verifica estoque baixo após decrementar e cria notificações de forma assíncrona e silenciosa.
       setImmediate(async () => {
         try {
-          const prismaAny2 = prisma as any;
+          const prismaAny2 = prisma as typeof prisma & Record<string, unknown>;
           const produtoDelegate = prismaAny2.produto ?? prismaAny2.Produto;
           const notifDelegate = prismaAny2.notificacao ?? prismaAny2.Notificacao;
           if (!produtoDelegate?.findUnique || !notifDelegate?.create) return;
@@ -469,9 +517,24 @@ export async function obterPedidoOSParaPDV(osId: string): Promise<PedidoOSPDV> {
     throw new Error("ID da OS nao informado para envio ao PDV.");
   }
 
-  const prismaAny = prisma as any;
-  const ordemServicoDelegate = prismaAny.ordemServico ?? prismaAny.OrdemServico;
-  const contaReceberDelegate = prismaAny.contaReceber ?? prismaAny.ContaReceber;
+  const prismaAny = prisma as typeof prisma & Record<string, unknown>;
+  type OrdemServicoPdv = {
+    id: string | number;
+    numeroOs?: string | number | null;
+    clienteId: string;
+    status?: string | null;
+    equipamento?: string | null;
+    relatoCliente?: string | null;
+    cliente?: { nomeRazaoSocial?: string | null } | null;
+    itens?: Array<{ valorCobrado?: number | null }>;
+  };
+
+  const ordemServicoDelegate = (prismaAny.ordemServico ?? prismaAny.OrdemServico) as
+    | { findUnique: (args: unknown) => Promise<OrdemServicoPdv | null>; findFirst?: (args: unknown) => Promise<unknown> }
+    | undefined;
+  const contaReceberDelegate = (prismaAny.contaReceber ?? prismaAny.ContaReceber) as
+    | { findFirst: (args: unknown) => Promise<{ vendaId?: string | null } | null> }
+    | undefined;
 
   if (!ordemServicoDelegate?.findUnique || !contaReceberDelegate?.findFirst) {
     throw new Error("Delegates Prisma de OS/ContaReceber nao disponiveis para o PDV.");
@@ -524,7 +587,7 @@ export async function obterPedidoOSParaPDV(osId: string): Promise<PedidoOSPDV> {
     throw new Error("Esta OS ja possui venda gerada.");
   }
 
-  const valor = (os.itens ?? []).reduce((acumulado: number, item: any) => {
+  const valor = (os.itens ?? []).reduce((acumulado: number, item: { valorCobrado?: number | null }) => {
     const valorItem = typeof item.valorCobrado === "number" ? item.valorCobrado : Number(item.valorCobrado ?? 0);
     return acumulado + (Number.isFinite(valorItem) ? valorItem : 0);
   }, 0);

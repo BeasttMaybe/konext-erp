@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
@@ -19,16 +19,14 @@ interface DashboardOSProps {
   clienteIdInicial?: string | null;
 }
 
+type DadosNovaOS = Parameters<typeof criarOrdemServico>[0];
+
 export function DashboardOS({ ordensServico, clienteIdInicial }: DashboardOSProps) {
   const router = useRouter();
-  const [modalAberta, setModalAberta] = useState(false);
+  const [modalAberta, setModalAberta] = useState(Boolean(clienteIdInicial));
   const [buscaTexto, setBuscaTexto] = useState("");
   const [modoVisualizacao, setModoVisualizacao] = useState<"KANBAN" | "LISTA_FINALIZADAS">("KANBAN");
-
-  // Abre o modal automaticamente quando um cliente é passado via URL
-  useEffect(() => {
-    if (clienteIdInicial) setModalAberta(true);
-  }, [clienteIdInicial]);
+  const [finalizadasNoKanbanIds, setFinalizadasNoKanbanIds] = useState<string[]>([]);
 
   // Filtrar ordens por busca
   const ordensFiltradas = ordensServico.filter((os) =>
@@ -37,11 +35,10 @@ export function DashboardOS({ ordensServico, clienteIdInicial }: DashboardOSProp
     os.equipamento.toLowerCase().includes(buscaTexto.toLowerCase())
   );
 
-  const ordensFinalizadasEntregues = ordensServico.filter(
-    (os) => os.status === "PRONTO" || os.status === "ENTREGUE"
-  );
+  const ordensFinalizadasEntregues = ordensServico.filter((os) => os.status === "ENTREGUE");
+  const ordensKanban = ordensFiltradas.filter((os) => !finalizadasNoKanbanIds.includes(os.id));
 
-  const handleSalvarNovaOS = async (dados: any) => {
+  const handleSalvarNovaOS = async (dados: DadosNovaOS) => {
     try {
       await criarOrdemServico(dados);
       toast.success("Ordem de servico criada com sucesso.");
@@ -54,18 +51,26 @@ export function DashboardOS({ ordensServico, clienteIdInicial }: DashboardOSProp
     }
   };
 
-  const handleMoverOS = async (osId: string, novoStatus: StatusOS) => {
+  const handleMoverOS = async (osId: string, novoStatus: StatusOS): Promise<boolean> => {
     try {
       await atualizarStatusOrdemServico(osId, novoStatus);
       router.refresh();
+      return true;
     } catch (error) {
       const mensagem = error instanceof Error ? error.message : "Nao foi possivel atualizar o status da OS.";
       toast.error(mensagem);
+      return false;
     }
   };
 
   const handleAbrirDetalhesOS = (os: OrdemServico) => {
     router.push(`/os/${os.id}`);
+  };
+
+  const handleFinalizarOS = (os: OrdemServico) => {
+    setFinalizadasNoKanbanIds((anterior) => (anterior.includes(os.id) ? anterior : [...anterior, os.id]));
+    setModoVisualizacao("LISTA_FINALIZADAS");
+    toast.success(`OS ${os.numeroOS} finalizada e listada em Finalizadas e Entregues.`);
   };
 
   const formatarMoeda = (valor: number) =>
@@ -181,7 +186,7 @@ export function DashboardOS({ ordensServico, clienteIdInicial }: DashboardOSProp
               : "Lista de Finalizadas e Entregues"}
           </h2>
 
-          {modoVisualizacao === "KANBAN" && ordensFiltradas.length === 0 ? (
+          {modoVisualizacao === "KANBAN" && ordensKanban.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <AlertCircle className="w-12 h-12 text-slate-300 mb-4" />
               <p className="text-slate-500 font-medium">
@@ -197,9 +202,10 @@ export function DashboardOS({ ordensServico, clienteIdInicial }: DashboardOSProp
             <div className="overflow-x-auto -mx-4 sm:-mx-6">
               <div className="px-4 sm:px-6">
                 <TabuleiroKanban
-                  ordensServico={ordensFiltradas}
+                  ordensServico={ordensKanban}
                   onMoverOS={handleMoverOS}
                   onCartaoClick={handleAbrirDetalhesOS}
+                  onFinalizarOS={handleFinalizarOS}
                 />
               </div>
             </div>

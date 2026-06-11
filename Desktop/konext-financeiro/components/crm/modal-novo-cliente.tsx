@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useForm, Controller, type Resolver } from "react-hook-form";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useForm, useWatch, Controller, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Dialog,
@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,6 +41,7 @@ interface PropsModalNovoCliente {
 
 const valoresPadrao: FormCliente = {
   tipoPessoa: "FISICA",
+  papel: "CLIENTE",
   nomeRazaoSocial: "",
   nomeFantasia: "",
   documento: "",
@@ -70,34 +71,33 @@ export function ModalNovoCliente({
   const [buscandoCep, setBuscandoCep] = useState(false);
   const [buscandoCnpj, setBuscandoCnpj] = useState(false);
   const [mensagemCep, setMensagemCep] = useState<string | null>(null);
+  const cepInicialRef = useRef("");
 
-  // Ref sempre atualizado com o valor mais recente de dadosIniciais.
-  // Isso evita que o useEffect de reset dispare toda vez que o pai re-renderizar
-  // e criar uma nova referência de objeto para dadosIniciais.
-  const dadosIniciaisRef = useRef(dadosIniciais);
-  dadosIniciaisRef.current = dadosIniciais;
+  const valoresIniciaisFormulario = useMemo(
+    () => (dadosIniciais ? { ...valoresPadrao, ...dadosIniciais } : valoresPadrao),
+    [dadosIniciais]
+  );
 
   const {
     control,
     handleSubmit,
-    watch,
     reset,
     setValue,
     getValues,
     formState: { errors, isSubmitting },
   } = useForm<FormCliente>({
     resolver: zodResolver(formClienteSchema) as unknown as Resolver<FormCliente>,
-    // Inicializa imediatamente com os dados do cliente em modo de edição.
-    // Evita que os campos montem com valores vazios antes do useEffect de reset.
-    defaultValues: dadosIniciais
-      ? { ...valoresPadrao, ...dadosIniciais }
-      : valoresPadrao,
-    // Garante que valores de campos desmontados (abas inativas) sejam preservados
+    // Inicializa imediatamente com os dados do cliente quando disponíveis.
+    defaultValues: valoresIniciaisFormulario,
+    // Garante que valores de campos desmontados (abas inativas) sejam preservados.
     shouldUnregister: false,
   });
 
-  const tipoPessoa = watch("tipoPessoa");
-  const categoriaAtual = watch("categoria");
+  const limparCep = (valor: string) => valor.replace(/\D/g, "").slice(0, 8);
+
+  const tipoPessoa = useWatch({ control, name: "tipoPessoa" });
+  const papelAtual = useWatch({ control, name: "papel" });
+  const categoriaAtual = useWatch({ control, name: "categoria" });
 
   useEffect(() => {
     if (tipoPessoa === "JURIDICA" && categoriaAtual === "CLIENTE_FINAL") {
@@ -105,15 +105,18 @@ export function ModalNovoCliente({
     }
   }, [tipoPessoa, categoriaAtual, setValue]);
 
-  // Quando o modal abre, garante que o formulário receba os valores corretos.
-  // Em modo de edição usa dadosIniciais; caso contrário, reinicia com os valores padrão.
-  // Usa ref para ler dadosIniciais sem adicioná-lo como dependência e evitar resets duplos.
   useEffect(() => {
-    if (aberto) {
-      const dados = dadosIniciaisRef.current;
-      reset(dados ? { ...valoresPadrao, ...dados } : valoresPadrao);
+    if (papelAtual === "FORNECEDOR" && categoriaAtual !== "EMPRESA") {
+      setValue("categoria", "EMPRESA", { shouldDirty: true });
     }
-  }, [aberto, reset]);
+  }, [papelAtual, categoriaAtual, setValue]);
+
+  useEffect(() => {
+    if (!aberto) return;
+
+    reset(valoresIniciaisFormulario);
+    cepInicialRef.current = limparCep(valoresIniciaisFormulario.cep || "");
+  }, [aberto, valoresIniciaisFormulario, reset]);
 
   const aoCancelar = () => {
     reset(valoresPadrao);
@@ -140,8 +143,6 @@ export function ModalNovoCliente({
     }
   };
 
-  const limparCep = (valor: string) => valor.replace(/\D/g, "").slice(0, 8);
-
   const formatarCep = (valor: string) => {
     const cepLimpo = limparCep(valor);
 
@@ -152,9 +153,23 @@ export function ModalNovoCliente({
 
   const buscarEnderecoPorCep = async (cepInformado: string) => {
     const cepLimpo = limparCep(cepInformado);
+    const logradouroAtual = String(getValues("logradouro") || "").trim();
+    const bairroAtual = String(getValues("bairro") || "").trim();
+    const cidadeAtual = String(getValues("cidade") || "").trim();
+    const estadoAtual = String(getValues("estado") || "").trim();
+    const enderecoJaPreenchido =
+      Boolean(logradouroAtual) ||
+      Boolean(bairroAtual) ||
+      Boolean(cidadeAtual) ||
+      Boolean(estadoAtual);
 
-    // DEFESA: CEP incompleto ou vazio — não faz nada e não sobrescreve os campos preenchidos
+    // Defesa: CEP incompleto ou vazio.
     if (!cepLimpo || cepLimpo.length !== 8) {
+      return;
+    }
+
+    // Defesa: evita sobrescrever endereço já hidratado quando o CEP não mudou.
+    if (cepLimpo === cepInicialRef.current && enderecoJaPreenchido) {
       return;
     }
 
@@ -185,6 +200,7 @@ export function ModalNovoCliente({
       setValue("bairro", dados.bairro || "", { shouldDirty: true });
       setValue("cidade", dados.localidade || "", { shouldDirty: true });
       setValue("estado", (dados.uf || "").toUpperCase(), { shouldDirty: true });
+      cepInicialRef.current = cepLimpo;
 
       setMensagemCep("Endereco preenchido automaticamente.");
     } catch {
@@ -261,6 +277,36 @@ export function ModalNovoCliente({
             {/* Usamos 'hidden' no estilo em vez de renderização condicional para manter o estado no DOM */}
 
             <div className={abaAtiva !== "dados-principais" ? "hidden" : "space-y-4 pt-2"}>
+              <div className="space-y-2">
+                <Label className="text-foreground">Registrar como</Label>
+                <Controller
+                  name="papel"
+                  control={control}
+                  render={({ field }) => (
+                    <RadioGroup
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+                    >
+                      <Label
+                        htmlFor="papel-cliente"
+                        className="flex items-center gap-2 border border-border rounded-md p-3 cursor-pointer"
+                      >
+                        <RadioGroupItem id="papel-cliente" value="CLIENTE" />
+                        Cliente
+                      </Label>
+                      <Label
+                        htmlFor="papel-fornecedor"
+                        className="flex items-center gap-2 border border-border rounded-md p-3 cursor-pointer"
+                      >
+                        <RadioGroupItem id="papel-fornecedor" value="FORNECEDOR" />
+                        Fornecedor
+                      </Label>
+                    </RadioGroup>
+                  )}
+                />
+              </div>
+
               <div className="space-y-2">
                 <Label className="text-foreground">Tipo de Pessoa</Label>
                 <Controller

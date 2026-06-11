@@ -7,6 +7,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AbaEntradaEquipamento } from "./abas/aba-entrada-equipamento";
 import { AbaOrcamento } from "./abas/aba-orcamento";
@@ -17,7 +18,6 @@ const esquemaNovaOS = z.object({
   clienteId: z.string().min(1, "Cliente é obrigatório"),
   
   // Equipamento
-  equipamento: z.string().min(1, "Equipamento é obrigatório"),
   marca: z.string().optional(),
   modelo: z.string().optional(),
   imei: z.string().optional(),
@@ -61,11 +61,12 @@ const esquemaNovaOS = z.object({
 });
 
 type DadosNovaOS = z.infer<typeof esquemaNovaOS>;
+type DadosNovaOSPayload = DadosNovaOS & { equipamento: string };
 
 interface ModalNovaOSProps {
   aberta: boolean;
   onAbrirMudar: (aberta: boolean) => void;
-  onSalvar?: (dados: DadosNovaOS) => Promise<void>;
+  onSalvar?: (dados: DadosNovaOSPayload) => Promise<void>;
   /** Quando informado, o cliente é pré-selecionado automaticamente ao abrir o modal. */
   clienteIdInicial?: string;
 }
@@ -84,7 +85,6 @@ export function ModalNovaOS({
     mode: "onChange",
     defaultValues: {
       clienteId: "",
-      equipamento: "",
       marca: "",
       modelo: "",
       imei: "",
@@ -99,10 +99,21 @@ export function ModalNovaOS({
     },
   });
 
+  const buildEquipamento = (marca?: string, modelo?: string) => {
+    const parts = [marca?.trim(), modelo?.trim()].filter(Boolean);
+    if (parts.length === 0) return "Aparelho sem identificação";
+    return parts.join(" ");
+  };
+
   const handleSalvar = async (dados: DadosNovaOS) => {
     try {
       setSalvando(true);
-      await onSalvar?.(dados);
+      const payload: DadosNovaOSPayload = {
+        ...dados,
+        equipamento: buildEquipamento(dados.marca, dados.modelo),
+      };
+
+      await onSalvar?.(payload);
       formulario.reset();
       onAbrirMudar(false);
     } catch (error) {
@@ -120,15 +131,20 @@ export function ModalNovaOS({
 
   return (
     <Dialog open={aberta} onOpenChange={onAbrirMudar}>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-6xl max-h-[92vh] overflow-y-auto border-zinc-200/70 bg-background p-0 shadow-2xl">
         <DialogHeader>
-          <DialogTitle>Nova Ordem de Serviço</DialogTitle>
+          <div className="rounded-t-lg border-b border-border bg-gradient-to-r from-slate-50 via-white to-slate-50 px-6 py-5 dark:from-slate-900 dark:via-slate-950 dark:to-slate-900">
+            <DialogTitle className="text-xl font-semibold tracking-tight">Nova Ordem de Serviço</DialogTitle>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Preencha os dados de entrada, orçamento e status para registrar a OS com segurança.
+            </p>
+          </div>
         </DialogHeader>
 
         <FormProvider {...formulario}>
-          <form onSubmit={formulario.handleSubmit(handleSalvar)} className="space-y-4">
+          <form onSubmit={formulario.handleSubmit(handleSalvar)} className="space-y-5 px-6 pb-6">
             <Tabs value={abaAtiva} onValueChange={setAbaAtiva} className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
+              <TabsList className="grid h-11 w-full grid-cols-3 rounded-xl bg-muted/60 p-1">
                 <TabsTrigger value="entrada">
                   Entrada de Equipamento
                 </TabsTrigger>
@@ -140,21 +156,26 @@ export function ModalNovaOS({
                 </TabsTrigger>
               </TabsList>
 
-              <TabsContent value="entrada" className="space-y-4 mt-4">
-                <AbaEntradaEquipamento clienteIdInicial={clienteIdInicial} />
+              <TabsContent value="entrada" className="mt-4 data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:slide-in-from-bottom-1 data-[state=active]:duration-200">
+                <Card className="border-border/70 bg-background/70 p-4 shadow-sm transition-all duration-200 sm:p-5">
+                  <AbaEntradaEquipamento clienteIdInicial={clienteIdInicial} />
+                </Card>
               </TabsContent>
 
-              <TabsContent value="orcamento" className="space-y-4 mt-4">
-                <AbaOrcamento />
+              <TabsContent value="orcamento" className="mt-4 data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:slide-in-from-bottom-1 data-[state=active]:duration-200">
+                <Card className="border-border/70 bg-background/70 p-4 shadow-sm transition-all duration-200 sm:p-5">
+                  <AbaOrcamento />
+                </Card>
               </TabsContent>
 
-              <TabsContent value="historico" className="space-y-4 mt-4">
-                <AbaHistoricoStatus />
+              <TabsContent value="historico" className="mt-4 data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:slide-in-from-bottom-1 data-[state=active]:duration-200">
+                <Card className="border-border/70 bg-background/70 p-4 shadow-sm transition-all duration-200 sm:p-5">
+                  <AbaHistoricoStatus />
+                </Card>
               </TabsContent>
             </Tabs>
 
-            {/* Botões de ação */}
-            <div className="flex justify-end gap-2 pt-4 border-t">
+            <div className="flex justify-end gap-2 border-t border-border pt-4">
               <Button variant="outline" onClick={handleFechar}>
                 Cancelar
               </Button>

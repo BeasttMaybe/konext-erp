@@ -248,6 +248,12 @@ export async function listarParcelasPagar(): Promise<ParcelaDespesaComRelacao[]>
   const parcelaDespesaDelegate = obterDelegateParcelaDespesa(prismaAny, prismaAny);
 
   const parcelas = await parcelaDespesaDelegate.findMany({
+    where: {
+      OR: [
+        { despesa: { cliente: { is: null } } },
+        { despesa: { cliente: { is: { papel: "FORNECEDOR" } } } },
+      ],
+    },
     include: {
       despesa: {
         include: {
@@ -298,7 +304,12 @@ export interface ResumoPagar {
 export async function listarParcelasPagarFiltradas(
   filtros?: FiltrosPagar
 ): Promise<ParcelaDespesaComRelacao[]> {
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = {
+    OR: [
+      { despesa: { cliente: { is: null } } },
+      { despesa: { cliente: { is: { papel: "FORNECEDOR" } } } },
+    ],
+  };
 
   // Usa os valores da URL quando presentes; caso contrário, adota o mês/ano atual.
   const hoje = new Date();
@@ -321,7 +332,10 @@ export async function listarParcelasPagarFiltradas(
   if (filtros?.categoriaCliente) {
     where.despesa = {
       cliente: {
-        categoria: filtros.categoriaCliente,
+        is: {
+          papel: "FORNECEDOR",
+          categoria: filtros.categoriaCliente,
+        },
       },
     };
   }

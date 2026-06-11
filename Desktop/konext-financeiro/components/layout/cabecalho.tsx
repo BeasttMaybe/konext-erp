@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useTheme } from "next-themes";
+import { useState, useEffect, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import {
   Search,
@@ -27,6 +26,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { logout } from "@/app/actions/auth";
 import { SinoNotificacoes } from "@/components/layout/sino-notificacoes";
+import { useTheme } from "@/components/provedores/provedor-tema";
 
 /**
  * Componente do Cabeçalho (Header) do Dashboard
@@ -36,15 +36,14 @@ export function Cabecalho() {
   const { contraida } = useSidebar();
   const router = useRouter();
   const [localizado, setLocalizado] = useState("");
-  const [montado, setMontado] = useState(false);
   const [nomeUsuario, setNomeUsuario] = useState("Usuario Konext");
   const [emailUsuario, setEmailUsuario] = useState("usuario@konext.local");
   const [fotoPerfilUrl, setFotoPerfilUrl] = useState<string | null>(null);
-
-  // Apenas renderizar ícone de tema após hidratação completa
-  useEffect(() => {
-    setMontado(true);
-  }, []);
+  const montado = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
 
   useEffect(() => {
     let ativo = true;
@@ -83,19 +82,19 @@ export function Cabecalho() {
   return (
     <header
       className={cn(
-        "fixed top-0 right-0 z-30 h-16 bg-white dark:bg-slate-950 border-b border-zinc-200 dark:border-zinc-800 px-6 flex items-center justify-between gap-4 transition-all duration-300 ease-in-out",
+        "fixed top-0 right-0 z-30 flex h-16 items-center justify-between gap-4 border-b border-slate-800/50 bg-slate-950/40 px-6 backdrop-blur-xl transition-all duration-300 ease-in-out",
         contraida ? "left-20" : "left-64"
       )}
     >
       {/* Barra de Busca */}
       <div className="flex-1 max-w-md">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
           <Input
             placeholder="Buscar..."
             value={localizado}
             onChange={(e) => setLocalizado(e.target.value)}
-            className="pl-9 border-zinc-200 dark:border-zinc-700"
+            className="border-slate-700/70 bg-slate-900/55 pl-9 text-slate-100 placeholder:text-slate-400"
           />
         </div>
       </div>
@@ -111,6 +110,7 @@ export function Cabecalho() {
             variant="ghost"
             size="icon"
             onClick={() => setTheme(theme === "light" ? "dark" : "light")}
+            className="text-slate-300 hover:bg-white/5 hover:text-white"
           >
             {theme === "light" ? (
               <Moon className="h-5 w-5" />
@@ -125,7 +125,7 @@ export function Cabecalho() {
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
-              className="flex items-center gap-2 px-2 h-10"
+              className="h-10 gap-2 px-2 text-slate-200 hover:bg-white/5 hover:text-white"
             >
               <Avatar className="h-8 w-8">
                 <AvatarImage

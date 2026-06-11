@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useTheme } from "next-themes";
 import { useSidebar } from "@/contextos/contexto-sidebar";
 import { useForm, Controller } from "react-hook-form";
 import { Moon, Palette, Search, Sun } from "lucide-react";
@@ -19,6 +18,7 @@ import {
   salvarConfiguracoes,
   type DadosConfiguracoes,
 } from "@/app/actions/configuracoes";
+import { useTheme } from "@/components/provedores/provedor-tema";
 
 type PropsFormularioConfiguracoes = {
   defaultValues: DadosConfiguracoes;

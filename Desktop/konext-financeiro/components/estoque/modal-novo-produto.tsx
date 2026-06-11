@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { Controller, useForm, type Resolver } from "react-hook-form";
+import { Controller, useForm, useWatch, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2 } from "lucide-react";
 import {
@@ -65,7 +65,6 @@ export function ModalNovoProduto({
   const {
     control,
     handleSubmit,
-    watch,
     reset,
     formState: { errors, isSubmitting },
   } = useForm<FormProduto>({
@@ -73,8 +72,8 @@ export function ModalNovoProduto({
     defaultValues: valoresPadrao,
   });
 
-  const custo = watch("custo") || 0;
-  const precoVenda = watch("precoVenda") || 0;
+  const custo = useWatch({ control, name: "custo" }) ?? 0;
+  const precoVenda = useWatch({ control, name: "precoVenda" }) ?? 0;
 
   const margemBruta = useMemo(() => {
     if (precoVenda <= 0) return 0;

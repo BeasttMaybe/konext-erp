@@ -79,7 +79,7 @@ export async function listarProdutosPaginado(
   page: number = 1,
   limit: number = 20,
   busca?: string,
-  categoria?: string
+  categoria?: FormProduto["categoria"] | "TODAS"
 ): Promise<PaginatedResult<{
   id: string;
   nome: string;
@@ -94,7 +94,7 @@ export async function listarProdutosPaginado(
 }>> {
   const skip = (page - 1) * limit;
 
-  const where: any = { ativo: true };
+  const where: Prisma.ProdutoWhereInput = { ativo: true };
 
   if (categoria && categoria !== "TODAS") {
     where.categoria = categoria;
@@ -131,7 +131,7 @@ export async function listarProdutosPaginado(
   ]);
 
   return {
-    data: produtos as any[],
+    data: produtos,
     total,
     page,
     totalPages: Math.ceil(total / limit),

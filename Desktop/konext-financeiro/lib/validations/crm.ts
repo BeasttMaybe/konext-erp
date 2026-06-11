@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const formClienteSchema = z.object({
   tipoPessoa: z.enum(["FISICA", "JURIDICA"]).default("FISICA"),
+  papel: z.enum(["CLIENTE", "FORNECEDOR"]).default("CLIENTE"),
 
   // Dados Principais
   nomeRazaoSocial: z

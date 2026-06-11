@@ -491,6 +491,7 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
               <SeletorClienteCRM
                 label="Pessoa do CRM (Fornecedor)"
                 clienteSelecionado={clienteSelecionado}
+                papelFiltro="FORNECEDOR"
                 onSelecionarCliente={(cliente) => {
                   setClienteSelecionado(cliente);
                   setFormDespesa((prev) => ({ ...prev, fornecedor: cliente.nomeRazaoSocial }));

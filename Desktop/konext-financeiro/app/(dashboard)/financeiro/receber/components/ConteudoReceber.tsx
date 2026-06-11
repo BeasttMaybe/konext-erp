@@ -227,8 +227,8 @@ export function ConteudoReceber({ contas }: ConteudoReceberProps) {
       toast.success("Conta atualizada com sucesso.");
       setContaEditando(null);
       router.refresh();
-    } catch (erro: any) {
-      toast.error(erro?.message ?? "Não foi possível atualizar a conta.");
+    } catch (erro: unknown) {
+      toast.error(erro instanceof Error ? erro.message : "Não foi possível atualizar a conta.");
     } finally {
       setSalvandoEdicao(false);
     }
@@ -244,8 +244,8 @@ export function ConteudoReceber({ contas }: ConteudoReceberProps) {
       toast.success("Conta excluída com sucesso.");
       setContaParaExcluir(null);
       router.refresh();
-    } catch (erro: any) {
-      toast.error(erro?.message ?? "Não foi possível excluir a conta.");
+    } catch (erro: unknown) {
+      toast.error(erro instanceof Error ? erro.message : "Não foi possível excluir a conta.");
     } finally {
       setExcluindo(false);
     }
@@ -676,6 +676,7 @@ export function ConteudoReceber({ contas }: ConteudoReceberProps) {
             <SeletorClienteCRM
               label="Devedor"
               clienteSelecionado={clienteSelecionado}
+              papelFiltro="CLIENTE"
               onSelecionarCliente={setClienteSelecionado}
               onLimparCliente={() => setClienteSelecionado(null)}
             />

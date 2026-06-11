@@ -89,6 +89,26 @@ const formatarMoeda = (valor: number): string =>
     currency: "BRL",
   }).format(valor);
 
+const formatarPrecoInput = (valor: number): string => valor.toFixed(2).replace(".", ",");
+
+const sanitizarPrecoInput = (valor: string): string => {
+  const apenasNumerosEVirgula = valor.replace(/[^\d,]/g, "");
+  const [inteira, ...decimaisExtras] = apenasNumerosEVirgula.split(",");
+
+  if (decimaisExtras.length === 0) {
+    return inteira;
+  }
+
+  return `${inteira},${decimaisExtras.join("")}`;
+};
+
+const parsePrecoInput = (valor: string): number => {
+  const normalizado = valor.replace(/\./g, "").replace(",", ".").trim();
+  const numero = Number(normalizado);
+
+  return Number.isFinite(numero) && numero >= 0 ? numero : 0;
+};
+
 const formatarHora = (data: Date | string): string =>
   new Intl.DateTimeFormat("pt-BR", {
     hour: "2-digit",
@@ -150,6 +170,7 @@ function PDVPageConteudo() {
   const [fechandoCaixa, setFechandoCaixa] = useState(false);
   const [resumoCaixaDiario, setResumoCaixaDiario] = useState<ResumoCaixaDiario | null>(null);
   const [carregandoResumoCaixa, setCarregandoResumoCaixa] = useState(false);
+  const [precosEmEdicao, setPrecosEmEdicao] = useState<Record<string, string>>({});
   const {
     itens,
     desconto,
@@ -157,6 +178,7 @@ function PDVPageConteudo() {
     adicionarItem,
     removerItem,
     alterarQuantidade,
+    alterarPreco,
     setDesconto,
     setTipoDesconto,
     limparCarrinho,
@@ -438,9 +460,9 @@ function PDVPageConteudo() {
   };
 
   return (
-    <div className="w-full h-full flex flex-col overflow-hidden bg-slate-50 dark:bg-slate-900">
+    <div className="w-full h-full flex flex-col overflow-hidden bg-transparent">
       {/* Cabeçalho */}
-      <div className="px-6 lg:px-8 py-6 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+      <div className="border-b border-slate-200/70 bg-white/75 px-6 py-6 backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/50 lg:px-8">
         <div className="max-w-7xl mx-auto w-full flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-50">
@@ -750,7 +772,7 @@ function PDVPageConteudo() {
                           {item.nome}
                         </p>
                         <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                          {formatarMoeda(item.preco)} un.
+                          {item.quantidade > 1 ? `${item.quantidade} un.` : "1 un."}
                         </p>
                       </div>
 
@@ -780,10 +802,60 @@ function PDVPageConteudo() {
                         </Button>
                       </div>
 
-                      <div className="w-20 text-right">
-                        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                          {formatarMoeda(item.subtotal)}
-                        </p>
+                      {/* Preço unitário editável diretamente no carrinho */}
+                      <div className="w-24 text-right">
+                        <div className="flex items-center justify-end gap-0.5">
+                          <span className="text-xs text-zinc-400">R$</span>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={precosEmEdicao[item.id] ?? formatarPrecoInput(item.preco)}
+                            onFocus={() => {
+                              setPrecosEmEdicao((estadoAnterior) => ({
+                                ...estadoAnterior,
+                                [item.id]: formatarPrecoInput(item.preco),
+                              }));
+                            }}
+                            onChange={(e) => {
+                              const valorSanitizado = sanitizarPrecoInput(e.target.value);
+                              setPrecosEmEdicao((estadoAnterior) => ({
+                                ...estadoAnterior,
+                                [item.id]: valorSanitizado,
+                              }));
+                            }}
+                            onBlur={() => {
+                              const valorDigitado = precosEmEdicao[item.id] ?? formatarPrecoInput(item.preco);
+                              alterarPreco(item.id, parsePrecoInput(valorDigitado));
+                              setPrecosEmEdicao((estadoAnterior) => {
+                                const novoEstado = { ...estadoAnterior };
+                                delete novoEstado[item.id];
+                                return novoEstado;
+                              });
+                            }}
+                            onKeyDown={(evento) => {
+                              if (evento.key === "Enter") {
+                                evento.currentTarget.blur();
+                                return;
+                              }
+
+                              if (evento.key === "Escape") {
+                                setPrecosEmEdicao((estadoAnterior) => {
+                                  const novoEstado = { ...estadoAnterior };
+                                  delete novoEstado[item.id];
+                                  return novoEstado;
+                                });
+                                evento.currentTarget.blur();
+                              }
+                            }}
+                            className="w-16 text-sm font-semibold text-slate-900 dark:text-slate-100 bg-transparent border-b border-transparent hover:border-zinc-400 focus:border-blue-500 focus:outline-none text-right transition-colors"
+                            title="Editar preço unitário"
+                          />
+                        </div>
+                        {item.quantidade > 1 && (
+                          <p className="text-xs text-zinc-400 text-right mt-0.5">
+                            = {formatarMoeda(item.subtotal)}
+                          </p>
+                        )}
                       </div>
 
                       <Button

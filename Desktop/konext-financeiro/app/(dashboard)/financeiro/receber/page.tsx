@@ -51,9 +51,9 @@ export default async function FinanceiroReceberPage({ searchParams }: PageProps)
     v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
   return (
-    <div className="w-full min-h-full flex flex-col bg-slate-50 dark:bg-slate-900">
+    <div className="w-full min-h-full flex flex-col bg-transparent">
       {/* Cabeçalho */}
-      <div className="px-6 lg:px-8 py-6 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+      <div className="border-b border-slate-200/70 bg-white/75 px-6 py-6 backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/50 lg:px-8">
         <div className="max-w-7xl mx-auto w-full">
           <Link
             href="/financeiro"

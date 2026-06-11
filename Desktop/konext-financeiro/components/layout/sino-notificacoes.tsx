@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import {
+  contarNaoLidas,
   listarNotificacoes,
   marcarComoLida,
   marcarTodasComoLidas,
@@ -38,36 +39,73 @@ function formatarTempoDecorrido(data: Date): string {
 export function SinoNotificacoes() {
   const [aberto, setAberto] = useState(false);
   const [notificacoes, setNotificacoes] = useState<NotificacaoItem[]>([]);
+  const [naoLidas, setNaoLidas] = useState(0);
   const [carregando, setCarregando] = useState(false);
   const [isPending, startTransition] = useTransition();
 
-  const naoLidas = notificacoes.filter((n) => !n.lida).length;
-
-  // Carrega as notificações ao abrir o popover
   useEffect(() => {
-    if (!aberto) return;
+    let ativo = true;
+
+    contarNaoLidas()
+      .then((total) => {
+        if (!ativo) return;
+        setNaoLidas(total);
+      })
+      .catch(() => {
+        if (!ativo) return;
+        setNaoLidas(0);
+      });
+
+    return () => {
+      ativo = false;
+    };
+  }, []);
+
+  const aoAlterarAbertura = (proximoAberto: boolean) => {
+    setAberto(proximoAberto);
+
+    if (!proximoAberto) return;
 
     setCarregando(true);
     listarNotificacoes()
       .then(setNotificacoes)
       .finally(() => setCarregando(false));
-  }, [aberto]);
+  };
 
   const aoClicarNotificacao = (id: string) => {
     // Atualiza o estado local imediatamente para resposta instantânea
+    let reduziuNaoLidas = false;
+
     setNotificacoes((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, lida: true } : n))
+      prev.map((n) => {
+        if (n.id !== id || n.lida) return n;
+        reduziuNaoLidas = true;
+        return { ...n, lida: true };
+      })
     );
+
+    if (reduziuNaoLidas) {
+      setNaoLidas((prev) => Math.max(0, prev - 1));
+    }
+
     startTransition(() => marcarComoLida(id));
   };
 
   const aoMarcarTodas = () => {
+    const totalNaoLidas = notificacoes.reduce(
+      (total, notificacao) => total + (notificacao.lida ? 0 : 1),
+      0
+    );
+
     setNotificacoes((prev) => prev.map((n) => ({ ...n, lida: true })));
+    if (totalNaoLidas > 0) {
+      setNaoLidas((prev) => Math.max(0, prev - totalNaoLidas));
+    }
     startTransition(() => marcarTodasComoLidas());
   };
 
   return (
-    <Popover open={aberto} onOpenChange={setAberto}>
+    <Popover open={aberto} onOpenChange={aoAlterarAbertura}>
       <PopoverTrigger asChild>
         {/* Botão do sino com indicador de não lidas */}
         <Button variant="ghost" size="icon" className="relative">

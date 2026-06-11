@@ -18,7 +18,7 @@ export function ConteudoPrincipal({ children }: ConteudoPrincipalProps) {
   return (
     <main
       className={cn(
-        "flex-1 mt-16 transition-all duration-300 ease-in-out bg-slate-50 dark:bg-slate-900",
+        "flex-1 mt-16 bg-transparent transition-all duration-300 ease-in-out",
         contraida ? "ml-20" : "ml-64"
       )}
     >

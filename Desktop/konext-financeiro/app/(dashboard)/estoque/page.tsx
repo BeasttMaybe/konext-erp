@@ -55,8 +55,8 @@ const LIMITE_POR_PAGINA = 20;
 
 function SkeletonEstoque() {
   return (
-    <div className="w-full min-h-full flex flex-col bg-slate-50 dark:bg-slate-900">
-      <div className="px-6 lg:px-8 py-6 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+    <div className="w-full min-h-full flex flex-col bg-transparent">
+      <div className="border-b border-slate-200/70 bg-white/75 px-6 py-6 backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/50 lg:px-8">
         <div className="max-w-7xl mx-auto w-full">
           <div className="h-9 w-56 rounded-lg bg-slate-200 dark:bg-slate-700 animate-pulse" />
           <div className="h-4 w-80 rounded bg-slate-100 dark:bg-slate-800 animate-pulse mt-2" />
@@ -140,6 +140,8 @@ function ConteudoEstoque() {
   const [produtoEditando, setProdutoEditando] = useState<ProdutoTabela | null>(null);
   const [produtoParaExcluir, setProdutoParaExcluir] = useState<ProdutoTabela | null>(null);
   const [carregando, setCarregando] = useState(false);
+  // Incrementado após cada mutação para forçar o useEffect a rebuscar a lista
+  const [contadorRecarga, setContadorRecarga] = useState(0);
 
   // Navega para uma página específica, preservando os demais query params
   const irParaPagina = useCallback(
@@ -150,38 +152,6 @@ function ConteudoEstoque() {
     },
     [router, searchParams]
   );
-
-  const carregarProdutos = async () => {
-    try {
-      setCarregando(true);
-      const resultado = await listarProdutosPaginado(
-        currentPage,
-        LIMITE_POR_PAGINA,
-        busca,
-        categoriaSelecionada
-      );
-      setProdutos(
-        resultado.data.map((produto) => ({
-          id: produto.id,
-          nome: produto.nome,
-          codigoBarras: produto.codigoBarras,
-          imagemUrl: produto.imagemUrl,
-          descricao: produto.descricao,
-          categoria: produto.categoria as CategoriaProduto,
-          custo: produto.custo,
-          precoVenda: produto.precoVenda,
-          quantidadeEstoque: produto.quantidadeEstoque,
-          estoqueMinimo: produto.estoqueMinimo,
-        }))
-      );
-      setTotalProdutos(resultado.total);
-      setTotalPages(resultado.totalPages);
-    } catch {
-      toast.error("Não foi possível carregar os produtos.");
-    } finally {
-      setCarregando(false);
-    }
-  };
 
   // Ao alterar busca ou filtro, volta para a página 1
   const aoAlterarBusca = (valor: string) => {
@@ -195,9 +165,46 @@ function ConteudoEstoque() {
   };
 
   useEffect(() => {
-    carregarProdutos();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, busca, categoriaSelecionada]);
+    let ativo = true;
+
+    void (async () => {
+      try {
+        setCarregando(true);
+        const resultado = await listarProdutosPaginado(
+          currentPage,
+          LIMITE_POR_PAGINA,
+          busca,
+          categoriaSelecionada
+        );
+        if (!ativo) return;
+        setProdutos(
+          resultado.data.map((produto) => ({
+            id: produto.id,
+            nome: produto.nome,
+            codigoBarras: produto.codigoBarras,
+            imagemUrl: produto.imagemUrl,
+            descricao: produto.descricao,
+            categoria: produto.categoria as CategoriaProduto,
+            custo: produto.custo,
+            precoVenda: produto.precoVenda,
+            quantidadeEstoque: produto.quantidadeEstoque,
+            estoqueMinimo: produto.estoqueMinimo,
+          }))
+        );
+        setTotalProdutos(resultado.total);
+        setTotalPages(resultado.totalPages);
+      } catch {
+        if (!ativo) return;
+        toast.error("Não foi possível carregar os produtos.");
+      } finally {
+        if (ativo) setCarregando(false);
+      }
+    })();
+
+    return () => {
+      ativo = false;
+    };
+  }, [currentPage, busca, categoriaSelecionada, contadorRecarga]);
 
   // A filtragem é feita no servidor — exibe a lista recebida diretamente
   const produtosFiltrados = produtos;
@@ -217,7 +224,8 @@ function ConteudoEstoque() {
     );
 
     setProdutoEditando(null);
-    await carregarProdutos();
+    // Rebusca a lista do servidor para refletir o valor atualizado de precoVariavel
+    setContadorRecarga((n) => n + 1);
 
     return resultado;
   };
@@ -244,7 +252,7 @@ function ConteudoEstoque() {
 
     toast.success("Produto excluido com sucesso!");
     setProdutoParaExcluir(null);
-    await carregarProdutos();
+    setContadorRecarga((n) => n + 1);
   };
 
   const aoFecharModalProduto = () => {
@@ -253,8 +261,8 @@ function ConteudoEstoque() {
   };
 
   return (
-    <div className="w-full min-h-full flex flex-col bg-slate-50 dark:bg-slate-900">
-      <div className="px-6 lg:px-8 py-6 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+    <div className="w-full min-h-full flex flex-col bg-transparent">
+      <div className="border-b border-slate-200/70 bg-white/75 px-6 py-6 backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/50 lg:px-8">
         <div className="max-w-7xl mx-auto w-full">
           <h1 className="text-3xl font-bold text-foreground">Estoque & Produtos</h1>
           <p className="text-muted-foreground mt-2 text-sm">

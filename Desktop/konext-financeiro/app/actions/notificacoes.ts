@@ -1,7 +1,25 @@
 "use server";
-
-import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+
+type NotificacaoRegistro = {
+  id: string | number;
+  titulo?: string | null;
+  mensagem?: string | null;
+  lida?: boolean | null;
+  criadoEm: Date | string;
+};
+
+type NotificacaoDelegate = {
+  findMany?: (args: unknown) => Promise<NotificacaoRegistro[]>;
+  count?: (args: unknown) => Promise<number>;
+  update?: (args: unknown) => Promise<unknown>;
+  updateMany?: (args: unknown) => Promise<unknown>;
+};
+
+type PrismaNotificacoesAny = typeof prisma & {
+  notificacao?: NotificacaoDelegate;
+  Notificacao?: NotificacaoDelegate;
+};
 
 export type NotificacaoItem = {
   id: string;
@@ -15,16 +33,16 @@ export type NotificacaoItem = {
  * Busca as 10 notificações mais recentes, priorizando as não lidas.
  */
 export async function listarNotificacoes(): Promise<NotificacaoItem[]> {
-  const prismaAny = prisma as any;
+  const prismaAny = prisma as PrismaNotificacoesAny;
   const delegate = prismaAny.notificacao ?? prismaAny.Notificacao;
-  if (!delegate) return [];
+  if (!delegate?.findMany) return [];
 
   const itens = await delegate.findMany({
     orderBy: [{ lida: "asc" }, { criadoEm: "desc" }],
     take: 10,
   });
 
-  return itens.map((n: any) => ({
+  return itens.map((n) => ({
     id: String(n.id),
     titulo: String(n.titulo),
     mensagem: String(n.mensagem),
@@ -37,9 +55,9 @@ export async function listarNotificacoes(): Promise<NotificacaoItem[]> {
  * Conta somente as notificações não lidas — usado para o indicador vermelho.
  */
 export async function contarNaoLidas(): Promise<number> {
-  const prismaAny = prisma as any;
+  const prismaAny = prisma as PrismaNotificacoesAny;
   const delegate = prismaAny.notificacao ?? prismaAny.Notificacao;
-  if (!delegate) return 0;
+  if (!delegate?.count) return 0;
 
   return delegate.count({ where: { lida: false } });
 }
@@ -48,22 +66,20 @@ export async function contarNaoLidas(): Promise<number> {
  * Marca uma notificação específica como lida.
  */
 export async function marcarComoLida(id: string): Promise<void> {
-  const prismaAny = prisma as any;
+  const prismaAny = prisma as PrismaNotificacoesAny;
   const delegate = prismaAny.notificacao ?? prismaAny.Notificacao;
-  if (!delegate) return;
+  if (!delegate?.update) return;
 
   await delegate.update({ where: { id }, data: { lida: true } });
-  revalidatePath("/", "layout");
 }
 
 /**
  * Marca todas as notificações como lidas de uma vez.
  */
 export async function marcarTodasComoLidas(): Promise<void> {
-  const prismaAny = prisma as any;
+  const prismaAny = prisma as PrismaNotificacoesAny;
   const delegate = prismaAny.notificacao ?? prismaAny.Notificacao;
-  if (!delegate) return;
+  if (!delegate?.updateMany) return;
 
   await delegate.updateMany({ where: { lida: false }, data: { lida: true } });
-  revalidatePath("/", "layout");
 }

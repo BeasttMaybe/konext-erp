@@ -1,10 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
 import { useFormContext, useFieldArray, Controller } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -27,7 +25,7 @@ const TIPOS_PECA = [
 ];
 
 export function AbaOrcamento() {
-  const { control, watch, formState: { errors } } = useFormContext();
+  const { control, watch } = useFormContext();
   const { fields, append, remove } = useFieldArray({
     control,
     name: "itensOrcamento",
@@ -35,19 +33,6 @@ export function AbaOrcamento() {
 
   const { calcularValorCobrado, calcularTotalOrcamento } = useCalculadoraPrecosOS();
   const itens = watch("itensOrcamento") || [];
-
-  // Observar mudanças no custo da peça para recalcular automaticamente
-  useEffect(() => {
-    itens.forEach((item: any, index: number) => {
-      if (item.tipo !== "OUTROS" && item.custoPeca > 0) {
-        const novoValor = calcularValorCobrado(item.tipo, item.custoPeca);
-        // Atualizar via form if needed
-        if (item.valorCobrado !== novoValor) {
-          // O campo será atualizado automaticamente via watch
-        }
-      }
-    });
-  }, [itens, calcularValorCobrado]);
 
   const totalOrcamento = calcularTotalOrcamento(itens);
 
@@ -72,7 +57,7 @@ export function AbaOrcamento() {
           </div>
         ) : (
           fields.map((field, index) => (
-            <Card key={field.id} className="p-4 border border-slate-200">
+            <Card key={field.id} className="border border-slate-200 p-4 transition-all duration-200 hover:shadow-sm">
               <div className="grid grid-cols-5 gap-4 items-start">
                 {/* Tipo */}
                 <div className="col-span-1 space-y-2">
@@ -86,7 +71,7 @@ export function AbaOrcamento() {
                       <Select value={field.value} onValueChange={field.onChange}>
                         <SelectTrigger
                           id={`tipo-${index}`}
-                          className="text-sm"
+                          className="text-sm transition-all duration-200 focus-visible:ring-2 focus-visible:ring-primary/35"
                         >
                           <SelectValue placeholder="Tipo" />
                         </SelectTrigger>
@@ -110,7 +95,7 @@ export function AbaOrcamento() {
                   <Input
                     id={`desc-${index}`}
                     placeholder="Ex: Tela OLED 6.1 polegadas"
-                    className="text-sm"
+                    className="text-sm transition-all duration-200 focus-visible:ring-2 focus-visible:ring-primary/35"
                     {...control.register(`itensOrcamento.${index}.descricao`)}
                   />
                 </div>
@@ -125,7 +110,7 @@ export function AbaOrcamento() {
                     type="number"
                     step="0.01"
                     placeholder="0.00"
-                    className="text-sm"
+                    className="text-sm transition-all duration-200 focus-visible:ring-2 focus-visible:ring-primary/35"
                     {...control.register(`itensOrcamento.${index}.custoPeca`, {
                       valueAsNumber: true,
                     })}
@@ -157,7 +142,7 @@ export function AbaOrcamento() {
                             type="number"
                             step="0.01"
                             placeholder="0.00"
-                            className="text-sm"
+                            className="text-sm transition-all duration-200 focus-visible:ring-2 focus-visible:ring-primary/35"
                             readOnly={isReadOnly}
                             value={
                               isReadOnly ? autoCalc.toFixed(2) : field.value
@@ -217,7 +202,7 @@ export function AbaOrcamento() {
       </Button>
 
       {/* Total do Orçamento */}
-      <Card className="p-6 bg-gradient-to-r from-emerald-50 to-green-50 border-emerald-200">
+      <Card className="border-emerald-200 bg-gradient-to-r from-emerald-50 to-green-50 p-6 transition-all duration-200 hover:shadow-sm">
         <div className="flex items-center justify-between">
           <span className="text-lg font-semibold text-slate-900">
             Total do Orçamento:
@@ -228,18 +213,6 @@ export function AbaOrcamento() {
         </div>
       </Card>
 
-      {/* Info sobre precificação automática */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm">
-        <p className="font-semibold text-blue-900 mb-2">💡 Precificação Automática</p>
-        <ul className="text-blue-800 space-y-1 text-xs">
-          <li>• <strong>Tela:</strong> até R$150 (200%), até R$250 (175%), acima (150%)</li>
-          <li>• <strong>Bateria:</strong> até R$80 (200%), até R$140 (175%), acima (150%)</li>
-          <li>• <strong>Conector de Carga:</strong> Custo + R$100</li>
-          <li>• <strong>Tampa iPhone:</strong> Custo + R$200</li>
-          <li>• <strong>Tampa Android:</strong> Custo + R$80</li>
-          <li>• <strong>Outros:</strong> Edição manual</li>
-        </ul>
-      </div>
     </div>
   );
 }

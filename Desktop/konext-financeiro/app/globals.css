@@ -51,9 +51,22 @@
   }
 
   body {
+    min-height: 100vh;
     background-color: hsl(var(--background));
+    background-image: none;
     color: hsl(var(--foreground));
     font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  html.dark body {
+    background-color: #060913;
+    background-image:
+      radial-gradient(120% 90% at 50% -10%, rgba(71, 85, 105, 0.26) 0%, rgba(10, 15, 28, 0.82) 44%, rgba(6, 9, 19, 1) 100%),
+      linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+    background-size: auto, 36px 36px, 36px 36px;
+    background-position: center, center, center;
+    background-attachment: fixed;
   }
 }
 

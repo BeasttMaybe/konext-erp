@@ -2,6 +2,36 @@ import { DashboardOS } from "@/components/os/dashboard-os";
 import { prisma } from "@/lib/prisma";
 import type { OrdemServico, StatusOS, TipoPecaOrcamento } from "@/types/os";
 
+type RawItemOS = {
+  id?: unknown;
+  tipoPeca?: unknown;
+  tipo?: unknown;
+  descricao?: unknown;
+  custoPeca?: unknown;
+  valorCobrado?: unknown;
+};
+
+type RawOrdemServico = {
+  id?: unknown;
+  numeroOs?: unknown;
+  clienteId?: unknown;
+  cliente?: { nomeRazaoSocial?: unknown } | null;
+  equipamento?: unknown;
+  marca?: unknown;
+  modelo?: unknown;
+  imei?: unknown;
+  senha?: unknown;
+  senhaDesenho?: unknown;
+  relatoCliente?: unknown;
+  condicaoFisica?: unknown;
+  acessorios?: unknown;
+  status?: unknown;
+  observacoes?: unknown;
+  criadoEm?: unknown;
+  atualizadoEm?: unknown;
+  itens?: RawItemOS[];
+};
+
 export const metadata = {
   title: "Ordem de Serviço - Konext ERP",
   description: "Gerenciar ordens de serviço e manutenção",
@@ -9,6 +39,17 @@ export const metadata = {
 
 function formatarNumeroOS(numero: number): string {
   return `OS-${String(new Date().getFullYear())}-${String(numero).padStart(3, "0")}`;
+}
+
+function normalizarDataISO(valor: unknown): string {
+  if (valor instanceof Date) return valor.toISOString();
+
+  if (typeof valor === "string" || typeof valor === "number") {
+    const data = new Date(valor);
+    if (!Number.isNaN(data.getTime())) return data.toISOString();
+  }
+
+  return new Date().toISOString();
 }
 
 export default async function OSPage({
@@ -19,8 +60,10 @@ export default async function OSPage({
   const params = await searchParams;
   const clienteIdInicial = params.clienteId ?? null;
 
-  const prismaAny = prisma as any;
-  const ordemServicoDelegate = prismaAny.ordemServico ?? prismaAny.OrdemServico;
+  const prismaAny = prisma as unknown as Record<string, unknown>;
+  const ordemServicoDelegate =
+    (prismaAny.ordemServico as { findMany?: (args: unknown) => Promise<RawOrdemServico[]> } | undefined) ??
+    (prismaAny.OrdemServico as { findMany?: (args: unknown) => Promise<RawOrdemServico[]> } | undefined);
 
   if (!ordemServicoDelegate?.findMany) {
     throw new Error("Delegate Prisma de OrdemServico nao disponivel.");
@@ -41,8 +84,8 @@ export default async function OSPage({
     },
   });
 
-  const ordensServico: OrdemServico[] = ordensBanco.map((ordem: any) => {
-    const itensOrcamento = (ordem.itens ?? []).map((item: any) => ({
+  const ordensServico: OrdemServico[] = ordensBanco.map((ordem) => {
+    const itensOrcamento = (ordem.itens ?? []).map((item) => ({
       id: String(item.id),
       tipo: String(item.tipoPeca ?? item.tipo ?? "OUTROS") as TipoPecaOrcamento,
       descricao: String(item.descricao ?? ""),
@@ -72,15 +115,15 @@ export default async function OSPage({
       totalOrcamento,
       status: String(ordem.status) as StatusOS,
       observacoesInternas: ordem.observacoes ? String(ordem.observacoes) : undefined,
-      dataCriacao: new Date(ordem.criadoEm).toISOString(),
-      dataAtualizacao: new Date(ordem.atualizadoEm).toISOString(),
+      dataCriacao: normalizarDataISO(ordem.criadoEm),
+      dataAtualizacao: normalizarDataISO(ordem.atualizadoEm),
     };
   });
 
   return (
-    <div className="w-full h-full flex flex-col overflow-hidden bg-slate-50 dark:bg-slate-900">
+    <div className="w-full h-full flex flex-col overflow-hidden bg-transparent">
       {/* Header Section */}
-      <div className="px-6 lg:px-8 py-6 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+      <div className="border-b border-slate-200/70 bg-white/75 px-6 py-6 backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/50 lg:px-8">
         <div className="max-w-7xl">
           <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-50">
             Ordem de Serviço (OS)

@@ -58,16 +58,19 @@ export function ColunaKanban({
             </div>
           ) : (
             ordensFiltradas.map((os) => (
-              <CartaoOS
+              <div
                 key={os.id}
-                os={os}
-                onClick={() => onCartaoClick?.(os)}
                 draggable
                 onDragStart={(event) => {
                   event.dataTransfer.setData("text/os-id", os.id);
                   event.dataTransfer.effectAllowed = "move";
                 }}
-              />
+              >
+                <CartaoOS
+                  os={os}
+                  onClick={() => onCartaoClick?.(os)}
+                />
+              </div>
             ))
           )}
         </div>

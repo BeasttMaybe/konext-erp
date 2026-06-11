@@ -29,6 +29,12 @@ export async function listarContasReceber(): Promise<ContaReceberFinanceiro[]> {
       orderBy: {
         dataVencimento: "asc",
       },
+      where: {
+        OR: [
+          { cliente: { is: null } },
+          { cliente: { is: { papel: "CLIENTE" } } },
+        ],
+      },
       select: {
         id: true,
         descricao: true,

@@ -12,6 +12,7 @@ import {
   DollarSign,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Box,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -22,11 +23,25 @@ import { obterDadosPerfilConfiguracao } from "@/app/actions/configuracoes";
 /**
  * Componente da Barra Lateral (Sidebar) do Dashboard
  */
+
+interface SidebarSubItem {
+  label: string;
+  path: string;
+}
+
+interface SidebarItem {
+  label: string;
+  path: string;
+  iconKey: string;
+  subItems?: SidebarSubItem[];
+}
+
 export function BarraLateral() {
-  const { contraida, setContraida } = useSidebar();
-  const nomeRota = usePathname();
-  const [nomeEmpresa, setNomeEmpresa] = useState("Konext");
+  const { contraida: isCollapsed, setContraida: setIsCollapsed } = useSidebar();
+  const pathname = usePathname();
+  const [companyName, setCompanyName] = useState("Konext");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [toggledParents, setToggledParents] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     let ativo = true;
@@ -35,11 +50,11 @@ export function BarraLateral() {
       try {
         const dados = await obterDadosPerfilConfiguracao();
         if (!ativo) return;
-        setNomeEmpresa(dados.configuracao?.nomeFantasia || "Konext");
+        setCompanyName(dados.configuracao?.nomeFantasia || "Konext");
         setLogoUrl(dados.configuracao?.logoUrl || null);
       } catch {
         if (!ativo) return;
-        setNomeEmpresa("Konext");
+        setCompanyName("Konext");
         setLogoUrl(null);
       }
     };
@@ -61,69 +76,121 @@ export function BarraLateral() {
     Financeiro: <DollarSign className="h-5 w-5" />,
   };
 
-  const itensMenu = [
-    { nome: "Dashboard", caminho: "/", icone: "Dashboard" },
-    { nome: "CRM", caminho: "/crm", icone: "CRM" },
-    { nome: "PDV", caminho: "/pdv", icone: "PDV" },
-    { nome: "Estoque", caminho: "/estoque", icone: "Estoque" },
-    { nome: "Ordens de Serviço", caminho: "/os", icone: "OS" },
-    { nome: "Financeiro", caminho: "/financeiro", icone: "Financeiro" },
+  const navigationItems: SidebarItem[] = [
+    { label: "Dashboard", path: "/", iconKey: "Dashboard" },
+    {
+      label: "CRM",
+      path: "/crm",
+      iconKey: "CRM",
+      subItems: [
+        { label: "Hub Central", path: "/crm" },
+        { label: "Contatos", path: "/crm/contatos" },
+        { label: "Oportunidades", path: "/crm/oportunidades" },
+        { label: "Propostas", path: "/crm/propostas" },
+      ],
+    },
+    { label: "PDV", path: "/pdv", iconKey: "PDV" },
+    { label: "Estoque", path: "/estoque", iconKey: "Estoque" },
+    {
+      label: "Ordens de Serviço",
+      path: "/os",
+      iconKey: "OS",
+      subItems: [
+        { label: "Hub Central", path: "/os" },
+        { label: "Kanban", path: "/os?modo=kanban" },
+        { label: "Finalizadas", path: "/os?modo=lista" },
+      ],
+    },
+    {
+      label: "Financeiro",
+      path: "/financeiro",
+      iconKey: "Financeiro",
+      subItems: [
+        { label: "Hub Financeiro", path: "/financeiro" },
+        { label: "Contas a Receber", path: "/financeiro/receber" },
+        { label: "Contas a Pagar", path: "/financeiro/pagar" },
+      ],
+    },
   ];
 
-  // Verifica se a rota atual é ativa
-  const rotaAitva = (caminho: string) => {
-    if (caminho === "/" && nomeRota === "/") return true;
-    if (caminho !== "/" && nomeRota.includes(caminho)) return true;
-    return false;
+  const isPathActive = (path: string) => {
+    if (path.includes("?")) {
+      const [cleanPath] = path.split("?");
+      if (!cleanPath) return false;
+      return pathname.startsWith(cleanPath);
+    }
+
+    if (path === "/") return pathname === "/";
+    return pathname === path || pathname.startsWith(`${path}/`);
+  };
+
+  const autoExpandedParents = navigationItems.reduce<Record<string, boolean>>((acc, item) => {
+    if (!item.subItems?.length) return acc;
+
+    const hasActiveSubItem = item.subItems.some((subItem) => isPathActive(subItem.path));
+    const isParentRouteActive = item.path !== "/" && isPathActive(item.path);
+
+    if (hasActiveSubItem || isParentRouteActive) {
+      acc[item.path] = true;
+    }
+
+    return acc;
+  }, {});
+
+  const toggleParent = (parentPath: string) => {
+    setToggledParents((previous) => ({
+      ...previous,
+      [parentPath]: !previous[parentPath],
+    }));
   };
 
   return (
     <aside
       className={cn(
-        "fixed left-0 top-0 z-40 h-screen bg-white dark:bg-slate-950 border-r border-zinc-200 dark:border-zinc-800 transition-all duration-300 ease-in-out flex flex-col",
-        contraida ? "w-20" : "w-64"
+        "fixed left-0 top-0 z-40 flex h-screen flex-col border-r border-slate-800/50 bg-slate-950/40 backdrop-blur-xl transition-all duration-300 ease-in-out",
+        isCollapsed ? "w-20" : "w-64"
       )}
     >
       {/* Cabeçalho da Sidebar */}
       <div
         className={cn(
-          "h-20 flex items-center border-b border-zinc-200 dark:border-zinc-800 transition-all duration-300 ease-in-out",
-          contraida ? "justify-center px-2" : "justify-between px-4"
+          "h-20 flex items-center border-b border-slate-800/50 bg-slate-950/35 transition-all duration-300 ease-in-out",
+          isCollapsed ? "justify-center px-2" : "justify-between px-4"
         )}
       >
         <div
           className={cn(
             "flex items-center overflow-hidden transition-all duration-300 ease-in-out",
-            contraida ? "justify-center" : "gap-3"
+            isCollapsed ? "justify-center" : "gap-3"
           )}
         >
           {logoUrl ? (
             <img
               src={logoUrl}
-              alt={nomeEmpresa}
+              alt={companyName}
               className={cn(
-                "rounded-md object-contain border border-zinc-200 dark:border-zinc-700 bg-white transition-all duration-300 ease-in-out",
-                contraida ? "w-10 h-10" : "w-14 h-14"
+                "rounded-md border border-slate-700/60 bg-slate-900/70 object-contain transition-all duration-300 ease-in-out",
+                isCollapsed ? "w-10 h-10" : "w-14 h-14"
               )}
             />
           ) : (
             <div
               className={cn(
-                "rounded-md flex items-center justify-center bg-slate-100 dark:bg-slate-800 border border-zinc-200 dark:border-zinc-700 text-slate-700 dark:text-slate-200 transition-all duration-300 ease-in-out",
-                contraida ? "w-10 h-10" : "w-14 h-14"
+                "flex items-center justify-center rounded-md border border-slate-700/60 bg-slate-900/70 text-slate-100 transition-all duration-300 ease-in-out",
+                isCollapsed ? "w-10 h-10" : "w-14 h-14"
               )}
             >
-              {contraida ? (
+              {isCollapsed ? (
                 <Box className="h-5 w-5" />
               ) : (
-                <span className="text-base font-bold">{nomeEmpresa.charAt(0).toUpperCase()}</span>
+                <span className="text-base font-bold">{companyName.charAt(0).toUpperCase()}</span>
               )}
             </div>
           )}
 
-          {!contraida && (
-            <div className="text-xl font-bold text-slate-900 dark:text-white transition-all duration-300 ease-in-out">
-              {nomeEmpresa}
+          {!isCollapsed && (
+            <div className="text-xl font-bold text-white transition-all duration-300 ease-in-out">
+              {companyName}
             </div>
           )}
         </div>
@@ -132,10 +199,10 @@ export function BarraLateral() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => setContraida(!contraida)}
-            className="h-9 w-9 shrink-0"
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="h-9 w-9 shrink-0 text-slate-300 hover:bg-white/5 hover:text-white"
           >
-            {contraida ? (
+            {isCollapsed ? (
               <ChevronRight className="h-4 w-4" />
             ) : (
               <ChevronLeft className="h-4 w-4" />
@@ -145,33 +212,105 @@ export function BarraLateral() {
       </div>
 
       {/* Menu de Navegação */}
-      <nav className="flex-1 overflow-y-auto py-4 px-2">
-        {itensMenu.map((item) => (
-          <Link
-            key={item.caminho}
-            href={item.caminho}
-            className={cn(
-              "flex items-center gap-3 px-4 py-3 rounded-lg mb-2 transition-colors text-sm font-medium",
-              rotaAitva(item.caminho)
-                ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
-                : "text-zinc-700 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900"
-            )}
-          >
-            {icones[item.icone]}
-            {!contraida && <span>{item.nome}</span>}
-          </Link>
-        ))}
+      <nav className="flex-1 overflow-y-auto bg-slate-950/20 px-2 py-4">
+        {navigationItems.map((item) => {
+          const hasSubItems = Boolean(item.subItems?.length);
+          const hasActiveSubItem = item.subItems?.some((subItem) => isPathActive(subItem.path)) ?? false;
+          const isParentActive = isPathActive(item.path) || hasActiveSubItem;
+          const isParentExpanded = toggledParents[item.path] ?? autoExpandedParents[item.path] ?? false;
+
+          return (
+            <div key={item.path} className="mb-2">
+              {hasSubItems ? (
+                <button
+                  type="button"
+                  onClick={() => toggleParent(item.path)}
+                  className={cn(
+                    "group relative flex w-full items-center gap-3 overflow-hidden rounded-lg border-l-2 px-4 py-3 text-sm font-medium transition-colors duration-200",
+                    isParentActive
+                      ? "border-blue-500 bg-blue-500/10 text-blue-300 shadow-[inset_0_0_0_1px_rgba(59,130,246,0.25)]"
+                      : "border-transparent text-slate-300 hover:bg-white/5 hover:text-white"
+                  )}
+                >
+                  {isParentActive && (
+                    <span className="pointer-events-none absolute inset-y-0 left-0 w-8 animate-pulse bg-gradient-to-r from-blue-500/35 via-blue-400/15 to-transparent blur-[2px]" />
+                  )}
+
+                  <span className="relative z-10">{icones[item.iconKey]}</span>
+                  {!isCollapsed && <span className="relative z-10 flex-1 text-left">{item.label}</span>}
+                  {!isCollapsed && (
+                    <ChevronDown
+                      className={cn(
+                        "relative z-10 h-4 w-4 transition-transform duration-200",
+                        isParentExpanded ? "rotate-180" : "rotate-0"
+                      )}
+                    />
+                  )}
+                </button>
+              ) : (
+                <Link
+                  href={item.path}
+                  className={cn(
+                    "group relative flex items-center gap-3 overflow-hidden rounded-lg border-l-2 px-4 py-3 text-sm font-medium transition-colors duration-200",
+                    isParentActive
+                      ? "border-blue-500 bg-blue-500/10 text-blue-300 shadow-[inset_0_0_0_1px_rgba(59,130,246,0.25)]"
+                      : "border-transparent text-slate-300 hover:bg-white/5 hover:text-white"
+                  )}
+                >
+                  {isParentActive && (
+                    <span className="pointer-events-none absolute inset-y-0 left-0 w-8 animate-pulse bg-gradient-to-r from-blue-500/35 via-blue-400/15 to-transparent blur-[2px]" />
+                  )}
+
+                  <span className="relative z-10">{icones[item.iconKey]}</span>
+                  {!isCollapsed && <span className="relative z-10">{item.label}</span>}
+                </Link>
+              )}
+
+              {hasSubItems && !isCollapsed && (
+                <div
+                  className={cn(
+                    "grid transition-all duration-300 ease-out",
+                    isParentExpanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+                  )}
+                >
+                  <div className="overflow-hidden">
+                    <div className="ml-4 mt-1 space-y-1 border-l border-slate-700/50 pl-3">
+                      {item.subItems?.map((subItem) => {
+                        const isSubItemActive = isPathActive(subItem.path);
+
+                        return (
+                          <Link
+                            key={subItem.path}
+                            href={subItem.path}
+                            className={cn(
+                              "block rounded-md py-2 pl-4 pr-3 text-sm transition-colors duration-200",
+                              isSubItemActive
+                                ? "bg-blue-500/10 text-blue-300"
+                                : "text-slate-400 hover:bg-white/5 hover:text-white"
+                            )}
+                          >
+                            {subItem.label}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </nav>
 
       {/* Rodapé */}
-      <div className="border-t border-zinc-200 dark:border-zinc-800 p-4">
+      <div className="border-t border-slate-800/50 bg-slate-950/35 p-4">
         <p
           className={cn(
-            "text-xs text-zinc-500 dark:text-zinc-500 text-center",
-            contraida && "truncate"
+            "text-center text-xs text-slate-400",
+            isCollapsed && "truncate"
           )}
         >
-          {!contraida ? `Powered by ${nomeEmpresa}` : "v1.0"}
+          {!isCollapsed ? `Powered by ${companyName}` : "v1.0"}
         </p>
       </div>
     </aside>

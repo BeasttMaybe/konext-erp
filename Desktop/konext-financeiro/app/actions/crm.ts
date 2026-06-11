@@ -27,6 +27,7 @@ type ResultadoCriarCliente =
         bairro: string | null;
         cidade: string | null;
         estado: string | null;
+        papel: "CLIENTE" | "FORNECEDOR";
         categoria: "CLIENTE_FINAL" | "EMPRESA" | "ORGAO_PUBLICO";
         observacoes: string | null;
       };
@@ -189,13 +190,17 @@ export async function criarCliente(
   try {
     await exigirSessao();
     const dadosValidados = formClienteSchema.parse(data);
+    const papelNormalizado = dadosValidados.papel;
     const categoriaNormalizada =
-      dadosValidados.tipoPessoa === "JURIDICA" && dadosValidados.categoria === "CLIENTE_FINAL"
+      papelNormalizado === "FORNECEDOR"
+        ? "EMPRESA"
+        : dadosValidados.tipoPessoa === "JURIDICA" && dadosValidados.categoria === "CLIENTE_FINAL"
         ? "EMPRESA"
         : dadosValidados.categoria;
 
     const payload: Prisma.ClienteCreateInput = {
       tipoPessoa: dadosValidados.tipoPessoa,
+      papel: papelNormalizado,
       nomeRazaoSocial: dadosValidados.nomeRazaoSocial.trim(),
       nomeFantasia: dadosValidados.nomeFantasia?.trim() || null,
       documento: dadosValidados.documento.trim(),
@@ -236,6 +241,7 @@ export async function criarCliente(
         bairro: cliente.bairro,
         cidade: cliente.cidade,
         estado: cliente.estado,
+        papel: cliente.papel,
         categoria: cliente.categoria,
         observacoes: cliente.observacoes,
       },
@@ -333,11 +339,19 @@ export async function atualizarCliente(
   try {
     await exigirSessao();
     const dadosValidados = formClienteSchema.parse(dados);
+    const papelNormalizado = dadosValidados.papel;
+    const categoriaNormalizada =
+      papelNormalizado === "FORNECEDOR"
+        ? "EMPRESA"
+        : dadosValidados.tipoPessoa === "JURIDICA" && dadosValidados.categoria === "CLIENTE_FINAL"
+          ? "EMPRESA"
+          : dadosValidados.categoria;
 
     const clienteAtualizado = await prisma.cliente.update({
       where: { id: clienteId },
       data: {
         tipoPessoa: dadosValidados.tipoPessoa,
+        papel: papelNormalizado,
         nomeRazaoSocial: dadosValidados.nomeRazaoSocial.trim(),
         nomeFantasia: dadosValidados.nomeFantasia?.trim() || null,
         documento: dadosValidados.documento.trim(),
@@ -351,7 +365,7 @@ export async function atualizarCliente(
         bairro: dadosValidados.bairro?.trim() || null,
         cidade: dadosValidados.cidade?.trim() || null,
         estado: dadosValidados.estado?.trim() || null,
-        categoria: dadosValidados.categoria,
+        categoria: categoriaNormalizada,
         observacoes: dadosValidados.observacoes?.trim() || null,
       },
     });
@@ -377,6 +391,7 @@ export async function atualizarCliente(
         bairro: clienteAtualizado.bairro,
         cidade: clienteAtualizado.cidade,
         estado: clienteAtualizado.estado,
+        papel: clienteAtualizado.papel,
         categoria: clienteAtualizado.categoria,
         observacoes: clienteAtualizado.observacoes,
       },
@@ -420,16 +435,54 @@ export interface PaginatedResult<T> {
   total: number;
   page: number;
   totalPages: number;
+  resumo: {
+    total: number;
+    clientes: number;
+    fornecedores: number;
+    empresas: number;
+  };
+}
+
+type PapelFiltroContato = "CLIENTE" | "FORNECEDOR" | "TODOS";
+
+function montarFiltroClientes(
+  busca?: string,
+  categoria?: string,
+  papel?: PapelFiltroContato
+): Prisma.ClienteWhereInput {
+  const where: Prisma.ClienteWhereInput = {};
+
+  if (categoria && categoria !== "TODOS") {
+    where.categoria = categoria as "CLIENTE_FINAL" | "EMPRESA" | "ORGAO_PUBLICO";
+  }
+
+  if (papel && papel !== "TODOS") {
+    where.papel = papel;
+  }
+
+  if (busca && busca.trim().length > 0) {
+    const termo = busca.trim();
+    where.OR = [
+      { nomeRazaoSocial: { contains: termo, mode: "insensitive" } },
+      { nomeFantasia: { contains: termo, mode: "insensitive" } },
+      { documento: { contains: termo, mode: "insensitive" } },
+      { telefone: { contains: termo, mode: "insensitive" } },
+    ];
+  }
+
+  return where;
 }
 
 export async function listarClientesPaginado(
   page: number = 1,
   limit: number = 20,
   busca?: string,
-  categoria?: string
+  categoria?: string,
+  papel?: PapelFiltroContato
 ): Promise<PaginatedResult<{
   id: string;
   tipoPessoa: "FISICA" | "JURIDICA";
+  papel: "CLIENTE" | "FORNECEDOR";
   nomeRazaoSocial: string;
   nomeFantasia: string | null;
   documento: string;
@@ -448,24 +501,9 @@ export async function listarClientesPaginado(
 }>> {
   const skip = (page - 1) * limit;
 
-  // Filtro de busca aplicado no banco (case-insensitive via Prisma)
-  const where: any = {};
+  const where = montarFiltroClientes(busca, categoria, papel);
 
-  if (categoria && categoria !== "TODOS") {
-    where.categoria = categoria;
-  }
-
-  if (busca && busca.trim().length > 0) {
-    const termo = busca.trim();
-    where.OR = [
-      { nomeRazaoSocial: { contains: termo, mode: "insensitive" } },
-      { nomeFantasia:     { contains: termo, mode: "insensitive" } },
-      { documento:        { contains: termo, mode: "insensitive" } },
-      { telefone:         { contains: termo, mode: "insensitive" } },
-    ];
-  }
-
-  const [total, clientes] = await Promise.all([
+  const [total, clientes, totalEmpresas] = await Promise.all([
     prisma.cliente.count({ where }),
     prisma.cliente.findMany({
       where,
@@ -488,17 +526,25 @@ export async function listarClientesPaginado(
         bairro: true,
         cidade: true,
         estado: true,
+        papel: true,
         categoria: true,
         observacoes: true,
       },
     }),
+    prisma.cliente.count({ where: { ...where, categoria: "EMPRESA" } }),
   ]);
 
   return {
-    data: clientes as any[],
+    data: clientes,
     total,
     page,
     totalPages: Math.ceil(total / limit),
+    resumo: {
+      total,
+      clientes: papel === "FORNECEDOR" ? 0 : total,
+      fornecedores: papel === "CLIENTE" ? 0 : total,
+      empresas: totalEmpresas,
+    },
   };
 }
 
@@ -510,14 +556,19 @@ export interface ClienteBuscaCRM {
   telefone: string;
 }
 
-export async function buscarClientesCRM(termo: string): Promise<ClienteBuscaCRM[]> {
+type PapelFiltroBuscaCRM = "CLIENTE" | "FORNECEDOR" | "TODOS";
+
+export async function buscarClientesCRM(
+  termo: string,
+  papel: PapelFiltroBuscaCRM = "TODOS"
+): Promise<ClienteBuscaCRM[]> {
   const termoNormalizado = termo.trim();
   if (termoNormalizado.length < 1) return [];
 
   try {
     const apenasDigitos = termoNormalizado.replace(/\D/g, "");
     
-    const whereConditions: any[] = [
+    const whereConditions: Prisma.ClienteWhereInput[] = [
       {
         nomeRazaoSocial: {
           contains: termoNormalizado,
@@ -545,10 +596,16 @@ export async function buscarClientesCRM(termo: string): Promise<ClienteBuscaCRM[
       });
     }
 
+    const where: Prisma.ClienteWhereInput = {
+      OR: whereConditions,
+    };
+
+    if (papel !== "TODOS") {
+      where.papel = papel;
+    }
+
     return await prisma.cliente.findMany({
-      where: {
-        OR: whereConditions,
-      },
+      where,
       orderBy: {
         nomeRazaoSocial: "asc",
       },

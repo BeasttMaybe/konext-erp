@@ -11,6 +11,7 @@ interface SeletorClienteCRMProps {
   clienteSelecionado: ClienteBuscaCRM | null;
   onSelecionarCliente: (cliente: ClienteBuscaCRM) => void;
   onLimparCliente: () => void;
+  papelFiltro?: "CLIENTE" | "FORNECEDOR" | "TODOS";
 }
 
 export function SeletorClienteCRM({
@@ -18,6 +19,7 @@ export function SeletorClienteCRM({
   clienteSelecionado,
   onSelecionarCliente,
   onLimparCliente,
+  papelFiltro = "TODOS",
 }: SeletorClienteCRMProps) {
   const [termoBusca, setTermoBusca] = useState("");
   const [resultados, setResultados] = useState<ClienteBuscaCRM[]>([]);
@@ -40,7 +42,7 @@ export function SeletorClienteCRM({
       try {
         setCarregando(true);
         setErro("");
-        const lista = await buscarClientesCRM(termo);
+        const lista = await buscarClientesCRM(termo, papelFiltro);
         if (ativo) {
           setResultados(lista);
           if (lista.length === 0 && termo.length >= 2) {
@@ -67,7 +69,7 @@ export function SeletorClienteCRM({
       ativo = false;
       clearTimeout(timer);
     };
-  }, [termoBusca]);
+  }, [termoBusca, papelFiltro]);
 
   return (
     <div className="space-y-2">

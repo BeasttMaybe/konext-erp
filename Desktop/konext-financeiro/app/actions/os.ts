@@ -59,7 +59,7 @@ export async function buscarClientesOS(termoBusca: string): Promise<ClienteBusca
     return [];
   }
 
-  const prismaAny = prisma as any;
+  const prismaAny = prisma as typeof prisma & Record<string, unknown>;
   const clienteDelegate = prismaAny.cliente ?? prismaAny.Cliente;
 
   if (!clienteDelegate?.findMany) {
@@ -68,6 +68,7 @@ export async function buscarClientesOS(termoBusca: string): Promise<ClienteBusca
 
   const clientes = await clienteDelegate.findMany({
     where: {
+      papel: "CLIENTE",
       OR: [
         {
           nomeRazaoSocial: {
@@ -101,7 +102,7 @@ export async function buscarClientesOS(termoBusca: string): Promise<ClienteBusca
     take: 15,
   });
 
-  return clientes.map((cliente: any) => ({
+  return clientes.map((cliente: { id: string; nomeRazaoSocial: string; documento: string; telefone: string }) => ({
     id: String(cliente.id),
     nomeRazaoSocial: String(cliente.nomeRazaoSocial),
     documento: String(cliente.documento),
@@ -116,13 +117,13 @@ export async function buscarClientesOS(termoBusca: string): Promise<ClienteBusca
 export async function buscarClientePorId(clienteId: string): Promise<ClienteBuscaOS | null> {
   if (!clienteId) return null;
 
-  const prismaAny = prisma as any;
+  const prismaAny = prisma as typeof prisma & Record<string, unknown>;
   const clienteDelegate = prismaAny.cliente ?? prismaAny.Cliente;
 
-  if (!clienteDelegate?.findUnique) return null;
+  if (!clienteDelegate?.findFirst) return null;
 
-  const cliente = await clienteDelegate.findUnique({
-    where: { id: clienteId },
+  const cliente = await clienteDelegate.findFirst({
+    where: { id: clienteId, papel: "CLIENTE" },
     select: { id: true, nomeRazaoSocial: true, documento: true, telefone: true },
   });
 

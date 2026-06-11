@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import Link from "next/link";
 import { ChevronLeft, CalendarDays, RefreshCcw } from "lucide-react";
 import { toast } from "sonner";
@@ -66,11 +66,11 @@ interface ContainerGraficoSeguroProps {
 }
 
 function ContainerGraficoSeguro({ children, height = 280 }: ContainerGraficoSeguroProps) {
-  const [montado, setMontado] = useState(false);
-
-  useEffect(() => {
-    setMontado(true);
-  }, []);
+  const montado = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
 
   if (!montado) {
     return <div className="w-full" style={{ height }} />;
@@ -119,7 +119,7 @@ export default function FinanceiroInteligenciaPage() {
   const [dados, setDados] = useState<DadosAnaliticosFinanceiros | null>(null);
   const [carregando, setCarregando] = useState(false);
 
-  const carregarDados = async () => {
+  const carregarDados = useCallback(async () => {
     try {
       setCarregando(true);
 
@@ -140,11 +140,17 @@ export default function FinanceiroInteligenciaPage() {
     } finally {
       setCarregando(false);
     }
-  };
+  }, [dataFim, dataInicio, filtroData]);
 
   useEffect(() => {
-    carregarDados();
-  }, []);
+    const timerId = setTimeout(() => {
+      void carregarDados();
+    }, 0);
+
+    return () => {
+      clearTimeout(timerId);
+    };
+  }, [carregarDados]);
 
   const dadosGraficoTopGastos = useMemo(() => {
     if (!dados) return [];
@@ -175,8 +181,8 @@ export default function FinanceiroInteligenciaPage() {
   }, [dados]);
 
   return (
-    <div className="w-full min-h-full flex flex-col bg-slate-50 dark:bg-slate-900">
-      <div className="px-6 lg:px-8 py-6 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+    <div className="w-full min-h-full flex flex-col bg-transparent">
+      <div className="border-b border-slate-200/70 bg-white/75 px-6 py-6 backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/50 lg:px-8">
         <div className="max-w-7xl mx-auto w-full space-y-2">
           <Link
             href="/financeiro"
@@ -194,7 +200,7 @@ export default function FinanceiroInteligenciaPage() {
         </div>
       </div>
 
-      <div className="sticky top-0 z-20 border-b border-zinc-200 dark:border-zinc-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur px-6 lg:px-8 py-3">
+      <div className="sticky top-0 z-20 border-b border-zinc-200/70 bg-white/70 px-6 py-3 backdrop-blur-md dark:border-zinc-800/70 dark:bg-slate-900/55 lg:px-8">
         <div className="max-w-7xl mx-auto flex flex-col lg:flex-row lg:items-end gap-3">
           <div className="w-full lg:w-52">
             <Label className="text-xs text-muted-foreground">Intervalo</Label>
