@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 import { PieChart, Pie, Cell, Legend, Tooltip, ResponsiveContainer } from "recharts";
 import { Card } from "@/components/ui/card";
@@ -14,11 +14,11 @@ interface GraficoStatusOSProps {
  * Componente de Gráfico em Donut para Status de Ordens de Serviço
  */
 export function GraficoStatusOS({ dados }: GraficoStatusOSProps) {
-  const [montado, setMontado] = useState(false);
-
-  useEffect(() => {
-    setMontado(true);
-  }, []);
+  const montado = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
 
   return (
     <Card className="border-zinc-200 dark:border-zinc-800 p-6">

@@ -14,13 +14,18 @@ import { Card } from "@/components/ui/card";
 interface AbaEntradaEquipamentoProps {
   /** Quando fornecido, o seletor de cliente é pré-preenchido automaticamente via busca por ID. */
   clienteIdInicial?: string;
+  /** Quando fornecido, o campo de busca de cliente inicia com este texto. */
+  clienteNomeInicial?: string;
 }
 
-export function AbaEntradaEquipamento({ clienteIdInicial }: AbaEntradaEquipamentoProps) {
+export function AbaEntradaEquipamento({
+  clienteIdInicial,
+  clienteNomeInicial,
+}: AbaEntradaEquipamentoProps) {
   const { register, setValue, watch, formState: { errors } } = useFormContext();
   const [mostrarSenhaAcesso, setMostrarSenhaAcesso] = useState(false);
   const [padraoDesenho, setPadraoDesenho] = useState<number[]>([]);
-  const [buscaCliente, setBuscaCliente] = useState("");
+  const [buscaCliente, setBuscaCliente] = useState(clienteNomeInicial ?? "");
   const [clientesEncontrados, setClientesEncontrados] = useState<ClienteBuscaOS[]>([]);
   const [clienteSelecionadoTexto, setClienteSelecionadoTexto] = useState("");
   const clienteIdAtual = watch("clienteId");
@@ -47,6 +52,11 @@ export function AbaEntradaEquipamento({ clienteIdInicial }: AbaEntradaEquipament
     return () => { ativo = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clienteIdInicial]);
+
+  useEffect(() => {
+    if (!clienteNomeInicial) return;
+    setBuscaCliente(clienteNomeInicial);
+  }, [clienteNomeInicial]);
 
   useEffect(() => {
     const termo = buscaCliente.trim();

@@ -1,5 +1,7 @@
 "use server";
 
+import { Prisma } from "@prisma/client";
+import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { exigirSessao } from "@/lib/auth/sessao";
 
@@ -33,6 +35,16 @@ export interface PedidoOSPDV {
   aparelho: string;
   defeito: string;
   valor: number;
+  items: OrderServicePdvItem[];
+}
+
+export interface OrderServicePdvItem {
+  id: string;
+  description: string;
+  quantity: number;
+  unitCost: number;
+  unitPrice: number;
+  totalPrice: number;
 }
 
 export type FormaPagamento =
@@ -47,6 +59,81 @@ export type FormaPagamento =
 const paraCentavos = (valor: number) => Math.round((valor + Number.EPSILON) * 100);
 const paraMoeda = (centavos: number) => centavos / 100;
 
+function normalizeMonetaryValue(value: unknown): number {
+  const numericValue = typeof value === "number" ? value : Number(value ?? 0);
+  if (!Number.isFinite(numericValue) || numericValue < 0) return 0;
+  return numericValue;
+}
+
+function buildOrderServiceItemDescription(description: unknown, lineNumber: number): string {
+  const normalizedDescription = String(description ?? "").trim();
+  return normalizedDescription || `Item da OS ${lineNumber}`;
+}
+
+function normalizeOrderServiceError(error: unknown): Error {
+  if (error instanceof Error && error.message.trim()) {
+    return error;
+  }
+
+  return new Error("Erro ao gerar venda no PDV.");
+}
+
+type SalesHistoryMirrorItem = {
+  produtoId?: string | null;
+  nome: string;
+  quantidade: number;
+  precoUnitario: number;
+  subtotal: number;
+};
+
+async function createSalesHistoryMirror(
+  transaction: Prisma.TransactionClient,
+  input: {
+    vendaId: string;
+    clienteId?: string;
+    vendedor: string;
+    total: number;
+    formaPagamento: FormaPagamento;
+    dataCriacao?: Date;
+    items: SalesHistoryMirrorItem[];
+  }
+) {
+  await transaction.pedidoVenda.create({
+    data: {
+      venda: {
+        connect: {
+          id: input.vendaId,
+        },
+      },
+      ...(input.clienteId
+        ? {
+            cliente: {
+              connect: {
+                id: input.clienteId,
+              },
+            },
+          }
+        : {}),
+      vendedor: input.vendedor,
+      total: input.total,
+      status: "APROVADO",
+      origem: "PDV",
+      formaPagamento: input.formaPagamento,
+      dataCriacao: input.dataCriacao ?? new Date(),
+      itens: {
+        create: input.items.map((item) => ({
+          produtoId: item.produtoId ?? null,
+          nome: item.nome,
+          quantidade: item.quantidade,
+          precoUnitario: item.precoUnitario,
+          descontoPorcentagem: 0,
+          subtotal: item.subtotal,
+        })),
+      },
+    },
+  });
+}
+
 type ClientePrismaAny = typeof prisma & {
   venda?: { create?: (args: unknown) => Promise<unknown> };
   Venda?: { create?: (args: unknown) => Promise<unknown> };
@@ -54,6 +141,8 @@ type ClientePrismaAny = typeof prisma & {
   ItemVenda?: { create?: (args: unknown) => Promise<unknown> };
   contaReceber?: { create?: (args: unknown) => Promise<unknown> };
   ContaReceber?: { create?: (args: unknown) => Promise<unknown> };
+  ordemServico?: { update?: (args: unknown) => Promise<unknown> };
+  OrdemServico?: { update?: (args: unknown) => Promise<unknown> };
 };
 
 type TransacaoPdv = Record<string, unknown> & {
@@ -302,7 +391,7 @@ export async function processarVenda(
   clienteId?: string
 ) {
   // C1: somente operadores autenticados podem registrar vendas.
-  await exigirSessao();
+  const sessionUser = await exigirSessao();
 
   if (carrinho.length === 0) {
     throw new Error("Carrinho vazio para processamento da venda.");
@@ -500,8 +589,25 @@ export async function processarVenda(
         });
       }
 
+      await createSalesHistoryMirror(tx, {
+        vendaId,
+        clienteId,
+        vendedor: sessionUser.nome,
+        total: paraMoeda(totalCentavos),
+        formaPagamento: formaPagamentoBanco,
+        items: carrinho.map((item) => ({
+          produtoId: item.id,
+          nome: item.nome,
+          quantidade: item.quantidade,
+          precoUnitario: item.preco,
+          subtotal: item.preco * item.quantidade,
+        })),
+      });
+
       return { id: vendaId };
     });
+
+    revalidatePath("/vendas/historico");
 
     return {
       vendaId: venda.id,
@@ -526,7 +632,12 @@ export async function obterPedidoOSParaPDV(osId: string): Promise<PedidoOSPDV> {
     equipamento?: string | null;
     relatoCliente?: string | null;
     cliente?: { nomeRazaoSocial?: string | null } | null;
-    itens?: Array<{ valorCobrado?: number | null }>;
+    itens?: Array<{
+      id?: string | number | null;
+      descricao?: string | null;
+      custoPeca?: number | null;
+      valorCobrado?: number | null;
+    }>;
   };
 
   const ordemServicoDelegate = (prismaAny.ordemServico ?? prismaAny.OrdemServico) as
@@ -556,6 +667,9 @@ export async function obterPedidoOSParaPDV(osId: string): Promise<PedidoOSPDV> {
       },
       itens: {
         select: {
+          id: true,
+          descricao: true,
+          custoPeca: true,
           valorCobrado: true,
         },
       },
@@ -587,10 +701,22 @@ export async function obterPedidoOSParaPDV(osId: string): Promise<PedidoOSPDV> {
     throw new Error("Esta OS ja possui venda gerada.");
   }
 
-  const valor = (os.itens ?? []).reduce((acumulado: number, item: { valorCobrado?: number | null }) => {
-    const valorItem = typeof item.valorCobrado === "number" ? item.valorCobrado : Number(item.valorCobrado ?? 0);
-    return acumulado + (Number.isFinite(valorItem) ? valorItem : 0);
-  }, 0);
+  const items = (os.itens ?? []).map((item, index) => {
+    const unitPrice = normalizeMonetaryValue(item.valorCobrado);
+    const unitCost = normalizeMonetaryValue(item.custoPeca);
+    const quantity = 1;
+
+    return {
+      id: String(item.id ?? `${os.id}-${index}`),
+      description: buildOrderServiceItemDescription(item.descricao, index + 1),
+      quantity,
+      unitCost,
+      unitPrice,
+      totalPrice: unitPrice * quantity,
+    };
+  }).filter((item) => item.totalPrice > 0);
+
+  const valor = items.reduce((accumulator, item) => accumulator + item.totalPrice, 0);
 
   if (valor <= 0) {
     throw new Error("A OS nao possui valor para faturamento. Adicione itens antes de enviar ao PDV.");
@@ -604,6 +730,7 @@ export async function obterPedidoOSParaPDV(osId: string): Promise<PedidoOSPDV> {
     aparelho: String(os.equipamento ?? "Equipamento nao informado"),
     defeito: String(os.relatoCliente ?? "Defeito nao informado"),
     valor,
+    items,
   };
 }
 
@@ -617,7 +744,7 @@ export async function processarVendaComOSNoPDV(
   formaPagamento: FormaPagamento
 ) {
   // C1: somente operadores autenticados podem faturar OS no PDV.
-  await exigirSessao();
+  const sessionUser = await exigirSessao();
 
   const pedido = await obterPedidoOSParaPDV(osId);
   const formaPagamentoBanco = mapearFormaPagamento(formaPagamento);
@@ -628,87 +755,70 @@ export async function processarVendaComOSNoPDV(
   const totalOSCentavos = paraCentavos(pedido.valor);
   const totalVendaCentavos = totalOSCentavos + totalProdutosCentavos;
 
-  const resultado = await prisma.$transaction(async (tx) => {
-    const txAny = tx as unknown as ClientePrismaAny;
-    const prismaAny = prisma as unknown as ClientePrismaAny;
-    const caixaAberto = await obterCaixaSessionAberta(tx);
+  try {
+    const resultado = await prisma.$transaction(async (tx) => {
+      const txAny = tx as unknown as ClientePrismaAny;
+      const prismaAny = prisma as unknown as ClientePrismaAny;
+      const caixaAberto = await obterCaixaSessionAberta(tx);
 
-    const vendaDelegate = obterDelegateComFallback(txAny, prismaAny, ["venda", "Venda"], "venda");
-    const contaReceberDelegate = obterDelegateComFallback(
-      txAny,
-      prismaAny,
-      ["contaReceber", "ContaReceber"],
-      "contaReceber"
-    );
-    const itemVendaDelegate = obterDelegateComFallback(
-      txAny,
-      prismaAny,
-      ["itemVenda", "ItemVenda"],
-      "itemVenda"
-    );
+      const vendaDelegate = obterDelegateComFallback(txAny, prismaAny, ["venda", "Venda"], "venda");
+      const contaReceberDelegate = obterDelegateComFallback(
+        txAny,
+        prismaAny,
+        ["contaReceber", "ContaReceber"],
+        "contaReceber"
+      );
+      const itemVendaDelegate = obterDelegateComFallback(
+        txAny,
+        prismaAny,
+        ["itemVenda", "ItemVenda"],
+        "itemVenda"
+      );
+      const ordemServicoDelegate = (txAny.ordemServico ?? txAny.OrdemServico) as
+        | { update?: (args: unknown) => Promise<unknown> }
+        | undefined;
 
-    const contaExistente = await tx.contaReceber.findFirst({
-      where: {
-        ordemServicoId: pedido.osId,
-        origem: "ORDEM_SERVICO",
-        vendaId: {
-          not: null,
-        },
-      },
-      select: { id: true },
-    });
-
-    if (contaExistente) {
-      throw new Error("Esta OS ja foi faturada anteriormente.");
-    }
-
-    const novaVenda = await criarVendaComFallbackFormaPagamento(
-      vendaDelegate,
-      {
-        cliente: {
-          connect: {
-            id: pedido.clienteId,
-          },
-        },
-        valorTotal: paraMoeda(totalVendaCentavos),
-        desconto: 0,
-      },
-      formaPagamentoBanco
-    );
-
-    if (!novaVenda) {
-      throw new Error("Falha ao gerar venda da OS no PDV.");
-    }
-
-    const vendaId = String((novaVenda as { id: string }).id);
-
-    await vincularVendaAoCaixa(tx, vendaId, caixaAberto.id);
-
-    if (carrinhoProdutos.length > 0) {
-      const idsProdutos = Array.from(new Set(carrinhoProdutos.map((item) => item.id)));
-      const produtosComCusto = await tx.produto.findMany({
+      const contaExistente = await tx.contaReceber.findFirst({
         where: {
-          id: {
-            in: idsProdutos,
+          ordemServicoId: pedido.osId,
+          origem: "ORDEM_SERVICO",
+          vendaId: {
+            not: null,
           },
         },
-        select: {
-          id: true,
-          custo: true,
-        },
+        select: { id: true },
       });
 
-      const mapaCustoPorProduto = new Map(produtosComCusto.map((produto) => [produto.id, produto.custo]));
+      if (contaExistente) {
+        throw new Error("Esta OS ja foi faturada anteriormente.");
+      }
 
-      for (const item of carrinhoProdutos) {
-        const custoUnitario = mapaCustoPorProduto.get(item.id);
-        if (typeof custoUnitario !== "number") {
-          throw new Error(`Produto ${item.nome} nao encontrado para composicao de custo.`);
-        }
+      const novaVenda = await criarVendaComFallbackFormaPagamento(
+        vendaDelegate,
+        {
+          cliente: {
+            connect: {
+              id: pedido.clienteId,
+            },
+          },
+          valorTotal: paraMoeda(totalVendaCentavos),
+          desconto: 0,
+        },
+        formaPagamentoBanco
+      );
 
-        const precoUnitarioCentavos = paraCentavos(item.preco);
-        const custoUnitarioCentavos = paraCentavos(custoUnitario);
-        const subtotalCentavos = precoUnitarioCentavos * item.quantidade;
+      if (!novaVenda) {
+        throw new Error("Falha ao gerar venda da OS no PDV.");
+      }
+
+      const vendaId = String((novaVenda as { id: string }).id);
+
+      await vincularVendaAoCaixa(tx, vendaId, caixaAberto.id);
+
+      for (const item of pedido.items) {
+        const unitPriceInCents = paraCentavos(item.unitPrice);
+        const unitCostInCents = paraCentavos(item.unitCost);
+        const subtotalInCents = paraCentavos(item.totalPrice);
 
         await itemVendaDelegate.create({
           data: {
@@ -717,72 +827,163 @@ export async function processarVendaComOSNoPDV(
                 id: vendaId,
               },
             },
-            produto: {
-              connect: {
-                id: item.id,
+            descricao: item.description,
+            quantidade: item.quantity,
+            custoUnitario: paraMoeda(unitCostInCents),
+            precoUnitario: paraMoeda(unitPriceInCents),
+            subtotal: paraMoeda(subtotalInCents),
+          },
+        });
+      }
+
+      if (carrinhoProdutos.length > 0) {
+        const productIds = Array.from(new Set(carrinhoProdutos.map((item) => item.id)));
+        const productsWithCost = await tx.produto.findMany({
+          where: {
+            id: {
+              in: productIds,
+            },
+          },
+          select: {
+            id: true,
+            custo: true,
+          },
+        });
+
+        const costByProductId = new Map(productsWithCost.map((product) => [product.id, product.custo]));
+
+        for (const item of carrinhoProdutos) {
+          const unitCost = costByProductId.get(item.id);
+          if (typeof unitCost !== "number") {
+            throw new Error(`Produto ${item.nome} nao encontrado para composicao de custo.`);
+          }
+
+          const unitPriceInCents = paraCentavos(item.preco);
+          const unitCostInCents = paraCentavos(unitCost);
+          const subtotalInCents = unitPriceInCents * item.quantidade;
+
+          await itemVendaDelegate.create({
+            data: {
+              venda: {
+                connect: {
+                  id: vendaId,
+                },
+              },
+              produto: {
+                connect: {
+                  id: item.id,
+                },
+              },
+              descricao: item.nome,
+              quantidade: item.quantidade,
+              custoUnitario: paraMoeda(unitCostInCents),
+              precoUnitario: paraMoeda(unitPriceInCents),
+              subtotal: paraMoeda(subtotalInCents),
+            },
+          });
+        }
+
+        for (const item of carrinhoProdutos) {
+          const updateResult = await tx.produto.updateMany({
+            where: {
+              id: item.id,
+              quantidadeEstoque: {
+                gte: item.quantidade,
               },
             },
-            quantidade: item.quantidade,
-            custoUnitario: paraMoeda(custoUnitarioCentavos),
-            precoUnitario: paraMoeda(precoUnitarioCentavos),
-            subtotal: paraMoeda(subtotalCentavos),
-          },
-        });
-      }
-
-      for (const item of carrinhoProdutos) {
-        const resultadoAtualizacao = await tx.produto.updateMany({
-          where: {
-            id: item.id,
-            quantidadeEstoque: {
-              gte: item.quantidade,
+            data: {
+              quantidadeEstoque: {
+                decrement: item.quantidade,
+              },
             },
-          },
-          data: {
-            quantidadeEstoque: {
-              decrement: item.quantidade,
-            },
-          },
-        });
+          });
 
-        if (resultadoAtualizacao.count === 0) {
-          throw new Error(`Estoque insuficiente para o produto ${item.nome}.`);
+          if (updateResult.count === 0) {
+            throw new Error(`Estoque insuficiente para o produto ${item.nome}.`);
+          }
         }
       }
-    }
 
-    const statusConta = (pagamentoAPrazo as readonly string[]).includes(formaPagamentoBanco) ? "PENDENTE" : "RECEBIDO";
+      const statusConta = (pagamentoAPrazo as readonly string[]).includes(formaPagamentoBanco)
+        ? "PENDENTE"
+        : "RECEBIDO";
 
-    await contaReceberDelegate.create({
-      data: {
-        descricao: `OS #${pedido.numeroOs} - ${pedido.aparelho} (+itens PDV)` ,
-        valor: paraMoeda(totalVendaCentavos),
-        cliente: {
-          connect: {
-            id: pedido.clienteId,
+      await contaReceberDelegate.create({
+        data: {
+          descricao: `OS #${pedido.numeroOs} - ${pedido.aparelho} (+itens PDV)`,
+          valor: paraMoeda(totalVendaCentavos),
+          cliente: {
+            connect: {
+              id: pedido.clienteId,
+            },
           },
-        },
-        ordemServico: {
-          connect: {
-            id: pedido.osId,
+          ordemServico: {
+            connect: {
+              id: pedido.osId,
+            },
           },
-        },
-        venda: {
-          connect: {
-            id: vendaId,
+          venda: {
+            connect: {
+              id: vendaId,
+            },
           },
+          dataVencimento: new Date(),
+          dataRecebimento: statusConta === "RECEBIDO" ? new Date() : null,
+          status: statusConta,
+          formaRecebimento: formaPagamentoBanco,
+          origem: "ORDEM_SERVICO",
+          notaFiscalEmitida: false,
         },
-        dataVencimento: new Date(),
-        dataRecebimento: statusConta === "RECEBIDO" ? new Date() : null,
-        status: statusConta,
-        formaRecebimento: formaPagamentoBanco,
-        origem: "ORDEM_SERVICO",
-        notaFiscalEmitida: false,
-      },
+      });
+
+      await createSalesHistoryMirror(tx, {
+        vendaId,
+        clienteId: pedido.clienteId,
+        vendedor: sessionUser.nome,
+        total: paraMoeda(totalVendaCentavos),
+        formaPagamento: formaPagamentoBanco,
+        items: [
+          ...pedido.items.map((item) => ({
+            produtoId: null,
+            nome: item.description,
+            quantidade: item.quantity,
+            precoUnitario: item.unitPrice,
+            subtotal: item.totalPrice,
+          })),
+          ...carrinhoProdutos.map((item) => ({
+            produtoId: item.id,
+            nome: item.nome,
+            quantidade: item.quantidade,
+            precoUnitario: item.preco,
+            subtotal: item.preco * item.quantidade,
+          })),
+        ],
+      });
+
+      if (!ordemServicoDelegate?.update) {
+        throw new Error("Nao foi possivel atualizar o status da OS apos o faturamento.");
+      }
+
+      await ordemServicoDelegate.update({
+        where: {
+          id: pedido.osId,
+        },
+        data: {
+          status: "ENTREGUE",
+        },
+      });
+
+      return { vendaId };
     });
 
-    return { vendaId };
-  });
+    revalidatePath("/pdv");
+    revalidatePath("/os");
+    revalidatePath("/financeiro");
+    revalidatePath("/vendas/historico");
+    revalidatePath("/");
 
-  return resultado;
+    return resultado;
+  } catch (error) {
+    throw normalizeOrderServiceError(error);
+  }
 }

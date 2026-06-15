@@ -1,0 +1,81 @@
+import { notFound } from "next/navigation";
+import { obterConfiguracoes } from "@/app/actions/configuracoes";
+import PropostaPdfViewer from "@/components/pdf/proposta-pdf-viewer";
+import type { CompanyPdfInfo, ProposalPdfData } from "@/components/pdf/PropostaPDF";
+import { prisma } from "@/lib/prisma";
+
+type ProposalPrintPageProps = {
+  params: Promise<{ id: string }>;
+};
+
+export default async function ProposalPrintPage({ params }: ProposalPrintPageProps) {
+  const { id } = await params;
+
+  const proposal = await prisma.propostaComercial.findUnique({
+    where: { id },
+    include: {
+      itens: {
+        select: {
+          id: true,
+          descricao: true,
+          quantidade: true,
+          precoUnitario: true,
+          subtotal: true,
+        },
+      },
+    },
+  });
+
+  if (!proposal) {
+    notFound();
+  }
+
+  const config = await obterConfiguracoes();
+
+  const composedAddress = [config.logradouro, config.numero, config.bairro]
+    .map((value) => String(value ?? "").trim())
+    .filter(Boolean)
+    .join(", ");
+
+  const cityState = [config.cidade, config.estado]
+    .map((value) => String(value ?? "").trim())
+    .filter(Boolean)
+    .join(" - ");
+
+  const company: CompanyPdfInfo = {
+    brandName: config.nomeFantasia?.trim() || "Konext",
+    legalName: config.razaoSocial?.trim() || undefined,
+    cnpj: config.cnpj?.trim() ? `CNPJ: ${config.cnpj.trim()}` : undefined,
+    stateRegistration: config.inscricaoEstadual?.trim()
+      ? `Inscrição Estadual: ${config.inscricaoEstadual.trim()}`
+      : undefined,
+    address: config.endereco?.trim() || composedAddress || undefined,
+    cityState: cityState || undefined,
+    contacts: config.telefone?.trim() || undefined,
+  };
+
+  const proposalData: ProposalPdfData = {
+    id: proposal.id,
+    cliente: proposal.cliente,
+    aosCuidados: proposal.aosCuidados,
+    dataEmissao: proposal.dataEmissao.toISOString(),
+    validade: proposal.validade.toISOString(),
+    equipamento: proposal.equipamento,
+    defeito: proposal.defeito,
+    introducao: proposal.introducao,
+    subtotalBruto: proposal.subtotalBruto,
+    descontoTotal: proposal.descontoTotal,
+    valorTotal: proposal.valorTotal,
+    condicoesPagamento: proposal.condicoesPagamento,
+    termosGarantia: proposal.termosGarantia,
+    itens: proposal.itens.map((item) => ({
+      id: item.id,
+      descricao: item.descricao,
+      quantidade: item.quantidade,
+      precoUnitario: item.precoUnitario,
+      subtotal: item.subtotal,
+    })),
+  };
+
+  return <PropostaPdfViewer proposal={proposalData} company={company} />;
+}

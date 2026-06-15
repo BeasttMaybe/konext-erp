@@ -38,11 +38,14 @@ export interface ContaReceberFinanceiro {
   vendaId: string | null;
   dataVencimento: Date;
   dataRecebimento: Date | null;
-  status: "PENDENTE" | "RECEBIDO" | "ATRASADO" | "RENEGOCIADO";
+  status: "PENDENTE" | "PAGO" | "RECEBIDO" | "ATRASADO" | "RENEGOCIADO";
   formaRecebimento:
     | "PIX"
+    | "TED"
     | "BOLETO"
     | "CARTAO_CREDITO"
+    | "CARTAO_CREDITO_AVISTA"
+    | "CARTAO_CREDITO_PARCELADO"
     | "CARTAO_DEBITO"
     | "DINHEIRO"
     | "CREDIARIO"
@@ -74,7 +77,8 @@ export async function listarContasReceber(): Promise<ContaReceberFinanceiro[]> {
     PENDENTE: 0,
     ATRASADO: 1,
     RENEGOCIADO: 2,
-    RECEBIDO: 3,
+    PAGO: 3,
+    RECEBIDO: 4,
   };
 
   return contas.sort((a, b) => {
@@ -332,7 +336,8 @@ export async function listarContasReceberFiltradas(
     PENDENTE: 0,
     ATRASADO: 1,
     RENEGOCIADO: 2,
-    RECEBIDO: 3,
+    PAGO: 3,
+    RECEBIDO: 4,
   };
 
   return (contas as unknown as ContaReceberFinanceiro[]).sort((a, b) => {

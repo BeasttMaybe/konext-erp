@@ -75,6 +75,7 @@ model Cliente {
   contasReceber ContaReceber[]
   despesas      Despesa[]
   vendas        Venda[]
+  pedidosVenda  PedidoVenda[]
   notasFiscais  NotaFiscal[]
   contas        Conta[]
   oportunidades Oportunidade[]
@@ -128,6 +129,54 @@ enum EstagioFunil {
   PERDIDO
 }
 
+enum StatusPropostaComercial {
+  RASCUNHO
+  ENVIADA
+  APROVADA
+  REJEITADA
+}
+
+model PropostaComercial {
+  id                  String                  @id @default(uuid())
+  cliente             String
+  aosCuidados         String?
+  dataEmissao         DateTime
+  validade            DateTime
+  proximoContato      DateTime?
+  equipamento         String?
+  defeito             String?
+  introducao          String?
+  condicoesPagamento  String?
+  termosGarantia      String?
+  observacoesInternas String?
+  subtotalBruto       Float
+  descontoTotal       Float
+  valorTotal          Float
+  status              StatusPropostaComercial @default(RASCUNHO)
+  criadoEm            DateTime                @default(now())
+  atualizadoEm        DateTime                @updatedAt
+
+  itens PropostaItem[]
+
+  @@index([status])
+  @@index([dataEmissao])
+}
+
+model PropostaItem {
+  id                String            @id @default(uuid())
+  propostaId        String
+  proposta          PropostaComercial @relation(fields: [propostaId], references: [id], onDelete: Cascade)
+  descricao         String
+  quantidade        Int
+  precoUnitario     Float
+  descontoPercentual Float
+  subtotal          Float
+  criadoEm          DateTime          @default(now())
+  atualizadoEm      DateTime          @updatedAt
+
+  @@index([propostaId])
+}
+
 // ==========================================
 // MÓDULO: ORDEM DE SERVIÇO (OS)
 // ==========================================
@@ -151,6 +200,7 @@ model OrdemServico {
 
   status      StatusOS @default(AGUARDANDO_ORCAMENTO)
   observacoes String?
+  archivedAt  DateTime?
 
   itens      ItemOS[]
   transacoes ContaReceber[] // Vínculo com o financeiro
@@ -198,7 +248,7 @@ enum TipoPeca {
 // ==========================================
 model ContaReceber {
   id        String @id @default(uuid())
-  descricao String
+  descricao String @default("")
   valor     Float
   observacaoLancamento String?
   observacaoPagamento  String?
@@ -213,6 +263,9 @@ model ContaReceber {
   clienteId String?
   cliente   Cliente? @relation(fields: [clienteId], references: [id])
 
+  pedidoId String?
+  pedido   PedidoVenda? @relation(fields: [pedidoId], references: [id])
+
   ordemServicoId String?
   ordemServico   OrdemServico? @relation(fields: [ordemServicoId], references: [id])
 
@@ -223,6 +276,7 @@ model ContaReceber {
   dataRecebimento DateTime?
 
   status           StatusPagamento @default(PENDENTE)
+  formaPagamento   FormaPagamento?
   formaRecebimento FormaPagamento
   origem           OrigemReceita
 
@@ -232,10 +286,12 @@ model ContaReceber {
   atualizadoEm DateTime @updatedAt
 
   @@index([parcelamentoId])
+  @@index([pedidoId])
 }
 
 enum StatusPagamento {
   PENDENTE
+  PAGO
   RECEBIDO
   ATRASADO
   RENEGOCIADO
@@ -243,8 +299,11 @@ enum StatusPagamento {
 
 enum FormaPagamento {
   PIX
+  TED
   DINHEIRO
   CARTAO_CREDITO
+  CARTAO_CREDITO_AVISTA
+  CARTAO_CREDITO_PARCELADO
   CARTAO_DEBITO
   BOLETO
   CREDIARIO
@@ -345,6 +404,7 @@ model Produto {
   categoria CategoriaProduto
 
   itensVenda ItemVenda[]
+  pedidoVendaItens PedidoVendaItem[]
 
   custo      Float // Preço de compra do fornecedor
   precoVenda Float // Preço final para o cliente
@@ -392,12 +452,91 @@ enum CategoriaProduto {
 // ==========================================
 // MÓDULO: VENDAS (PDV)
 // ==========================================
+enum StatusPedido {
+  PENDENTE
+  APROVADO
+  REJEITADO
+  CANCELADO
+}
+
+enum OrigemPedido {
+  VENDAS
+  PDV
+}
+
+model PedidoVenda {
+  id String @id @default(uuid())
+
+  numeroPedido Int @unique @default(autoincrement())
+  status       StatusPedido @default(PENDENTE)
+
+  clienteId String?
+  cliente   Cliente? @relation(fields: [clienteId], references: [id])
+
+  vendaId String? @unique
+  venda   Venda?  @relation(fields: [vendaId], references: [id])
+
+  vendedor       String
+  total          Float
+  origem         OrigemPedido    @default(VENDAS)
+  formaPagamento FormaPagamento?
+  dataCriacao    DateTime @default(now())
+
+  itens         PedidoVendaItem[]
+  parcelas      PedidoVendaParcela[]
+  contasReceber ContaReceber[]
+
+  @@index([clienteId])
+  @@index([status])
+  @@index([origem])
+  @@index([dataCriacao])
+}
+
+model PedidoVendaItem {
+  id String @id @default(uuid())
+
+  pedidoId String
+  pedido   PedidoVenda @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+
+  produtoId String?
+  produto   Produto? @relation(fields: [produtoId], references: [id])
+
+  nome                 String
+  quantidade           Int
+  precoUnitario        Float
+  descontoPorcentagem  Float @default(0)
+  subtotal             Float
+
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  @@index([pedidoId])
+  @@index([produtoId])
+}
+
+model PedidoVendaParcela {
+  id String @id @default(uuid())
+
+  pedidoId String
+  pedido   PedidoVenda @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+
+  valor          Float
+  dataVencimento DateTime
+
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  @@index([pedidoId])
+  @@index([dataVencimento])
+}
+
 model Venda {
   id        String   @id @default(uuid())
   clienteId String? // Opcional para venda rápida de balcão
   cliente   Cliente? @relation(fields: [clienteId], references: [id])
 
   itens ItemVenda[]
+  pedidoVenda PedidoVenda?
 
   // Ligação direta com o financeiro (1 Venda = 1 Conta a Receber)
   contaReceber ContaReceber?
@@ -416,8 +555,10 @@ model ItemVenda {
   vendaId String
   venda   Venda  @relation(fields: [vendaId], references: [id], onDelete: Cascade)
 
-  produtoId String
-  produto   Produto @relation(fields: [produtoId], references: [id])
+  produtoId String?
+  produto   Produto? @relation(fields: [produtoId], references: [id])
+
+  descricao String @default("")
 
   quantidade    Int
   custoUnitario Float @default(0)

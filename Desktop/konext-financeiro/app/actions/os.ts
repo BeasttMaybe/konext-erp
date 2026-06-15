@@ -52,6 +52,11 @@ function paraNumero(valor: unknown): number {
   return numero;
 }
 
+function archivedAtUnsupported(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : "";
+  return message.includes("archivedAt") || message.includes("Unknown argument") || message.includes("Invalid `ordemServico");
+}
+
 export async function buscarClientesOS(termoBusca: string): Promise<ClienteBuscaOS[]> {
   const termo = termoBusca.trim();
 
@@ -252,14 +257,29 @@ export async function atualizarStatusOrdemServico(osId: string, status: StatusOS
     throw new Error("Delegate Prisma de OrdemServico nao disponivel.");
   }
 
-  await ordemServicoDelegate.update({
-    where: {
-      id: osId,
-    },
-    data: {
-      status,
-    },
-  });
+  try {
+    await ordemServicoDelegate.update({
+      where: {
+        id: osId,
+      },
+      data: {
+        status,
+        ...(status !== "ENTREGUE" ? { archivedAt: null } : {}),
+      },
+    });
+  } catch (error) {
+    if (!archivedAtUnsupported(error) || status === "ENTREGUE") {
+      throw error;
+    }
+
+    await prisma.$executeRaw`
+      UPDATE "OrdemServico"
+      SET status = ${status}::"StatusOS",
+          "archivedAt" = NULL,
+          "atualizadoEm" = NOW()
+      WHERE id = ${osId}
+    `;
+  }
 
   // Cria notificação para status relevantes — falha silenciosa para não bloquear a operação principal.
   const statusComNotificacao: Record<string, { titulo: string; mensagem: (n: number) => string }> = {
@@ -295,6 +315,105 @@ export async function atualizarStatusOrdemServico(osId: string, status: StatusOS
 
   revalidatePath("/os");
   revalidatePath(`/os/${osId}`);
+}
+
+export async function archiveDeliveredOrderService(orderServiceId: string) {
+  await exigirSessao();
+
+  if (!orderServiceId) {
+    throw new Error("ID da ordem de servico nao informado.");
+  }
+
+  const prismaAny = prisma as typeof prisma & Record<string, unknown>;
+  const orderServiceDelegate = (prismaAny.ordemServico ?? prismaAny.OrdemServico) as
+    | {
+        findUnique?: (args: unknown) => Promise<{
+          id: string;
+          status?: string | null;
+          archivedAt?: Date | null;
+        } | null>;
+        update?: (args: unknown) => Promise<unknown>;
+      }
+    | undefined;
+
+  if (!orderServiceDelegate?.findUnique || !orderServiceDelegate?.update) {
+    throw new Error("Delegate Prisma de OrdemServico nao disponivel.");
+  }
+
+  let orderService: {
+    id: string;
+    status?: string | null;
+    archivedAt?: Date | null;
+  } | null = null;
+
+  try {
+    orderService = await orderServiceDelegate.findUnique({
+      where: {
+        id: orderServiceId,
+      },
+      select: {
+        id: true,
+        status: true,
+        archivedAt: true,
+      },
+    });
+  } catch (error) {
+    if (!archivedAtUnsupported(error)) {
+      throw error;
+    }
+
+    const fallbackRows = await prisma.$queryRaw<Array<{
+      id: string;
+      status: string;
+      archivedAt: Date | null;
+    }>>`
+      SELECT id, status::text AS status, "archivedAt"
+      FROM "OrdemServico"
+      WHERE id = ${orderServiceId}
+      LIMIT 1
+    `;
+
+    orderService = fallbackRows[0] ?? null;
+  }
+
+  if (!orderService) {
+    throw new Error("Ordem de servico nao encontrada.");
+  }
+
+  if (String(orderService.status) !== "ENTREGUE") {
+    throw new Error("A OS precisa estar com status Entregue antes de ser finalizada.");
+  }
+
+  if (!orderService.archivedAt) {
+    try {
+      await orderServiceDelegate.update({
+        where: {
+          id: orderServiceId,
+        },
+        data: {
+          archivedAt: new Date(),
+        },
+      });
+    } catch (error) {
+      if (!archivedAtUnsupported(error)) {
+        throw error;
+      }
+
+      await prisma.$executeRaw`
+        UPDATE "OrdemServico"
+        SET "archivedAt" = NOW(),
+            "atualizadoEm" = NOW()
+        WHERE id = ${orderServiceId}
+      `;
+    }
+  }
+
+  revalidatePath("/os");
+  revalidatePath(`/os/${orderServiceId}`);
+
+  return {
+    success: true,
+  };
 }
 
 export async function gerarPedidoVendaPorOS(osId: string) {

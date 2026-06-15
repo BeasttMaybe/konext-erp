@@ -363,6 +363,8 @@ function PDVPageConteudo() {
 
   const aoConfirmarPagamento = async (dados: DadosPagamento) => {
     try {
+      const orderServiceSale = Boolean(pedidoOS);
+      const orderServiceNumber = pedidoOS?.numeroOs;
       const venda = pedidoOS
         ? await processarVendaComOSNoPDV(pedidoOS.osId, itens, dados.formaPagamento)
         : await processarVenda(
@@ -378,8 +380,10 @@ function PDVPageConteudo() {
       setBuscaCliente("");         // limpa o campo de busca de cliente
       setPedidoOS(null);           // desvincula a OS, se houver
 
-      toast.success("Venda finalizada! PDV liberado para o próximo cliente.", {
-        description: `Comprovante #${venda.vendaId.slice(0, 8)} gerado com sucesso.`,
+      toast.success(orderServiceSale ? "Ordem de Serviço faturada com sucesso!" : "Venda finalizada! PDV liberado para o próximo cliente.", {
+        description: orderServiceSale
+          ? `A OS #${orderServiceNumber ?? "-"} foi convertida em venda no PDV.`
+          : `Comprovante #${venda.vendaId.slice(0, 8)} gerado com sucesso.`,
       });
 
       return { sucesso: true, vendaId: venda.vendaId };

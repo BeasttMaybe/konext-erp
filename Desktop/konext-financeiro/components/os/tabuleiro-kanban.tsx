@@ -11,7 +11,7 @@ interface TabuleiroKanbanProps {
   ordensServico: OrdemServico[];
   onCartaoClick?: (os: OrdemServico) => void;
   onMoverOS?: (osId: string, novoStatus: StatusOS) => Promise<boolean>;
-  onFinalizarOS?: (os: OrdemServico) => void;
+  onFinalizarOS?: (os: OrdemServico) => Promise<boolean>;
 }
 
 type AcaoOtimistaOS =
@@ -226,7 +226,6 @@ export function TabuleiroKanban({
   onFinalizarOS,
 }: TabuleiroKanbanProps) {
   const [, startTransition] = useTransition();
-  const [ordensFinalizadasIds, setOrdensFinalizadasIds] = useState<string[]>([]);
 
   const [ordensEstado, setOrdensEstado] = useOptimistic(
     ordensServico,
@@ -240,12 +239,7 @@ export function TabuleiroKanban({
     }
   );
 
-  const ordensVisiveis = useMemo(
-    () => ordensEstado.filter((ordem) => !ordensFinalizadasIds.includes(ordem.id)),
-    [ordensEstado, ordensFinalizadasIds]
-  );
-
-  const ordensPorStatus = useMemo(() => classificarOrdens(ordensVisiveis), [ordensVisiveis]);
+  const ordensPorStatus = useMemo(() => classificarOrdens(ordensEstado), [ordensEstado]);
 
   const persistirMovimento = async (
     osId: string,
@@ -302,10 +296,8 @@ export function TabuleiroKanban({
     );
   };
 
-  const finalizarOS = (os: OrdemServico) => {
+  const finalizarOS = async (os: OrdemServico) => {
     const snapshotAnterior = ordensEstado;
-
-    setOrdensFinalizadasIds((anterior) => (anterior.includes(os.id) ? anterior : [...anterior, os.id]));
 
     startTransition(() => {
       setOrdensEstado({
@@ -314,7 +306,16 @@ export function TabuleiroKanban({
       });
     });
 
-    onFinalizarOS?.(os);
+    if (!onFinalizarOS) {
+      return;
+    }
+
+    const success = await onFinalizarOS(os);
+    if (!success) {
+      startTransition(() => {
+        setOrdensEstado({ tipo: "SUBSTITUIR", ordens: snapshotAnterior });
+      });
+    }
   };
 
   const aoFinalizarDrag = async (resultado: DropResult) => {

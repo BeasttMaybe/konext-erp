@@ -1,45 +1,7 @@
-import { OrdemServico, Cliente } from "@/types/os";
-
 /**
- * Mock - Clientes
+ * Mapeamentos de Status para Ordem de Serviço
+ * Utilizados em: cartao-os.tsx, coluna-kanban.tsx
  */
-export const clientesMock: Cliente[] = [
-  {
-    id: "cli-001",
-    nome: "João Silva",
-    email: "joao.silva@email.com",
-    telefone: "(11) 98765-4321",
-  },
-  {
-    id: "cli-002",
-    nome: "Maria Santos",
-    email: "maria.santos@email.com",
-    telefone: "(11) 99876-5432",
-  },
-  {
-    id: "cli-003",
-    nome: "Carlos Oliveira",
-    email: "carlos.oliveira@email.com",
-    telefone: "(11) 97654-3210",
-  },
-  {
-    id: "cli-004",
-    nome: "Ana Costa",
-    email: "ana.costa@email.com",
-    telefone: "(11) 96543-2109",
-  },
-  {
-    id: "cli-005",
-    nome: "Pedro Ferreira",
-    email: "pedro.ferreira@email.com",
-    telefone: "(11) 95432-1098",
-  },
-];
-
-/**
- * Mock - Ordens de Serviço
- */
-export const ordensMock: OrdemServico[] = [];
 
 export const mapStatusLabel: Record<string, string> = {
   AGUARDANDO_ORCAMENTO: "Aguardando Orçamento",

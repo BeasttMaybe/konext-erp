@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   Users,
   ShoppingCart,
+  Briefcase,
   Package,
   Wrench,
   DollarSign,
@@ -71,6 +72,7 @@ export function BarraLateral() {
     Dashboard: <LayoutDashboard className="h-5 w-5" />,
     CRM: <Users className="h-5 w-5" />,
     PDV: <ShoppingCart className="h-5 w-5" />,
+    Vendas: <Briefcase className="h-5 w-5" />,
     Estoque: <Package className="h-5 w-5" />,
     OS: <Wrench className="h-5 w-5" />,
     Financeiro: <DollarSign className="h-5 w-5" />,
@@ -90,6 +92,16 @@ export function BarraLateral() {
       ],
     },
     { label: "PDV", path: "/pdv", iconKey: "PDV" },
+    {
+      label: "Vendas",
+      path: "/vendas",
+      iconKey: "Vendas",
+      subItems: [
+        { label: "Hub Central", path: "/vendas" },
+        { label: "Novo Pedido", path: "/vendas/pedidos/novo" },
+        { label: "Histórico", path: "/vendas/historico" },
+      ],
+    },
     { label: "Estoque", path: "/estoque", iconKey: "Estoque" },
     {
       label: "Ordens de Serviço",

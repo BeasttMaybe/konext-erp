@@ -353,6 +353,7 @@ export async function obterDadosAnaliticos(
           },
         },
         select: {
+          descricao: true,
           subtotal: true,
           produto: {
             select: {
@@ -484,7 +485,7 @@ export async function obterDadosAnaliticos(
   const mapaCurvaAbc = new Map<string, number>();
 
   for (const item of itensVendaComProdutoPeriodo) {
-    const nomeProduto = item.produto.nome;
+    const nomeProduto = item.descricao || item.produto?.nome || "Item sem descricao";
     mapaCurvaAbc.set(nomeProduto, (mapaCurvaAbc.get(nomeProduto) ?? 0) + paraCentavos(item.subtotal));
   }
 

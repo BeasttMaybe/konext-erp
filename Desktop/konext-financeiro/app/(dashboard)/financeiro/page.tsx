@@ -63,11 +63,11 @@ async function CartaoPagarHoje() {
   const totalPagarHoje = await obterTotalPagarHoje();
 
   return (
-    <Card className="border-blue-200/60 bg-blue-50/60 dark:border-blue-900/60 dark:bg-blue-950/20">
+    <Card className="border-red-200/60 bg-red-50/60 dark:border-red-900/60 dark:bg-red-950/20">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm text-red-700 dark:text-red-300">A Pagar (Hoje/Atrasado)</p>
-          <p className="text-2xl font-bold text-blue-900 dark:text-blue-100 mt-2">
+          <p className="text-2xl font-bold text-red-900 dark:text-red-100 mt-2">
             {formatarMoeda(totalPagarHoje)}
           </p>
         </div>
@@ -81,11 +81,11 @@ async function CartaoReceberHoje() {
   const totalReceberHoje = await obterTotalReceberHoje();
 
   return (
-    <Card className="border-red-200/60 bg-red-50/60 dark:border-red-900/60 dark:bg-red-950/20">
+    <Card className="border-emerald-200/60 bg-emerald-50/60 dark:border-emerald-900/60 dark:bg-emerald-950/20">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm text-emerald-700 dark:text-emerald-300">A Receber (Hoje/Atrasado)</p>
-          <p className="text-2xl font-bold text-red-900 dark:text-red-100 mt-2">
+          <p className="text-2xl font-bold text-emerald-900 dark:text-emerald-100 mt-2">
             {formatarMoeda(totalReceberHoje)}
           </p>
         </div>

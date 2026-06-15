@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 import {
   AreaChart,
@@ -23,11 +23,11 @@ interface GraficoFaturamentoProps {
  * Componente de Gráfico de Faturamento dos últimos 6 meses
  */
 export function GraficoFaturamento({ dados }: GraficoFaturamentoProps) {
-  const [montado, setMontado] = useState(false);
-
-  useEffect(() => {
-    setMontado(true);
-  }, []);
+  const montado = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
 
   const formatadorMoeda = new Intl.NumberFormat("pt-BR", {
     style: "currency",

@@ -27,6 +27,7 @@ type RawOrdemServico = {
   acessorios?: unknown;
   status?: unknown;
   observacoes?: unknown;
+  archivedAt?: unknown;
   criadoEm?: unknown;
   atualizadoEm?: unknown;
   itens?: RawItemOS[];
@@ -52,6 +53,50 @@ function normalizarDataISO(valor: unknown): string {
   return new Date().toISOString();
 }
 
+function archivedAtUnsupported(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : "";
+  return message.includes("archivedAt") || message.includes("Unknown argument") || message.includes("Invalid `ordemServico");
+}
+
+function mapOrderService(order: RawOrdemServico): OrdemServico {
+  const budgetItems = (order.itens ?? []).map((item) => ({
+    id: String(item.id),
+    tipo: String(item.tipoPeca ?? item.tipo ?? "OUTROS") as TipoPecaOrcamento,
+    descricao: String(item.descricao ?? ""),
+    custoPeca: Number(item.custoPeca ?? 0),
+    valorCobrado: Number(item.valorCobrado ?? 0),
+  }));
+
+  const budgetTotal = budgetItems.reduce(
+    (total: number, item: { valorCobrado: number }) => total + item.valorCobrado,
+    0
+  );
+
+  return {
+    id: String(order.id),
+    numeroOS: formatarNumeroOS(Number(order.numeroOs ?? 0)),
+    clienteId: String(order.clienteId),
+    nomeCliente: String(order.cliente?.nomeRazaoSocial ?? "Cliente nao informado"),
+    equipamento: String(order.equipamento ?? "Nao informado"),
+    marca: order.marca ? String(order.marca) : undefined,
+    modelo: order.modelo ? String(order.modelo) : undefined,
+    imei: order.imei ? String(order.imei) : undefined,
+    senha: order.senha ? String(order.senha) : undefined,
+    senhaDesenho: order.senhaDesenho ? String(order.senhaDesenho) : undefined,
+    checklist: {
+      relatoCliente: String(order.relatoCliente ?? ""),
+      condicaoFisica: String(order.condicaoFisica ?? ""),
+      acessorios: String(order.acessorios ?? ""),
+    },
+    itensOrcamento: budgetItems,
+    totalOrcamento: budgetTotal,
+    status: String(order.status) as StatusOS,
+    observacoesInternas: order.observacoes ? String(order.observacoes) : undefined,
+    dataCriacao: normalizarDataISO(order.criadoEm),
+    dataAtualizacao: normalizarDataISO(order.atualizadoEm),
+  };
+}
+
 export default async function OSPage({
   searchParams,
 }: {
@@ -69,56 +114,70 @@ export default async function OSPage({
     throw new Error("Delegate Prisma de OrdemServico nao disponivel.");
   }
 
-  const ordensBanco = await ordemServicoDelegate.findMany({
-    include: {
-      cliente: {
-        select: {
-          id: true,
-          nomeRazaoSocial: true,
+  const includeOrderRelations = {
+    cliente: {
+      select: {
+        id: true,
+        nomeRazaoSocial: true,
+      },
+    },
+    itens: true,
+  };
+
+  let activeOrdersFromDatabase: RawOrdemServico[] = [];
+  let archivedOrdersFromDatabase: RawOrdemServico[] = [];
+
+  try {
+    [activeOrdersFromDatabase, archivedOrdersFromDatabase] = await Promise.all([
+      ordemServicoDelegate.findMany({
+        where: {
+          archivedAt: null,
         },
-      },
-      itens: true,
-    },
-    orderBy: {
-      criadoEm: "desc",
-    },
-  });
+        include: includeOrderRelations,
+        orderBy: {
+          criadoEm: "desc",
+        },
+      }),
+      ordemServicoDelegate.findMany({
+        where: {
+          archivedAt: {
+            not: null,
+          },
+        },
+        include: includeOrderRelations,
+        orderBy: {
+          atualizadoEm: "desc",
+        },
+      }),
+    ]);
+  } catch (error) {
+    if (!archivedAtUnsupported(error)) {
+      throw error;
+    }
 
-  const ordensServico: OrdemServico[] = ordensBanco.map((ordem) => {
-    const itensOrcamento = (ordem.itens ?? []).map((item) => ({
-      id: String(item.id),
-      tipo: String(item.tipoPeca ?? item.tipo ?? "OUTROS") as TipoPecaOrcamento,
-      descricao: String(item.descricao ?? ""),
-      custoPeca: Number(item.custoPeca ?? 0),
-      valorCobrado: Number(item.valorCobrado ?? 0),
-    }));
+    const [allOrders, archiveRows] = await Promise.all([
+      ordemServicoDelegate.findMany({
+        include: includeOrderRelations,
+        orderBy: {
+          criadoEm: "desc",
+        },
+      }),
+      prisma.$queryRaw<Array<{ id: string; archivedAt: Date | null }>>`
+        SELECT id, "archivedAt"
+        FROM "OrdemServico"
+      `,
+    ]);
 
-    const totalOrcamento = itensOrcamento.reduce((total: number, item: { valorCobrado: number }) => total + item.valorCobrado, 0);
+    const archivedIds = new Set(
+      archiveRows.filter((row) => row.archivedAt !== null).map((row) => String(row.id))
+    );
 
-    return {
-      id: String(ordem.id),
-      numeroOS: formatarNumeroOS(Number(ordem.numeroOs ?? 0)),
-      clienteId: String(ordem.clienteId),
-      nomeCliente: String(ordem.cliente?.nomeRazaoSocial ?? "Cliente nao informado"),
-      equipamento: String(ordem.equipamento ?? "Nao informado"),
-      marca: ordem.marca ? String(ordem.marca) : undefined,
-      modelo: ordem.modelo ? String(ordem.modelo) : undefined,
-      imei: ordem.imei ? String(ordem.imei) : undefined,
-      senha: ordem.senha ? String(ordem.senha) : undefined,
-      senhaDesenho: ordem.senhaDesenho ? String(ordem.senhaDesenho) : undefined,
-      checklist: {
-        relatoCliente: String(ordem.relatoCliente ?? ""),
-        condicaoFisica: String(ordem.condicaoFisica ?? ""),
-        acessorios: String(ordem.acessorios ?? ""),
-      },
-      itensOrcamento,
-      totalOrcamento,
-      status: String(ordem.status) as StatusOS,
-      observacoesInternas: ordem.observacoes ? String(ordem.observacoes) : undefined,
-      dataCriacao: normalizarDataISO(ordem.criadoEm),
-      dataAtualizacao: normalizarDataISO(ordem.atualizadoEm),
-    };
-  });
+    activeOrdersFromDatabase = allOrders.filter((order) => !archivedIds.has(String(order.id)));
+    archivedOrdersFromDatabase = allOrders.filter((order) => archivedIds.has(String(order.id)));
+  }
+
+  const activeOrderServices = activeOrdersFromDatabase.map(mapOrderService);
+  const archivedOrderServices = archivedOrdersFromDatabase.map(mapOrderService);
 
   return (
     <div className="w-full h-full flex flex-col overflow-hidden bg-transparent">
@@ -138,7 +197,11 @@ export default async function OSPage({
       <div className="flex-1 overflow-y-auto">
         <div className="px-6 lg:px-8 py-6">
           <div className="max-w-7xl mx-auto">
-            <DashboardOS ordensServico={ordensServico} clienteIdInicial={clienteIdInicial} />
+            <DashboardOS
+              activeOrderServices={activeOrderServices}
+              archivedOrderServices={archivedOrderServices}
+              clienteIdInicial={clienteIdInicial}
+            />
           </div>
         </div>
       </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -179,11 +179,11 @@ interface ContainerGraficoSeguroProps {
 }
 
 function ContainerGraficoSeguro({ children }: ContainerGraficoSeguroProps) {
-  const [montado, setMontado] = useState(false);
-
-  useEffect(() => {
-    setMontado(true);
-  }, []);
+  const montado = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
 
   if (!montado) {
     return <div className="h-full w-full" />;

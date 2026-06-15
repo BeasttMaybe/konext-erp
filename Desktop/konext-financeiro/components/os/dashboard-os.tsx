@@ -9,34 +9,49 @@ import { Card } from "@/components/ui/card";
 import { TabuleiroKanban } from "@/components/os/tabuleiro-kanban";
 import { ModalNovaOS } from "@/components/os/modal-nova-os";
 import { OrdemServico, StatusOS } from "@/types/os";
-import { criarOrdemServico, atualizarStatusOrdemServico } from "@/app/actions/os";
+import {
+  archiveDeliveredOrderService,
+  criarOrdemServico,
+  atualizarStatusOrdemServico,
+} from "@/app/actions/os";
 import { Search, Plus, AlertCircle, ListChecks, KanbanSquare } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface DashboardOSProps {
-  ordensServico: OrdemServico[];
+  activeOrderServices: OrdemServico[];
+  archivedOrderServices: OrdemServico[];
   /** Quando fornecido, abre o modal de nova OS automaticamente e pré-seleciona o cliente. */
   clienteIdInicial?: string | null;
 }
 
 type DadosNovaOS = Parameters<typeof criarOrdemServico>[0];
 
-export function DashboardOS({ ordensServico, clienteIdInicial }: DashboardOSProps) {
+export function DashboardOS({
+  activeOrderServices,
+  archivedOrderServices,
+  clienteIdInicial,
+}: DashboardOSProps) {
   const router = useRouter();
   const [modalAberta, setModalAberta] = useState(Boolean(clienteIdInicial));
   const [buscaTexto, setBuscaTexto] = useState("");
   const [modoVisualizacao, setModoVisualizacao] = useState<"KANBAN" | "LISTA_FINALIZADAS">("KANBAN");
-  const [finalizadasNoKanbanIds, setFinalizadasNoKanbanIds] = useState<string[]>([]);
 
-  // Filtrar ordens por busca
-  const ordensFiltradas = ordensServico.filter((os) =>
+  const filteredActiveOrders = activeOrderServices.filter((os) =>
     os.numeroOS.toLowerCase().includes(buscaTexto.toLowerCase()) ||
     os.nomeCliente.toLowerCase().includes(buscaTexto.toLowerCase()) ||
     os.equipamento.toLowerCase().includes(buscaTexto.toLowerCase())
   );
 
-  const ordensFinalizadasEntregues = ordensServico.filter((os) => os.status === "ENTREGUE");
-  const ordensKanban = ordensFiltradas.filter((os) => !finalizadasNoKanbanIds.includes(os.id));
+  const filteredArchivedOrders = archivedOrderServices.filter((os) =>
+    os.numeroOS.toLowerCase().includes(buscaTexto.toLowerCase()) ||
+    os.nomeCliente.toLowerCase().includes(buscaTexto.toLowerCase()) ||
+    os.equipamento.toLowerCase().includes(buscaTexto.toLowerCase())
+  );
+
+  const totalFilteredOrders = filteredActiveOrders.length + filteredArchivedOrders.length;
+  const deliveredOrdersCount =
+    filteredActiveOrders.filter((orderService) => orderService.status === "ENTREGUE").length +
+    filteredArchivedOrders.length;
 
   const handleSalvarNovaOS = async (dados: DadosNovaOS) => {
     try {
@@ -63,14 +78,23 @@ export function DashboardOS({ ordensServico, clienteIdInicial }: DashboardOSProp
     }
   };
 
-  const handleAbrirDetalhesOS = (os: OrdemServico) => {
-    router.push(`/os/${os.id}`);
+  const handleFinalizarOS = async (orderService: OrdemServico): Promise<boolean> => {
+    try {
+      await archiveDeliveredOrderService(orderService.id);
+      setModoVisualizacao("LISTA_FINALIZADAS");
+      toast.success(`OS ${orderService.numeroOS} finalizada com sucesso.`);
+      router.refresh();
+      return true;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Nao foi possivel finalizar a ordem de servico.";
+      toast.error(message);
+      return false;
+    }
   };
 
-  const handleFinalizarOS = (os: OrdemServico) => {
-    setFinalizadasNoKanbanIds((anterior) => (anterior.includes(os.id) ? anterior : [...anterior, os.id]));
-    setModoVisualizacao("LISTA_FINALIZADAS");
-    toast.success(`OS ${os.numeroOS} finalizada e listada em Finalizadas e Entregues.`);
+  const handleAbrirDetalhesOS = (os: OrdemServico) => {
+    router.push(`/os/${os.id}`);
   };
 
   const formatarMoeda = (valor: number) =>
@@ -139,7 +163,7 @@ export function DashboardOS({ ordensServico, clienteIdInicial }: DashboardOSProp
             Total de OS
           </p>
           <p className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-50">
-            {ordensFiltradas.length}
+            {totalFilteredOrders}
           </p>
         </Card>
 
@@ -148,7 +172,7 @@ export function DashboardOS({ ordensServico, clienteIdInicial }: DashboardOSProp
             Aguardando Orçamento
           </p>
           <p className="text-2xl sm:text-3xl font-bold text-orange-600 dark:text-orange-400">
-            {ordensFiltradas.filter((o) => o.status === "AGUARDANDO_ORCAMENTO").length}
+            {filteredActiveOrders.filter((o) => o.status === "AGUARDANDO_ORCAMENTO").length}
           </p>
         </Card>
 
@@ -158,7 +182,7 @@ export function DashboardOS({ ordensServico, clienteIdInicial }: DashboardOSProp
           </p>
           <p className="text-2xl sm:text-3xl font-bold text-blue-600 dark:text-blue-400">
             {
-              ordensFiltradas.filter(
+              filteredActiveOrders.filter(
                 (o) =>
                   o.status === "EM_MANUTENCAO" ||
                   o.status === "AGUARDANDO_PECA"
@@ -172,7 +196,7 @@ export function DashboardOS({ ordensServico, clienteIdInicial }: DashboardOSProp
             Entregues
           </p>
           <p className="text-2xl sm:text-3xl font-bold text-emerald-600 dark:text-emerald-400">
-            {ordensFiltradas.filter((o) => o.status === "ENTREGUE").length}
+            {deliveredOrdersCount}
           </p>
         </Card>
       </div>
@@ -186,7 +210,7 @@ export function DashboardOS({ ordensServico, clienteIdInicial }: DashboardOSProp
               : "Lista de Finalizadas e Entregues"}
           </h2>
 
-          {modoVisualizacao === "KANBAN" && ordensKanban.length === 0 ? (
+          {modoVisualizacao === "KANBAN" && filteredActiveOrders.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <AlertCircle className="w-12 h-12 text-slate-300 mb-4" />
               <p className="text-slate-500 font-medium">
@@ -202,14 +226,14 @@ export function DashboardOS({ ordensServico, clienteIdInicial }: DashboardOSProp
             <div className="overflow-x-auto -mx-4 sm:-mx-6">
               <div className="px-4 sm:px-6">
                 <TabuleiroKanban
-                  ordensServico={ordensKanban}
+                  ordensServico={filteredActiveOrders}
                   onMoverOS={handleMoverOS}
                   onCartaoClick={handleAbrirDetalhesOS}
                   onFinalizarOS={handleFinalizarOS}
                 />
               </div>
             </div>
-          ) : ordensFinalizadasEntregues.length === 0 ? (
+          ) : filteredArchivedOrders.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <AlertCircle className="w-12 h-12 text-slate-300 mb-4" />
               <p className="text-slate-500 font-medium">
@@ -230,7 +254,7 @@ export function DashboardOS({ ordensServico, clienteIdInicial }: DashboardOSProp
                   </tr>
                 </thead>
                 <tbody>
-                  {ordensFinalizadasEntregues.map((os) => (
+                  {filteredArchivedOrders.map((os) => (
                     <tr
                       key={os.id}
                       className="border-b border-slate-100 dark:border-slate-700/70 text-slate-700 dark:text-slate-200 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/30"
@@ -248,7 +272,7 @@ export function DashboardOS({ ordensServico, clienteIdInicial }: DashboardOSProp
                               : "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
                           }
                         >
-                          {os.status === "ENTREGUE" ? "Entregue" : "Finalizada"}
+                          Finalizada
                         </Badge>
                       </td>
                       <td className="py-3 pr-0 text-slate-500 dark:text-slate-400">

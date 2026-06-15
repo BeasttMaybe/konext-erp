@@ -158,7 +158,7 @@ export default async function ReciboPage({ params, searchParams }: PropsReciboPa
           {venda.itens.map((item) => (
             <div key={item.id} className="flex items-start justify-between gap-2 text-xs py-1">
               <div className="min-w-0">
-                <p className="font-medium truncate">{item.produto.nome}</p>
+                <p className="font-medium truncate">{item.descricao || item.produto?.nome || "Item sem descricao"}</p>
                 <p className="text-[11px] text-zinc-600">
                   {item.quantidade}x {formatarMoeda(item.precoUnitario)}
                 </p>

@@ -76,8 +76,11 @@ const FORMA_RECEBIMENTO_INICIAL: ContaReceberFinanceiro["formaRecebimento"] = "P
 
 const MAPA_FORMA_PAGAMENTO: Record<ContaReceberFinanceiro["formaRecebimento"], string> = {
   PIX: "PIX",
+  TED: "TED",
   BOLETO: "Boleto",
   CARTAO_CREDITO: "Cartão de Crédito",
+  CARTAO_CREDITO_AVISTA: "Cartão de Crédito (À vista)",
+  CARTAO_CREDITO_PARCELADO: "Cartão de Crédito (Parcelado)",
   CARTAO_DEBITO: "Cartão de Débito",
   DINHEIRO: "Dinheiro",
   CREDIARIO: "Crediário",

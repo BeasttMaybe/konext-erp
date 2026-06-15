@@ -73,7 +73,12 @@ export async function obterResumoCaixaDiario(): Promise<ResumoCaixaDiario> {
           },
         },
         itens: {
-          include: {
+          select: {
+            id: true,
+            quantidade: true,
+            custoUnitario: true,
+            subtotal: true,
+            descricao: true,
             produto: {
               select: {
                 nome: true,
@@ -136,7 +141,7 @@ export async function obterResumoCaixaDiario(): Promise<ResumoCaixaDiario> {
       quantidade: item.quantidade,
       custoUnitario: item.custoUnitario,
       subtotal: item.subtotal,
-      nomeProduto: item.produto.nome,
+      nomeProduto: item.descricao || item.produto?.nome || "Item sem descricao",
     })),
   }));
 
