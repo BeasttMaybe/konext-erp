@@ -195,8 +195,9 @@ export async function obterDadosAnaliticos(
     itensVendaPeriodo,
     parcelasPeriodo,
     recebimentosRecorrentesPeriodo,
-    vendasComClientePeriodo,
-    itensVendaComProdutoPeriodo,
+    approvedOrdersByClient,
+    approvedOrdersByPaymentMethod,
+    approvedOrderItemsByProduct,
   ] =
     await Promise.all([
       prisma.venda.findMany({
@@ -322,47 +323,83 @@ export async function obterDadosAnaliticos(
           valor: true,
         },
       }),
-      prisma.venda.findMany({
+      prisma.pedidoVenda.groupBy({
+        by: ["clienteId"],
         where: {
-          criadoEm: {
+          status: "APROVADO",
+          dataCriacao: {
             gte: inicio,
             lte: fim,
           },
-          cliente: {
-            is: {
-              papel: "CLIENTE",
-            },
+        },
+        _sum: {
+          total: true,
+        },
+        orderBy: {
+          _sum: {
+            total: "desc",
           },
         },
-        select: {
-          valorTotal: true,
-          cliente: {
-            select: {
-              nomeRazaoSocial: true,
-            },
+        take: 5,
+      }),
+      prisma.pedidoVenda.groupBy({
+        by: ["formaPagamento"],
+        where: {
+          status: "APROVADO",
+          dataCriacao: {
+            gte: inicio,
+            lte: fim,
           },
+        },
+        _sum: {
+          total: true,
         },
       }),
-      prisma.itemVenda.findMany({
+      prisma.pedidoVendaItem.groupBy({
+        by: ["nome"],
         where: {
-          venda: {
-            criadoEm: {
+          pedido: {
+            status: "APROVADO",
+            dataCriacao: {
               gte: inicio,
               lte: fim,
             },
           },
         },
-        select: {
-          descricao: true,
+        _sum: {
           subtotal: true,
-          produto: {
-            select: {
-              nome: true,
-            },
+        },
+        orderBy: {
+          _sum: {
+            subtotal: "desc",
           },
         },
+        take: 5,
       }),
     ]);
+
+  const topClientIds = approvedOrdersByClient
+    .map((group) => group.clienteId)
+    .filter((clienteId): clienteId is string => Boolean(clienteId));
+
+  const clientsById = topClientIds.length
+    ? await prisma.cliente.findMany({
+        where: {
+          id: {
+            in: topClientIds,
+          },
+          papel: "CLIENTE",
+        },
+        select: {
+          id: true,
+          nomeRazaoSocial: true,
+        },
+      })
+    : [];
+
+  const clientNameById = new Map(
+    clientsById.map((client) => [client.id, client.nomeRazaoSocial])
+  );
 
   const faturamentoVendasCentavos = vendasPeriodo.reduce(
     (acumulado, venda) => acumulado + paraCentavos(venda.valorTotal),
@@ -432,29 +469,6 @@ export async function obterDadosAnaliticos(
     despesas: paraMoeda(mapaDespesas.get(bucket) ?? 0),
   }));
 
-  const mapaFontesReceita = new Map<string, number>();
-
-  for (const venda of vendasPeriodo) {
-    const nome = venda.formaPagamento.replaceAll("_", " ");
-    mapaFontesReceita.set(nome, (mapaFontesReceita.get(nome) ?? 0) + paraCentavos(venda.valorTotal));
-  }
-
-  // Agrupa recebimentos manuais sob a origem da conta (ex: "OS", "CONTRATO_RECORRENTE", etc.)
-  for (const conta of recebimentosPeriodo) {
-    if (conta.vendaId) continue; // já contabilizado nas vendas PDV
-    const nomeFonte = conta.origem
-      ? conta.origem.replaceAll("_", " ")
-      : "Recebimento Manual";
-    mapaFontesReceita.set(
-      nomeFonte,
-      (mapaFontesReceita.get(nomeFonte) ?? 0) + paraCentavos(conta.valor)
-    );
-  }
-
-  const fontesReceita: DadoFonteReceita[] = Array.from(mapaFontesReceita.entries())
-    .map(([nome, totalCentavos]) => ({ nome, valor: paraMoeda(totalCentavos) }))
-    .sort((a, b) => b.valor - a.valor);
-
   const mapaTopGastos = new Map<string, number>();
 
   for (const parcela of parcelasPeriodo) {
@@ -467,32 +481,66 @@ export async function obterDadosAnaliticos(
     .sort((a, b) => b.valor - a.valor)
     .slice(0, 5);
 
-  const mapaTopClientes = new Map<string, number>();
+  const topClientes: DadoTopCliente[] = approvedOrdersByClient
+    .map((group) => {
+      const clientName = group.clienteId
+        ? clientNameById.get(group.clienteId)?.trim() || "Cliente nao identificado"
+        : "Cliente nao identificado";
 
-  for (const venda of vendasComClientePeriodo) {
-    const nomeCliente = venda.cliente?.nomeRazaoSocial?.trim() || "Cliente nao identificado";
-    mapaTopClientes.set(
-      nomeCliente,
-      (mapaTopClientes.get(nomeCliente) ?? 0) + paraCentavos(venda.valorTotal)
+      return {
+        nome: clientName,
+        valor: Number(group._sum.total ?? 0),
+      };
+    })
+    .filter((entry) => entry.valor > 0)
+    .sort((a, b) => b.valor - a.valor)
+    .slice(0, 5);
+
+  const fontesReceitaPorPedido: DadoFonteReceita[] = approvedOrdersByPaymentMethod
+    .map((group) => {
+      const paymentMethodLabel = group.formaPagamento
+        ? group.formaPagamento.replaceAll("_", " ")
+        : "Nao informado";
+
+      return {
+        nome: paymentMethodLabel,
+        valor: Number(group._sum.total ?? 0),
+      };
+    })
+    .filter((entry) => entry.valor > 0);
+
+  const curvaAbcProdutos: DadoCurvaAbcProduto[] = approvedOrderItemsByProduct
+    .map((group) => ({
+      nome: group.nome?.trim() || "Item sem descricao",
+      valor: Number(group._sum.subtotal ?? 0),
+    }))
+    .filter((entry) => entry.valor > 0)
+    .sort((a, b) => b.valor - a.valor)
+    .slice(0, 5);
+
+  const mapaFontesReceitaFinal = new Map<string, number>();
+
+  for (const fonte of fontesReceitaPorPedido) {
+    mapaFontesReceitaFinal.set(
+      fonte.nome,
+      (mapaFontesReceitaFinal.get(fonte.nome) ?? 0) + paraCentavos(fonte.valor)
     );
   }
 
-  const topClientes: DadoTopCliente[] = Array.from(mapaTopClientes.entries())
-    .map(([nome, totalCentavos]) => ({ nome, valor: paraMoeda(totalCentavos) }))
-    .sort((a, b) => b.valor - a.valor)
-    .slice(0, 5);
-
-  const mapaCurvaAbc = new Map<string, number>();
-
-  for (const item of itensVendaComProdutoPeriodo) {
-    const nomeProduto = item.descricao || item.produto?.nome || "Item sem descricao";
-    mapaCurvaAbc.set(nomeProduto, (mapaCurvaAbc.get(nomeProduto) ?? 0) + paraCentavos(item.subtotal));
+  for (const conta of recebimentosPeriodo) {
+    if (conta.vendaId) continue;
+    const sourceName = conta.origem
+      ? conta.origem.replaceAll("_", " ")
+      : "Recebimento Manual";
+    mapaFontesReceitaFinal.set(
+      sourceName,
+      (mapaFontesReceitaFinal.get(sourceName) ?? 0) + paraCentavos(conta.valor)
+    );
   }
 
-  const curvaAbcProdutos: DadoCurvaAbcProduto[] = Array.from(mapaCurvaAbc.entries())
+  const fontesReceita: DadoFonteReceita[] = Array.from(mapaFontesReceitaFinal.entries())
     .map(([nome, totalCentavos]) => ({ nome, valor: paraMoeda(totalCentavos) }))
-    .sort((a, b) => b.valor - a.valor)
-    .slice(0, 5);
+    .sort((a, b) => b.valor - a.valor);
 
   const diasPrevisao = filtroData === "ANUAL" ? 60 : 30;
   const dataBasePrevisao = inicioDoDia(new Date());
