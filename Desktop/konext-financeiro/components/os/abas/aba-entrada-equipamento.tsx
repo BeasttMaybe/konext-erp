@@ -54,11 +54,6 @@ export function AbaEntradaEquipamento({
   }, [clienteIdInicial]);
 
   useEffect(() => {
-    if (!clienteNomeInicial) return;
-    setBuscaCliente(clienteNomeInicial);
-  }, [clienteNomeInicial]);
-
-  useEffect(() => {
     const termo = buscaCliente.trim();
     if (termo.length < 2) return;
 

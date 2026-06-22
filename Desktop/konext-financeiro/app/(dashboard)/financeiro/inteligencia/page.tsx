@@ -160,6 +160,10 @@ export default function FinanceiroInteligenciaPage() {
   const textoEquilibrio = useMemo(() => {
     if (!dados) return "Sem dados para avaliacao.";
 
+    if (dados.indicadores.pontoEquilibrioSemBase) {
+      return "Sem base de despesas no periodo selecionado para calcular o ponto de equilibrio.";
+    }
+
     if (dados.indicadores.pontoEquilibrioAtingido) {
       return "Ponto de equilibrio atingido no periodo selecionado.";
     }
@@ -265,12 +269,12 @@ export default function FinanceiroInteligenciaPage() {
             </Card>
 
             <Card className="border-zinc-200 dark:border-zinc-800 bg-white dark:bg-slate-800 p-5">
-              <p className="text-sm text-muted-foreground">Receita Recorrente (MRR)</p>
+              <p className="text-sm text-muted-foreground">Receita Recorrente Estimada (MRR)</p>
               <p className="text-3xl font-bold text-emerald-500 mt-2">
                 {formatarMoeda(dados?.indicadores.receitaRecorrenteMensal ?? 0)}
               </p>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
-                Receita previsivel de contratos e clube de beneficios.
+                Estimativa com base em contas a receber recorrentes e titulos com descricao de clube.
               </p>
             </Card>
 
@@ -297,7 +301,9 @@ export default function FinanceiroInteligenciaPage() {
                 <Progress value={Math.min(dados?.indicadores.pontoEquilibrioPercentual ?? 0, 100)} />
               </div>
               <p className="text-xs text-muted-foreground mt-2">
-                {`${(dados?.indicadores.pontoEquilibrioPercentual ?? 0).toFixed(2)}% do objetivo`}
+                {dados?.indicadores.pontoEquilibrioSemBase
+                  ? "Sem base de despesas para percentual"
+                  : `${(dados?.indicadores.pontoEquilibrioPercentual ?? 0).toFixed(2)}% do objetivo`}
               </p>
             </Card>
           </div>

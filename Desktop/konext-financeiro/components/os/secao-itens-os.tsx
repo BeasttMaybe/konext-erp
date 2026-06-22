@@ -3,11 +3,30 @@
 import { useMemo, useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import type { TipoPeca } from "@prisma/client";
+import { Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { adicionarItemOS } from "@/app/actions/os-itens";
+import { adicionarItemOS, atualizarItemOS, removerItemOS } from "@/app/actions/os-itens";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -59,12 +78,21 @@ const formatarMoeda = (valor: number) =>
 
 export function SecaoItensOS({ osId, numeroOs, itens, desabilitarCadastro = false }: PropsSecaoItensOS) {
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
+  const [isPendingAdicionar, startTransitionAdicionar] = useTransition();
+  const [isPendingEditar, startTransitionEditar] = useTransition();
+  const [isPendingRemover, startTransitionRemover] = useTransition();
 
   const [tipoPeca, setTipoPeca] = useState<TipoPeca>("TELA");
   const [descricao, setDescricao] = useState("");
   const [custoPeca, setCustoPeca] = useState<string>("");
   const [valorManual, setValorManual] = useState<string>("");
+
+  const [itemEmEdicao, setItemEmEdicao] = useState<ItemOSTabela | null>(null);
+  const [itemParaRemover, setItemParaRemover] = useState<ItemOSTabela | null>(null);
+  const [tipoPecaEdicao, setTipoPecaEdicao] = useState<TipoPeca>("TELA");
+  const [descricaoEdicao, setDescricaoEdicao] = useState("");
+  const [custoPecaEdicao, setCustoPecaEdicao] = useState<string>("");
+  const [valorCobradoEdicao, setValorCobradoEdicao] = useState<string>("");
 
   const custoPecaNumero = Number(custoPeca || 0);
   const valorManualNumero = Number(valorManual || 0);
@@ -111,7 +139,7 @@ export function SecaoItensOS({ osId, numeroOs, itens, desabilitarCadastro = fals
       return;
     }
 
-    startTransition(async () => {
+    startTransitionAdicionar(async () => {
       try {
         await adicionarItemOS(osId, {
           tipoPeca,
@@ -127,6 +155,76 @@ export function SecaoItensOS({ osId, numeroOs, itens, desabilitarCadastro = fals
         const mensagem = error instanceof Error ? error.message : "Erro ao adicionar item na ordem de servico.";
         toast.error(mensagem);
       }
+    });
+  };
+
+  const abrirEdicao = (item: ItemOSTabela) => {
+    setItemEmEdicao(item);
+    setTipoPecaEdicao(item.tipoPeca);
+    setDescricaoEdicao(item.descricao);
+    setCustoPecaEdicao(String(item.custoPeca));
+    setValorCobradoEdicao(String(item.valorCobrado));
+  };
+
+  const aoSalvarEdicao = () => {
+    if (!itemEmEdicao) return;
+
+    const custoNormalizado = Number(custoPecaEdicao || 0);
+    const valorCobradoNormalizado = Number(valorCobradoEdicao || 0);
+
+    if (!descricaoEdicao.trim()) {
+      toast.error("Informe a descricao da peca ou servico.");
+      return;
+    }
+
+    if (!Number.isFinite(custoNormalizado) || custoNormalizado < 0) {
+      toast.error("Informe um custo valido para a peca.");
+      return;
+    }
+
+    if (!Number.isFinite(valorCobradoNormalizado) || valorCobradoNormalizado <= 0) {
+      toast.error("Informe um valor cobrado valido ao cliente.");
+      return;
+    }
+
+    startTransitionEditar(async () => {
+      const resultado = await atualizarItemOS({
+        itemId: itemEmEdicao.id,
+        osId,
+        tipoPeca: tipoPecaEdicao,
+        descricao: descricaoEdicao,
+        custoPeca: custoNormalizado,
+        valorCobrado: valorCobradoNormalizado,
+      });
+
+      if (!resultado.sucesso) {
+        toast.error(resultado.erro);
+        return;
+      }
+
+      toast.success(resultado.mensagem);
+      setItemEmEdicao(null);
+      router.refresh();
+    });
+  };
+
+  const confirmarRemocao = () => {
+    if (!itemParaRemover) return;
+
+    startTransitionRemover(async () => {
+      const resultado = await removerItemOS({
+        itemId: itemParaRemover.id,
+        osId,
+      });
+
+      if (!resultado.sucesso) {
+        toast.error(resultado.erro);
+        return;
+      }
+
+      toast.success(resultado.mensagem);
+      setItemParaRemover(null);
+      router.refresh();
     });
   };
 
@@ -217,8 +315,8 @@ export function SecaoItensOS({ osId, numeroOs, itens, desabilitarCadastro = fals
 
           {/* Linha de ação — separada visualmente do grid de campos */}
           <div className="flex items-center gap-6 mt-6 pt-4 border-t border-zinc-200 dark:border-zinc-700/50">
-            <Button type="submit" disabled={isPending || desabilitarCadastro}>
-              {isPending ? "Adicionando..." : "Adicionar Item"}
+            <Button type="submit" disabled={isPendingAdicionar || desabilitarCadastro}>
+              {isPendingAdicionar ? "Adicionando..." : "Adicionar Item"}
             </Button>
             <Badge variant="secondary" className="text-sm">
               Valor para o Cliente: {formatarMoeda(valorPreview)}
@@ -247,12 +345,13 @@ export function SecaoItensOS({ osId, numeroOs, itens, desabilitarCadastro = fals
               <TableHead className="text-right">Custo</TableHead>
               <TableHead className="text-right">Valor Cobrado</TableHead>
               <TableHead className="text-right">Criado em</TableHead>
+              <TableHead className="text-right">Acoes</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {itens.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-slate-500 py-8">
+                <TableCell colSpan={6} className="text-center text-slate-500 py-8">
                   Nenhum item adicionado nesta OS.
                 </TableCell>
               </TableRow>
@@ -267,6 +366,30 @@ export function SecaoItensOS({ osId, numeroOs, itens, desabilitarCadastro = fals
                 <TableCell className="text-right text-slate-500">
                   {new Date(item.criadoEm).toLocaleDateString("pt-BR")}
                 </TableCell>
+                <TableCell className="text-right">
+                  <div className="inline-flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8"
+                      onClick={() => abrirEdicao(item)}
+                      disabled={desabilitarCadastro || isPendingEditar || isPendingRemover}
+                    >
+                      <Pencil className="h-3.5 w-3.5 mr-1" />
+                      Editar
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="h-8"
+                      onClick={() => setItemParaRemover(item)}
+                      disabled={desabilitarCadastro || isPendingEditar || isPendingRemover}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 mr-1" />
+                      Remover
+                    </Button>
+                  </div>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -276,6 +399,103 @@ export function SecaoItensOS({ osId, numeroOs, itens, desabilitarCadastro = fals
           <p className="text-lg font-bold text-emerald-600">Total da OS: {formatarMoeda(totalOS)}</p>
         </div>
       </Card>
+
+      <Dialog open={Boolean(itemEmEdicao)} onOpenChange={(aberto) => !aberto && setItemEmEdicao(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Editar item da OS</DialogTitle>
+            <DialogDescription>
+              Atualize tipo, descricao, custo e valor cobrado ao cliente.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid grid-cols-1 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="tipo-peca-edicao">Tipo da Peça</Label>
+              <Select value={tipoPecaEdicao} onValueChange={(valor) => setTipoPecaEdicao(valor as TipoPeca)}>
+                <SelectTrigger id="tipo-peca-edicao">
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  {opcoesTipoPeca.map((tipo) => (
+                    <SelectItem key={tipo.value} value={tipo.value}>
+                      {tipo.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="descricao-edicao">Descricao</Label>
+              <Input
+                id="descricao-edicao"
+                value={descricaoEdicao}
+                onChange={(evento) => setDescricaoEdicao(evento.target.value)}
+                placeholder="Ex: Troca de tela OLED"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="custo-edicao">Custo (R$)</Label>
+                <Input
+                  id="custo-edicao"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={custoPecaEdicao}
+                  onChange={(evento) => setCustoPecaEdicao(evento.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="valor-edicao">Cobrado (R$)</Label>
+                <Input
+                  id="valor-edicao"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={valorCobradoEdicao}
+                  onChange={(evento) => setValorCobradoEdicao(evento.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setItemEmEdicao(null)} disabled={isPendingEditar}>
+              Cancelar
+            </Button>
+            <Button onClick={aoSalvarEdicao} disabled={isPendingEditar}>
+              {isPendingEditar ? "Salvando..." : "Salvar Alteracoes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={Boolean(itemParaRemover)} onOpenChange={(aberto) => !aberto && setItemParaRemover(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remover item da OS?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acao remove apenas o item selecionado e atualiza o total da ordem de servico.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isPendingRemover}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isPendingRemover}
+              onClick={(evento) => {
+                evento.preventDefault();
+                confirmarRemocao();
+              }}
+            >
+              {isPendingRemover ? "Removendo..." : "Confirmar remocao"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

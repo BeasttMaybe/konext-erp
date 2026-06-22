@@ -1,6 +1,8 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { exigirSessao } from "@/lib/auth/sessao";
+import { obterReceitaPorClientePadrao, obterReceitaTotalPadrao } from "@/lib/dashboard/regras-financeiras";
 
 export type FiltroDataAnalitico = "HOJE" | "SEMANAL" | "MENSAL" | "ANUAL" | "CUSTOMIZADO";
 
@@ -53,6 +55,7 @@ export interface DadosAnaliticosFinanceiros {
     margemLucroMedia: number;
     pontoEquilibrioPercentual: number;
     pontoEquilibrioAtingido: boolean;
+    pontoEquilibrioSemBase: boolean;
   };
   serieFaturamentoDespesas: DadoSerieComparativa[];
   fontesReceita: DadoFonteReceita[];
@@ -187,17 +190,19 @@ export async function obterDadosAnaliticos(
   dataInicio?: Date,
   dataFim?: Date
 ): Promise<DadosAnaliticosFinanceiros> {
+  await exigirSessao();
   const { inicio, fim } = obterIntervaloDoFiltro(filtroData, dataInicio, dataFim);
 
   const [
     vendasPeriodo,
     recebimentosPeriodo,
+    faturamentoBrutoPeriodo,
     itensVendaPeriodo,
     parcelasPeriodo,
     recebimentosRecorrentesPeriodo,
-    approvedOrdersByClient,
-    approvedOrdersByPaymentMethod,
-    approvedOrderItemsByProduct,
+    vendasPorFormaPagamento,
+    itensVendaAgrupados,
+    topClientes,
   ] =
     await Promise.all([
       prisma.venda.findMany({
@@ -206,10 +211,6 @@ export async function obterDadosAnaliticos(
             gte: inicio,
             lte: fim,
           },
-          OR: [
-            { cliente: { is: null } },
-            { cliente: { is: { papel: "CLIENTE" } } },
-          ],
         },
         select: {
           id: true,
@@ -221,22 +222,24 @@ export async function obterDadosAnaliticos(
       prisma.contaReceber.findMany({
         where: {
           status: "RECEBIDO",
-          dataRecebimento: {
-            gte: inicio,
-            lte: fim,
-          },
+          vendaId: null,
           OR: [
-            { cliente: { is: null } },
-            { cliente: { is: { papel: "CLIENTE" } } },
+            { dataRecebimento: { gte: inicio, lte: fim } },
+            {
+              AND: [
+                { dataRecebimento: null },
+                { criadoEm: { gte: inicio, lte: fim } },
+              ],
+            },
           ],
         },
         select: {
           valor: true,
           origem: true,
           dataRecebimento: true,
-          vendaId: true,
         },
       }),
+      obterReceitaTotalPadrao(inicio, fim),
       prisma.itemVenda.findMany({
         where: {
           venda: {
@@ -253,32 +256,11 @@ export async function obterDadosAnaliticos(
       }),
       prisma.parcelaDespesa.findMany({
         where: {
-          AND: [
-            {
-              OR: [
-                { despesa: { cliente: { is: null } } },
-                { despesa: { cliente: { is: { papel: "FORNECEDOR" } } } },
-              ],
-            },
-            {
-              OR: [
-                {
-                  status: "PAGO",
-                  dataPagamento: {
-                    gte: inicio,
-                    lte: fim,
-                  },
-                },
-                {
-                  status: "PENDENTE",
-                  dataVencimento: {
-                    gte: inicio,
-                    lte: fim,
-                  },
-                },
-              ],
-            },
-          ],
+          status: { in: ["PENDENTE", "PAGO"] },
+          dataVencimento: {
+            gte: inicio,
+            lte: fim,
+          },
         },
         include: {
           despesa: {
@@ -297,25 +279,15 @@ export async function obterDadosAnaliticos(
             gte: inicio,
             lte: fim,
           },
-          AND: [
+          OR: [
             {
-              OR: [
-                { cliente: { is: null } },
-                { cliente: { is: { papel: "CLIENTE" } } },
-              ],
+              origem: "CONTRATO_RECORRENTE",
             },
             {
-              OR: [
-                {
-                  origem: "CONTRATO_RECORRENTE",
-                },
-                {
-                  descricao: {
-                    contains: "clube",
-                    mode: "insensitive",
-                  },
-                },
-              ],
+              descricao: {
+                contains: "clube",
+                mode: "insensitive",
+              },
             },
           ],
         },
@@ -323,44 +295,23 @@ export async function obterDadosAnaliticos(
           valor: true,
         },
       }),
-      prisma.pedidoVenda.groupBy({
-        by: ["clienteId"],
-        where: {
-          status: "APROVADO",
-          dataCriacao: {
-            gte: inicio,
-            lte: fim,
-          },
-        },
-        _sum: {
-          total: true,
-        },
-        orderBy: {
-          _sum: {
-            total: "desc",
-          },
-        },
-        take: 5,
-      }),
-      prisma.pedidoVenda.groupBy({
+      prisma.venda.groupBy({
         by: ["formaPagamento"],
         where: {
-          status: "APROVADO",
-          dataCriacao: {
+          criadoEm: {
             gte: inicio,
             lte: fim,
           },
         },
         _sum: {
-          total: true,
+          valorTotal: true,
         },
       }),
-      prisma.pedidoVendaItem.groupBy({
-        by: ["nome"],
+      prisma.itemVenda.groupBy({
+        by: ["produtoId", "descricao"],
         where: {
-          pedido: {
-            status: "APROVADO",
-            dataCriacao: {
+          venda: {
+            criadoEm: {
               gte: inicio,
               lte: fim,
             },
@@ -376,42 +327,9 @@ export async function obterDadosAnaliticos(
         },
         take: 5,
       }),
+      obterReceitaPorClientePadrao(inicio, fim, 5),
     ]);
-
-  const topClientIds = approvedOrdersByClient
-    .map((group) => group.clienteId)
-    .filter((clienteId): clienteId is string => Boolean(clienteId));
-
-  const clientsById = topClientIds.length
-    ? await prisma.cliente.findMany({
-        where: {
-          id: {
-            in: topClientIds,
-          },
-          papel: "CLIENTE",
-        },
-        select: {
-          id: true,
-          nomeRazaoSocial: true,
-        },
-      })
-    : [];
-
-  const clientNameById = new Map(
-    clientsById.map((client) => [client.id, client.nomeRazaoSocial])
-  );
-
-  const faturamentoVendasCentavos = vendasPeriodo.reduce(
-    (acumulado, venda) => acumulado + paraCentavos(venda.valorTotal),
-    0
-  );
-
-  // Receita de Contas a Receber efetivamente recebidas (somente status RECEBIDO)
-  const faturamentoContasReceberCentavos = recebimentosPeriodo
-    .filter((conta) => !conta.vendaId) // evita duplicidade com vendas PDV que já geram conta
-    .reduce((acumulado, conta) => acumulado + paraCentavos(conta.valor), 0);
-
-  const faturamentoBrutoCentavos = faturamentoVendasCentavos + faturamentoContasReceberCentavos;
+  const faturamentoBrutoCentavos = paraCentavos(faturamentoBrutoPeriodo);
 
   const cmvCentavos = itensVendaPeriodo.reduce((acumulado, item) => {
     return acumulado + paraCentavos(item.custoUnitario) * item.quantidade;
@@ -431,10 +349,11 @@ export async function obterDadosAnaliticos(
       ? arredondarPercentual((faturamentoLiquidoCentavos / faturamentoBrutoCentavos) * 100)
       : 0;
 
+  const pontoEquilibrioSemBase = despesasTotaisCentavos === 0;
   const pontoEquilibrioPercentual =
-    faturamentoBrutoCentavos > 0
-      ? arredondarPercentual((faturamentoBrutoCentavos / Math.max(despesasTotaisCentavos, 1)) * 100)
-      : 0;
+    pontoEquilibrioSemBase || faturamentoBrutoCentavos <= 0
+      ? 0
+      : arredondarPercentual((faturamentoBrutoCentavos / despesasTotaisCentavos) * 100);
 
   const pontoEquilibrioAtingido = faturamentoLiquidoCentavos >= 0;
 
@@ -450,15 +369,15 @@ export async function obterDadosAnaliticos(
     );
   }
 
-  // Adiciona recebimentos manuais (sem vínculo com venda PDV) à série temporal
+  // Adiciona recebimentos sem venda vinculada à série temporal
   for (const conta of recebimentosPeriodo) {
-    if (conta.vendaId || !conta.dataRecebimento) continue;
+    if (!conta.dataRecebimento) continue;
     const chave = chaveBucket(conta.dataRecebimento, filtroData);
     mapaFaturamento.set(chave, (mapaFaturamento.get(chave) ?? 0) + paraCentavos(conta.valor));
   }
 
   for (const parcela of parcelasPeriodo) {
-    const referencia = parcela.status === "PAGO" && parcela.dataPagamento ? parcela.dataPagamento : parcela.dataVencimento;
+    const referencia = parcela.dataVencimento;
     const chave = chaveBucket(referencia, filtroData);
     mapaDespesas.set(chave, (mapaDespesas.get(chave) ?? 0) + paraCentavos(parcela.valor));
   }
@@ -481,22 +400,9 @@ export async function obterDadosAnaliticos(
     .sort((a, b) => b.valor - a.valor)
     .slice(0, 5);
 
-  const topClientes: DadoTopCliente[] = approvedOrdersByClient
-    .map((group) => {
-      const clientName = group.clienteId
-        ? clientNameById.get(group.clienteId)?.trim() || "Cliente nao identificado"
-        : "Cliente nao identificado";
+  const topClientesFormatado: DadoTopCliente[] = topClientes;
 
-      return {
-        nome: clientName,
-        valor: Number(group._sum.total ?? 0),
-      };
-    })
-    .filter((entry) => entry.valor > 0)
-    .sort((a, b) => b.valor - a.valor)
-    .slice(0, 5);
-
-  const fontesReceitaPorPedido: DadoFonteReceita[] = approvedOrdersByPaymentMethod
+  const fontesReceitaPorPedido: DadoFonteReceita[] = vendasPorFormaPagamento
     .map((group) => {
       const paymentMethodLabel = group.formaPagamento
         ? group.formaPagamento.replaceAll("_", " ")
@@ -504,14 +410,29 @@ export async function obterDadosAnaliticos(
 
       return {
         nome: paymentMethodLabel,
-        valor: Number(group._sum.total ?? 0),
+        valor: Number(group._sum.valorTotal ?? 0),
       };
     })
     .filter((entry) => entry.valor > 0);
 
-  const curvaAbcProdutos: DadoCurvaAbcProduto[] = approvedOrderItemsByProduct
+  const idsProdutosCurva = itensVendaAgrupados
+    .map((group) => group.produtoId)
+    .filter((id): id is string => Boolean(id));
+
+  const produtosCurva = idsProdutosCurva.length > 0
+    ? await prisma.produto.findMany({
+      where: { id: { in: idsProdutosCurva } },
+      select: { id: true, nome: true },
+    })
+    : [];
+
+  const nomeProdutoPorId = new Map(produtosCurva.map((produto) => [produto.id, produto.nome]));
+
+  const curvaAbcProdutos: DadoCurvaAbcProduto[] = itensVendaAgrupados
     .map((group) => ({
-      nome: group.nome?.trim() || "Item sem descricao",
+      nome:
+        (group.produtoId ? nomeProdutoPorId.get(group.produtoId) : null) ??
+        (group.descricao?.trim() || "Item sem descricao"),
       valor: Number(group._sum.subtotal ?? 0),
     }))
     .filter((entry) => entry.valor > 0)
@@ -528,7 +449,6 @@ export async function obterDadosAnaliticos(
   }
 
   for (const conta of recebimentosPeriodo) {
-    if (conta.vendaId) continue;
     const sourceName = conta.origem
       ? conta.origem.replaceAll("_", " ")
       : "Recebimento Manual";
@@ -568,10 +488,6 @@ export async function obterDadosAnaliticos(
           gte: dataBasePrevisao,
           lte: fimPrevisao,
         },
-        OR: [
-          { despesa: { cliente: { is: null } } },
-          { despesa: { cliente: { is: { papel: "FORNECEDOR" } } } },
-        ],
       },
       select: {
         dataVencimento: true,
@@ -631,11 +547,12 @@ export async function obterDadosAnaliticos(
       margemLucroMedia,
       pontoEquilibrioPercentual,
       pontoEquilibrioAtingido,
+      pontoEquilibrioSemBase,
     },
     serieFaturamentoDespesas,
     fontesReceita,
     topGastos,
-    topClientes,
+    topClientes: topClientesFormatado,
     curvaAbcProdutos,
     previsaoCaixa,
   };

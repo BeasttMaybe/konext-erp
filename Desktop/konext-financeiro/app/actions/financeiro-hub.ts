@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { exigirSessao } from "@/lib/auth/sessao";
 
 export interface ResumoDashboardFinanceiro {
   totalVendasHoje: number;
@@ -85,12 +86,9 @@ async function buscarParcelasPagarBrutas(inicio: Date, fim: Date): Promise<Parce
   const parcelas = await prisma.$queryRaw<Array<{ valor: number; dataVencimento: Date }>>`
     SELECT pd."valor", pd."dataVencimento"
     FROM "ParcelaDespesa" pd
-    INNER JOIN "Despesa" d ON d.id = pd."despesaId"
-    LEFT JOIN "Cliente" c ON c.id = d."clienteId"
     WHERE pd."status"::text = 'PENDENTE'
       AND pd."dataVencimento" >= ${inicio}
       AND pd."dataVencimento" <= ${fim}
-      AND (c.id IS NULL OR c."papel"::text = 'FORNECEDOR')
     ORDER BY pd."dataVencimento" ASC
   `;
 
@@ -104,11 +102,8 @@ async function buscarParcelasPagarAtrasadasBrutas(limite: Date): Promise<Parcela
   const parcelas = await prisma.$queryRaw<Array<{ valor: number; dataVencimento: Date }>>`
     SELECT pd."valor", pd."dataVencimento"
     FROM "ParcelaDespesa" pd
-    INNER JOIN "Despesa" d ON d.id = pd."despesaId"
-    LEFT JOIN "Cliente" c ON c.id = d."clienteId"
     WHERE pd."status"::text = 'PENDENTE'
-      AND pd."dataVencimento" < ${limite}
-      AND (c.id IS NULL OR c."papel"::text = 'FORNECEDOR')
+      AND pd."dataVencimento" <= ${limite}
     ORDER BY pd."dataVencimento" ASC
   `;
 
@@ -133,10 +128,6 @@ async function buscarTotalVendasHojeCentavos(): Promise<number> {
           gte: inicioHoje,
           lte: fimHoje,
         },
-        OR: [
-          { cliente: { is: null } },
-          { cliente: { is: { papel: "CLIENTE" } } },
-        ],
       },
       select: {
         valorTotal: true,
@@ -208,32 +199,32 @@ async function buscarFaturamentoCaixaFechadoHojeCentavos(): Promise<number> {
 }
 
 export async function obterTotalVendasHoje(): Promise<number> {
+  await exigirSessao();
   return paraMoeda(await buscarTotalVendasHojeCentavos());
 }
 
 export async function obterFaturamentoCaixaFechadoHoje(): Promise<number> {
+  await exigirSessao();
   return paraMoeda(await buscarFaturamentoCaixaFechadoHojeCentavos());
 }
 
 export async function obterTotalPagarHoje(): Promise<number> {
-  const { inicioHoje, fimHoje } = obterIntervalosFinanceiros();
-  const parcelasFornecedor = await buscarParcelasPagarBrutas(inicioHoje, fimHoje);
+  await exigirSessao();
+  const { fimHoje } = obterIntervalosFinanceiros();
+  const parcelasFornecedor = await buscarParcelasPagarAtrasadasBrutas(fimHoje);
 
   return paraMoeda(somarValoresCentavos(parcelasFornecedor));
 }
 
 export async function obterTotalReceberHoje(): Promise<number> {
-  const { inicioHoje, fimHoje } = obterIntervalosFinanceiros();
+  await exigirSessao();
+  const { fimHoje } = obterIntervalosFinanceiros();
   const { contaReceberDelegate } = obterDelegatesFinanceiros();
 
   const contasReceberHoje = await contaReceberDelegate.findMany({
     where: {
       status: "PENDENTE",
-      dataVencimento: { gte: inicioHoje, lte: fimHoje },
-      OR: [
-        { cliente: { is: null } },
-        { cliente: { is: { papel: "CLIENTE" } } },
-      ],
+      dataVencimento: { lte: fimHoje },
     },
     select: { valor: true },
   });
@@ -242,41 +233,24 @@ export async function obterTotalReceberHoje(): Promise<number> {
 }
 
 export async function obterSaldoPrevisto(): Promise<number> {
-  const { inicioMes, fimMes } = obterIntervalosFinanceiros();
+  await exigirSessao();
+  const { fimMes } = obterIntervalosFinanceiros();
   const { contaReceberDelegate } = obterDelegatesFinanceiros();
 
-  const [parcelasPagarAtrasadas, contasReceberAtrasadas, parcelasPagarMes, contasReceberMes] =
+  const [parcelasPagarAteFimMes, contasReceberAteFimMes] =
     await Promise.all([
-      buscarParcelasPagarAtrasadasBrutas(inicioMes),
+      buscarParcelasPagarAtrasadasBrutas(fimMes),
       contaReceberDelegate.findMany({
         where: {
           status: "PENDENTE",
-          dataVencimento: { lt: inicioMes },
-          OR: [
-            { cliente: { is: null } },
-            { cliente: { is: { papel: "CLIENTE" } } },
-          ],
-        },
-        select: { valor: true },
-      }),
-      buscarParcelasPagarBrutas(inicioMes, fimMes),
-      contaReceberDelegate.findMany({
-        where: {
-          status: "PENDENTE",
-          dataVencimento: { gte: inicioMes, lte: fimMes },
-          OR: [
-            { cliente: { is: null } },
-            { cliente: { is: { papel: "CLIENTE" } } },
-          ],
+          dataVencimento: { lte: fimMes },
         },
         select: { valor: true },
       }),
     ]);
 
-  const totalReceberSaldoCentavos =
-    somarValoresCentavos(contasReceberAtrasadas) + somarValoresCentavos(contasReceberMes);
-  const totalPagarSaldoCentavos =
-    somarValoresCentavos(parcelasPagarAtrasadas) + somarValoresCentavos(parcelasPagarMes);
+  const totalReceberSaldoCentavos = somarValoresCentavos(contasReceberAteFimMes);
+  const totalPagarSaldoCentavos = somarValoresCentavos(parcelasPagarAteFimMes);
 
   return paraMoeda(totalReceberSaldoCentavos - totalPagarSaldoCentavos);
 }
@@ -307,6 +281,7 @@ function obterDelegateVendaFindMany(clientePrisma: PrismaFinanceiroAny): Delegat
 }
 
 export async function obterResumoDashboardFinanceiro(): Promise<ResumoDashboardFinanceiro> {
+  await exigirSessao();
   const [
     totalVendasHoje,
     totalPagarHoje,

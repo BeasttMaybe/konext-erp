@@ -10,6 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import type { BadgeProps } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -29,7 +30,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { MoreHorizontal, Trash2, Check } from "lucide-react";
 import { useState } from "react";
-import { cn } from "@/lib/utils";
 
 interface TabelaContasAPagarProps {
   contas: ContaAPagar[];
@@ -65,8 +65,8 @@ export function TabelaContasAPagar({
   // Mapear badge de status
   const getBadgeStatus = (
     status: StatusConta
-  ): { label: string; variant: any } => {
-    const mapeamento: Record<StatusConta, { label: string; variant: any }> = {
+  ): { label: string; variant: BadgeProps["variant"] } => {
+    const mapeamento: Record<StatusConta, { label: string; variant: BadgeProps["variant"] }> = {
       PENDENTE: { label: "Pendente", variant: "secondary" },
       PAGO: { label: "Pago", variant: "default" },
       ATRASADO: { label: "Atrasado", variant: "destructive" },

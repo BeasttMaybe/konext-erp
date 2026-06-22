@@ -15,6 +15,7 @@ import {
   ChevronRight,
   ChevronDown,
   Box,
+  Flag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -76,6 +77,7 @@ export function BarraLateral() {
     Estoque: <Package className="h-5 w-5" />,
     OS: <Wrench className="h-5 w-5" />,
     Financeiro: <DollarSign className="h-5 w-5" />,
+    Metas: <Flag className="h-5 w-5" />,
   };
 
   const navigationItems: SidebarItem[] = [
@@ -111,6 +113,7 @@ export function BarraLateral() {
         { label: "Hub Central", path: "/os" },
         { label: "Kanban", path: "/os?modo=kanban" },
         { label: "Finalizadas", path: "/os?modo=lista" },
+        { label: "Garantias", path: "/os/garantias" },
       ],
     },
     {
@@ -123,6 +126,7 @@ export function BarraLateral() {
         { label: "Contas a Pagar", path: "/financeiro/pagar" },
       ],
     },
+    { label: "Metas", path: "/metas", iconKey: "Metas" },
   ];
 
   const isPathActive = (path: string) => {

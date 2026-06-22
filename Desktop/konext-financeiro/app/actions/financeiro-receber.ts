@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { exigirSessao, obterUsuarioSessao } from "@/lib/auth/sessao";
+import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
+import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 
 function paraCentavos(valor: number) {
   return Math.round((valor + Number.EPSILON) * 100);
@@ -105,7 +107,7 @@ export interface CriarContaReceberInput {
 }
 
 export async function criarContaReceber(input: CriarContaReceberInput) {
-  await exigirSessao();
+  const usuario = await exigirSessao();
 
   const qtdParcelas = Math.max(1, Math.trunc(input.qtdParcelas || 1));
   const valorTotalCentavos = paraCentavos(input.valorTotal);
@@ -139,15 +141,36 @@ export async function criarContaReceber(input: CriarContaReceberInput) {
     };
   });
 
-  await prisma.contaReceber.createMany({ data: contas });
+  await prisma.$transaction(async (tx) => {
+    await tx.contaReceber.createMany({ data: contas });
+
+    await registrarLogAuditoria(
+      tx,
+      contextoAuditoriaDoUsuario(usuario, "app/actions/financeiro-receber.ts:criarContaReceber"),
+      {
+        acao: ACOES_AUDITORIA.CRIAR,
+        entidade: ENTIDADES_AUDITORIA.CONTA_RECEBER,
+        dadosDepois: {
+          descricao: input.descricao,
+          valorTotal: input.valorTotal,
+          clienteId: input.clienteId ?? null,
+          qtdParcelas,
+          formaRecebimento: input.formaRecebimento,
+          parcelamentoId,
+        },
+      }
+    );
+  });
 
   revalidatePath("/financeiro/receber");
   revalidatePath("/financeiro");
+  revalidatePath("/financeiro/inteligencia");
+  revalidatePath("/");
 }
 
 export async function darBaixaConta(id: string, observacaoPagamento?: string) {
   // C1: exige sessao valida antes de registrar recebimento.
-  await exigirSessao();
+  const usuario = await exigirSessao();
 
   const momentoBaixa = new Date();
   const observacao = observacaoPagamento?.trim() || null;
@@ -155,7 +178,7 @@ export async function darBaixaConta(id: string, observacaoPagamento?: string) {
   await prisma.$transaction(async (tx) => {
     const contaAtual = await tx.contaReceber.findUnique({
       where: { id },
-      select: { id: true, parcelamentoId: true },
+      select: { id: true, parcelamentoId: true, status: true, dataRecebimento: true },
     });
 
     if (!contaAtual) {
@@ -173,6 +196,24 @@ export async function darBaixaConta(id: string, observacaoPagamento?: string) {
     });
 
     if (!contaAtual.parcelamentoId) {
+      await registrarLogAuditoria(
+        tx,
+        contextoAuditoriaDoUsuario(usuario, "app/actions/financeiro-receber.ts:darBaixaConta"),
+        {
+          acao: ACOES_AUDITORIA.FINALIZAR,
+          entidade: ENTIDADES_AUDITORIA.CONTA_RECEBER,
+          entidadeId: id,
+          dadosAntes: {
+            status: contaAtual.status,
+            dataRecebimento: contaAtual.dataRecebimento,
+          },
+          dadosDepois: {
+            status: "RECEBIDO",
+            dataRecebimento: momentoBaixa,
+            observacaoPagamento: observacao,
+          },
+        }
+      );
       return;
     }
 
@@ -195,10 +236,32 @@ export async function darBaixaConta(id: string, observacaoPagamento?: string) {
         },
       });
     }
+
+    await registrarLogAuditoria(
+      tx,
+      contextoAuditoriaDoUsuario(usuario, "app/actions/financeiro-receber.ts:darBaixaConta"),
+      {
+        acao: ACOES_AUDITORIA.FINALIZAR,
+        entidade: ENTIDADES_AUDITORIA.CONTA_RECEBER,
+        entidadeId: id,
+        dadosAntes: {
+          status: contaAtual.status,
+          dataRecebimento: contaAtual.dataRecebimento,
+        },
+        dadosDepois: {
+          status: "RECEBIDO",
+          dataRecebimento: momentoBaixa,
+          observacaoPagamento: observacao,
+          parcelamentoId: contaAtual.parcelamentoId,
+        },
+      }
+    );
   });
 
   revalidatePath("/financeiro/receber");
   revalidatePath("/financeiro");
+  revalidatePath("/financeiro/inteligencia");
+  revalidatePath("/");
 }
 
 // ── Editar Conta a Receber ────────────────────────────────────────────────────
@@ -238,6 +301,8 @@ export async function editarContaReceber(
 
   revalidatePath("/financeiro/receber");
   revalidatePath("/financeiro");
+  revalidatePath("/financeiro/inteligencia");
+  revalidatePath("/");
 }
 
 // ── Excluir Conta a Receber ───────────────────────────────────────────────────
@@ -247,24 +312,44 @@ export async function editarContaReceber(
  * Contas vinculadas a vendas não podem ser excluídas manualmente.
  */
 export async function excluirContaReceber(id: string): Promise<void> {
-  await exigirSessao();
+  const usuario = await exigirSessao();
 
-  const conta = await prisma.contaReceber.findUnique({
-    where: { id },
-    select: { vendaId: true },
-  });
+  await prisma.$transaction(async (tx) => {
+    const conta = await tx.contaReceber.findUnique({
+      where: { id },
+      select: { id: true, vendaId: true, status: true, valor: true },
+    });
 
-  if (!conta) throw new Error("Conta não encontrada.");
-  if (conta.vendaId) {
-    throw new Error(
-      "Esta conta está vinculada a uma venda e não pode ser excluída manualmente."
+    if (!conta) throw new Error("Conta não encontrada.");
+    if (conta.vendaId) {
+      throw new Error(
+        "Esta conta está vinculada a uma venda e não pode ser excluída manualmente."
+      );
+    }
+
+    // TODO: em migracao futura, priorizar cancelamento/soft-delete para trilha financeira mais robusta.
+    await tx.contaReceber.delete({ where: { id } });
+
+    await registrarLogAuditoria(
+      tx,
+      contextoAuditoriaDoUsuario(usuario, "app/actions/financeiro-receber.ts:excluirContaReceber"),
+      {
+        acao: ACOES_AUDITORIA.EXCLUIR_FISICO,
+        entidade: ENTIDADES_AUDITORIA.CONTA_RECEBER,
+        entidadeId: id,
+        dadosAntes: {
+          status: conta.status,
+          valor: conta.valor,
+        },
+        dadosDepois: null,
+      }
     );
-  }
-
-  await prisma.contaReceber.delete({ where: { id } });
+  });
 
   revalidatePath("/financeiro/receber");
   revalidatePath("/financeiro");
+  revalidatePath("/financeiro/inteligencia");
+  revalidatePath("/");
 }
 
 // ── Tipos e funções para consulta filtrada ──────────────────────────────────
@@ -318,7 +403,9 @@ export async function listarContasReceberFiltradas(
   // Filtro por categoria de cliente
   if (filtros?.categoriaCliente) {
     where.cliente = {
-      categoria: filtros.categoriaCliente,
+      is: {
+        categoria: filtros.categoriaCliente,
+      },
     };
   }
 
@@ -364,12 +451,14 @@ export async function obterResumoReceber(filtros?: FiltrosReceber): Promise<Resu
 
   for (const conta of contas) {
     totalPeriodo += conta.valor;
+    const vencimento = new Date(conta.dataVencimento);
+    vencimento.setHours(0, 0, 0, 0);
 
     if (conta.status === "RECEBIDO") {
       totalRecebido += conta.valor;
-    } else if (new Date(conta.dataVencimento) < hoje) {
+    } else if (conta.status === "ATRASADO" || vencimento < hoje) {
       totalAtrasado += conta.valor;
-    } else {
+    } else if (conta.status === "PENDENTE" || conta.status === "RENEGOCIADO") {
       totalPendente += conta.valor;
     }
   }

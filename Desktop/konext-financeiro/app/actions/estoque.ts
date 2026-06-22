@@ -30,6 +30,7 @@ export async function criarProduto(data: FormProduto): Promise<ResultadoCriarPro
     });
 
     revalidatePath("/estoque");
+    revalidatePath("/");
 
     return {
       sucesso: true,
@@ -162,6 +163,7 @@ export async function atualizarProduto(
     });
 
     revalidatePath("/estoque");
+    revalidatePath("/");
 
     return {
       sucesso: true,
@@ -211,6 +213,7 @@ export async function excluirProduto(
     });
 
     revalidatePath("/estoque");
+    revalidatePath("/");
 
     return {
       sucesso: true,

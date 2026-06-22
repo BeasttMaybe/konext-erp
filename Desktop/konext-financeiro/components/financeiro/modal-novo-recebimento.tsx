@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { useForm, Controller } from "react-hook-form";
+import { useForm, Controller, type FieldValues } from "react-hook-form";
+import type { Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import {
   Dialog,
   DialogContent,
@@ -39,6 +40,9 @@ interface PropsModalNovoRecebimento {
   carregando?: boolean;
 }
 
+type FormContaAReceberUI = {
+  } & z.input<typeof formContaAReceberSchema>;
+
 export function ModalNovoRecebimento({
   aberto,
   aoFechar,
@@ -51,9 +55,8 @@ export function ModalNovoRecebimento({
     formState: { errors },
     watch,
     reset,
-    setValue,
-  } = useForm<any>({
-    resolver: zodResolver(formContaAReceberSchema),
+  } = useForm<FormContaAReceberUI>({
+    resolver: zodResolver(formContaAReceberSchema) as unknown as Resolver<FormContaAReceberUI>,
     defaultValues: {
       descricao: "",
       clienteId: "",
@@ -71,8 +74,6 @@ export function ModalNovoRecebimento({
     },
   });
 
-  const notaFiscalEmitida = watch("notaFiscalEmitida");
-  const formaRecebimento = watch("formaRecebimento");
   const isParcelado = watch("isParcelado");
   const quantidadeParcelas = Number(watch("quantidadeParcelas") || 0);
   const valorRecebimento = Number(watch("valor") || 0);
@@ -82,8 +83,9 @@ export function ModalNovoRecebimento({
     aoFechar();
   };
 
-  const aoSubmeter = (dados: any) => {
-    aoSalvar(dados);
+  const aoSubmeter = (dados: FieldValues) => {
+    const dadosValidados = formContaAReceberSchema.parse(dados) as FormContaAReceber;
+    aoSalvar(dadosValidados);
     reset();
   };
 
@@ -196,7 +198,11 @@ export function ModalNovoRecebimento({
                           placeholder="0,00"
                           step="0.01"
                           min="0"
-                          {...field}
+                          name={field.name}
+                          ref={field.ref}
+                          onBlur={field.onBlur}
+                          value={Number(field.value ?? 0)}
+                          onChange={(evento) => field.onChange(evento.target.value)}
                           className={errors.valor ? "border-red-500" : ""}
                         />
                         {errors.valor?.message && (
@@ -227,7 +233,7 @@ export function ModalNovoRecebimento({
                             id="dataVencimento"
                             type="date"
                             {...field}
-                            value={field.value || ""}
+                            value={String(field.value ?? "")}
                             onChange={(e) => field.onChange(e.target.value)}
                             className={`pr-10 ${
                               errors.dataVencimento ? "border-red-500" : ""
@@ -301,7 +307,7 @@ export function ModalNovoRecebimento({
                           id="dataCompetencia"
                           type="date"
                           {...field}
-                          value={field.value || ""}
+                          value={String(field.value ?? "")}
                           onChange={(e) => field.onChange(e.target.value)}
                           className="pr-10"
                         />
@@ -350,7 +356,7 @@ export function ModalNovoRecebimento({
                               max={24}
                               step={1}
                               {...field}
-                              value={field.value ?? ""}
+                              value={String(field.value ?? "")}
                               onChange={(e) => field.onChange(Number(e.target.value) || "")}
                               className={errors.quantidadeParcelas ? "border-red-500" : ""}
                             />
@@ -437,7 +443,7 @@ export function ModalNovoRecebimento({
                         id="documentoOrigemId"
                         placeholder="Ex: OS #1024 ou Empenho #2024/55"
                         {...field}
-                        value={field.value || ""}
+                        value={String(field.value ?? "")}
                       />
                     )}
                   />
@@ -488,7 +494,7 @@ export function ModalNovoRecebimento({
                         step="0.01"
                         min="0"
                         {...field}
-                        value={field.value || ""}
+                        value={String(field.value ?? "")}
                       />
                     )}
                   />
@@ -514,7 +520,7 @@ export function ModalNovoRecebimento({
                         step="0.01"
                         min="0"
                         {...field}
-                        value={field.value || ""}
+                        value={String(field.value ?? "")}
                       />
                     )}
                   />

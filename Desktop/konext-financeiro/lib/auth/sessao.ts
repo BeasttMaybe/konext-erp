@@ -3,6 +3,16 @@
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 
+type UsuarioSessaoDelegate = {
+  findUnique?: (args: unknown) => Promise<{ id: string; nome: string; email: string; role: string } | null>;
+};
+
+type PrismaSessaoClient = typeof prisma & {
+  usuario?: UsuarioSessaoDelegate;
+  Usuario?: UsuarioSessaoDelegate;
+  $queryRaw: <T>(query: TemplateStringsArray, ...values: unknown[]) => Promise<T>;
+};
+
 /**
  * Utilitário central de sessão.
  *
@@ -31,7 +41,7 @@ export async function obterUsuarioSessao(): Promise<UsuarioSessao | null> {
   }
 
   try {
-    const prismaAny = prisma as any;
+    const prismaAny = prisma as PrismaSessaoClient;
     const usuarioDelegate = prismaAny.usuario ?? prismaAny.Usuario;
 
     if (usuarioDelegate?.findUnique) {

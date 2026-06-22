@@ -32,19 +32,34 @@ type LoginState = {
   erro: string | null;
 };
 
-type UsuarioDelegate = {
-  findUnique?: (args: unknown) => Promise<any>;
-  findFirst?: (args: unknown) => Promise<any>;
-  count?: (args?: unknown) => Promise<number>;
-  create?: (args: unknown) => Promise<any>;
-  update?: (args: unknown) => Promise<any>;
+type UsuarioBasico = {
+  id: string;
+  senha: string;
 };
 
-function obterUsuarioDelegate(client: any): UsuarioDelegate | null {
-  return (client?.usuario ?? client?.Usuario) as UsuarioDelegate | null;
+type SqlExecutor = {
+  $queryRaw: <T>(query: TemplateStringsArray, ...values: unknown[]) => Promise<T>;
+  $executeRaw: (query: TemplateStringsArray, ...values: unknown[]) => Promise<unknown>;
+};
+
+type UsuarioDelegate = {
+  findUnique?: (args: unknown) => Promise<UsuarioBasico | null>;
+  findFirst?: (args: unknown) => Promise<UsuarioBasico | null>;
+  count?: (args?: unknown) => Promise<number>;
+  create?: (args: unknown) => Promise<UsuarioBasico | null>;
+  update?: (args: unknown) => Promise<UsuarioBasico | null>;
+};
+
+function obterUsuarioDelegate(client: unknown): UsuarioDelegate | null {
+  const prismaClient = client as {
+    usuario?: UsuarioDelegate;
+    Usuario?: UsuarioDelegate;
+  };
+
+  return prismaClient.usuario ?? prismaClient.Usuario ?? null;
 }
 
-async function contarUsuariosViaSql(client: any): Promise<number> {
+async function contarUsuariosViaSql(client: SqlExecutor): Promise<number> {
   const resultado = await client.$queryRaw<Array<{ total: number }>>`
     SELECT COUNT(*)::int AS total
     FROM "Usuario"
@@ -53,7 +68,7 @@ async function contarUsuariosViaSql(client: any): Promise<number> {
   return Number(resultado?.[0]?.total ?? 0);
 }
 
-async function criarAdminViaSql(client: any) {
+async function criarAdminViaSql(client: SqlExecutor) {
   const id = randomUUID();
   const senhaHash = await gerarHashSenha(SENHA_ADMIN_PADRAO);
 
@@ -64,7 +79,7 @@ async function criarAdminViaSql(client: any) {
 }
 
 async function buscarUsuarioPorEmailViaSql(
-  client: any,
+  client: SqlExecutor,
   email: string
 ): Promise<{ id: string; senha: string } | null> {
   const resultado = await client.$queryRaw<Array<{ id: string; senha: string }>>`
@@ -85,7 +100,10 @@ async function buscarUsuarioPorEmailViaSql(
 }
 
 export async function seedAdmin() {
-  const prismaAny = prisma as any;
+  const prismaAny = prisma as typeof prisma & SqlExecutor & {
+    usuario?: UsuarioDelegate;
+    Usuario?: UsuarioDelegate;
+  };
   const usuarioDelegate = obterUsuarioDelegate(prismaAny);
 
   const totalUsuarios = usuarioDelegate?.count
@@ -125,7 +143,10 @@ export async function login(
     return { erro: "Informe e-mail e senha." };
   }
 
-  const prismaAny = prisma as any;
+  const prismaAny = prisma as typeof prisma & SqlExecutor & {
+    usuario?: UsuarioDelegate;
+    Usuario?: UsuarioDelegate;
+  };
   const usuarioDelegate = obterUsuarioDelegate(prismaAny);
 
   const usuario = usuarioDelegate?.findUnique

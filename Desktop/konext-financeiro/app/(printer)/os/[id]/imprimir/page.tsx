@@ -8,6 +8,28 @@ type PropsPaginaImpressaoOS = {
   params: Promise<{ id: string }>;
 };
 
+type OrdemServicoImpressao = {
+  status: string;
+  numeroOs?: number | null;
+  criadoEm: Date | string;
+  cliente?: { nomeRazaoSocial?: string | null; documento?: string | null; telefone?: string | null } | null;
+  equipamento?: string | null;
+  marca?: string | null;
+  modelo?: string | null;
+  imei?: string | null;
+  senha?: string | null;
+  relatoCliente?: string | null;
+  condicaoFisica?: string | null;
+  acessorios?: string | null;
+  senhaDesenho?: string | null;
+  itens?: Array<{ id: string; descricao?: string | null; tipoPeca?: string | null; valorCobrado?: number | null }>;
+};
+
+type OrdemServicoImpressaoDelegate = {
+  findUnique?: (args: unknown) => Promise<OrdemServicoImpressao | null>;
+  findFirst?: (args: unknown) => Promise<OrdemServicoImpressao | null>;
+};
+
 function extrairNumeroOsDoSlug(entrada: string): number | null {
   const slug = entrada.trim().toLowerCase();
   const match = slug.match(/^os-(\d+)$|^os-\d{4}-(\d+)$/);
@@ -26,6 +48,7 @@ const mapaStatusLabel: Record<string, string> = {
   APROVADO: "Aprovado",
   AGUARDANDO_PECA: "Aguardando Peça",
   EM_MANUTENCAO: "Em Manutenção",
+  GARANTIA_RETORNO: "Garantia / Retorno",
   PRONTO: "Pronto",
   ENTREGUE: "Entregue",
 };
@@ -40,7 +63,10 @@ function extrairPontosDesenho(valor: string | null | undefined): number[] {
 
 export default async function PaginaImpressaoOS({ params }: PropsPaginaImpressaoOS) {
   const { id } = await params;
-  const prismaAny = prisma as any;
+  const prismaAny = prisma as typeof prisma & {
+    ordemServico?: OrdemServicoImpressaoDelegate;
+    OrdemServico?: OrdemServicoImpressaoDelegate;
+  };
   const delegateOrdemServico = prismaAny.ordemServico ?? prismaAny.OrdemServico;
 
   if (!delegateOrdemServico?.findUnique) {
@@ -104,7 +130,7 @@ export default async function PaginaImpressaoOS({ params }: PropsPaginaImpressao
   const acessorios = String(os.acessorios ?? "Não informado");
   const pontosDesenho = extrairPontosDesenho(String(os.senhaDesenho ?? ""));
 
-  const itens = (os.itens ?? []).map((item: any) => ({
+  const itens = (os.itens ?? []).map((item) => ({
     id: String(item.id),
     descricao: String(item.descricao ?? ""),
     tipoPeca: String(item.tipoPeca ?? "OUTROS").replaceAll("_", " ").toLowerCase(),

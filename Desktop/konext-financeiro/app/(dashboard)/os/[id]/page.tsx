@@ -24,12 +24,50 @@ type ItemOSCarregado = {
   criadoEm: string;
 };
 
+type OrdemServicoDetalheDelegate = {
+  findUnique?: (args: unknown) => Promise<OrdemServicoDetalhe | null>;
+  findFirst?: (args: unknown) => Promise<OrdemServicoDetalhe | null>;
+};
+
+type OrdemServicoDetalhe = {
+  id: string;
+  numeroOs: number;
+  status: string;
+  equipamento?: string | null;
+  marca?: string | null;
+  modelo?: string | null;
+  imei?: string | null;
+  numeroSerieImei?: string | null;
+  senha?: string | null;
+  senhaAcesso?: string | null;
+  senhaDesenho?: string | null;
+  padraoDesenho?: string | null;
+  relatoCliente?: string | null;
+  condicaoFisica?: string | null;
+  acessorios?: string | null;
+  acessoriosDeixados?: string | null;
+  criadoEm?: Date | string | null;
+  excluidaEm?: Date | string | null;
+  cliente?: { nomeRazaoSocial?: string | null } | null;
+  itens?: Array<{
+    id: string;
+    descricao?: string | null;
+    tipoPeca?: string | null;
+    tipo?: string | null;
+    custoPeca?: number | null;
+    valorCobrado?: number | null;
+    criadoEm?: Date | string | null;
+  }>;
+  transacoes?: Array<{ vendaId?: string | null; origem?: string | null }>;
+};
+
 const mapaStatusLabel: Record<string, string> = {
   AGUARDANDO_ORCAMENTO: "Aguardando Orcamento",
   AGUARDANDO_APROVACAO: "Aguardando Aprovacao",
   APROVADO: "Aprovado",
   AGUARDANDO_PECA: "Aguardando Peca",
   EM_MANUTENCAO: "Em Manutencao",
+  GARANTIA_RETORNO: "Garantia / Retorno",
   PRONTO: "Pronto",
   ENTREGUE: "Entregue",
 };
@@ -40,6 +78,7 @@ const mapaStatusClasse: Record<string, string> = {
   APROVADO: "bg-blue-500/20 text-blue-300 border-blue-400/40",
   AGUARDANDO_PECA: "bg-orange-500/20 text-orange-300 border-orange-400/40",
   EM_MANUTENCAO: "bg-violet-500/20 text-violet-300 border-violet-400/40",
+  GARANTIA_RETORNO: "bg-indigo-500/20 text-indigo-300 border-indigo-400/40",
   PRONTO: "bg-emerald-500/20 text-emerald-300 border-emerald-400/40",
   ENTREGUE: "bg-green-500/20 text-green-300 border-green-400/40",
 };
@@ -63,7 +102,10 @@ function extrairNumeroOsDoSlug(entrada: string): number | null {
 
 export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) {
   const { id } = await params;
-  const prismaAny = prisma as any;
+  const prismaAny = prisma as typeof prisma & {
+    ordemServico?: OrdemServicoDetalheDelegate;
+    OrdemServico?: OrdemServicoDetalheDelegate;
+  };
   const delegateOrdemServico = prismaAny.ordemServico ?? prismaAny.OrdemServico;
 
   if (!delegateOrdemServico?.findUnique) {
@@ -120,10 +162,14 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
     notFound();
   }
 
-  const itensDoBanco = (osBanco?.itens ?? []).map((item: any) => ({
+  if (osBanco.excluidaEm) {
+    notFound();
+  }
+
+  const itensDoBanco = (osBanco?.itens ?? []).map((item) => ({
     id: String(item.id),
     descricao: String(item.descricao ?? ""),
-    tipoPeca: String(item.tipoPeca ?? item.tipo ?? "OUTROS") as ItemOSCarregado["tipoPeca"],
+    tipoPeca: String(item.tipoPeca ?? "OUTROS") as ItemOSCarregado["tipoPeca"],
     custoPeca: Number(item.custoPeca ?? 0),
     valorCobrado: Number(item.valorCobrado ?? 0),
     criadoEm: new Date(item.criadoEm ?? osBanco?.criadoEm ?? new Date()).toISOString(),
@@ -135,13 +181,13 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
   const statusAtual = String(osBanco.status);
   const labelStatus = mapaStatusLabel[statusAtual] ?? statusAtual.replaceAll("_", " ");
   const classeStatus = mapaStatusClasse[statusAtual] ?? "bg-slate-700 text-slate-100 border-slate-600";
-  const imei = String(osBanco.imei ?? osBanco.numeroSerieImei ?? "Nao informado");
-  const senha = String(osBanco.senha ?? osBanco.senhaAcesso ?? "Nao informada");
-  const senhaDesenho = String(osBanco.senhaDesenho ?? osBanco.padraoDesenho ?? "");
+  const imei = String(osBanco.imei ?? "Nao informado");
+  const senha = String(osBanco.senha ?? "Nao informada");
+  const senhaDesenho = String(osBanco.senhaDesenho ?? "");
   const pontosDesenho = extrairPontosDesenho(senhaDesenho);
   const relatoCliente = String(osBanco.relatoCliente ?? "Nao informado");
   const condicaoFisica = String(osBanco.condicaoFisica ?? "Nao informada");
-  const acessorios = String(osBanco.acessorios ?? osBanco.acessoriosDeixados ?? "Nao informado");
+  const acessorios = String(osBanco.acessorios ?? "Nao informado");
   const numeroOs = Number(osBanco.numeroOs);
   const numeroOsExibicao = String(osBanco.numeroOs);
   const nomeCliente = String(osBanco.cliente?.nomeRazaoSocial ?? "Nao informado");
@@ -150,7 +196,7 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
   const modelo = String(osBanco.modelo ?? "Nao informado");
   const criadoEm = new Date(osBanco.criadoEm ?? new Date()).toISOString();
   const idOs = String(osBanco.id);
-  const possuiPedidoVenda = (osBanco.transacoes ?? []).some((transacao: any) => {
+  const possuiPedidoVenda = (osBanco.transacoes ?? []).some((transacao) => {
     return transacao?.vendaId && String(transacao.origem) === "ORDEM_SERVICO";
   });
   const podeGerarPedidoVenda = statusAtual === "PRONTO" && !possuiPedidoVenda;
@@ -178,6 +224,14 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
                 Imprimir OS
               </Link>
             </Button>
+            {statusAtual === "ENTREGUE" && (
+              <Button variant="outline" size="sm" className="h-9" asChild>
+                <a href={`/os/${idOs}/garantia`} target="_blank" rel="noopener noreferrer">
+                  <Printer className="h-4 w-4 mr-2" />
+                  Imprimir termo de garantia
+                </a>
+              </Button>
+            )}
             <BotaoCopiarLinkRastreio osId={idOs} />
             {podeGerarPedidoVenda && <BotaoGerarPedidoVenda osId={idOs} />}
             {!podeGerarPedidoVenda && possuiPedidoVenda && (

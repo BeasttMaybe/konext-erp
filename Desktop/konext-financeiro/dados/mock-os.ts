@@ -9,6 +9,7 @@ export const mapStatusLabel: Record<string, string> = {
   APROVADO: "Aprovado",
   AGUARDANDO_PECA: "Aguardando Peça",
   EM_MANUTENCAO: "Em Manutenção",
+  GARANTIA_RETORNO: "Garantia / Retorno",
   PRONTO: "Pronto",
   ENTREGUE: "Entregue",
 };
@@ -19,6 +20,7 @@ export const mapStatusColor: Record<string, string> = {
   APROVADO: "bg-blue-200 text-blue-800",
   AGUARDANDO_PECA: "bg-orange-200 text-orange-800",
   EM_MANUTENCAO: "bg-purple-200 text-purple-800",
+  GARANTIA_RETORNO: "bg-indigo-200 text-indigo-800",
   PRONTO: "bg-green-200 text-green-800",
   ENTREGUE: "bg-emerald-200 text-emerald-800",
 };

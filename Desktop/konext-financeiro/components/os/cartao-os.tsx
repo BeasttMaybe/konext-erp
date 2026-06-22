@@ -75,6 +75,16 @@ export function CartaoOS({
           <p className="font-medium text-foreground truncate">
             {os.nomeCliente}
           </p>
+          {os.ehRetornoGarantia && (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <Badge className="bg-indigo-100 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300">
+                Garantia
+              </Badge>
+              {os.numeroOSOrigemGarantia && (
+                <span className="text-xs text-muted-foreground">Origem: {os.numeroOSOrigemGarantia}</span>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Equipment */}
@@ -87,6 +97,11 @@ export function CartaoOS({
             </p>
             {os.marca && (
               <p className="text-xs text-muted-foreground truncate">{os.marca}</p>
+            )}
+            {os.ehRetornoGarantia && os.observacoesInternas && (
+              <p className="text-xs text-muted-foreground truncate" title={os.observacoesInternas}>
+                {os.observacoesInternas}
+              </p>
             )}
           </div>
         </div>

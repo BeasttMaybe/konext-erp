@@ -6,9 +6,22 @@ import { randomUUID } from "node:crypto";
 import { exigirSessao } from "@/lib/auth/sessao";
 
 type CaixaDelegate = {
-  findFirst?: (args: unknown) => Promise<any>;
-  create?: (args: unknown) => Promise<any>;
-  update?: (args: unknown) => Promise<any>;
+  findFirst?: (args: unknown) => Promise<{ id?: string; valorAbertura?: number } | null>;
+  create?: (args: unknown) => Promise<{ id: string; valorAbertura: number; dataAbertura: Date }>;
+  update?: (args: unknown) => Promise<{ id: string; valorFechamento?: number; dataFechamento?: Date | null }>;
+};
+
+type SqlExecutor = {
+  $queryRaw: <T>(query: TemplateStringsArray, ...values: unknown[]) => Promise<T>;
+};
+
+type SqlMutator = SqlExecutor & {
+  $executeRaw?: (query: TemplateStringsArray, ...values: unknown[]) => Promise<unknown>;
+};
+
+type CaixaClient = SqlMutator & {
+  caixaSession?: CaixaDelegate;
+  CaixaSession?: CaixaDelegate;
 };
 
 export interface ResumoCaixaAbertoAtual {
@@ -18,11 +31,12 @@ export interface ResumoCaixaAbertoAtual {
   valorSugeridoFechamento: number;
 }
 
-function obterCaixaDelegate(client: any): CaixaDelegate | undefined {
-  return (client?.caixaSession ?? client?.CaixaSession) as CaixaDelegate | undefined;
+function obterCaixaDelegate(client: unknown): CaixaDelegate | undefined {
+  const prismaClient = client as CaixaClient;
+  return prismaClient.caixaSession ?? prismaClient.CaixaSession;
 }
 
-async function buscarCaixaAbertoViaSql(client: any): Promise<{ id: string } | null> {
+async function buscarCaixaAbertoViaSql(client: SqlExecutor): Promise<{ id: string } | null> {
   const resultado = await client.$queryRaw<Array<{ id: string }>>`
     SELECT id
     FROM "CaixaSession"
@@ -38,7 +52,7 @@ async function buscarCaixaAbertoViaSql(client: any): Promise<{ id: string } | nu
   return { id: String(resultado[0].id) };
 }
 
-async function criarCaixaViaSql(client: any, valorAbertura: number) {
+async function criarCaixaViaSql(client: SqlExecutor, valorAbertura: number) {
   const id = randomUUID();
 
   const resultado = await client.$queryRaw<
@@ -61,7 +75,7 @@ async function criarCaixaViaSql(client: any, valorAbertura: number) {
   };
 }
 
-async function fecharCaixaViaSql(client: any, caixaId: string, valorFechamento: number) {
+async function fecharCaixaViaSql(client: SqlExecutor, caixaId: string, valorFechamento: number) {
   const resultado = await client.$queryRaw<
     Array<{ id: string; valorFechamento: number; dataFechamento: Date }>
   >`
@@ -87,7 +101,7 @@ async function fecharCaixaViaSql(client: any, caixaId: string, valorFechamento: 
   };
 }
 
-async function obterResumoCaixaAbertoAtualViaSql(client: any): Promise<ResumoCaixaAbertoAtual> {
+async function obterResumoCaixaAbertoAtualViaSql(client: SqlExecutor): Promise<ResumoCaixaAbertoAtual> {
   const caixaAberto = await client.$queryRaw<
     Array<{ id: string; valorAbertura: number }>
   >`
@@ -121,7 +135,7 @@ async function obterResumoCaixaAbertoAtualViaSql(client: any): Promise<ResumoCai
   };
 }
 
-async function obterResumoCaixaAbertoAtualInterno(client: any): Promise<ResumoCaixaAbertoAtual> {
+async function obterResumoCaixaAbertoAtualInterno(client: CaixaClient): Promise<ResumoCaixaAbertoAtual> {
   const caixaDelegate = obterCaixaDelegate(client);
 
   if (caixaDelegate?.findFirst) {
@@ -163,7 +177,7 @@ async function obterResumoCaixaAbertoAtualInterno(client: any): Promise<ResumoCa
 }
 
 export async function verificarStatusCaixa(): Promise<boolean> {
-  const prismaAny = prisma as any;
+  const prismaAny = prisma as CaixaClient;
   const caixaDelegate = obterCaixaDelegate(prismaAny);
 
   if (caixaDelegate?.findFirst) {
@@ -196,11 +210,8 @@ export async function abrirNovaCaixaSession(valorAbertura: number) {
     throw new Error("Informe um valor inicial válido para abrir o caixa.");
   }
 
-  const prismaAny = prisma as any;
-  const caixaDelegate = obterCaixaDelegate(prismaAny);
-
   const novaSessao = await prisma.$transaction(async (tx) => {
-    const txAny = tx as any;
+    const txAny = tx as CaixaClient;
     const txCaixaDelegate = obterCaixaDelegate(txAny);
 
     if (txCaixaDelegate?.findFirst && txCaixaDelegate?.create) {
@@ -255,7 +266,7 @@ export async function abrirNovaCaixaSession(valorAbertura: number) {
 }
 
 export async function obterResumoCaixaAbertoAtual(): Promise<ResumoCaixaAbertoAtual> {
-  const prismaAny = prisma as any;
+  const prismaAny = prisma as CaixaClient;
   return obterResumoCaixaAbertoAtualInterno(prismaAny);
 }
 
@@ -266,7 +277,7 @@ export async function fecharCaixaSessionAtual(valorFechamento?: number | null) {
   const valorInformado = Number(valorFechamento);
 
   const fechamento = await prisma.$transaction(async (tx) => {
-    const txAny = tx as any;
+    const txAny = tx as CaixaClient;
     const txCaixaDelegate = obterCaixaDelegate(txAny);
     const resumoAtual = await obterResumoCaixaAbertoAtualInterno(txAny);
     const valorFinal = Number.isFinite(valorInformado) && valorInformado >= 0

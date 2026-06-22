@@ -1,7 +1,9 @@
 "use client";
 
-import { useForm, Controller } from "react-hook-form";
+import { useForm, Controller, type FieldValues } from "react-hook-form";
+import type { Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import {
   Dialog,
   DialogContent,
@@ -37,6 +39,8 @@ interface PropsModalRegistroCobranca {
   carregando?: boolean;
 }
 
+type FormRegistroCobrancaUI = z.input<typeof formRegistroCobrancaSchema>;
+
 export function ModalRegistroCobranca({
   aberto,
   aoFechar,
@@ -57,8 +61,8 @@ export function ModalRegistroCobranca({
     formState: { errors },
     watch,
     reset,
-  } = useForm<any>({
-    resolver: zodResolver(formRegistroCobrancaSchema),
+  } = useForm<FormRegistroCobrancaUI>({
+    resolver: zodResolver(formRegistroCobrancaSchema) as unknown as Resolver<FormRegistroCobrancaUI>,
     defaultValues: {
       clienteId,
       dataContato: hojeInput,
@@ -76,8 +80,9 @@ export function ModalRegistroCobranca({
     aoFechar();
   };
 
-  const aoSubmeter = (dados: any) => {
-    aoSalvar(dados);
+  const aoSubmeter = (dados: FieldValues) => {
+    const dadosValidados = formRegistroCobrancaSchema.parse(dados) as FormRegistroCobranca;
+    aoSalvar(dadosValidados);
     reset();
   };
 
@@ -185,7 +190,7 @@ export function ModalRegistroCobranca({
                         id="dataContato"
                         type="date"
                         {...field}
-                        value={field.value || ""}
+                        value={String(field.value ?? "")}
                         onChange={(e) => field.onChange(e.target.value)}
                         className={`pr-10 ${
                           errors.dataContato ? "border-red-500" : ""
@@ -223,7 +228,7 @@ export function ModalRegistroCobranca({
                           id="dataPromessaPagamento"
                           type="date"
                           {...field}
-                          value={field.value || ""}
+                          value={String(field.value ?? "")}
                           onChange={(e) => field.onChange(e.target.value)}
                           className={`pr-10 ${
                             errors.dataPromessaPagamento

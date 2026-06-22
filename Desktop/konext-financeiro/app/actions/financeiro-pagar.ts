@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { exigirSessao } from "@/lib/auth/sessao";
+import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
+import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 
 export type TipoDespesa = "UNICA" | "PARCELADA" | "FIXA_MENSAL";
 export type StatusParcelaDespesa = "PENDENTE" | "PAGO" | "ATRASADO";
@@ -183,7 +185,7 @@ function gerarParcelas(
 
 export async function criarDespesa(data: DadosCriarDespesa) {
   // C1: exige sessao valida antes de criar despesa.
-  await exigirSessao();
+  const usuario = await exigirSessao();
 
   const fornecedor = data.fornecedor.trim();
   const descricao = data.descricao.trim();
@@ -236,8 +238,28 @@ export async function criarDespesa(data: DadosCriarDespesa) {
       })),
     });
 
+    await registrarLogAuditoria(
+      tx,
+      contextoAuditoriaDoUsuario(usuario, "app/actions/financeiro-pagar.ts:criarDespesa"),
+      {
+        acao: ACOES_AUDITORIA.CRIAR,
+        entidade: ENTIDADES_AUDITORIA.CONTA_PAGAR,
+        entidadeId: despesa.id,
+        dadosDepois: {
+          fornecedor,
+          clienteId: data.clienteId || null,
+          descricao,
+          valorTotal: data.valorTotal,
+          tipo: data.tipo,
+          qtdParcelas,
+          dataVencimentoBase,
+        },
+      }
+    );
+
     revalidatePath("/financeiro/pagar");
     revalidatePath("/financeiro");
+    revalidatePath("/");
 
     return despesa;
   });
@@ -248,12 +270,7 @@ export async function listarParcelasPagar(): Promise<ParcelaDespesaComRelacao[]>
   const parcelaDespesaDelegate = obterDelegateParcelaDespesa(prismaAny, prismaAny);
 
   const parcelas = await parcelaDespesaDelegate.findMany({
-    where: {
-      OR: [
-        { despesa: { cliente: { is: null } } },
-        { despesa: { cliente: { is: { papel: "FORNECEDOR" } } } },
-      ],
-    },
+    where: {},
     include: {
       despesa: {
         include: {
@@ -304,12 +321,9 @@ export interface ResumoPagar {
 export async function listarParcelasPagarFiltradas(
   filtros?: FiltrosPagar
 ): Promise<ParcelaDespesaComRelacao[]> {
-  const where: Record<string, unknown> = {
-    OR: [
-      { despesa: { cliente: { is: null } } },
-      { despesa: { cliente: { is: { papel: "FORNECEDOR" } } } },
-    ],
-  };
+  await exigirSessao();
+
+  const where: Record<string, unknown> = {};
 
   // Usa os valores da URL quando presentes; caso contrário, adota o mês/ano atual.
   const hoje = new Date();
@@ -333,7 +347,6 @@ export async function listarParcelasPagarFiltradas(
     where.despesa = {
       cliente: {
         is: {
-          papel: "FORNECEDOR",
           categoria: filtros.categoriaCliente,
         },
       },
@@ -365,6 +378,7 @@ export async function listarParcelasPagarFiltradas(
  * Calcula o resumo financeiro das parcelas a pagar com base nos filtros.
  */
 export async function obterResumoPagar(filtros?: FiltrosPagar): Promise<ResumoPagar> {
+  await exigirSessao();
   const parcelas = await listarParcelasPagarFiltradas(filtros);
 
   const hoje = new Date();
@@ -378,21 +392,19 @@ export async function obterResumoPagar(filtros?: FiltrosPagar): Promise<ResumoPa
   let totalPeriodo = 0;
 
   for (const parcela of parcelas) {
-    if (parcela.status === "PAGO") continue;
-
     const venc = new Date(parcela.dataVencimento);
     venc.setHours(0, 0, 0, 0);
 
     totalPeriodo += parcela.valor;
 
-    if (venc < hoje) {
-      totalAtrasado += parcela.valor;
-    } else {
-      totalPendente += parcela.valor;
-    }
+    if (parcela.status === "PAGO") continue;
 
-    if (venc.getTime() === hoje.getTime()) {
+    if (parcela.status === "ATRASADO" || venc < hoje) {
+      totalAtrasado += parcela.valor;
+    } else if (venc.getTime() === hoje.getTime() && parcela.status === "PENDENTE") {
       venceHoje += parcela.valor;
+    } else if (parcela.status === "PENDENTE") {
+      totalPendente += parcela.valor;
     }
   }
 
@@ -403,7 +415,7 @@ export async function obterResumoPagar(filtros?: FiltrosPagar): Promise<ResumoPa
 
 export async function pagarParcela(parcelaId: string, valorPago: number) {
   // C1: exige sessao valida antes de pagar parcela.
-  await exigirSessao();
+  const usuario = await exigirSessao();
 
   if (!parcelaId) {
     throw new Error("Parcela invalida para pagamento.");
@@ -414,19 +426,63 @@ export async function pagarParcela(parcelaId: string, valorPago: number) {
   }
 
   const prismaAny = prisma as PrismaFinanceiroPagarAny;
-  const parcelaDespesaDelegate = obterDelegateParcelaDespesa(prismaAny, prismaAny);
+  await prisma.$transaction(async (tx) => {
+    const txAny = tx as unknown as PrismaFinanceiroPagarAny;
+    const parcelaDespesaDelegate = obterDelegateParcelaDespesa(txAny, prismaAny);
 
-  await parcelaDespesaDelegate.update({
-    where: {
-      id: parcelaId,
-    },
-    data: {
-      status: "PAGO",
-      dataPagamento: new Date(),
-      valorPago,
-    },
+    const parcelaAntes = await parcelaDespesaDelegate.findMany({
+      where: {
+        id: parcelaId,
+      },
+      select: {
+        id: true,
+        status: true,
+        valorPago: true,
+        valor: true,
+      },
+      take: 1,
+    });
+
+    if (!parcelaAntes[0]?.id) {
+      throw new Error("Parcela nao encontrada para pagamento.");
+    }
+
+    const dataPagamento = new Date();
+
+    await parcelaDespesaDelegate.update({
+      where: {
+        id: parcelaId,
+      },
+      data: {
+        status: "PAGO",
+        dataPagamento,
+        valorPago,
+      },
+    });
+
+    await registrarLogAuditoria(
+      tx,
+      contextoAuditoriaDoUsuario(usuario, "app/actions/financeiro-pagar.ts:pagarParcela"),
+      {
+        acao: ACOES_AUDITORIA.FINALIZAR,
+        entidade: ENTIDADES_AUDITORIA.CONTA_PAGAR,
+        entidadeId: parcelaId,
+        dadosAntes: {
+          status: parcelaAntes[0].status,
+          valorPago: parcelaAntes[0].valorPago,
+          valor: parcelaAntes[0].valor,
+        },
+        dadosDepois: {
+          status: "PAGO",
+          valorPago,
+          dataPagamento,
+        },
+      }
+    );
   });
 
   revalidatePath("/financeiro/pagar");
   revalidatePath("/financeiro");
+  revalidatePath("/financeiro/inteligencia");
+  revalidatePath("/");
 }

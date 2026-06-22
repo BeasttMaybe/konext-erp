@@ -2,6 +2,16 @@
 
 import { prisma } from "@/lib/prisma";
 
+type OrdemServicoCustoItem = { custoPeca?: number | null };
+type OrdemServicoCustoRow = { itens?: OrdemServicoCustoItem[] };
+
+type OrdemServicoResumoDelegate = {
+  findMany?: (args: unknown) => Promise<OrdemServicoCustoRow[]>;
+};
+
+type VendaResumoItem = { custoUnitario?: number | null; quantidade?: number | null; subtotal?: number | null };
+type VendaResumoRow = { valorTotal?: number | null; formaPagamento?: string | null; itens?: VendaResumoItem[] };
+
 export interface ItemVendaResumoDiario {
   id: string;
   quantidade: number;
@@ -54,7 +64,10 @@ export async function obterResumoCaixaDiario(): Promise<ResumoCaixaDiario> {
   const fimHoje = new Date();
   fimHoje.setHours(23, 59, 59, 999);
 
-  const prismaAny = prisma as any;
+  const prismaAny = prisma as typeof prisma & {
+    ordemServico?: OrdemServicoResumoDelegate;
+    OrdemServico?: OrdemServicoResumoDelegate;
+  };
   const ordemServicoDelegate = prismaAny.ordemServico ?? prismaAny.OrdemServico;
 
   // Busca vendas PDV e peças de OS em paralelo para melhor performance
@@ -96,6 +109,7 @@ export async function obterResumoCaixaDiario(): Promise<ResumoCaixaDiario> {
       ? ordemServicoDelegate.findMany({
           where: {
             status: "ENTREGUE",
+            excluidaEm: null,
             atualizadoEm: { gte: inicioHoje, lte: fimHoje },
           },
           select: { itens: { select: { custoPeca: true } } },
@@ -119,9 +133,9 @@ export async function obterResumoCaixaDiario(): Promise<ResumoCaixaDiario> {
   }, 0);
 
   // Custo OS: soma de custoPeca de cada ItemOS das OS entregues hoje
-  const custoOsCentavos = (osEntreguesHoje as any[]).reduce((accOs: number, os: any) => {
+  const custoOsCentavos = osEntreguesHoje.reduce((accOs: number, os: OrdemServicoCustoRow) => {
     return accOs + (os.itens ?? []).reduce(
-      (accItens: number, item: any) => accItens + paraCentavos(Number(item.custoPeca ?? 0)),
+      (accItens: number, item: OrdemServicoCustoItem) => accItens + paraCentavos(Number(item.custoPeca ?? 0)),
       0
     );
   }, 0);
@@ -313,7 +327,10 @@ export async function obterResumoDataEspecifica(
   const inicioData = new Date(data.getFullYear(), data.getMonth(), data.getDate(), 0, 0, 0, 0);
   const fimData = new Date(data.getFullYear(), data.getMonth(), data.getDate(), 23, 59, 59, 999);
 
-  const prismaAny = prisma as any;
+  const prismaAny = prisma as typeof prisma & {
+    ordemServico?: OrdemServicoResumoDelegate;
+    OrdemServico?: OrdemServicoResumoDelegate;
+  };
   const ordemServicoDelegate = prismaAny.ordemServico ?? prismaAny.OrdemServico;
 
   const [vendasData, osEntreguesData] = await Promise.all([
@@ -327,28 +344,27 @@ export async function obterResumoDataEspecifica(
     }),
     ordemServicoDelegate?.findMany
       ? ordemServicoDelegate.findMany({
-          where: { status: "ENTREGUE", atualizadoEm: { gte: inicioData, lte: fimData } },
+          where: { status: "ENTREGUE", excluidaEm: null, atualizadoEm: { gte: inicioData, lte: fimData } },
           select: { itens: { select: { custoPeca: true } } },
         })
       : Promise.resolve([]),
   ]);
 
-  const totalVendasCentavos = vendasData.reduce(
-    (acc: number, v: any) => acc + paraCentavos(Number(v.valorTotal ?? 0)),
-    0
-  );
+  const totalVendasCentavos = vendasData.reduce((acc: number, v: VendaResumoRow) => {
+    return acc + paraCentavos(Number(v.valorTotal ?? 0));
+  }, 0);
 
-  const custoPdvCentavos = vendasData.reduce((accV: number, v: any) => {
+  const custoPdvCentavos = vendasData.reduce((accV: number, v: VendaResumoRow) => {
     return accV + (v.itens ?? []).reduce(
-      (accI: number, item: any) =>
+      (accI: number, item: VendaResumoItem) =>
         accI + paraCentavos(Number(item.custoUnitario ?? 0)) * Number(item.quantidade ?? 1),
       0
     );
   }, 0);
 
-  const custoOsCentavos = (osEntreguesData as any[]).reduce((accOs: number, os: any) => {
+  const custoOsCentavos = osEntreguesData.reduce((accOs: number, os: OrdemServicoCustoRow) => {
     return accOs + (os.itens ?? []).reduce(
-      (accI: number, item: any) => accI + paraCentavos(Number(item.custoPeca ?? 0)),
+      (accI: number, item: OrdemServicoCustoItem) => accI + paraCentavos(Number(item.custoPeca ?? 0)),
       0
     );
   }, 0);
@@ -357,7 +373,7 @@ export async function obterResumoDataEspecifica(
 
   // Agrupa por forma de pagamento
   const mapaFormas: Record<string, number> = {};
-  vendasData.forEach((v: any) => {
+  vendasData.forEach((v: VendaResumoRow) => {
     const forma = String(v.formaPagamento ?? "OUTROS");
     mapaFormas[forma] = (mapaFormas[forma] ?? 0) + paraCentavos(Number(v.valorTotal ?? 0));
   });

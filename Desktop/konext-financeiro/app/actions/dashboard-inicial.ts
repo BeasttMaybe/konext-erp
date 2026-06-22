@@ -1,6 +1,8 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { exigirSessao } from "@/lib/auth/sessao";
+import { obterReceitaMensalPadrao, obterReceitaTotalPadrao } from "@/lib/dashboard/regras-financeiras";
 
 export interface AtividadeRecenteDashboard {
   id: string;
@@ -44,7 +46,7 @@ const paraMoeda = (centavos: number) => centavos / 100;
 
 const calcularVariacaoPercentual = (atual: number, anterior: number): number => {
   if (anterior === 0) {
-    return 100;
+    return 0;
   }
 
   return ((atual - anterior) / anterior) * 100;
@@ -108,7 +110,7 @@ type PrismaCaixaAny = typeof prisma & {
 };
 
 type DashboardVendaMesRow = { valorTotal?: number | null };
-type DashboardRecebimentoMesRow = { valor?: number | null };
+type DashboardRecebimentoMesRow = { valor?: number | null; vendaId?: string | null };
 type DashboardStatusRow = { status?: string | null };
 type DashboardClienteRow = { clienteId?: string | null };
 type DashboardVenda6MesesRow = { valorTotal?: number | null; criadoEm: Date | string };
@@ -116,6 +118,7 @@ type DashboardRecebimento6MesesRow = {
   valor?: number | null;
   criadoEm: Date | string;
   dataRecebimento?: Date | string | null;
+  vendaId?: string | null;
 };
 type DashboardStatusGroupRow = { status?: string | null; _count?: { id?: number | null } };
 type DashboardVendaRecenteRow = {
@@ -172,6 +175,7 @@ const ROTULOS_FORMA_PAGAMENTO: Record<string, string> = {
  * Combina receitas e custos de PDV e OS para um relatório unificado.
  */
 export async function obterDadosFechamentoCaixa(): Promise<DadosFechamentoCaixa> {
+  await exigirSessao();
   const agora = new Date();
   // Intervalos do dia corrente (00:00:00 – 23:59:59)
   const inicioDia = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 0, 0, 0, 0);
@@ -216,6 +220,7 @@ export async function obterDadosFechamentoCaixa(): Promise<DadosFechamentoCaixa>
     ordemServicoDelegate.findMany({
       where: {
         status: "ENTREGUE",
+        excluidaEm: null,
         atualizadoEm: { gte: inicioDia, lte: fimDia },
       },
       select: { itens: { select: { custoPeca: true } } },
@@ -295,6 +300,7 @@ const mapaStatusOs: Record<string, { nome: string; cor: string }> = {
   APROVADO: { nome: "Aprovado", cor: "hsl(217 91% 60%)" },
   AGUARDANDO_PECA: { nome: "Aguardando Peça", cor: "hsl(24 95% 53%)" },
   EM_MANUTENCAO: { nome: "Em Manutenção", cor: "hsl(199 89% 48%)" },
+  GARANTIA_RETORNO: { nome: "Garantia / Retorno", cor: "hsl(239 84% 67%)" },
   PRONTO: { nome: "Pronto", cor: "hsl(168 76% 42%)" },
   ENTREGUE: { nome: "Entregue", cor: "hsl(142 71% 45%)" },
   CONCLUIDA: { nome: "Concluída", cor: "hsl(142 71% 45%)" },
@@ -344,19 +350,18 @@ function obterDelegatesDashboard(): DashboardDelegates {
 }
 
 export async function obterMetricasDashboardInicial(): Promise<MetricasDashboardInicial> {
+  await exigirSessao();
   const {
     startOfCurrentMonth,
     endOfCurrentMonth,
     startOfLastMonth,
     endOfLastMonth,
   } = obterIntervalosDashboard();
-  const { vendaDelegate, contaReceberDelegate, ordemServicoDelegate } = obterDelegatesDashboard();
+  const { vendaDelegate, ordemServicoDelegate } = obterDelegatesDashboard();
 
   const [
-    vendasMesAtual,
-    vendasMesAnterior,
-    recebimentosMesAtual,
-    recebimentosMesAnterior,
+    faturamentoAtual,
+    faturamentoAnterior,
     osMesAtualBase,
     osMesAnteriorBase,
     qtdVendasMesAtual,
@@ -366,57 +371,43 @@ export async function obterMetricasDashboardInicial(): Promise<MetricasDashboard
     osClientesMesAtual,
     osClientesMesAnterior,
   ] = await Promise.all([
-    vendaDelegate.findMany({
-      where: { criadoEm: { gte: startOfCurrentMonth, lte: endOfCurrentMonth } },
-      select: { valorTotal: true },
-    }),
-    vendaDelegate.findMany({
-      where: { criadoEm: { gte: startOfLastMonth, lte: endOfLastMonth } },
-      select: { valorTotal: true },
-    }),
-    contaReceberDelegate.findMany({
-      where: {
-        status: "RECEBIDO",
-        OR: [
-          { dataRecebimento: { gte: startOfCurrentMonth, lte: endOfCurrentMonth } },
-          {
-            AND: [
-              { dataRecebimento: null },
-              { criadoEm: { gte: startOfCurrentMonth, lte: endOfCurrentMonth } },
-            ],
-          },
-        ],
-      },
-      select: { valor: true },
-    }),
-    contaReceberDelegate.findMany({
-      where: {
-        status: "RECEBIDO",
-        OR: [
-          { dataRecebimento: { gte: startOfLastMonth, lte: endOfLastMonth } },
-          {
-            AND: [
-              { dataRecebimento: null },
-              { criadoEm: { gte: startOfLastMonth, lte: endOfLastMonth } },
-            ],
-          },
-        ],
-      },
-      select: { valor: true },
-    }),
+    obterReceitaTotalPadrao(startOfCurrentMonth, endOfCurrentMonth),
+    obterReceitaTotalPadrao(startOfLastMonth, endOfLastMonth),
     ordemServicoDelegate.findMany({
-      where: { criadoEm: { gte: startOfCurrentMonth, lte: endOfCurrentMonth } },
+      where: {
+        atualizadoEm: { gte: startOfCurrentMonth, lte: endOfCurrentMonth },
+        excluidaEm: null,
+        ehRetornoGarantia: false,
+        status: {
+          in: ["PRONTO", "ENTREGUE"],
+        },
+      },
       select: { status: true },
     }),
     ordemServicoDelegate.findMany({
-      where: { criadoEm: { gte: startOfLastMonth, lte: endOfLastMonth } },
+      where: {
+        atualizadoEm: { gte: startOfLastMonth, lte: endOfLastMonth },
+        excluidaEm: null,
+        ehRetornoGarantia: false,
+        status: {
+          in: ["PRONTO", "ENTREGUE"],
+        },
+      },
       select: { status: true },
     }),
-    vendaDelegate.count({
-      where: { criadoEm: { gte: startOfCurrentMonth, lte: endOfCurrentMonth } },
+    prisma.pedidoVenda.count({
+      where: {
+        origem: "PDV",
+        status: "APROVADO",
+        dataCriacao: { gte: startOfCurrentMonth, lte: endOfCurrentMonth },
+      },
     }),
-    vendaDelegate.count({
-      where: { criadoEm: { gte: startOfLastMonth, lte: endOfLastMonth } },
+    prisma.pedidoVenda.count({
+      where: {
+        origem: "PDV",
+        status: "APROVADO",
+        dataCriacao: { gte: startOfLastMonth, lte: endOfLastMonth },
+      },
     }),
     vendaDelegate.findMany({
       where: {
@@ -435,37 +426,39 @@ export async function obterMetricasDashboardInicial(): Promise<MetricasDashboard
       distinct: ["clienteId"],
     }),
     ordemServicoDelegate.findMany({
-      where: { criadoEm: { gte: startOfCurrentMonth, lte: endOfCurrentMonth } },
+      where: { criadoEm: { gte: startOfCurrentMonth, lte: endOfCurrentMonth }, excluidaEm: null },
       select: { clienteId: true },
       distinct: ["clienteId"],
     }),
     ordemServicoDelegate.findMany({
-      where: { criadoEm: { gte: startOfLastMonth, lte: endOfLastMonth } },
+      where: { criadoEm: { gte: startOfLastMonth, lte: endOfLastMonth }, excluidaEm: null },
       select: { clienteId: true },
       distinct: ["clienteId"],
     }),
   ]);
 
-  const totalVendasAtualCentavos = vendasMesAtual.reduce((acc: number, item) => acc + paraCentavos(Number((item as DashboardVendaMesRow).valorTotal ?? 0)), 0);
-  const totalVendasAnteriorCentavos = vendasMesAnterior.reduce((acc: number, item) => acc + paraCentavos(Number((item as DashboardVendaMesRow).valorTotal ?? 0)), 0);
-  const totalRecebimentosAtualCentavos = recebimentosMesAtual.reduce((acc: number, item) => acc + paraCentavos(Number((item as DashboardRecebimentoMesRow).valor ?? 0)), 0);
-  const totalRecebimentosAnteriorCentavos = recebimentosMesAnterior.reduce((acc: number, item) => acc + paraCentavos(Number((item as DashboardRecebimentoMesRow).valor ?? 0)), 0);
-
-  const faturamentoAtual = paraMoeda(totalVendasAtualCentavos + totalRecebimentosAtualCentavos);
-  const faturamentoAnterior = paraMoeda(totalVendasAnteriorCentavos + totalRecebimentosAnteriorCentavos);
-
-  const statusConcluido = new Set(["CONCLUIDA", "CONCLUÍDA", "ENTREGUE", "PRONTO"]);
+  // Fallback de data de conclusao da OS: schema atual nao possui finalizadaEm/entregueEm.
+  // Enquanto esses campos nao existirem, usa atualizadoEm como referencia de periodo.
+  const statusConcluido = new Set(["ENTREGUE", "PRONTO"]);
   const osMesAtual = osMesAtualBase.filter((item) => statusConcluido.has(String((item as DashboardStatusRow).status))).length;
   const osMesAnterior = osMesAnteriorBase.filter((item) => statusConcluido.has(String((item as DashboardStatusRow).status))).length;
 
   const clientesAtivosAtual = new Set<string>([
-    ...vendasClientesMesAtual.map((item) => String((item as DashboardClienteRow).clienteId)),
-    ...osClientesMesAtual.map((item) => String((item as DashboardClienteRow).clienteId)),
+    ...vendasClientesMesAtual
+      .map((item) => (item as DashboardClienteRow).clienteId)
+      .filter((clienteId): clienteId is string => Boolean(clienteId)),
+    ...osClientesMesAtual
+      .map((item) => (item as DashboardClienteRow).clienteId)
+      .filter((clienteId): clienteId is string => Boolean(clienteId)),
   ]).size;
 
   const clientesAtivosAnterior = new Set<string>([
-    ...vendasClientesMesAnterior.map((item) => String((item as DashboardClienteRow).clienteId)),
-    ...osClientesMesAnterior.map((item) => String((item as DashboardClienteRow).clienteId)),
+    ...vendasClientesMesAnterior
+      .map((item) => (item as DashboardClienteRow).clienteId)
+      .filter((clienteId): clienteId is string => Boolean(clienteId)),
+    ...osClientesMesAnterior
+      .map((item) => (item as DashboardClienteRow).clienteId)
+      .filter((clienteId): clienteId is string => Boolean(clienteId)),
   ]).size;
 
   return {
@@ -489,31 +482,10 @@ export async function obterMetricasDashboardInicial(): Promise<MetricasDashboard
 }
 
 export async function obterFaturamentoUltimos6MesesDashboard(): Promise<FaturamentoDashboardInicial> {
+  await exigirSessao();
   const { startOfSixMonthsWindow, endOfCurrentMonth } = obterIntervalosDashboard();
-  const { vendaDelegate, contaReceberDelegate } = obterDelegatesDashboard();
   const agora = new Date();
-
-  const [vendas6Meses, recebimentos6Meses] = await Promise.all([
-    vendaDelegate.findMany({
-      where: { criadoEm: { gte: startOfSixMonthsWindow, lte: endOfCurrentMonth } },
-      select: { valorTotal: true, criadoEm: true },
-    }),
-    contaReceberDelegate.findMany({
-      where: {
-        status: "RECEBIDO",
-        OR: [
-          { dataRecebimento: { gte: startOfSixMonthsWindow, lte: endOfCurrentMonth } },
-          {
-            AND: [
-              { dataRecebimento: null },
-              { criadoEm: { gte: startOfSixMonthsWindow, lte: endOfCurrentMonth } },
-            ],
-          },
-        ],
-      },
-      select: { valor: true, criadoEm: true, dataRecebimento: true },
-    }),
-  ]);
+  const receitaMensal = await obterReceitaMensalPadrao(startOfSixMonthsWindow, endOfCurrentMonth);
 
   const meses = Array.from({ length: 6 }).map((_, indice) => {
     const data = deslocarMes(agora, indice - 5);
@@ -527,21 +499,11 @@ export async function obterFaturamentoUltimos6MesesDashboard(): Promise<Faturame
 
   const indiceMes = new Map(meses.map((mes) => [mes.chave, mes]));
 
-  vendas6Meses.forEach((venda) => {
-    const vendaMes = venda as DashboardVenda6MesesRow;
-    const chave = chaveMes(new Date(vendaMes.criadoEm));
+  receitaMensal.forEach((linha) => {
+    const chave = chaveMes(new Date(linha.mes));
     const bucket = indiceMes.get(chave);
     if (!bucket) return;
-    bucket.totalCentavos += paraCentavos(Number(vendaMes.valorTotal ?? 0));
-  });
-
-  recebimentos6Meses.forEach((recebimento) => {
-    const recebimentoMes = recebimento as DashboardRecebimento6MesesRow;
-    const dataBase = recebimentoMes.dataRecebimento ? new Date(recebimentoMes.dataRecebimento) : new Date(recebimentoMes.criadoEm);
-    const chave = chaveMes(dataBase);
-    const bucket = indiceMes.get(chave);
-    if (!bucket) return;
-    bucket.totalCentavos += paraCentavos(Number(recebimentoMes.valor ?? 0));
+    bucket.totalCentavos += paraCentavos(Number(linha.valor ?? 0));
   });
 
   return meses.map((mes) => ({
@@ -551,9 +513,14 @@ export async function obterFaturamentoUltimos6MesesDashboard(): Promise<Faturame
 }
 
 export async function obterStatusOsDashboard(): Promise<StatusOsDashboardInicial> {
+  await exigirSessao();
   const { ordemServicoDelegate } = obterDelegatesDashboard();
 
   const statusOsAgrupado = await ordemServicoDelegate.groupBy({
+    where: {
+      excluidaEm: null,
+      archivedAt: null,
+    },
     by: ["status"],
     _count: { id: true },
   });
@@ -582,6 +549,7 @@ export async function obterStatusOsDashboard(): Promise<StatusOsDashboardInicial
 }
 
 export async function obterAtividadesRecentesDashboard(): Promise<AtividadesDashboardInicial> {
+  await exigirSessao();
   const { vendaDelegate, ordemServicoDelegate, parcelaDespesaDelegate } = obterDelegatesDashboard();
 
   const [rawVendasRecentes, rawDespesasRecentes, rawOsRecentes] = await Promise.all([
@@ -627,6 +595,9 @@ export async function obterAtividadesRecentesDashboard(): Promise<AtividadesDash
     ordemServicoDelegate.findMany({
       take: 5,
       orderBy: { criadoEm: "desc" },
+      where: {
+        excluidaEm: null,
+      },
       select: {
         id: true,
         numeroOs: true,
@@ -658,7 +629,7 @@ export async function obterAtividadesRecentesDashboard(): Promise<AtividadesDash
     descricao: parcela.despesa?.descricao
       ? `${String(parcela.despesa.descricao)} (Parcela ${String(parcela.numeroParcela)})`
       : `Despesa (Parcela ${String(parcela.numeroParcela)})`,
-    valor: Number(parcela.valor ?? 0),
+    valor: Number(parcela.valor ?? 0) * -1,
     data: new Date(parcela.criadoEm),
     status: String(parcela.status ?? "PENDENTE"),
     cliente: parcela.despesa?.fornecedor ? String(parcela.despesa.fornecedor) : undefined,
@@ -674,12 +645,24 @@ export async function obterAtividadesRecentesDashboard(): Promise<AtividadesDash
     cliente: os.cliente?.nomeRazaoSocial ? String(os.cliente.nomeRazaoSocial) : undefined,
   }));
 
+  const chaves = new Set<string>();
+
   return [...atividadesVendas, ...atividadesDespesas, ...atividadesOs]
     .sort((a, b) => b.data.getTime() - a.data.getTime())
+    .filter((item) => {
+      const chave = `${item.tipo}-${item.descricao}-${item.data.toISOString().slice(0, 16)}`;
+      if (chaves.has(chave)) {
+        return false;
+      }
+
+      chaves.add(chave);
+      return true;
+    })
     .slice(0, 5);
 }
 
 export async function obterDadosDashboardInicial(): Promise<DadosDashboardInicial> {
+  await exigirSessao();
   const [metricas, faturamentoUltimos6Meses, statusOs, atividadesRecentes] = await Promise.all([
     obterMetricasDashboardInicial(),
     obterFaturamentoUltimos6MesesDashboard(),

@@ -6,6 +6,7 @@ export const statusOsEnum = z.enum([
   "APROVADO", 
   "AGUARDANDO_PECA", 
   "EM_MANUTENCAO", 
+  "GARANTIA_RETORNO",
   "PRONTO", 
   "ENTREGUE"
 ]);

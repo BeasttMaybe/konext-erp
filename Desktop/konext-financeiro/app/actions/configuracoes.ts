@@ -4,6 +4,60 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { exigirSessao } from "@/lib/auth/sessao";
 
+type ConfiguracaoRegistro = {
+  id: string;
+  criadoEm?: Date;
+  razaoSocial?: string | null;
+  nomeFantasia?: string | null;
+  cnpj?: string | null;
+  inscricaoEstadual?: string | null;
+  telefone?: string | null;
+  cep?: string | null;
+  logradouro?: string | null;
+  numero?: string | null;
+  bairro?: string | null;
+  cidade?: string | null;
+  estado?: string | null;
+  endereco?: string | null;
+  chavePix?: string | null;
+  mensagemCupom?: string | null;
+  habilitarMargemAutomatica?: boolean | null;
+  permitirVendaSemEstoque?: boolean | null;
+  logoUrl?: string | null;
+};
+
+type UsuarioConfiguracaoRegistro = {
+  id: string;
+  nome: string;
+  email: string;
+  senha?: string;
+  role: string;
+  criadoEm?: Date;
+  fotoPerfilUrl?: string | null;
+};
+
+type ConfiguracaoDelegate = {
+  findFirst?: (args: unknown) => Promise<ConfiguracaoRegistro | null>;
+  findUnique?: (args: unknown) => Promise<ConfiguracaoRegistro | null>;
+  create?: (args: unknown) => Promise<ConfiguracaoRegistro>;
+  update?: (args: unknown) => Promise<ConfiguracaoRegistro>;
+};
+
+type UsuarioDelegate = {
+  findFirst?: (args: unknown) => Promise<UsuarioConfiguracaoRegistro | null>;
+  findUnique?: (args: unknown) => Promise<UsuarioConfiguracaoRegistro | null>;
+  upsert?: (args: unknown) => Promise<UsuarioConfiguracaoRegistro>;
+  create?: (args: unknown) => Promise<UsuarioConfiguracaoRegistro>;
+  update?: (args: unknown) => Promise<UsuarioConfiguracaoRegistro>;
+};
+
+type PrismaConfiguracoesClient = typeof prisma & {
+  configuracao?: ConfiguracaoDelegate;
+  Configuracao?: ConfiguracaoDelegate;
+  usuario?: UsuarioDelegate;
+  Usuario?: UsuarioDelegate;
+};
+
 export type DadosPerfil = {
   nome?: string;
   email?: string;
@@ -84,7 +138,7 @@ function normalizarUrlImagem(url: string | null | undefined, nomeCampo: string):
 }
 
 function obterDelegateConfiguracao() {
-  const prismaAny = prisma as any;
+  const prismaAny = prisma as PrismaConfiguracoesClient;
   return prismaAny.configuracao ?? prismaAny.Configuracao;
 }
 
@@ -303,7 +357,7 @@ export async function consultarCnpjReceita(cnpj: string): Promise<ResultadoConsu
 }
 
 export async function obterDadosPerfilConfiguracao() {
-  const prismaAny = prisma as any;
+  const prismaAny = prisma as PrismaConfiguracoesClient;
   const usuarioDelegate = prismaAny.usuario ?? prismaAny.Usuario;
   const configuracaoDelegate = prismaAny.configuracao ?? prismaAny.Configuracao;
 
@@ -425,7 +479,7 @@ export async function atualizarPerfil(
   try {
     await exigirSessao();
 
-    const prismaAny = prisma as any;
+    const prismaAny = prisma as PrismaConfiguracoesClient;
     const usuarioDelegate = prismaAny.usuario ?? prismaAny.Usuario;
 
     if (!usuarioDelegate?.findFirst || !usuarioDelegate?.update) {
@@ -506,7 +560,7 @@ export async function atualizarLogoEmpresa(
   try {
     await exigirSessao();
 
-    const prismaAny = prisma as any;
+    const prismaAny = prisma as PrismaConfiguracoesClient;
     const configuracaoDelegate = prismaAny.configuracao ?? prismaAny.Configuracao;
 
     if (!configuracaoDelegate?.findFirst || !configuracaoDelegate?.update) {

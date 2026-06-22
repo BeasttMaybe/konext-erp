@@ -35,6 +35,21 @@ interface OsPublica {
   atualizadoEm: Date; // Necessário para calcular expiração do link após entrega
 }
 
+type OrdemServicoPublicaDelegate = {
+  findUnique?: (args: unknown) => Promise<{
+    id: string;
+    numeroOs: number;
+    equipamento: string;
+    marca?: string | null;
+    modelo?: string | null;
+    relatoCliente: string;
+    status: string;
+    criadoEm: Date;
+    atualizadoEm: Date;
+    cliente?: { nomeRazaoSocial?: string | null } | null;
+  } | null>;
+};
+
 // ── Etapas do timeline ─────────────────────────────────────────────────────────
 
 /**
@@ -78,6 +93,12 @@ const ETAPAS_TIMELINE: {
     Icone: Wrench,
   },
   {
+    status: "GARANTIA_RETORNO",
+    rotulo: "Garantia / Retorno",
+    descricao: "Seu equipamento está em análise de retorno de garantia.",
+    Icone: Wrench,
+  },
+  {
     status: "PRONTO",
     rotulo: "Pronto para Retirada",
     descricao: "Reparo concluído! Seu equipamento está pronto para retirada.",
@@ -98,7 +119,10 @@ const ETAPAS_TIMELINE: {
  * Campos internos (custoPeca, margens, observações internas, IMEI) são omitidos.
  */
 async function buscarOsPublica(id: string): Promise<OsPublica | null> {
-  const prismaAny = prisma as any;
+  const prismaAny = prisma as typeof prisma & {
+    ordemServico?: OrdemServicoPublicaDelegate;
+    OrdemServico?: OrdemServicoPublicaDelegate;
+  };
   const ordemServicoDelegate = prismaAny.ordemServico ?? prismaAny.OrdemServico;
 
   if (!ordemServicoDelegate?.findUnique) return null;

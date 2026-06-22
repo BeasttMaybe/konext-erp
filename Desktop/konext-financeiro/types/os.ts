@@ -8,6 +8,7 @@ export type StatusOS =
   | "APROVADO"
   | "AGUARDANDO_PECA"
   | "EM_MANUTENCAO"
+  | "GARANTIA_RETORNO"
   | "PRONTO"
   | "ENTREGUE";
 
@@ -56,9 +57,25 @@ export interface OrdemServico {
   
   // Status e metadados
   status: StatusOS;
+  ehRetornoGarantia?: boolean;
+  osOrigemGarantiaId?: string;
+  numeroOSOrigemGarantia?: string;
+  retornoGarantiaId?: string;
   observacoesInternas?: string;
   dataCriacao: string;
   dataAtualizacao: string;
+}
+
+export interface OrdemServicoExcluida {
+  id: string;
+  numeroOS: string;
+  nomeCliente: string;
+  equipamento: string;
+  totalOrcamento: number;
+  statusAnterior: string;
+  excluidaPor: string;
+  motivoExclusao: string;
+  excluidaEm: string;
 }
 
 export interface Cliente {

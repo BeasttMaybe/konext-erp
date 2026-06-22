@@ -118,3 +118,15 @@ html.dark ::-webkit-scrollbar-thumb {
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+/* Remove setas de campos numéricos em todo o projeto */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}

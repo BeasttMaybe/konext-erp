@@ -33,20 +33,17 @@ function aplicarTema(theme: Tema) {
 }
 
 export function ProvedorTema({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Tema>("system");
-  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("light");
-
-  useEffect(() => {
+  const [theme, setThemeState] = useState<Tema>(() => {
+    if (typeof window === "undefined") return "system";
     const temaSalvo = window.localStorage.getItem(ChaveTema);
-
-    if (temaSalvo === "light" || temaSalvo === "dark" || temaSalvo === "system") {
-      setThemeState(temaSalvo);
-    }
-  }, []);
+    return temaSalvo === "light" || temaSalvo === "dark" || temaSalvo === "system"
+      ? temaSalvo
+      : "system";
+  });
+  const [systemTheme, setSystemTheme] = useState<"light" | "dark">(() => obterTemaSistema());
+  const resolvedTheme = theme === "system" ? systemTheme : theme;
 
   useEffect(() => {
-    const temaEfetivo = theme === "system" ? obterTemaSistema() : theme;
-    setResolvedTheme(temaEfetivo);
     aplicarTema(theme);
 
     if (typeof window !== "undefined") {
@@ -59,7 +56,7 @@ export function ProvedorTema({ children }: { children: ReactNode }) {
     const tratarMudancaSistema = () => {
       if (theme === "system") {
         const novoTema = obterTemaSistema();
-        setResolvedTheme(novoTema);
+        setSystemTheme(novoTema);
         aplicarTema("system");
       }
     };

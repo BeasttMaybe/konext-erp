@@ -34,6 +34,7 @@ const STATUS_SEQUENCIA = [
   "APROVADO",
   "AGUARDANDO_PECA",
   "EM_MANUTENCAO",
+  "GARANTIA_RETORNO",
   "PRONTO",
   "ENTREGUE",
 ] as const;
@@ -89,6 +90,13 @@ const configuracaoStatus: Record<
     borda: "border-violet-200/80 dark:border-violet-900/60",
     chip: "bg-violet-100 text-violet-700 dark:bg-violet-950/50 dark:text-violet-300",
   },
+  GARANTIA_RETORNO: {
+    titulo: "Garantia / Retorno",
+    descricao: "Atendimento de retorno em garantia.",
+    classe: "from-indigo-50 via-white to-white dark:from-indigo-950/40 dark:via-slate-900 dark:to-slate-900",
+    borda: "border-indigo-200/80 dark:border-indigo-900/60",
+    chip: "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300",
+  },
   PRONTO: {
     titulo: "Pronto",
     descricao: "Aguardando retirada.",
@@ -115,6 +123,7 @@ function classificarOrdens(ordens: OrdemServico[]) {
     APROVADO: [],
     AGUARDANDO_PECA: [],
     EM_MANUTENCAO: [],
+    GARANTIA_RETORNO: [],
     PRONTO: [],
     ENTREGUE: [],
   });

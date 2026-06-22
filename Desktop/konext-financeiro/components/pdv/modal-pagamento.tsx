@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -167,12 +167,8 @@ export function ModalPagamento({
     setVendaIdGerada(null);
   };
 
-  // Reseta o estado interno sempre que o modal é fechado
-  useEffect(() => {
-    if (!aberto) resetar();
-  }, [aberto]);
-
   const handleFechar = () => {
+    resetar();
     aoFechar();
   };
 

@@ -137,6 +137,7 @@ export async function createPedidoVenda(
     });
 
     revalidatePath("/vendas/historico");
+    revalidatePath("/");
 
     return {
       success: true,
@@ -287,7 +288,10 @@ export async function aprovarPedido(pedidoId: string): Promise<ApprovePedidoVend
     });
 
     revalidatePath("/vendas/historico");
+    revalidatePath("/financeiro");
     revalidatePath("/financeiro/receber");
+    revalidatePath("/financeiro/inteligencia");
+    revalidatePath("/");
 
     return {
       success: true,
@@ -353,6 +357,7 @@ export async function rejeitarPedido(pedidoId: string): Promise<ApprovePedidoVen
     });
 
     revalidatePath("/vendas/historico");
+    revalidatePath("/");
 
     return {
       success: true,
@@ -449,7 +454,10 @@ export async function cancelarPedido(pedidoId: string): Promise<ApprovePedidoVen
     });
 
     revalidatePath("/vendas/historico");
+    revalidatePath("/financeiro");
     revalidatePath("/financeiro/receber");
+    revalidatePath("/financeiro/inteligencia");
+    revalidatePath("/");
 
     return {
       success: true,

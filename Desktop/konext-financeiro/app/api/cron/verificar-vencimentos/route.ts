@@ -1,6 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+type ContaVencimento = {
+  id: string;
+  descricao: string;
+  valor: number;
+  vencimento: Date;
+  status: string;
+  tipo: string;
+  cliente: { nome: string } | null;
+};
+
+type ContaDelegate = {
+  findMany?: (args: unknown) => Promise<ContaVencimento[]>;
+};
+
+type NotificacaoDelegate = {
+  findFirst?: (args: unknown) => Promise<{ id: string } | null>;
+  create?: (args: unknown) => Promise<unknown>;
+};
+
 /**
  * GET /api/cron/verificar-vencimentos
  *
@@ -20,7 +39,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
   }
 
-  const prismaAny = prisma as any;
+  const prismaAny = prisma as typeof prisma & {
+    conta?: ContaDelegate;
+    Conta?: ContaDelegate;
+    notificacao?: NotificacaoDelegate;
+    Notificacao?: NotificacaoDelegate;
+  };
   const contaDelegate = prismaAny.conta ?? prismaAny.Conta;
   const notifDelegate = prismaAny.notificacao ?? prismaAny.Notificacao;
 
@@ -44,15 +68,7 @@ export async function GET(request: NextRequest) {
   inicioAmanha.setDate(inicioAmanha.getDate() + 1);
   inicioAmanha.setHours(0, 0, 0, 0);
 
-  const contas: Array<{
-    id: string;
-    descricao: string;
-    valor: number;
-    vencimento: Date;
-    status: string;
-    tipo: string;
-    cliente: { nome: string } | null;
-  }> = await contaDelegate.findMany({
+  const contas = await contaDelegate.findMany({
     where: {
       status: "PENDENTE",
       vencimento: {

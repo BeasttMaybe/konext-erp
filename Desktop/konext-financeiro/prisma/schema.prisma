@@ -14,8 +14,40 @@ model Usuario {
   senha         String
   fotoPerfilUrl String?
   role          RoleUsuario @default(ADMIN)
+  logsAuditoria LogAuditoria[]
+  ordensServicoExcluidas OrdemServico[] @relation("OrdemServicoExcluidaPor")
+  termosGarantiaCriados TermoGarantiaOS[] @relation("TermoGarantiaCriadoPor")
+  retornosGarantiaCriados RetornoGarantiaOS[] @relation("RetornoGarantiaCriadoPor")
+  metasCriadas Meta[] @relation("MetasCriadasPor")
   criadoEm      DateTime    @default(now())
   atualizadoEm  DateTime    @updatedAt
+}
+
+model LogAuditoria {
+  id         String   @id @default(cuid())
+
+  usuarioId  String?
+  usuario    Usuario? @relation(fields: [usuarioId], references: [id])
+  empresaId  String?
+
+  acao       String
+  entidade   String
+  entidadeId String?
+
+  dadosAntes Json?
+  dadosDepois Json?
+
+  motivo     String?
+  origem     String?
+
+  criadoEm   DateTime @default(now())
+
+  @@index([usuarioId])
+  @@index([empresaId])
+  @@index([entidade])
+  @@index([entidadeId])
+  @@index([acao])
+  @@index([criadoEm])
 }
 
 enum RoleUsuario {
@@ -199,14 +231,97 @@ model OrdemServico {
   acessorios     String?
 
   status      StatusOS @default(AGUARDANDO_ORCAMENTO)
+  ehRetornoGarantia Boolean @default(false)
+  osOrigemGarantiaId String?
+  osOrigemGarantia OrdemServico? @relation("RetornosGarantiaOS", fields: [osOrigemGarantiaId], references: [id])
+  retornosGarantia OrdemServico[] @relation("RetornosGarantiaOS")
+  retornoGarantiaId String? @unique
+  retornoGarantia RetornoGarantiaOS? @relation("RetornoGarantiaDaOS", fields: [retornoGarantiaId], references: [id])
   observacoes String?
   archivedAt  DateTime?
+  excluidaEm DateTime?
+  excluidaPorId String?
+  excluidaPor Usuario? @relation("OrdemServicoExcluidaPor", fields: [excluidaPorId], references: [id])
+  motivoExclusao String?
+  statusAnterior StatusOS?
+  prazoGarantiaDias Int?
 
   itens      ItemOS[]
   transacoes ContaReceber[] // Vínculo com o financeiro
+  termoGarantia TermoGarantiaOS?
+  retornosGarantiaRegistros RetornoGarantiaOS[] @relation("RetornoGarantiaOsOrigem")
 
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
+
+  @@index([excluidaEm])
+  @@index([excluidaPorId])
+  @@index([ehRetornoGarantia])
+  @@index([osOrigemGarantiaId])
+}
+
+model TermoGarantiaOS {
+  id                 String       @id @default(uuid())
+  osId               String       @unique
+  os                 OrdemServico @relation(fields: [osId], references: [id], onDelete: Cascade)
+  prazoGarantiaDias  Int          @default(90)
+  dataInicioGarantia DateTime
+  dataFimGarantia    DateTime
+  textoGarantia      String
+  criadoPorId        String?
+  criadoPor          Usuario?     @relation("TermoGarantiaCriadoPor", fields: [criadoPorId], references: [id])
+  canceladaEm        DateTime?
+  motivoCancelamento String?
+  retornos           RetornoGarantiaOS[]
+  criadoEm           DateTime     @default(now())
+  atualizadoEm       DateTime     @updatedAt
+
+  @@index([dataFimGarantia])
+  @@index([dataInicioGarantia])
+  @@index([criadoEm])
+  @@index([canceladaEm])
+}
+
+model RetornoGarantiaOS {
+  id             String                   @id @default(uuid())
+  termoGarantiaId String
+  termoGarantia  TermoGarantiaOS         @relation(fields: [termoGarantiaId], references: [id], onDelete: Cascade)
+  osOrigemId     String?
+  osOrigem       OrdemServico?            @relation("RetornoGarantiaOsOrigem", fields: [osOrigemId], references: [id], onDelete: SetNull)
+  osRetornoId    String?                  @unique
+  osRetorno      OrdemServico?            @relation("RetornoGarantiaDaOS")
+  motivo         String
+  descricao      String
+  analiseTecnica String?
+  resultado      ResultadoRetornoGarantia @default(EM_ANALISE)
+  descricaoServico String?
+  pecasAdicionais String?
+  houveTroca     Boolean                  @default(false)
+  houveCobranca  Boolean                  @default(false)
+  valorAdicional Decimal?
+  observacoesTecnicas String?
+  finalizadoEm   DateTime?
+  finalizadoPorId String?
+  criadoPorId    String?
+  criadoPor      Usuario?                 @relation("RetornoGarantiaCriadoPor", fields: [criadoPorId], references: [id])
+  criadoEm       DateTime                 @default(now())
+  atualizadoEm   DateTime                 @default(now()) @updatedAt
+
+  @@index([termoGarantiaId])
+  @@index([osOrigemId])
+  @@index([osRetornoId])
+  @@index([criadoEm])
+  @@index([finalizadoEm])
+}
+
+enum ResultadoRetornoGarantia {
+  PROCEDENTE
+  IMPROCEDENTE
+  SEM_GARANTIA
+  RESOLVIDO_SEM_TROCA
+  TROCA_REALIZADA
+  COBRANCA_ADICIONAL
+  EM_ANALISE
 }
 
 // Apos salvar o schema, execute: npx prisma db push
@@ -230,6 +345,7 @@ enum StatusOS {
   APROVADO
   AGUARDANDO_PECA
   EM_MANUTENCAO
+  GARANTIA_RETORNO
   PRONTO
   ENTREGUE
 }
@@ -600,4 +716,165 @@ model Notificacao {
   mensagem String
   lida     Boolean  @default(false)
   criadoEm DateTime @default(now())
+}
+
+// ==========================================
+// MÓDULO: METAS
+// ==========================================
+model Meta {
+  id          String         @id @default(uuid())
+  titulo      String
+  descricao   String?
+  categoria   CategoriaMeta
+  tipoValor   TipoValorMeta
+  origemProgresso OrigemProgressoMeta @default(MANUAL)
+  fonteAutomatica FonteAutomaticaMeta?
+  metricaAutomatica MetricaAutomaticaMeta?
+  configuracaoAutomatica Json?
+  direcao     DirecaoMeta   @default(MAIOR_MELHOR)
+  valorAlvo   Float?
+  valorAtual  Float          @default(0)
+  unidade     String?
+  dataInicio  DateTime?
+  dataPrazo   DateTime?
+  ultimaSincronizacaoEm DateTime?
+  erroSincronizacao String?
+  prioridade  PrioridadeMeta @default(MEDIA)
+  status      StatusMeta     @default(EM_ANDAMENTO)
+
+  criadoPorId String?
+  criadoPor   Usuario?       @relation("MetasCriadasPor", fields: [criadoPorId], references: [id])
+
+  excluidaEm    DateTime?
+  excluidaPorId String?
+  concluidaEm   DateTime?
+  canceladaEm   DateTime?
+
+  itensChecklist ItemChecklistMeta[]
+  historicos     HistoricoMeta[]
+
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  @@index([status])
+  @@index([categoria])
+  @@index([prioridade])
+  @@index([dataPrazo])
+  @@index([criadoEm])
+  @@index([excluidaEm])
+  @@index([origemProgresso])
+  @@index([fonteAutomatica])
+  @@index([metricaAutomatica])
+  @@index([ultimaSincronizacaoEm])
+}
+
+model ItemChecklistMeta {
+  id      String @id @default(uuid())
+  metaId  String
+  meta    Meta   @relation(fields: [metaId], references: [id], onDelete: Cascade)
+  titulo  String
+  concluido    Boolean  @default(false)
+  ordem        Int      @default(0)
+  concluidoEm  DateTime?
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  @@index([metaId])
+}
+
+model HistoricoMeta {
+  id             String            @id @default(uuid())
+  metaId         String
+  meta           Meta              @relation(fields: [metaId], references: [id], onDelete: Cascade)
+  tipo           TipoHistoricoMeta
+  descricao      String
+  valorAnterior  Float?
+  valorNovo      Float?
+  criadoPorId    String?
+  criadoEm       DateTime          @default(now())
+
+  @@index([metaId])
+  @@index([tipo])
+  @@index([criadoEm])
+}
+
+enum CategoriaMeta {
+  FINANCEIRA
+  OPERACIONAL
+  COMERCIAL
+  ESTOQUE
+  ESTRUTURAL
+  EQUIPAMENTO
+  REFORMA
+  OUTRA
+}
+
+enum TipoValorMeta {
+  DINHEIRO
+  QUANTIDADE
+  PERCENTUAL
+  CHECKLIST
+}
+
+enum OrigemProgressoMeta {
+  MANUAL
+  AUTOMATICA
+}
+
+enum DirecaoMeta {
+  MAIOR_MELHOR
+  MENOR_MELHOR
+}
+
+enum FonteAutomaticaMeta {
+  ORDENS_SERVICO
+  FINANCEIRO
+  PDV
+  VENDAS
+  ESTOQUE
+  GARANTIAS
+}
+
+enum MetricaAutomaticaMeta {
+  FATURAMENTO_OS
+  QUANTIDADE_OS_FINALIZADAS
+  QUANTIDADE_OS_CRIADAS
+  TICKET_MEDIO_OS
+  TAXA_RETORNO_GARANTIA
+  GARANTIAS_ATIVAS
+  RETORNOS_GARANTIA
+  FATURAMENTO_PDV
+  QUANTIDADE_VENDAS
+  RECEBIMENTOS_FINANCEIRO
+  DESPESAS_FINANCEIRO
+  QUANTIDADE_ITEM_ESTOQUE
+}
+
+enum PrioridadeMeta {
+  BAIXA
+  MEDIA
+  ALTA
+  CRITICA
+}
+
+enum StatusMeta {
+  EM_ANDAMENTO
+  ATENCAO
+  ATRASADA
+  CONCLUIDA
+  PAUSADA
+  CANCELADA
+}
+
+enum TipoHistoricoMeta {
+  CRIACAO
+  ATUALIZACAO_PROGRESSO
+  ALTERACAO_STATUS
+  ALTERACAO_PRAZO
+  ALTERACAO_CHECKLIST
+  SINCRONIZACAO_AUTOMATICA
+  CONCLUSAO
+  PAUSA
+  CANCELAMENTO
+  OBSERVACAO
 }

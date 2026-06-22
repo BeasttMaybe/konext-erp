@@ -607,6 +607,11 @@ export async function processarVenda(
       return { id: vendaId };
     });
 
+    revalidatePath("/");
+    revalidatePath("/pdv");
+    revalidatePath("/financeiro");
+    revalidatePath("/financeiro/receber");
+    revalidatePath("/financeiro/inteligencia");
     revalidatePath("/vendas/historico");
 
     return {
@@ -979,6 +984,8 @@ export async function processarVendaComOSNoPDV(
     revalidatePath("/pdv");
     revalidatePath("/os");
     revalidatePath("/financeiro");
+    revalidatePath("/financeiro/receber");
+    revalidatePath("/financeiro/inteligencia");
     revalidatePath("/vendas/historico");
     revalidatePath("/");
 
