@@ -7,7 +7,7 @@ import {
   Wallet,
   Wrench,
 } from "lucide-react";
-import { obterDashboardExecutivo } from "@/app/actions/dashboard";
+import { obterDashboardExecutivoSeguro } from "@/app/actions/dashboard";
 import { CardExecutivo } from "@/components/dashboard/card-executivo";
 import { GraficoResultadoMensal } from "@/components/dashboard/grafico-resultado-mensal";
 import { FunilOrdensServico } from "@/components/dashboard/funil-ordens-servico";
@@ -15,6 +15,8 @@ import { BlocoAtencaoHoje } from "@/components/dashboard/bloco-atencao-hoje";
 import { ResumoMetasDashboard } from "@/components/dashboard/resumo-metas-dashboard";
 import { ResumoGarantiasDashboard } from "@/components/dashboard/resumo-garantias-dashboard";
 import { UltimasMovimentacoes } from "@/components/dashboard/ultimas-movimentacoes";
+
+export const dynamic = "force-dynamic";
 
 const moedaBr = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -24,7 +26,20 @@ const moedaBr = new Intl.NumberFormat("pt-BR", {
 });
 
 export default async function PaginaDashboard() {
-  const dashboard = await obterDashboardExecutivo();
+  const resultadoDashboard = await obterDashboardExecutivoSeguro();
+
+  if (!resultadoDashboard.sucesso) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-6">
+          <h1 className="text-xl font-semibold text-red-300">Falha ao carregar dashboard</h1>
+          <p className="mt-2 text-sm text-zinc-300">{resultadoDashboard.erro}</p>
+        </div>
+      </div>
+    );
+  }
+
+  const dashboard = resultadoDashboard.dados;
 
   return (
     <div className="container mx-auto p-6">

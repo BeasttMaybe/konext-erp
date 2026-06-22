@@ -85,6 +85,10 @@ export type DashboardExecutivo = {
   }>;
 };
 
+export type ResultadoDashboardExecutivo =
+  | { sucesso: true; dados: DashboardExecutivo }
+  | { sucesso: false; erro: string };
+
 type LinhaMesValor = {
   mes: Date;
   total: number | null;
@@ -961,4 +965,30 @@ export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
     },
     ultimasMovimentacoes,
   };
+}
+
+export async function obterDashboardExecutivoSeguro(): Promise<ResultadoDashboardExecutivo> {
+  try {
+    const dados = await obterDashboardExecutivo();
+    return {
+      sucesso: true,
+      dados,
+    };
+  } catch (erro) {
+    if (erro instanceof Error) {
+      console.error("[dashboard] falha ao montar dashboard executivo", {
+        message: erro.message,
+        stack: erro.stack,
+      });
+    } else {
+      console.error("[dashboard] falha ao montar dashboard executivo", {
+        erro: String(erro),
+      });
+    }
+
+    return {
+      sucesso: false,
+      erro: "Nao foi possivel carregar os indicadores do dashboard.",
+    };
+  }
 }
