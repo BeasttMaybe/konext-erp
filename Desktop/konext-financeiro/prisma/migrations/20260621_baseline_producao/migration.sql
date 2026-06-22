@@ -1,0 +1,3 @@
+-- Baseline do banco de produção já existente.
+-- Esta migration não altera o schema.
+-- Ela apenas representa o estado inicial antes do uso formal do Prisma Migrate.
