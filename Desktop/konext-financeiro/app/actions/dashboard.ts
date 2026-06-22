@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { exigirSessao } from "@/lib/auth/sessao";
 import { obterReceitaMensalPadrao } from "@/lib/dashboard/regras-financeiras";
+import { Prisma } from "@prisma/client";
 
 export type TipoVariacao = "percentual" | "sem_base" | "sem_variacao";
 
@@ -98,10 +99,6 @@ type LinhaTicketMedio = {
   media: number | null;
 };
 
-type LinhaContagem = {
-  total: bigint | number;
-};
-
 type MovimentacaoInterna = {
   id: string;
   tipo: string;
@@ -117,6 +114,62 @@ const STATUS_OS_CONCLUIDA = ["PRONTO", "ENTREGUE"] as const;
 const STATUS_OS_ABERTA_EXCLUIDOS = ["PRONTO", "ENTREGUE"] as const;
 const STATUS_CONTA_PENDENTE = ["PENDENTE", "ATRASADO", "RENEGOCIADO"] as const;
 const STATUS_PARCELA_PENDENTE = ["PENDENTE", "ATRASADO"] as const;
+
+function serializarMetaErro(meta: unknown): Record<string, unknown> | undefined {
+  if (!meta || typeof meta !== "object") {
+    return undefined;
+  }
+
+  return Object.fromEntries(Object.entries(meta as Record<string, unknown>));
+}
+
+function registrarErroDashboard(contexto: string, erro: unknown): void {
+  if (erro instanceof Prisma.PrismaClientKnownRequestError) {
+    console.error("[dashboard] falha em consulta", {
+      contexto,
+      prismaCode: erro.code,
+      message: erro.message,
+      meta: serializarMetaErro(erro.meta),
+    });
+    return;
+  }
+
+  if (erro instanceof Error) {
+    console.error("[dashboard] falha em consulta", {
+      contexto,
+      message: erro.message,
+      stack: erro.stack,
+    });
+    return;
+  }
+
+  console.error("[dashboard] falha em consulta", {
+    contexto,
+    erro: String(erro),
+  });
+}
+
+async function executarComFallback<T>(
+  contexto: string,
+  executar: () => Promise<T>,
+  fallback: T
+): Promise<T> {
+  try {
+    return await executar();
+  } catch (erro) {
+    registrarErroDashboard(contexto, erro);
+    return fallback;
+  }
+}
+
+async function validarConectividadeBanco(): Promise<void> {
+  try {
+    await prisma.$queryRaw<Array<{ ok: number }>>`SELECT 1 AS ok`;
+  } catch (erro) {
+    registrarErroDashboard("validarConectividadeBanco", erro);
+    throw new Error("Falha de conectividade com o banco para montar o dashboard.");
+  }
+}
 
 function inicioDoDia(data: Date): Date {
   return new Date(data.getFullYear(), data.getMonth(), data.getDate(), 0, 0, 0, 0);
@@ -214,136 +267,171 @@ function transformarLinhasMes(linhas: LinhaMesValor[]): Map<string, number> {
 }
 
 async function obterReceitaPdvPorMes(inicio: Date, fim: Date): Promise<Map<string, number>> {
-  const linhas = await prisma.$queryRaw<LinhaMesValor[]>`
-    SELECT DATE_TRUNC('month', v."criadoEm") AS mes,
-           COALESCE(SUM(v."valorTotal"), 0) AS total
-    FROM "Venda" v
-    WHERE v."criadoEm" >= ${inicio}
-      AND v."criadoEm" <= ${fim}
-    GROUP BY DATE_TRUNC('month', v."criadoEm")
-  `;
+  try {
+    const linhas = await prisma.$queryRaw<LinhaMesValor[]>`
+      SELECT DATE_TRUNC('month', v."criadoEm") AS mes,
+             COALESCE(SUM(v."valorTotal"), 0) AS total
+      FROM "Venda" v
+      WHERE v."criadoEm" >= ${inicio}
+        AND v."criadoEm" <= ${fim}
+      GROUP BY DATE_TRUNC('month', v."criadoEm")
+    `;
 
-  return transformarLinhasMes(linhas);
+    return transformarLinhasMes(linhas);
+  } catch (erro) {
+    registrarErroDashboard("obterReceitaPdvPorMes", erro);
+    throw erro;
+  }
 }
 
 async function obterReceitaVendasAprovadasPorMes(inicio: Date, fim: Date): Promise<Map<string, number>> {
-  const linhas = await prisma.$queryRaw<LinhaMesValor[]>`
-    SELECT DATE_TRUNC('month', p."dataCriacao") AS mes,
-           COALESCE(SUM(p.total), 0) AS total
-    FROM "PedidoVenda" p
-    WHERE p.status::text = 'APROVADO'
-      AND p.origem::text = 'VENDAS'
-      AND p."dataCriacao" >= ${inicio}
-      AND p."dataCriacao" <= ${fim}
-    GROUP BY DATE_TRUNC('month', p."dataCriacao")
-  `;
+  try {
+    const linhas = await prisma.$queryRaw<LinhaMesValor[]>`
+      SELECT DATE_TRUNC('month', p."dataCriacao") AS mes,
+             COALESCE(SUM(p."total"), 0) AS total
+      FROM "PedidoVenda" p
+      WHERE p."status"::text = 'APROVADO'
+        AND p."origem"::text = 'VENDAS'
+        AND p."dataCriacao" >= ${inicio}
+        AND p."dataCriacao" <= ${fim}
+      GROUP BY DATE_TRUNC('month', p."dataCriacao")
+    `;
 
-  return transformarLinhasMes(linhas);
+    return transformarLinhasMes(linhas);
+  } catch (erro) {
+    registrarErroDashboard("obterReceitaVendasAprovadasPorMes", erro);
+    throw erro;
+  }
 }
 
 async function obterReceitaOSPorMes(inicio: Date, fim: Date): Promise<Map<string, number>> {
-  const linhas = await prisma.$queryRaw<LinhaMesValor[]>`
-    SELECT DATE_TRUNC('month', base."referenciaMes") AS mes,
-           COALESCE(SUM(base."valorReceita"), 0) AS total
-    FROM (
-      SELECT os.id,
-             os."atualizadoEm" AS "referenciaMes",
-             COALESCE(SUM(i."valorCobrado"), 0)::double precision AS "valorReceita",
-             os."ehRetornoGarantia" AS "ehRetorno",
-             COALESCE(r."valorAdicional", 0)::double precision AS "valorAdicional",
-             COALESCE(r."houveCobranca", false) AS "houveCobranca"
-      FROM "OrdemServico" os
-      LEFT JOIN "ItemOS" i ON i."osId" = os.id
-      LEFT JOIN "RetornoGarantiaOS" r ON r.id = os."retornoGarantiaId"
-      WHERE os."excluidaEm" IS NULL
-        AND os.status::text IN ('PRONTO', 'ENTREGUE')
-        AND os."atualizadoEm" >= ${inicio}
-        AND os."atualizadoEm" <= ${fim}
-      GROUP BY os.id, os."atualizadoEm", os."ehRetornoGarantia", r."valorAdicional", r."houveCobranca"
-    ) base
-    WHERE base."ehRetorno" = false
-       OR base."valorReceita" > 0
-       OR base."valorAdicional" > 0
-       OR base."houveCobranca" = true
-    GROUP BY DATE_TRUNC('month', base."referenciaMes")
-  `;
+  try {
+    const linhas = await prisma.$queryRaw<LinhaMesValor[]>`
+      SELECT DATE_TRUNC('month', base."referenciaMes") AS mes,
+             COALESCE(SUM(base."valorReceita"), 0) AS total
+      FROM (
+        SELECT os.id,
+               os."atualizadoEm" AS "referenciaMes",
+               COALESCE(SUM(i."valorCobrado"), 0)::double precision AS "valorReceita",
+               os."ehRetornoGarantia" AS "ehRetorno",
+               COALESCE(r."valorAdicional", 0)::double precision AS "valorAdicional",
+               COALESCE(r."houveCobranca", false) AS "houveCobranca"
+        FROM "OrdemServico" os
+        LEFT JOIN "ItemOS" i ON i."osId" = os.id
+        LEFT JOIN "RetornoGarantiaOS" r ON r.id = os."retornoGarantiaId"
+        WHERE os."excluidaEm" IS NULL
+          AND os."status"::text IN ('PRONTO', 'ENTREGUE')
+          AND os."atualizadoEm" >= ${inicio}
+          AND os."atualizadoEm" <= ${fim}
+        GROUP BY os.id, os."atualizadoEm", os."ehRetornoGarantia", r."valorAdicional", r."houveCobranca"
+      ) base
+      WHERE base."ehRetorno" = false
+         OR base."valorReceita" > 0
+         OR base."valorAdicional" > 0
+         OR base."houveCobranca" = true
+      GROUP BY DATE_TRUNC('month', base."referenciaMes")
+    `;
 
-  return transformarLinhasMes(linhas);
+    return transformarLinhasMes(linhas);
+  } catch (erro) {
+    registrarErroDashboard("obterReceitaOSPorMes", erro);
+    throw erro;
+  }
 }
 
 async function obterCustosPdvPorMes(inicio: Date, fim: Date): Promise<Map<string, number>> {
-  const linhas = await prisma.$queryRaw<LinhaMesValor[]>`
-    SELECT DATE_TRUNC('month', v."criadoEm") AS mes,
-           COALESCE(SUM(iv."custoUnitario" * iv.quantidade), 0) AS total
-    FROM "ItemVenda" iv
-    INNER JOIN "Venda" v ON v.id = iv."vendaId"
-    WHERE v."criadoEm" >= ${inicio}
-      AND v."criadoEm" <= ${fim}
-    GROUP BY DATE_TRUNC('month', v."criadoEm")
-  `;
+  try {
+    const linhas = await prisma.$queryRaw<LinhaMesValor[]>`
+      SELECT DATE_TRUNC('month', v."criadoEm") AS mes,
+             COALESCE(SUM(iv."custoUnitario" * iv."quantidade"), 0) AS total
+      FROM "ItemVenda" iv
+      INNER JOIN "Venda" v ON v.id = iv."vendaId"
+      WHERE v."criadoEm" >= ${inicio}
+        AND v."criadoEm" <= ${fim}
+      GROUP BY DATE_TRUNC('month', v."criadoEm")
+    `;
 
-  return transformarLinhasMes(linhas);
+    return transformarLinhasMes(linhas);
+  } catch (erro) {
+    registrarErroDashboard("obterCustosPdvPorMes", erro);
+    throw erro;
+  }
 }
 
 async function obterCustosOSPorMes(inicio: Date, fim: Date): Promise<Map<string, number>> {
-  const linhas = await prisma.$queryRaw<LinhaMesValor[]>`
-    SELECT DATE_TRUNC('month', os."atualizadoEm") AS mes,
-           COALESCE(SUM(i."custoPeca"), 0) AS total
-    FROM "OrdemServico" os
-    LEFT JOIN "ItemOS" i ON i."osId" = os.id
-    WHERE os."excluidaEm" IS NULL
-      AND os.status::text IN ('PRONTO', 'ENTREGUE')
-      AND os."atualizadoEm" >= ${inicio}
-      AND os."atualizadoEm" <= ${fim}
-    GROUP BY DATE_TRUNC('month', os."atualizadoEm")
-  `;
-
-  return transformarLinhasMes(linhas);
-}
-
-async function obterDespesasFinanceirasPorMes(inicio: Date, fim: Date): Promise<Map<string, number>> {
-  const linhas = await prisma.$queryRaw<LinhaMesValor[]>`
-    SELECT DATE_TRUNC(
-             'month',
-             CASE WHEN pd.status::text = 'PAGO' THEN pd."dataPagamento" ELSE pd."dataVencimento" END
-           ) AS mes,
-           COALESCE(SUM(pd.valor), 0) AS total
-    FROM "ParcelaDespesa" pd
-    INNER JOIN "Despesa" d ON d.id = pd."despesaId"
-    LEFT JOIN "Cliente" c ON c.id = d."clienteId"
-    WHERE (
-        (pd.status::text = 'PAGO' AND pd."dataPagamento" >= ${inicio} AND pd."dataPagamento" <= ${fim})
-        OR
-        (pd.status::text = 'PENDENTE' AND pd."dataVencimento" >= ${inicio} AND pd."dataVencimento" <= ${fim})
-      )
-      AND (c.id IS NULL OR c."papel"::text = 'FORNECEDOR')
-    GROUP BY DATE_TRUNC(
-      'month',
-      CASE WHEN pd.status::text = 'PAGO' THEN pd."dataPagamento" ELSE pd."dataVencimento" END
-    )
-  `;
-
-  return transformarLinhasMes(linhas);
-}
-
-async function obterTicketMedioOSMes(inicioMesAtual: Date, fimMesAtual: Date): Promise<number> {
-  const linhas = await prisma.$queryRaw<LinhaTicketMedio[]>`
-    SELECT COALESCE(AVG(base.total_os), 0) AS media
-    FROM (
-      SELECT os.id,
-             COALESCE(SUM(i."valorCobrado"), 0)::double precision AS total_os
+  try {
+    const linhas = await prisma.$queryRaw<LinhaMesValor[]>`
+      SELECT DATE_TRUNC('month', os."atualizadoEm") AS mes,
+             COALESCE(SUM(i."custoPeca"), 0) AS total
       FROM "OrdemServico" os
       LEFT JOIN "ItemOS" i ON i."osId" = os.id
       WHERE os."excluidaEm" IS NULL
-        AND os."ehRetornoGarantia" = false
-        AND os.status::text IN ('PRONTO', 'ENTREGUE')
-        AND os."atualizadoEm" >= ${inicioMesAtual}
-        AND os."atualizadoEm" <= ${fimMesAtual}
-      GROUP BY os.id
-    ) base
-  `;
+        AND os."status"::text IN ('PRONTO', 'ENTREGUE')
+        AND os."atualizadoEm" >= ${inicio}
+        AND os."atualizadoEm" <= ${fim}
+      GROUP BY DATE_TRUNC('month', os."atualizadoEm")
+    `;
 
-  return Number(linhas[0]?.media ?? 0);
+    return transformarLinhasMes(linhas);
+  } catch (erro) {
+    registrarErroDashboard("obterCustosOSPorMes", erro);
+    throw erro;
+  }
+}
+
+async function obterDespesasFinanceirasPorMes(inicio: Date, fim: Date): Promise<Map<string, number>> {
+  try {
+    const linhas = await prisma.$queryRaw<LinhaMesValor[]>`
+      SELECT DATE_TRUNC(
+               'month',
+               CASE WHEN pd."status"::text = 'PAGO' THEN pd."dataPagamento" ELSE pd."dataVencimento" END
+             ) AS mes,
+             COALESCE(SUM(pd."valor"), 0) AS total
+      FROM "ParcelaDespesa" pd
+      INNER JOIN "Despesa" d ON d.id = pd."despesaId"
+      LEFT JOIN "Cliente" c ON c.id = d."clienteId"
+      WHERE (
+          (pd."status"::text = 'PAGO' AND pd."dataPagamento" >= ${inicio} AND pd."dataPagamento" <= ${fim})
+          OR
+          (pd."status"::text = 'PENDENTE' AND pd."dataVencimento" >= ${inicio} AND pd."dataVencimento" <= ${fim})
+        )
+        AND (c.id IS NULL OR c."papel"::text = 'FORNECEDOR')
+      GROUP BY DATE_TRUNC(
+        'month',
+        CASE WHEN pd."status"::text = 'PAGO' THEN pd."dataPagamento" ELSE pd."dataVencimento" END
+      )
+    `;
+
+    return transformarLinhasMes(linhas);
+  } catch (erro) {
+    registrarErroDashboard("obterDespesasFinanceirasPorMes", erro);
+    throw erro;
+  }
+}
+
+async function obterTicketMedioOSMes(inicioMesAtual: Date, fimMesAtual: Date): Promise<number> {
+  try {
+    const linhas = await prisma.$queryRaw<LinhaTicketMedio[]>`
+      SELECT COALESCE(AVG(base.total_os), 0) AS media
+      FROM (
+        SELECT os.id,
+               COALESCE(SUM(i."valorCobrado"), 0)::double precision AS total_os
+        FROM "OrdemServico" os
+        LEFT JOIN "ItemOS" i ON i."osId" = os.id
+        WHERE os."excluidaEm" IS NULL
+          AND os."ehRetornoGarantia" = false
+          AND os."status"::text IN ('PRONTO', 'ENTREGUE')
+          AND os."atualizadoEm" >= ${inicioMesAtual}
+          AND os."atualizadoEm" <= ${fimMesAtual}
+        GROUP BY os.id
+      ) base
+    `;
+
+    return Number(linhas[0]?.media ?? 0);
+  } catch (erro) {
+    registrarErroDashboard("obterTicketMedioOSMes", erro);
+    throw erro;
+  }
 }
 
 function mapearStatusMovimentacao(status: string): string {
@@ -386,6 +474,7 @@ function calcularProgressoMeta(parametros: {
 
 export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
   const usuario = await exigirSessao();
+  await validarConectividadeBanco();
 
   const agora = new Date();
   const inicioHoje = inicioDoDia(agora);
@@ -424,7 +513,7 @@ export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
     retornosEmAndamento,
     metasAtrasadas,
     metasEmAtencao,
-    estoqueBaixoLinhas,
+    estoqueBaixoTotal,
     metasPrincipais,
     totalMetasEmAndamento,
     totalMetasAtencao,
@@ -440,10 +529,26 @@ export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
     retornosRecentes,
     historicosMetasRecentes,
   ] = await Promise.all([
-    obterReceitaMensalPadrao(inicioJanela6Meses, fimMesAtual),
-    obterCustosPdvPorMes(inicioJanela6Meses, fimMesAtual),
-    obterCustosOSPorMes(inicioJanela6Meses, fimMesAtual),
-    obterDespesasFinanceirasPorMes(inicioJanela6Meses, fimMesAtual),
+    executarComFallback(
+      "cards.grafico.receitaMensalPadrao",
+      () => obterReceitaMensalPadrao(inicioJanela6Meses, fimMesAtual),
+      []
+    ),
+    executarComFallback(
+      "cards.grafico.custosPdvMesMap",
+      () => obterCustosPdvPorMes(inicioJanela6Meses, fimMesAtual),
+      new Map<string, number>()
+    ),
+    executarComFallback(
+      "cards.grafico.custosOSMesMap",
+      () => obterCustosOSPorMes(inicioJanela6Meses, fimMesAtual),
+      new Map<string, number>()
+    ),
+    executarComFallback(
+      "cards.grafico.despesasFinanceirasMesMap",
+      () => obterDespesasFinanceirasPorMes(inicioJanela6Meses, fimMesAtual),
+      new Map<string, number>()
+    ),
     prisma.contaReceber.aggregate({
       where: {
         status: { in: [...STATUS_CONTA_PENDENTE] },
@@ -495,7 +600,11 @@ export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
         status: { notIn: [...STATUS_OS_CONCLUIDA] },
       },
     }),
-    obterTicketMedioOSMes(inicioMesAtual, fimMesAtual),
+    executarComFallback(
+      "cardsOperacionais.ticketMedioOS",
+      () => obterTicketMedioOSMes(inicioMesAtual, fimMesAtual),
+      0
+    ),
     prisma.ordemServico.count({ where: { excluidaEm: null, status: "AGUARDANDO_ORCAMENTO" } }),
     prisma.ordemServico.count({ where: { excluidaEm: null, status: "AGUARDANDO_APROVACAO" } }),
     prisma.ordemServico.count({ where: { excluidaEm: null, status: "APROVADO" } }),
@@ -560,19 +669,43 @@ export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
         },
       },
     }),
-    prisma.meta.count({
-      where: { criadoPorId: usuario.id, excluidaEm: null, status: "ATRASADA" },
-    }),
-    prisma.meta.count({
-      where: { criadoPorId: usuario.id, excluidaEm: null, status: "ATENCAO" },
-    }),
-    prisma.$queryRaw<LinhaContagem[]>`
-      SELECT COUNT(*) AS total
-      FROM "Produto" p
-      WHERE p.ativo = true
-        AND p."quantidadeEstoque" <= p."estoqueMinimo"
-    `,
-    prisma.meta.findMany({
+    executarComFallback(
+      "atencao.metasAtrasadas",
+      () =>
+        prisma.meta.count({
+          where: { criadoPorId: usuario.id, excluidaEm: null, status: "ATRASADA" },
+        }),
+      0
+    ),
+    executarComFallback(
+      "atencao.metasEmAtencao",
+      () =>
+        prisma.meta.count({
+          where: { criadoPorId: usuario.id, excluidaEm: null, status: "ATENCAO" },
+        }),
+      0
+    ),
+    executarComFallback(
+      "atencao.estoqueBaixoTotal",
+      () =>
+        prisma.produto
+          .findMany({
+            where: { ativo: true },
+            select: {
+              quantidadeEstoque: true,
+              estoqueMinimo: true,
+            },
+          })
+          .then(
+            (produtos) =>
+              produtos.filter(
+                (produto) =>
+                  Number(produto.quantidadeEstoque ?? 0) <= Number(produto.estoqueMinimo ?? 0)
+              ).length
+          ),
+      0
+    ),
+    executarComFallback("metas.principais", () => prisma.meta.findMany({
       where: {
         criadoPorId: usuario.id,
         excluidaEm: null,
@@ -591,36 +724,48 @@ export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
         { dataPrazo: "asc" },
       ],
       take: 3,
-    }),
-    prisma.meta.count({ where: { criadoPorId: usuario.id, excluidaEm: null, status: "EM_ANDAMENTO" } }),
-    prisma.meta.count({ where: { criadoPorId: usuario.id, excluidaEm: null, status: "ATENCAO" } }),
-    prisma.meta.count({ where: { criadoPorId: usuario.id, excluidaEm: null, status: "ATRASADA" } }),
-    prisma.termoGarantiaOS.count({
+    }), []),
+    executarComFallback(
+      "metas.totalEmAndamento",
+      () => prisma.meta.count({ where: { criadoPorId: usuario.id, excluidaEm: null, status: "EM_ANDAMENTO" } }),
+      0
+    ),
+    executarComFallback(
+      "metas.totalEmAtencao",
+      () => prisma.meta.count({ where: { criadoPorId: usuario.id, excluidaEm: null, status: "ATENCAO" } }),
+      0
+    ),
+    executarComFallback(
+      "metas.totalAtrasadas",
+      () => prisma.meta.count({ where: { criadoPorId: usuario.id, excluidaEm: null, status: "ATRASADA" } }),
+      0
+    ),
+    executarComFallback("garantias.ativas", () => prisma.termoGarantiaOS.count({
       where: {
         canceladaEm: null,
         os: { excluidaEm: null },
         dataFimGarantia: { gte: inicioHoje },
       },
-    }),
-    prisma.retornoGarantiaOS.count({
+    }), 0),
+    executarComFallback("garantias.retornosFinalizadosMes", () => prisma.retornoGarantiaOS.count({
       where: {
         finalizadoEm: { gte: inicioMesAtual, lte: fimMesAtual },
       },
-    }),
-    prisma.termoGarantiaOS.count({
+    }), 0),
+    executarComFallback("garantias.termosComRetorno", () => prisma.termoGarantiaOS.count({
       where: {
         canceladaEm: null,
         os: { excluidaEm: null },
         retornos: { some: {} },
       },
-    }),
-    prisma.termoGarantiaOS.count({
+    }), 0),
+    executarComFallback("garantias.totalTermosGarantia", () => prisma.termoGarantiaOS.count({
       where: {
         canceladaEm: null,
         os: { excluidaEm: null },
       },
-    }),
-    prisma.venda.findMany({
+    }), 0),
+    executarComFallback("movimentacoes.vendasRecentes", () => prisma.venda.findMany({
       take: 4,
       orderBy: { criadoEm: "desc" },
       select: {
@@ -629,8 +774,8 @@ export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
         criadoEm: true,
         cliente: { select: { nomeRazaoSocial: true } },
       },
-    }),
-    prisma.contaReceber.findMany({
+    }), []),
+    executarComFallback("movimentacoes.recebimentosRecentes", () => prisma.contaReceber.findMany({
       take: 4,
       where: { status: "RECEBIDO" },
       orderBy: { dataRecebimento: "desc" },
@@ -641,8 +786,8 @@ export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
         dataRecebimento: true,
         cliente: { select: { nomeRazaoSocial: true } },
       },
-    }),
-    prisma.parcelaDespesa.findMany({
+    }), []),
+    executarComFallback("movimentacoes.pagamentosRecentes", () => prisma.parcelaDespesa.findMany({
       take: 4,
       where: { status: "PAGO" },
       orderBy: { dataPagamento: "desc" },
@@ -652,8 +797,8 @@ export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
         dataPagamento: true,
         despesa: { select: { descricao: true, fornecedor: true } },
       },
-    }),
-    prisma.ordemServico.findMany({
+    }), []),
+    executarComFallback("movimentacoes.osRecentes", () => prisma.ordemServico.findMany({
       take: 4,
       where: { excluidaEm: null },
       orderBy: { atualizadoEm: "desc" },
@@ -665,8 +810,8 @@ export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
         ehRetornoGarantia: true,
         atualizadoEm: true,
       },
-    }),
-    prisma.retornoGarantiaOS.findMany({
+    }), []),
+    executarComFallback("movimentacoes.retornosRecentes", () => prisma.retornoGarantiaOS.findMany({
       take: 3,
       orderBy: { criadoEm: "desc" },
       select: {
@@ -677,8 +822,8 @@ export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
         finalizadoEm: true,
         osRetorno: { select: { id: true, numeroOs: true } },
       },
-    }),
-    prisma.historicoMeta.findMany({
+    }), []),
+    executarComFallback("movimentacoes.historicosMetasRecentes", () => prisma.historicoMeta.findMany({
       take: 3,
       orderBy: { criadoEm: "desc" },
       where: {
@@ -699,7 +844,7 @@ export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
           },
         },
       },
-    }),
+    }), []),
   ]);
 
   const receitaPorMes = new Map<string, number>();
@@ -781,7 +926,7 @@ export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
     });
   }
 
-  const estoqueBaixo = Number(estoqueBaixoLinhas[0]?.total ?? 0);
+  const estoqueBaixo = Number(estoqueBaixoTotal ?? 0);
 
   if (estoqueBaixo > 0) {
     atencaoHoje.push({
@@ -975,6 +1120,19 @@ export async function obterDashboardExecutivoSeguro(): Promise<ResultadoDashboar
       dados,
     };
   } catch (erro) {
+    if (erro instanceof Prisma.PrismaClientKnownRequestError) {
+      console.error("[dashboard] falha ao montar dashboard executivo", {
+        prismaCode: erro.code,
+        message: erro.message,
+        meta: serializarMetaErro(erro.meta),
+      });
+
+      return {
+        sucesso: false,
+        erro: "Nao foi possivel carregar os indicadores do dashboard.",
+      };
+    }
+
     if (erro instanceof Error) {
       console.error("[dashboard] falha ao montar dashboard executivo", {
         message: erro.message,
