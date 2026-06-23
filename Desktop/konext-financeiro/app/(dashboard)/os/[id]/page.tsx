@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { SecaoItensOS } from "@/components/os/secao-itens-os";
 import { BotaoGerarPedidoVenda } from "@/components/os/botao-gerar-pedido-venda";
 import { BotaoCopiarLinkRastreio } from "@/components/os/botao-copiar-link-rastreio";
+import { AcaoGarantiaOS } from "@/components/os/garantias/acao-garantia-os";
 
 type PropsPaginaDetalheOS = {
   params: Promise<{
@@ -59,6 +60,7 @@ type OrdemServicoDetalhe = {
     criadoEm?: Date | string | null;
   }>;
   transacoes?: Array<{ vendaId?: string | null; origem?: string | null }>;
+  termoGarantia?: { id?: string | null } | null;
 };
 
 const mapaStatusLabel: Record<string, string> = {
@@ -123,6 +125,11 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
         },
       },
       itens: true,
+      termoGarantia: {
+        select: {
+          id: true,
+        },
+      },
       transacoes: {
         select: {
           vendaId: true,
@@ -147,6 +154,11 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
             },
           },
           itens: true,
+          termoGarantia: {
+            select: {
+              id: true,
+            },
+          },
           transacoes: {
             select: {
               vendaId: true,
@@ -196,10 +208,13 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
   const modelo = String(osBanco.modelo ?? "Nao informado");
   const criadoEm = new Date(osBanco.criadoEm ?? new Date()).toISOString();
   const idOs = String(osBanco.id);
+  const possuiItens = itensNormalizados.length > 0;
+  const possuiTermoGarantia = Boolean(osBanco.termoGarantia?.id);
   const possuiPedidoVenda = (osBanco.transacoes ?? []).some((transacao) => {
     return transacao?.vendaId && String(transacao.origem) === "ORDEM_SERVICO";
   });
-  const podeGerarPedidoVenda = statusAtual === "PRONTO" && !possuiPedidoVenda;
+  const podeEnviarAoPdv = statusAtual === "PRONTO" && !possuiPedidoVenda;
+  const podeGerarPedidoVenda = podeEnviarAoPdv && possuiItens;
 
   return (
     <div className="w-full min-h-full flex flex-col bg-slate-100 dark:bg-slate-950">
@@ -224,16 +239,27 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
                 Imprimir OS
               </Link>
             </Button>
-            {statusAtual === "ENTREGUE" && (
-              <Button variant="outline" size="sm" className="h-9" asChild>
-                <a href={`/os/${idOs}/garantia`} target="_blank" rel="noopener noreferrer">
-                  <Printer className="h-4 w-4 mr-2" />
-                  Imprimir termo de garantia
-                </a>
-              </Button>
-            )}
+            <AcaoGarantiaOS
+              osId={idOs}
+              statusOS={statusAtual}
+              possuiTermoGarantia={possuiTermoGarantia}
+              possuiItens={possuiItens}
+              mostrarTextoBloqueio
+            />
             <BotaoCopiarLinkRastreio osId={idOs} />
             {podeGerarPedidoVenda && <BotaoGerarPedidoVenda osId={idOs} />}
+            {podeEnviarAoPdv && !possuiItens && (
+              <div className="relative flex items-center">
+                <BotaoGerarPedidoVenda
+                  osId={idOs}
+                  desabilitado
+                  mensagemBloqueio="Cadastre uma peca ou servico antes de enviar a OS ao PDV."
+                />
+                <p className="absolute left-0 top-full mt-1 whitespace-nowrap text-xs text-slate-500">
+                  Cadastre uma peca ou servico antes de enviar a OS ao PDV.
+                </p>
+              </div>
+            )}
             {!podeGerarPedidoVenda && possuiPedidoVenda && (
               <Badge variant="outline" className="border-emerald-500 text-emerald-600">
                 Pedido de venda ja gerado

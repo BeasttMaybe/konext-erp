@@ -965,19 +965,6 @@ export async function processarVendaComOSNoPDV(
         ],
       });
 
-      if (!ordemServicoDelegate?.update) {
-        throw new Error("Nao foi possivel atualizar o status da OS apos o faturamento.");
-      }
-
-      await ordemServicoDelegate.update({
-        where: {
-          id: pedido.osId,
-        },
-        data: {
-          status: "ENTREGUE",
-        },
-      });
-
       return { vendaId };
     });
 

@@ -243,7 +243,7 @@ export function SecaoItensOS({ osId, numeroOs, itens, desabilitarCadastro = fals
         <form onSubmit={aoSubmeter} className="mt-4 space-y-0">
 
           {/* Grade de campos — 12 colunas para distribuição precisa */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-4 md:items-end">
 
             {/* Tipo da Peça — 3 colunas */}
             <div className="md:col-span-3 flex flex-col gap-1.5">

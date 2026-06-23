@@ -158,6 +158,12 @@ type OrdemServicoStatusDelegate = {
     numeroOs?: number | null;
     status?: string | null;
     archivedAt?: Date | null;
+    excluidaEm?: Date | null;
+    ehRetornoGarantia?: boolean | null;
+    _count?: {
+      itens?: number | null;
+    };
+    termoGarantia?: { id?: string | null } | null;
   } | null>;
 };
 
@@ -204,22 +210,14 @@ const statusValidos: StatusOS[] = [
   "ENTREGUE",
 ];
 
+const MENSAGEM_MOVER_ENTREGUE_SEM_GARANTIA = "Para mover a OS para Entregue, gere o termo de garantia primeiro.";
+const MENSAGEM_MOVER_ENTREGUE_SEM_ITENS = "Para mover a OS para Entregue, cadastre pelo menos uma peca ou servico na OS.";
+const MENSAGEM_FINALIZAR_SEM_GARANTIA = "Para finalizar a OS, informe o prazo de garantia e gere o termo de garantia.";
+const MENSAGEM_FINALIZAR_SEM_ITENS = "Para finalizar a OS, cadastre pelo menos uma peca ou servico na OS.";
+
 function paraNumero(valor: unknown): number {
   const numero = typeof valor === "number" ? valor : Number(valor ?? 0);
   if (!Number.isFinite(numero)) return 0;
-  return numero;
-}
-
-function validarPrazoGarantiaDias(valor: unknown): number {
-  if (valor === null || valor === undefined || String(valor).trim().length === 0) {
-    throw new Error("Informe o prazo de garantia.");
-  }
-
-  const numero = Number(valor);
-  if (!Number.isInteger(numero) || numero < 1 || numero > 365) {
-    throw new Error("Informe um prazo de garantia valido.");
-  }
-
   return numero;
 }
 
@@ -600,11 +598,39 @@ export async function atualizarStatusOrdemServico(osId: string, status: StatusOS
 
     const antes = await txOrdemServico.findUnique({
       where: { id: osId },
-      select: { id: true, status: true, archivedAt: true },
+      select: {
+        id: true,
+        status: true,
+        archivedAt: true,
+        excluidaEm: true,
+        ehRetornoGarantia: true,
+        _count: {
+          select: {
+            itens: true,
+          },
+        },
+        termoGarantia: {
+          select: {
+            id: true,
+          },
+        },
+      },
     });
 
     if (!antes?.id) {
       throw new Error("Ordem de servico nao encontrada.");
+    }
+
+    if (antes.excluidaEm) {
+      throw new Error("Nao e permitido alterar status de uma OS excluida.");
+    }
+
+    if (status === "ENTREGUE" && Number(antes._count?.itens ?? 0) === 0) {
+      throw new Error(MENSAGEM_MOVER_ENTREGUE_SEM_ITENS);
+    }
+
+    if (status === "ENTREGUE" && !antes.ehRetornoGarantia && !antes.termoGarantia?.id) {
+      throw new Error(MENSAGEM_MOVER_ENTREGUE_SEM_GARANTIA);
     }
 
     try {
@@ -690,16 +716,38 @@ export async function atualizarStatusOrdemServico(osId: string, status: StatusOS
 
 export type FinalizarOrdemServicoInput = {
   osId: string;
+};
+
+export type GerarGarantiaEFinalizarOSInput = {
+  osId: string;
   prazoGarantiaDias: number;
 };
 
-export async function archiveDeliveredOrderService(input: FinalizarOrdemServicoInput) {
+export type ResultadoFinalizacaoOrdemServico =
+  | {
+      sucesso: true;
+      mensagem: string;
+      osId: string;
+      termoGarantiaId?: string;
+      garantiaGerada: boolean;
+    }
+  | {
+      sucesso: false;
+      erro: string;
+      requerGarantia?: boolean;
+    };
+
+export async function archiveDeliveredOrderService(
+  input: FinalizarOrdemServicoInput
+): Promise<ResultadoFinalizacaoOrdemServico> {
   const usuario = await exigirSessao();
   const orderServiceId = String(input?.osId ?? "").trim();
-  const prazoGarantiaDias = validarPrazoGarantiaDias(input?.prazoGarantiaDias);
 
   if (!orderServiceId) {
-    throw new Error("ID da ordem de servico nao informado.");
+    return {
+      sucesso: false,
+      erro: "ID da ordem de servico nao informado.",
+    };
   }
 
   const prismaAny = prisma as typeof prisma & Record<string, unknown>;
@@ -710,13 +758,18 @@ export async function archiveDeliveredOrderService(input: FinalizarOrdemServicoI
           status?: string | null;
           archivedAt?: Date | null;
           excluidaEm?: Date | null;
+          ehRetornoGarantia?: boolean | null;
+          termoGarantia?: { id?: string | null } | null;
         } | null>;
         update?: (args: unknown) => Promise<unknown>;
       }
     | undefined;
 
   if (!orderServiceDelegate?.findUnique || !orderServiceDelegate?.update) {
-    throw new Error("Delegate Prisma de OrdemServico nao disponivel.");
+    return {
+      sucesso: false,
+      erro: "Delegate Prisma de OrdemServico nao disponivel.",
+    };
   }
 
   let orderService: {
@@ -724,6 +777,11 @@ export async function archiveDeliveredOrderService(input: FinalizarOrdemServicoI
     status?: string | null;
     archivedAt?: Date | null;
     excluidaEm?: Date | null;
+    ehRetornoGarantia?: boolean | null;
+    _count?: {
+      itens?: number | null;
+    };
+    termoGarantia?: { id?: string | null } | null;
   } | null = null;
 
   try {
@@ -733,9 +791,21 @@ export async function archiveDeliveredOrderService(input: FinalizarOrdemServicoI
       },
       select: {
         id: true,
+        numeroOs: true,
         status: true,
         archivedAt: true,
         excluidaEm: true,
+        ehRetornoGarantia: true,
+        _count: {
+          select: {
+            itens: true,
+          },
+        },
+        termoGarantia: {
+          select: {
+            id: true,
+          },
+        },
       },
     });
   } catch (error) {
@@ -759,15 +829,39 @@ export async function archiveDeliveredOrderService(input: FinalizarOrdemServicoI
   }
 
   if (!orderService) {
-    throw new Error("Ordem de servico nao encontrada.");
+    return {
+      sucesso: false,
+      erro: "Ordem de servico nao encontrada.",
+    };
   }
 
   if (orderService.excluidaEm) {
-    throw new Error("Nao e permitido finalizar uma OS excluida.");
+    return {
+      sucesso: false,
+      erro: "Nao e permitido finalizar uma OS excluida.",
+    };
   }
 
   if (String(orderService.status) !== "ENTREGUE") {
-    throw new Error("A OS precisa estar com status Entregue antes de ser finalizada.");
+    return {
+      sucesso: false,
+      erro: "A OS precisa estar com status Entregue antes de ser finalizada.",
+    };
+  }
+
+  if (!orderService.ehRetornoGarantia && Number(orderService._count?.itens ?? 0) === 0) {
+    return {
+      sucesso: false,
+      erro: MENSAGEM_FINALIZAR_SEM_ITENS,
+    };
+  }
+
+  if (!orderService.ehRetornoGarantia && !orderService.termoGarantia?.id) {
+    return {
+      sucesso: false,
+      erro: MENSAGEM_FINALIZAR_SEM_GARANTIA,
+      requerGarantia: true,
+    };
   }
 
   await prisma.$transaction(async (tx) => {
@@ -793,12 +887,6 @@ export async function archiveDeliveredOrderService(input: FinalizarOrdemServicoI
       });
     }
 
-    await garantirTermoGarantiaPorOS(tx, {
-      osId: orderServiceId,
-      criadoPorId: String(usuario.id),
-      prazoGarantiaDias,
-    });
-
     await registrarLogAuditoria(
       tx,
       contextoAuditoriaDoUsuario(usuario, "app/actions/os.ts:archiveDeliveredOrderService"),
@@ -813,13 +901,13 @@ export async function archiveDeliveredOrderService(input: FinalizarOrdemServicoI
         dadosDepois: {
           status: orderService.status,
           archivedAt: new Date().toISOString(),
-          prazoGarantiaDias,
         },
       }
     );
   });
 
   revalidatePath("/os");
+  revalidatePath("/dashboard");
   revalidatePath("/os/garantias");
   revalidatePath(`/os/${orderServiceId}`);
   revalidatePath(`/os/${orderServiceId}/garantia`);
@@ -827,7 +915,181 @@ export async function archiveDeliveredOrderService(input: FinalizarOrdemServicoI
   revalidatePath("/financeiro");
 
   return {
-    success: true,
+    sucesso: true,
+    mensagem: "OS finalizada com sucesso.",
+    osId: orderServiceId,
+    termoGarantiaId: orderService.termoGarantia?.id ? String(orderService.termoGarantia.id) : undefined,
+    garantiaGerada: false,
+  };
+}
+
+export async function gerarGarantiaEFinalizarOS(
+  input: GerarGarantiaEFinalizarOSInput
+): Promise<ResultadoFinalizacaoOrdemServico> {
+  const usuario = await exigirSessao();
+  const osId = String(input?.osId ?? "").trim();
+  const prazoGarantiaDias = Number(input?.prazoGarantiaDias ?? 0);
+
+  if (!osId) {
+    return {
+      sucesso: false,
+      erro: "ID da ordem de servico nao informado.",
+    };
+  }
+
+  if (!Number.isInteger(prazoGarantiaDias) || prazoGarantiaDias < 1 || prazoGarantiaDias > 365) {
+    return {
+      sucesso: false,
+      erro: "Informe um prazo de garantia valido.",
+      requerGarantia: true,
+    };
+  }
+
+  type OrdemServicoFinalizacao = {
+    id: string;
+    status: string;
+    archivedAt: Date | null;
+    excluidaEm: Date | null;
+    ehRetornoGarantia: boolean;
+    termoGarantia: { id: string } | null;
+    _count: {
+      itens: number;
+    };
+  };
+
+  const ordemServico = await prisma.ordemServico.findUnique({
+    where: {
+      id: osId,
+    },
+    select: {
+      id: true,
+      status: true,
+      archivedAt: true,
+      excluidaEm: true,
+      ehRetornoGarantia: true,
+      termoGarantia: {
+        select: {
+          id: true,
+        },
+      },
+      _count: {
+        select: {
+          itens: true,
+        },
+      },
+    },
+  }) as OrdemServicoFinalizacao | null;
+
+  if (!ordemServico) {
+    return {
+      sucesso: false,
+      erro: "Ordem de servico nao encontrada.",
+    };
+  }
+
+  if (ordemServico.excluidaEm) {
+    return {
+      sucesso: false,
+      erro: "Nao e permitido finalizar uma OS excluida.",
+    };
+  }
+
+  if (!ordemServico.ehRetornoGarantia && Number(ordemServico._count?.itens ?? 0) === 0) {
+    return {
+      sucesso: false,
+      erro: MENSAGEM_FINALIZAR_SEM_ITENS,
+    };
+  }
+
+  if (String(ordemServico.status) !== "PRONTO" && String(ordemServico.status) !== "ENTREGUE") {
+    return {
+      sucesso: false,
+      erro: "A OS precisa estar com status Pronto ou Entregue para ser finalizada.",
+    };
+  }
+
+  const resultado = await prisma.$transaction(async (tx) => {
+    let termoGarantiaId = ordemServico.termoGarantia?.id ? String(ordemServico.termoGarantia.id) : undefined;
+    let garantiaGerada = false;
+
+    if (!ordemServico.ehRetornoGarantia && !termoGarantiaId) {
+      const garantia = await garantirTermoGarantiaPorOS(tx, {
+        osId,
+        criadoPorId: String(usuario.id),
+        prazoGarantiaDias,
+      });
+
+      termoGarantiaId = garantia.termoGarantiaId;
+      garantiaGerada = Boolean(garantia.criadoNovo);
+
+      await registrarLogAuditoria(
+        tx,
+        contextoAuditoriaDoUsuario(usuario, "app/actions/os.ts:gerarGarantiaEFinalizarOS"),
+        {
+          acao: ACOES_AUDITORIA.GERAR_TERMO_GARANTIA,
+          entidade: ENTIDADES_AUDITORIA.TERMO_GARANTIA_OS,
+          entidadeId: garantia.termoGarantiaId,
+          dadosDepois: {
+            osId,
+            prazoGarantiaDias: garantia.prazoGarantiaDias,
+            dataInicioGarantia: garantia.dataInicioGarantia.toISOString(),
+            dataFimGarantia: garantia.dataFimGarantia.toISOString(),
+            criadoNovo: garantia.criadoNovo,
+          },
+        }
+      );
+    }
+
+    await tx.ordemServico.update({
+      where: {
+        id: osId,
+      },
+      data: {
+        status: "ENTREGUE",
+        archivedAt: ordemServico.archivedAt ?? new Date(),
+      },
+    });
+
+    await registrarLogAuditoria(
+      tx,
+      contextoAuditoriaDoUsuario(usuario, "app/actions/os.ts:gerarGarantiaEFinalizarOS"),
+      {
+        acao: ACOES_AUDITORIA.FINALIZAR,
+        entidade: ENTIDADES_AUDITORIA.ORDEM_SERVICO,
+        entidadeId: osId,
+        dadosAntes: {
+          status: ordemServico.status,
+          archivedAt: ordemServico.archivedAt,
+        },
+        dadosDepois: {
+          status: "ENTREGUE",
+          archivedAt: (ordemServico.archivedAt ?? new Date()).toISOString(),
+          termoGarantiaId,
+          garantiaGerada,
+        },
+      }
+    );
+
+    return {
+      termoGarantiaId,
+      garantiaGerada,
+    };
+  });
+
+  revalidatePath("/os");
+  revalidatePath("/dashboard");
+  revalidatePath("/os/garantias");
+  revalidatePath(`/os/${osId}`);
+  revalidatePath(`/os/${osId}/garantia`);
+  revalidatePath("/");
+  revalidatePath("/financeiro");
+
+  return {
+    sucesso: true,
+    mensagem: "Garantia gerada e OS finalizada com sucesso.",
+    osId,
+    termoGarantiaId: resultado.termoGarantiaId,
+    garantiaGerada: resultado.garantiaGerada,
   };
 }
 
@@ -1133,6 +1395,11 @@ export async function gerarPedidoVendaPorOS(osId: string) {
       vendaId: String(pedidoExistente.vendaId),
       pedidoJaExistia: true,
     };
+  }
+
+  const quantidadeItens = (os.itens ?? []).length;
+  if (quantidadeItens === 0) {
+    throw new Error("Para enviar ao PDV, cadastre pelo menos uma peca ou servico na OS.");
   }
 
   const totalPedido = (os.itens ?? []).reduce((acumulado: number, item: OrdemServicoPedidoItem) => {

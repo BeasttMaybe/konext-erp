@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { TabuleiroKanban } from "@/components/os/tabuleiro-kanban";
 import { ModalNovaOS } from "@/components/os/modal-nova-os";
-import { ModalFinalizarOS } from "@/components/os/modal-finalizar-os";
+import { ModalFinalizarOS, type ConfirmacaoFinalizacaoPayload } from "@/components/os/modal-finalizar-os";
 import {
   ModalFinalizarRetornoGarantia,
   type FinalizacaoRetornoGarantiaPayload,
@@ -28,6 +28,7 @@ import {
   archiveDeliveredOrderService,
   criarOrdemServico,
   excluirOrdemServico,
+  gerarGarantiaEFinalizarOS,
   atualizarStatusOrdemServico,
 } from "@/app/actions/os";
 import { finalizarRetornoGarantiaOS } from "@/app/actions/garantias";
@@ -63,6 +64,7 @@ export function DashboardOS({
   const [motivoExclusao, setMotivoExclusao] = useState("");
   const [osParaFinalizar, setOsParaFinalizar] = useState<OrdemServico | null>(null);
   const [osFinalizandoId, setOsFinalizandoId] = useState<string | null>(null);
+  const [requerGarantiaFinalizacao, setRequerGarantiaFinalizacao] = useState(false);
   const resolverFinalizacaoRef = useRef<((sucesso: boolean) => void) | null>(null);
 
   const filteredActiveOrders = activeOrderServices.filter((os) =>
@@ -115,23 +117,41 @@ export function DashboardOS({
   const concluirSolicitacaoFinalizacao = (sucesso: boolean) => {
     resolverFinalizacaoRef.current?.(sucesso);
     resolverFinalizacaoRef.current = null;
+    setRequerGarantiaFinalizacao(false);
     setOsParaFinalizar(null);
   };
 
-  const confirmarFinalizacaoOS = async (prazoGarantiaDias: number) => {
+  const confirmarFinalizacaoOS = async (payload?: ConfirmacaoFinalizacaoPayload) => {
     if (!osParaFinalizar || osFinalizandoId) {
       return;
     }
 
     try {
       setOsFinalizandoId(osParaFinalizar.id);
-      await archiveDeliveredOrderService({
-        osId: osParaFinalizar.id,
-        prazoGarantiaDias,
-      });
+
+      const resultado = requerGarantiaFinalizacao
+        ? await gerarGarantiaEFinalizarOS({
+            osId: osParaFinalizar.id,
+            prazoGarantiaDias: Number(payload?.prazoGarantiaDias ?? 0),
+          })
+        : await archiveDeliveredOrderService({
+            osId: osParaFinalizar.id,
+          });
+
+      if (!resultado.sucesso) {
+        if (resultado.requerGarantia) {
+          setRequerGarantiaFinalizacao(true);
+        }
+        toast.error(resultado.erro);
+        return;
+      }
+
       setModoVisualizacao("LISTA_FINALIZADAS");
-      toast.success(`OS ${osParaFinalizar.numeroOS} finalizada com sucesso.`);
-      toast.success("Imprimir termo de garantia disponivel no detalhe da OS.");
+      if (resultado.garantiaGerada) {
+        toast.success(`OS ${osParaFinalizar.numeroOS} finalizada com garantia gerada.`);
+      } else {
+        toast.success(`OS ${osParaFinalizar.numeroOS} finalizada com sucesso.`);
+      }
       router.refresh();
       concluirSolicitacaoFinalizacao(true);
     } catch (error) {
@@ -187,6 +207,7 @@ export function DashboardOS({
     }
 
     setOsParaFinalizar(orderService);
+    setRequerGarantiaFinalizacao(false);
 
     return await new Promise<boolean>((resolve) => {
       resolverFinalizacaoRef.current = resolve;
@@ -560,6 +581,7 @@ export function DashboardOS({
           }}
           os={osParaFinalizar}
           processando={Boolean(osFinalizandoId)}
+          requerGarantia={requerGarantiaFinalizacao}
           onConfirmar={confirmarFinalizacaoOS}
         />
       )}

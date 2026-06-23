@@ -28,6 +28,15 @@ export type RegistrarRetornoGarantiaInput = {
   resultado: ResultadoRetornoGarantia;
 };
 
+export type GerarTermoGarantiaOSInput = {
+  osId: string;
+  prazoGarantiaDias: number;
+};
+
+export type ResultadoGerarGarantia =
+  | { sucesso: true; mensagem: string; osId: string; termoGarantiaId: string }
+  | { sucesso: false; erro: string };
+
 export type FinalizarRetornoGarantiaInput = {
   retornoGarantiaId: string;
   resultado: Exclude<ResultadoRetornoGarantia, "EM_ANALISE">;
@@ -144,6 +153,21 @@ export type ListagemGarantiasOS =
       erro: string;
     };
 
+export type ContextoGarantiaOS = {
+  osId: string;
+  numeroOS: string;
+  statusOS: string;
+  possuiTermoGarantia: boolean;
+  possuiItens: boolean;
+};
+
+const STATUS_PERMITE_GARANTIA = "PRONTO";
+const MENSAGEM_ERRO_STATUS_GARANTIA = "A garantia so pode ser gerada quando a OS estiver como Pronto.";
+const MENSAGEM_ERRO_GARANTIA_SEM_ITENS = "Para gerar a garantia, cadastre pelo menos uma peca ou servico na OS.";
+const MENSAGEM_PRAZO_OBRIGATORIO = "Informe o prazo de garantia.";
+const MENSAGEM_PRAZO_INVALIDO = "Informe um prazo de garantia valido.";
+const MENSAGEM_ERRO_GERAR_GARANTIA = "Nao foi possivel gerar o termo de garantia. Tente novamente.";
+
 function normalizarTexto(valor: string | null | undefined): string {
   return String(valor ?? "").trim();
 }
@@ -162,12 +186,18 @@ function adicionarDias(data: Date, dias: number): Date {
   return copia;
 }
 
-function validarPrazoGarantiaDias(valor: number): number {
-  if (!Number.isInteger(valor) || valor < 1 || valor > 365) {
-    throw new Error("Informe um prazo de garantia valido.");
+function validarPrazoGarantiaDias(valor: unknown): number {
+  const textoValor = String(valor ?? "").trim();
+  if (!textoValor) {
+    throw new Error(MENSAGEM_PRAZO_OBRIGATORIO);
   }
 
-  return valor;
+  const numero = Number(textoValor);
+  if (!Number.isInteger(numero) || numero < 1 || numero > 365) {
+    throw new Error(MENSAGEM_PRAZO_INVALIDO);
+  }
+
+  return numero;
 }
 
 function diferencaDias(base: Date, alvo: Date): number {
@@ -284,6 +314,7 @@ type ClienteTransacional = {
 type OsTransacional = {
   id: string;
   numeroOs: number;
+  status: string;
   equipamento: string;
   marca: string | null;
   modelo: string | null;
@@ -295,7 +326,12 @@ type OsTransacional = {
   prazoGarantiaDias: number | null;
   cliente: ClienteTransacional;
   itens: Array<{ descricao: string; tipoPeca: string; valorCobrado: number }>;
-  termoGarantia: { id: string; prazoGarantiaDias: number } | null;
+  termoGarantia: {
+    id: string;
+    prazoGarantiaDias: number;
+    dataInicioGarantia: Date;
+    dataFimGarantia: Date;
+  } | null;
 };
 
 type ConfiguracaoTermo = {
@@ -315,7 +351,14 @@ type ClientTx = Prisma.TransactionClient | typeof prisma;
 export async function garantirTermoGarantiaPorOS(
   client: ClientTx,
   input: { osId: string; criadoPorId?: string; prazoGarantiaDias?: number }
-): Promise<{ termoGarantiaId: string; osId: string; prazoGarantiaDias: number }> {
+): Promise<{
+  termoGarantiaId: string;
+  osId: string;
+  prazoGarantiaDias: number;
+  dataInicioGarantia: Date;
+  dataFimGarantia: Date;
+  criadoNovo: boolean;
+}> {
   const osId = normalizarTexto(input.osId);
   if (!osId) {
     throw new Error("OS invalida para geracao de garantia.");
@@ -326,6 +369,7 @@ export async function garantirTermoGarantiaPorOS(
     select: {
       id: true,
       numeroOs: true,
+      status: true,
       equipamento: true,
       marca: true,
       modelo: true,
@@ -350,7 +394,12 @@ export async function garantirTermoGarantiaPorOS(
         },
       },
       termoGarantia: {
-        select: { id: true, prazoGarantiaDias: true },
+        select: {
+          id: true,
+          prazoGarantiaDias: true,
+          dataInicioGarantia: true,
+          dataFimGarantia: true,
+        },
       },
     },
   }) as OsTransacional | null;
@@ -368,7 +417,18 @@ export async function garantirTermoGarantiaPorOS(
       termoGarantiaId: os.termoGarantia.id,
       osId: os.id,
       prazoGarantiaDias: Number(os.termoGarantia.prazoGarantiaDias),
+      dataInicioGarantia: os.termoGarantia.dataInicioGarantia,
+      dataFimGarantia: os.termoGarantia.dataFimGarantia,
+      criadoNovo: false,
     };
+  }
+
+  if (String(os.status) !== STATUS_PERMITE_GARANTIA) {
+    throw new Error(MENSAGEM_ERRO_STATUS_GARANTIA);
+  }
+
+  if ((os.itens ?? []).length === 0) {
+    throw new Error(MENSAGEM_ERRO_GARANTIA_SEM_ITENS);
   }
 
   const configuracao = await client.configuracao.findFirst({
@@ -447,6 +507,129 @@ export async function garantirTermoGarantiaPorOS(
     termoGarantiaId: termo.id,
     osId: os.id,
     prazoGarantiaDias,
+    dataInicioGarantia,
+    dataFimGarantia,
+    criadoNovo: true,
+  };
+}
+
+export async function gerarTermoGarantiaOS(input: GerarTermoGarantiaOSInput): Promise<ResultadoGerarGarantia> {
+  try {
+    const usuario = await exigirSessao();
+    const osId = normalizarTexto(input.osId);
+
+    if (!osId) {
+      return { sucesso: false, erro: "Ordem de servico nao encontrada." };
+    }
+
+    const prazoGarantiaDias = validarPrazoGarantiaDias(input.prazoGarantiaDias);
+
+    const termoGerado = await prisma.$transaction(async (tx) => {
+      const resultado = await garantirTermoGarantiaPorOS(tx, {
+        osId,
+        criadoPorId: String(usuario.id),
+        prazoGarantiaDias,
+      });
+
+      await registrarLogAuditoria(
+        tx,
+        contextoAuditoriaDoUsuario(usuario, "app/actions/garantias.ts:gerarTermoGarantiaOS"),
+        {
+          acao: ACOES_AUDITORIA.GERAR_TERMO_GARANTIA,
+          entidade: ENTIDADES_AUDITORIA.TERMO_GARANTIA_OS,
+          entidadeId: resultado.termoGarantiaId,
+          dadosDepois: {
+            osId: resultado.osId,
+            prazoGarantiaDias: resultado.prazoGarantiaDias,
+            dataInicioGarantia: resultado.dataInicioGarantia.toISOString(),
+            dataFimGarantia: resultado.dataFimGarantia.toISOString(),
+            termoGarantiaId: resultado.termoGarantiaId,
+            criadoNovo: resultado.criadoNovo,
+          },
+        }
+      );
+
+      return resultado;
+    });
+
+    revalidatePath("/os");
+    revalidatePath(`/os/${osId}`);
+    revalidatePath(`/os/${osId}/garantia`);
+    revalidatePath("/os/garantias");
+    revalidatePath("/");
+    revalidatePath("/dashboard");
+
+    return {
+      sucesso: true,
+      mensagem: "Termo de garantia gerado com sucesso.",
+      osId,
+      termoGarantiaId: termoGerado.termoGarantiaId,
+    };
+  } catch (erro) {
+    const mensagem = erro instanceof Error ? erro.message : "";
+
+    if (
+      mensagem === MENSAGEM_ERRO_STATUS_GARANTIA ||
+      mensagem === MENSAGEM_ERRO_GARANTIA_SEM_ITENS ||
+      mensagem === MENSAGEM_PRAZO_OBRIGATORIO ||
+      mensagem === MENSAGEM_PRAZO_INVALIDO ||
+      mensagem === "Ordem de servico nao encontrada." ||
+      mensagem === "Nao e permitido gerar garantia para OS excluida."
+    ) {
+      return { sucesso: false, erro: mensagem };
+    }
+
+    if (mensagem.includes("Sess")) {
+      return { sucesso: false, erro: mensagem };
+    }
+
+    console.error("[garantia] falha ao gerar termo", {
+      osId: input.osId,
+      erro: mensagem || "erro-desconhecido",
+    });
+
+    return {
+      sucesso: false,
+      erro: MENSAGEM_ERRO_GERAR_GARANTIA,
+    };
+  }
+}
+
+export async function obterContextoGarantiaOS(osId: string): Promise<ContextoGarantiaOS | null> {
+  const usuario = await exigirSessao();
+  if (!usuario?.id) return null;
+
+  const idNormalizado = normalizarTexto(osId);
+  if (!idNormalizado) return null;
+
+  const os = await prisma.ordemServico.findUnique({
+    where: { id: idNormalizado },
+    select: {
+      id: true,
+      numeroOs: true,
+      status: true,
+      excluidaEm: true,
+      termoGarantia: {
+        select: {
+          id: true,
+        },
+      },
+      _count: {
+        select: {
+          itens: true,
+        },
+      },
+    },
+  });
+
+  if (!os || os.excluidaEm) return null;
+
+  return {
+    osId: os.id,
+    numeroOS: formatarNumeroOS(os.numeroOs),
+    statusOS: String(os.status),
+    possuiTermoGarantia: Boolean(os.termoGarantia),
+    possuiItens: Number(os._count?.itens ?? 0) > 0,
   };
 }
 

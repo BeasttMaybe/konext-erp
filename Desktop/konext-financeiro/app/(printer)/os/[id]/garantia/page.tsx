@@ -1,7 +1,10 @@
 import { notFound } from "next/navigation";
-import { obterTermoGarantiaOS } from "@/app/actions/garantias";
+import Link from "next/link";
+import { obterContextoGarantiaOS, obterTermoGarantiaOS } from "@/app/actions/garantias";
+import { AcaoGarantiaOS } from "@/components/os/garantias/acao-garantia-os";
 import { BotaoImprimirGarantia } from "@/components/os/garantias/botao-imprimir-garantia";
 import { TermoGarantiaDocumento } from "@/components/os/garantias/termo-garantia-documento";
+import { Button } from "@/components/ui/button";
 
 type PropsPaginaGarantia = {
   params: Promise<{ id: string }>;
@@ -9,10 +12,39 @@ type PropsPaginaGarantia = {
 
 export default async function PaginaGarantiaOS({ params }: PropsPaginaGarantia) {
   const { id } = await params;
-  const termo = await obterTermoGarantiaOS(id);
+  const [termo, contexto] = await Promise.all([
+    obterTermoGarantiaOS(id),
+    obterContextoGarantiaOS(id),
+  ]);
+
+  if (!contexto) {
+    notFound();
+  }
 
   if (!termo) {
-    notFound();
+    return (
+      <div className="min-h-screen bg-slate-50 p-6">
+        <div className="mx-auto max-w-2xl rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h1 className="text-xl font-semibold text-slate-900">Termo de garantia ainda nao gerado.</h1>
+          <p className="mt-2 text-sm text-slate-600">
+            A OS {contexto.numeroOS} ainda nao possui termo de garantia cadastrado.
+          </p>
+
+          <div className="mt-6 flex flex-wrap items-center gap-2">
+            <Button variant="outline" asChild>
+              <Link href={`/os/${contexto.osId}`}>Voltar para OS</Link>
+            </Button>
+            <AcaoGarantiaOS
+              osId={contexto.osId}
+              statusOS={contexto.statusOS}
+              possuiTermoGarantia={false}
+              possuiItens={contexto.possuiItens}
+              mostrarTextoBloqueio
+            />
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (

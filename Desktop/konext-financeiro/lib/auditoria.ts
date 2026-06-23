@@ -76,6 +76,23 @@ function sanitizarValor(valor: unknown): unknown {
 
 type ValorJsonAuditoria = Prisma.InputJsonValue | Prisma.NullTypes.JsonNull;
 
+function erroTabelaAuditoriaInexistente(erro: unknown): boolean {
+  if (!(erro instanceof Error)) {
+    return false;
+  }
+
+  const mensagem = erro.message.toLowerCase();
+
+  return (
+    mensagem.includes("logauditoria")
+    && (
+      mensagem.includes("does not exist")
+      || mensagem.includes("nao existe")
+      || mensagem.includes("p2021")
+    )
+  );
+}
+
 function paraJsonSeguro(valor: unknown): ValorJsonAuditoria | undefined {
   if (typeof valor === "undefined") return undefined;
 
@@ -95,23 +112,32 @@ export async function registrarLogAuditoria(
 ): Promise<{ id: string }> {
   const delegate = obterDelegateLogAuditoria(client);
 
-  const registro = await delegate.create({
-    data: {
-      usuarioId: contexto.usuarioId ? String(contexto.usuarioId) : null,
-      empresaId: contexto.empresaId ? String(contexto.empresaId) : null,
-      origem: contexto.origem ? String(contexto.origem) : null,
-      acao: entrada.acao,
-      entidade: entrada.entidade,
-      entidadeId: entrada.entidadeId ? String(entrada.entidadeId) : null,
-      dadosAntes: paraJsonSeguro(entrada.dadosAntes),
-      dadosDepois: paraJsonSeguro(entrada.dadosDepois),
-      motivo: entrada.motivo ? String(entrada.motivo) : null,
-    },
-  });
+  try {
+    const registro = await delegate.create({
+      data: {
+        usuarioId: contexto.usuarioId ? String(contexto.usuarioId) : null,
+        empresaId: contexto.empresaId ? String(contexto.empresaId) : null,
+        origem: contexto.origem ? String(contexto.origem) : null,
+        acao: entrada.acao,
+        entidade: entrada.entidade,
+        entidadeId: entrada.entidadeId ? String(entrada.entidadeId) : null,
+        dadosAntes: paraJsonSeguro(entrada.dadosAntes),
+        dadosDepois: paraJsonSeguro(entrada.dadosDepois),
+        motivo: entrada.motivo ? String(entrada.motivo) : null,
+      },
+    });
 
-  return {
-    id: String(registro.id),
-  };
+    return {
+      id: String(registro.id),
+    };
+  } catch (erro) {
+    if (erroTabelaAuditoriaInexistente(erro)) {
+      console.warn("Tabela LogAuditoria ausente; registro de auditoria ignorado temporariamente.");
+      return { id: "auditoria-indisponivel" };
+    }
+
+    throw erro;
+  }
 }
 
 export function contextoAuditoriaDoUsuario(usuario: { id?: string | null } | null | undefined, origem: string): ContextoAuditoria {
