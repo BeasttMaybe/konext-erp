@@ -4,6 +4,13 @@ import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { exigirSessao } from "@/lib/auth/sessao";
+import {
+  calcularPagamentoPdv,
+  ehPagamentoPrazo,
+  type EntradaPagamentoPdv,
+  type FormaPagamentoPdv,
+  type ResultadoPagamentoPdv,
+} from "@/lib/pdv/pagamentos";
 
 export interface ClientePDV {
   id: string;
@@ -47,14 +54,9 @@ export interface OrderServicePdvItem {
   totalPrice: number;
 }
 
-export type FormaPagamento =
-  | "PIX"
-  | "DINHEIRO"
-  | "CARTAO_CREDITO"
-  | "CARTAO_DEBITO"
-  | "BOLETO"
-  | "CREDIARIO"
-  | "EMPENHO_PUBLICO";
+export type FormaPagamento = FormaPagamentoPdv;
+
+export interface PagamentoPdvInput extends EntradaPagamentoPdv {}
 
 const paraCentavos = (valor: number) => Math.round((valor + Number.EPSILON) * 100);
 const paraMoeda = (centavos: number) => centavos / 100;
@@ -93,7 +95,7 @@ async function createSalesHistoryMirror(
     clienteId?: string;
     vendedor: string;
     total: number;
-    formaPagamento: FormaPagamento;
+    formaPagamento: FormaPagamentoPdv;
     dataCriacao?: Date;
     items: SalesHistoryMirrorItem[];
   }
@@ -141,6 +143,8 @@ type ClientePrismaAny = typeof prisma & {
   ItemVenda?: { create?: (args: unknown) => Promise<unknown> };
   contaReceber?: { create?: (args: unknown) => Promise<unknown> };
   ContaReceber?: { create?: (args: unknown) => Promise<unknown> };
+  vendaPagamento?: { create?: (args: unknown) => Promise<unknown> };
+  VendaPagamento?: { create?: (args: unknown) => Promise<unknown> };
   ordemServico?: { update?: (args: unknown) => Promise<unknown> };
   OrdemServico?: { update?: (args: unknown) => Promise<unknown> };
 };
@@ -179,8 +183,11 @@ async function criarVendaComFallbackFormaPagamento(
   dadosBase: Record<string, unknown>,
   formaPagamentoBanco:
     | "PIX"
+    | "TED"
     | "DINHEIRO"
     | "CARTAO_CREDITO"
+    | "CARTAO_CREDITO_AVISTA"
+    | "CARTAO_CREDITO_PARCELADO"
     | "CARTAO_DEBITO"
     | "BOLETO"
     | "CREDIARIO"
@@ -293,14 +300,45 @@ const mapearFormaPagamento = (
   formaPagamento: FormaPagamento
 ):
   | "PIX"
+  | "TED"
   | "DINHEIRO"
   | "CARTAO_CREDITO"
+  | "CARTAO_CREDITO_AVISTA"
+  | "CARTAO_CREDITO_PARCELADO"
   | "CARTAO_DEBITO"
   | "BOLETO"
   | "CREDIARIO"
   | "EMPENHO_PUBLICO" => {
   return formaPagamento;
 };
+
+function normalizarPagamentosEntrada(
+  pagamentos: PagamentoPdvInput[]
+): ResultadoPagamentoPdv[] {
+  if (!Array.isArray(pagamentos) || pagamentos.length === 0) {
+    throw new Error("Informe ao menos uma forma de pagamento para concluir a venda.");
+  }
+
+  return pagamentos.map((pagamento) => calcularPagamentoPdv(pagamento));
+}
+
+function validarTotalPagamentos(
+  pagamentos: ResultadoPagamentoPdv[],
+  totalVendaCentavos: number
+) {
+  const totalPagamentosCentavos = pagamentos.reduce((acc, pagamento) => {
+    return acc + paraCentavos(pagamento.valorBruto);
+  }, 0);
+
+  if (totalPagamentosCentavos !== totalVendaCentavos) {
+    throw new Error("A soma dos pagamentos deve ser igual ao total da venda.");
+  }
+}
+
+function obterFormaPrincipal(pagamentos: ResultadoPagamentoPdv[]): FormaPagamento {
+  const ordenados = [...pagamentos].sort((a, b) => b.valorBruto - a.valorBruto);
+  return ordenados[0]?.formaPagamento ?? "DINHEIRO";
+}
 
 async function obterCaixaSessionAberta(tx: TransacaoPdv): Promise<{ id: string }> {
   const caixaDelegate = (tx?.caixaSession ?? tx?.CaixaSession) as
@@ -387,7 +425,7 @@ export async function listarProdutosPDV(): Promise<ProdutoPDVBanco[]> {
 export async function processarVenda(
   carrinho: CarrinhoItem[],
   total: number,
-  formaPagamento: FormaPagamento,
+  pagamentos: PagamentoPdvInput[],
   clienteId?: string
 ) {
   // C1: somente operadores autenticados podem registrar vendas.
@@ -398,8 +436,10 @@ export async function processarVenda(
   }
 
   const totalCentavos = paraCentavos(total);
-  const formaPagamentoBanco = mapearFormaPagamento(formaPagamento);
-  const deferredPayments = ["CREDIARIO", "BOLETO", "EMPENHO_PUBLICO"] as const;
+  const pagamentosProcessados = normalizarPagamentosEntrada(pagamentos);
+  validarTotalPagamentos(pagamentosProcessados, totalCentavos);
+  const formaPagamentoPrincipal = obterFormaPrincipal(pagamentosProcessados);
+  const formaPagamentoBanco = mapearFormaPagamento(formaPagamentoPrincipal);
 
   try {
     const venda = await prisma.$transaction(async (tx) => {
@@ -435,6 +475,12 @@ export async function processarVenda(
         prismaAny,
         ["itemVenda", "ItemVenda"],
         "itemVenda"
+      );
+      const vendaPagamentoDelegate = obterDelegateComFallback(
+        txAny,
+        prismaAny,
+        ["vendaPagamento", "VendaPagamento"],
+        "vendaPagamento"
       );
 
       const dadosVendaBase = {
@@ -554,39 +600,65 @@ export async function processarVenda(
           // Notificação de estoque é opcional — falha silenciosa para não impactar a venda.
         }
       });
-      if ((deferredPayments as readonly string[]).includes(formaPagamentoBanco)) {
-        const contaReceberDelegate = obterDelegateComFallback(
-          txAny,
-          prismaAny,
-          ["contaReceber", "ContaReceber"],
-          "contaReceber"
-        );
+      const contaReceberDelegate = obterDelegateComFallback(
+        txAny,
+        prismaAny,
+        ["contaReceber", "ContaReceber"],
+        "contaReceber"
+      );
 
-        await contaReceberDelegate.create({
+      for (const pagamento of pagamentosProcessados) {
+        const formaPagamentoAtual = mapearFormaPagamento(pagamento.formaPagamento);
+        const vendaPagamento = await vendaPagamentoDelegate.create({
           data: {
-            descricao: `Venda PDV ${vendaId}`,
-            valor: paraMoeda(totalCentavos),
-            ...(clienteId
-              ? {
-                  cliente: {
-                    connect: {
-                      id: clienteId,
-                    },
-                  },
-                }
-              : {}),
             venda: {
               connect: {
                 id: vendaId,
               },
             },
-            dataVencimento: new Date(),
-            status: "PENDENTE",
-            formaRecebimento: formaPagamentoBanco,
-            origem: "VENDA_PDV",
-            notaFiscalEmitida: false,
+            formaPagamento: formaPagamentoAtual,
+            valorBruto: pagamento.valorBruto,
+            percentualTaxa: pagamento.percentualTaxa,
+            valorTaxa: pagamento.valorTaxa,
+            valorLiquido: pagamento.valorLiquido,
+            parcelas: pagamento.parcelas,
+            diasVencimento: pagamento.diasVencimento,
+            dataVencimento: pagamento.dataVencimento,
           },
         });
+
+        if (ehPagamentoPrazo(pagamento.formaPagamento)) {
+          await contaReceberDelegate.create({
+            data: {
+              descricao: `Venda PDV ${vendaId} - ${pagamento.formaPagamento}`,
+              valor: pagamento.valorBruto,
+              ...(clienteId
+                ? {
+                    cliente: {
+                      connect: {
+                        id: clienteId,
+                      },
+                    },
+                  }
+                : {}),
+              venda: {
+                connect: {
+                  id: vendaId,
+                },
+              },
+              vendaPagamento: {
+                connect: {
+                  id: String((vendaPagamento as { id: string }).id),
+                },
+              },
+              dataVencimento: pagamento.dataVencimento ?? new Date(),
+              status: "PENDENTE",
+              formaRecebimento: formaPagamentoAtual,
+              origem: "VENDA_PDV",
+              notaFiscalEmitida: false,
+            },
+          });
+        }
       }
 
       await createSalesHistoryMirror(tx, {
@@ -739,26 +811,28 @@ export async function obterPedidoOSParaPDV(osId: string): Promise<PedidoOSPDV> {
   };
 }
 
-export async function processarVendaOSNoPDV(osId: string, formaPagamento: FormaPagamento) {
-  return processarVendaComOSNoPDV(osId, [], formaPagamento);
+export async function processarVendaOSNoPDV(osId: string, pagamentos: PagamentoPdvInput[]) {
+  return processarVendaComOSNoPDV(osId, [], pagamentos);
 }
 
 export async function processarVendaComOSNoPDV(
   osId: string,
   carrinhoProdutos: CarrinhoItem[],
-  formaPagamento: FormaPagamento
+  pagamentos: PagamentoPdvInput[]
 ) {
   // C1: somente operadores autenticados podem faturar OS no PDV.
   const sessionUser = await exigirSessao();
 
   const pedido = await obterPedidoOSParaPDV(osId);
-  const formaPagamentoBanco = mapearFormaPagamento(formaPagamento);
-  const pagamentoAPrazo = ["CREDIARIO", "BOLETO", "EMPENHO_PUBLICO"] as const;
   const totalProdutosCentavos = carrinhoProdutos.reduce((acc, item) => {
     return acc + paraCentavos(item.preco) * item.quantidade;
   }, 0);
   const totalOSCentavos = paraCentavos(pedido.valor);
   const totalVendaCentavos = totalOSCentavos + totalProdutosCentavos;
+  const pagamentosProcessados = normalizarPagamentosEntrada(pagamentos);
+  validarTotalPagamentos(pagamentosProcessados, totalVendaCentavos);
+  const formaPagamentoPrincipal = obterFormaPrincipal(pagamentosProcessados);
+  const formaPagamentoBanco = mapearFormaPagamento(formaPagamentoPrincipal);
 
   try {
     const resultado = await prisma.$transaction(async (tx) => {
@@ -778,6 +852,12 @@ export async function processarVendaComOSNoPDV(
         prismaAny,
         ["itemVenda", "ItemVenda"],
         "itemVenda"
+      );
+      const vendaPagamentoDelegate = obterDelegateComFallback(
+        txAny,
+        prismaAny,
+        ["vendaPagamento", "VendaPagamento"],
+        "vendaPagamento"
       );
       const ordemServicoDelegate = (txAny.ordemServico ?? txAny.OrdemServico) as
         | { update?: (args: unknown) => Promise<unknown> }
@@ -909,37 +989,61 @@ export async function processarVendaComOSNoPDV(
         }
       }
 
-      const statusConta = (pagamentoAPrazo as readonly string[]).includes(formaPagamentoBanco)
-        ? "PENDENTE"
-        : "RECEBIDO";
+      for (const pagamento of pagamentosProcessados) {
+        const formaPagamentoAtual = mapearFormaPagamento(pagamento.formaPagamento);
+        const vendaPagamento = await vendaPagamentoDelegate.create({
+          data: {
+            venda: {
+              connect: {
+                id: vendaId,
+              },
+            },
+            formaPagamento: formaPagamentoAtual,
+            valorBruto: pagamento.valorBruto,
+            percentualTaxa: pagamento.percentualTaxa,
+            valorTaxa: pagamento.valorTaxa,
+            valorLiquido: pagamento.valorLiquido,
+            parcelas: pagamento.parcelas,
+            diasVencimento: pagamento.diasVencimento,
+            dataVencimento: pagamento.dataVencimento,
+          },
+        });
 
-      await contaReceberDelegate.create({
-        data: {
-          descricao: `OS #${pedido.numeroOs} - ${pedido.aparelho} (+itens PDV)`,
-          valor: paraMoeda(totalVendaCentavos),
-          cliente: {
-            connect: {
-              id: pedido.clienteId,
+        const statusConta = ehPagamentoPrazo(pagamento.formaPagamento) ? "PENDENTE" : "RECEBIDO";
+
+        await contaReceberDelegate.create({
+          data: {
+            descricao: `OS #${pedido.numeroOs} - ${pedido.aparelho} (+itens PDV) - ${pagamento.formaPagamento}`,
+            valor: pagamento.valorBruto,
+            cliente: {
+              connect: {
+                id: pedido.clienteId,
+              },
             },
-          },
-          ordemServico: {
-            connect: {
-              id: pedido.osId,
+            ordemServico: {
+              connect: {
+                id: pedido.osId,
+              },
             },
-          },
-          venda: {
-            connect: {
-              id: vendaId,
+            venda: {
+              connect: {
+                id: vendaId,
+              },
             },
+            vendaPagamento: {
+              connect: {
+                id: String((vendaPagamento as { id: string }).id),
+              },
+            },
+            dataVencimento: pagamento.dataVencimento ?? new Date(),
+            dataRecebimento: statusConta === "RECEBIDO" ? new Date() : null,
+            status: statusConta,
+            formaRecebimento: formaPagamentoAtual,
+            origem: "ORDEM_SERVICO",
+            notaFiscalEmitida: false,
           },
-          dataVencimento: new Date(),
-          dataRecebimento: statusConta === "RECEBIDO" ? new Date() : null,
-          status: statusConta,
-          formaRecebimento: formaPagamentoBanco,
-          origem: "ORDEM_SERVICO",
-          notaFiscalEmitida: false,
-        },
-      });
+        });
+      }
 
       await createSalesHistoryMirror(tx, {
         vendaId,

@@ -88,6 +88,7 @@ type CountDelegate = {
 type VendaFechamento = {
   valorTotal?: number | null;
   formaPagamento?: string | null;
+  pagamentos?: Array<{ formaPagamento?: string | null; valorBruto?: number | null }>;
   itens?: Array<{ custoUnitario?: number | null; quantidade?: number | null }>;
 };
 
@@ -160,8 +161,11 @@ type PrismaDashboardAny = typeof prisma & {
 /** Rótulos em PT-BR para as formas de pagamento do enum FormaPagamento. */
 const ROTULOS_FORMA_PAGAMENTO: Record<string, string> = {
   PIX: "PIX",
+  TED: "TED",
   DINHEIRO: "Dinheiro",
   CARTAO_CREDITO: "Cartão de Crédito",
+  CARTAO_CREDITO_AVISTA: "Cartão de Crédito à Vista",
+  CARTAO_CREDITO_PARCELADO: "Cartão de Crédito Parcelado",
   CARTAO_DEBITO: "Cartão de Débito",
   BOLETO: "Boleto",
   CREDIARIO: "Crediário",
@@ -201,6 +205,12 @@ export async function obterDadosFechamentoCaixa(): Promise<DadosFechamentoCaixa>
       select: {
         valorTotal: true,
         formaPagamento: true,
+        pagamentos: {
+          select: {
+            formaPagamento: true,
+            valorBruto: true,
+          },
+        },
         itens: { select: { custoUnitario: true, quantidade: true } },
       },
     }),
@@ -263,6 +273,14 @@ export async function obterDadosFechamentoCaixa(): Promise<DadosFechamentoCaixa>
   const mapaFormas: Record<string, number> = {};
 
   vendasHoje.forEach((venda) => {
+    if ((venda.pagamentos?.length ?? 0) > 0) {
+      venda.pagamentos?.forEach((pagamento) => {
+        const forma = String(pagamento.formaPagamento ?? "OUTROS");
+        mapaFormas[forma] = (mapaFormas[forma] ?? 0) + paraCentavos(Number(pagamento.valorBruto ?? 0));
+      });
+      return;
+    }
+
     const forma = String(venda.formaPagamento ?? "OUTROS");
     mapaFormas[forma] = (mapaFormas[forma] ?? 0) + paraCentavos(Number(venda.valorTotal ?? 0));
   });

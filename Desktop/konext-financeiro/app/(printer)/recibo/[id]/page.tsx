@@ -65,6 +65,15 @@ export default async function ReciboPage({ params, searchParams }: PropsReciboPa
           },
         },
       },
+      pagamentos: {
+        select: {
+          formaPagamento: true,
+          valorBruto: true,
+        },
+        orderBy: {
+          criadoEm: "asc",
+        },
+      },
     },
   });
 
@@ -144,10 +153,23 @@ export default async function ReciboPage({ params, searchParams }: PropsReciboPa
             <span className="font-semibold">Documento:</span>{" "}
             {venda.cliente?.documento ?? "-"}
           </p>
-          <p>
-            <span className="font-semibold">Pagamento:</span>{" "}
-            {formatarFormaPagamento(venda.formaPagamento)}
-          </p>
+          {venda.pagamentos.length > 0 ? (
+            <div>
+              <p>
+                <span className="font-semibold">Pagamentos:</span>
+              </p>
+              {venda.pagamentos.map((pagamento, indice) => (
+                <p key={`${pagamento.formaPagamento}-${indice}`} className="pl-2">
+                  {formatarFormaPagamento(pagamento.formaPagamento)}: {formatarMoeda(pagamento.valorBruto)}
+                </p>
+              ))}
+            </div>
+          ) : (
+            <p>
+              <span className="font-semibold">Pagamento:</span>{" "}
+              {formatarFormaPagamento(venda.formaPagamento)}
+            </p>
+          )}
         </div>
 
         <div className="border-t border-b border-zinc-300 py-2 mb-3">

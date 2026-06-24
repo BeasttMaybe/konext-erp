@@ -385,8 +385,11 @@ model ContaReceber {
   ordemServicoId String?
   ordemServico   OrdemServico? @relation(fields: [ordemServicoId], references: [id])
 
-  vendaId String? @unique
+  vendaId String?
   venda   Venda?  @relation(fields: [vendaId], references: [id])
+
+  vendaPagamentoId String? @unique
+  vendaPagamento   VendaPagamento? @relation(fields: [vendaPagamentoId], references: [id])
 
   dataVencimento  DateTime
   dataRecebimento DateTime?
@@ -403,6 +406,7 @@ model ContaReceber {
 
   @@index([parcelamentoId])
   @@index([pedidoId])
+  @@index([vendaId])
 }
 
 enum StatusPagamento {
@@ -652,10 +656,11 @@ model Venda {
   cliente   Cliente? @relation(fields: [clienteId], references: [id])
 
   itens ItemVenda[]
+  pagamentos VendaPagamento[]
   pedidoVenda PedidoVenda?
 
-  // Ligação direta com o financeiro (1 Venda = 1 Conta a Receber)
-  contaReceber ContaReceber?
+  // Ligacao com o financeiro (suporta multiplas contas por venda)
+  contasReceber ContaReceber[]
 
   formaPagamento FormaPagamento
   valorTotal     Float
@@ -664,6 +669,31 @@ model Venda {
   criadoEm       DateTime      @default(now())
   caixaSession   CaixaSession? @relation(fields: [caixaSessionId], references: [id])
   caixaSessionId String?
+}
+
+model VendaPagamento {
+  id             String         @id @default(uuid())
+  vendaId        String
+  venda          Venda          @relation(fields: [vendaId], references: [id], onDelete: Cascade)
+
+  formaPagamento FormaPagamento
+  valorBruto     Float
+  percentualTaxa Float          @default(0)
+  valorTaxa      Float          @default(0)
+  valorLiquido   Float
+  parcelas       Int            @default(1)
+  diasVencimento Int?
+  dataVencimento DateTime?
+
+  contaReceber   ContaReceber?
+
+  criadoEm       DateTime       @default(now())
+  atualizadoEm   DateTime       @updatedAt
+
+  @@index([vendaId])
+  @@index([formaPagamento])
+  @@index([dataVencimento])
+  @@index([criadoEm])
 }
 
 model ItemVenda {

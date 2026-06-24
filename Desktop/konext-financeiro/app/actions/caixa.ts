@@ -10,7 +10,13 @@ type OrdemServicoResumoDelegate = {
 };
 
 type VendaResumoItem = { custoUnitario?: number | null; quantidade?: number | null; subtotal?: number | null };
-type VendaResumoRow = { valorTotal?: number | null; formaPagamento?: string | null; itens?: VendaResumoItem[] };
+type VendaResumoPagamento = { formaPagamento?: string | null; valorBruto?: number | null };
+type VendaResumoRow = {
+  valorTotal?: number | null;
+  formaPagamento?: string | null;
+  pagamentos?: VendaResumoPagamento[];
+  itens?: VendaResumoItem[];
+};
 
 export interface ItemVendaResumoDiario {
   id: string;
@@ -25,6 +31,7 @@ export interface VendaResumoDiario {
   criadoEm: Date;
   valorTotal: number;
   formaPagamento: string;
+  pagamentos?: Array<{ formaPagamento: string; valorBruto: number }>;
   nomeCliente: string | null;
   itens: ItemVendaResumoDiario[];
 }
@@ -83,6 +90,12 @@ export async function obterResumoCaixaDiario(): Promise<ResumoCaixaDiario> {
         cliente: {
           select: {
             nomeRazaoSocial: true,
+          },
+        },
+        pagamentos: {
+          select: {
+            formaPagamento: true,
+            valorBruto: true,
           },
         },
         itens: {
@@ -149,6 +162,10 @@ export async function obterResumoCaixaDiario(): Promise<ResumoCaixaDiario> {
     criadoEm: venda.criadoEm,
     valorTotal: venda.valorTotal,
     formaPagamento: venda.formaPagamento || "NAO_INFORMADO",
+    pagamentos: (venda.pagamentos ?? []).map((pagamento) => ({
+      formaPagamento: pagamento.formaPagamento || "NAO_INFORMADO",
+      valorBruto: Number(pagamento.valorBruto ?? 0),
+    })),
     nomeCliente: venda.cliente?.nomeRazaoSocial ?? null,
     itens: venda.itens.map((item) => ({
       id: item.id,
@@ -162,6 +179,18 @@ export async function obterResumoCaixaDiario(): Promise<ResumoCaixaDiario> {
   const mapaTotaisPorForma = new Map<string, number>();
 
   for (const venda of vendasHoje) {
+    if ((venda.pagamentos?.length ?? 0) > 0) {
+      for (const pagamento of venda.pagamentos ?? []) {
+        const formaPagamento = pagamento.formaPagamento || "NAO_INFORMADO";
+        const acumuladoAtual = mapaTotaisPorForma.get(formaPagamento) ?? 0;
+        mapaTotaisPorForma.set(
+          formaPagamento,
+          acumuladoAtual + paraCentavos(Number(pagamento.valorBruto ?? 0))
+        );
+      }
+      continue;
+    }
+
     const formaPagamento = venda.formaPagamento || "NAO_INFORMADO";
     const acumuladoAtual = mapaTotaisPorForma.get(formaPagamento) ?? 0;
     mapaTotaisPorForma.set(formaPagamento, acumuladoAtual + paraCentavos(venda.valorTotal));
@@ -339,6 +368,12 @@ export async function obterResumoDataEspecifica(
       select: {
         valorTotal: true,
         formaPagamento: true,
+        pagamentos: {
+          select: {
+            formaPagamento: true,
+            valorBruto: true,
+          },
+        },
         itens: { select: { custoUnitario: true, quantidade: true, subtotal: true } },
       },
     }),
@@ -374,6 +409,14 @@ export async function obterResumoDataEspecifica(
   // Agrupa por forma de pagamento
   const mapaFormas: Record<string, number> = {};
   vendasData.forEach((v: VendaResumoRow) => {
+    if ((v.pagamentos?.length ?? 0) > 0) {
+      v.pagamentos?.forEach((pagamento) => {
+        const forma = String(pagamento.formaPagamento ?? "OUTROS");
+        mapaFormas[forma] = (mapaFormas[forma] ?? 0) + paraCentavos(Number(pagamento.valorBruto ?? 0));
+      });
+      return;
+    }
+
     const forma = String(v.formaPagamento ?? "OUTROS");
     mapaFormas[forma] = (mapaFormas[forma] ?? 0) + paraCentavos(Number(v.valorTotal ?? 0));
   });

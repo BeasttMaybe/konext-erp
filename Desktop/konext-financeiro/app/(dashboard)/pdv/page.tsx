@@ -118,9 +118,12 @@ const formatarHora = (data: Date | string): string =>
 const formatarFormaPagamento = (formaPagamento: string): string => {
   const mapa: Record<string, string> = {
     PIX: "PIX",
+    TED: "TED",
     DINHEIRO: "Dinheiro",
     CARTAO_DEBITO: "Cartao de Debito",
     CARTAO_CREDITO: "Cartao de Credito",
+    CARTAO_CREDITO_AVISTA: "Cartao de Credito a Vista",
+    CARTAO_CREDITO_PARCELADO: "Cartao de Credito Parcelado",
     BOLETO: "Boleto",
     CREDIARIO: "Crediario",
     EMPENHO_PUBLICO: "Empenho Publico",
@@ -366,11 +369,11 @@ function PDVPageConteudo() {
       const orderServiceSale = Boolean(pedidoOS);
       const orderServiceNumber = pedidoOS?.numeroOs;
       const venda = pedidoOS
-        ? await processarVendaComOSNoPDV(pedidoOS.osId, itens, dados.formaPagamento)
+        ? await processarVendaComOSNoPDV(pedidoOS.osId, itens, dados.pagamentos)
         : await processarVenda(
             itens,
             resumo.total,
-            dados.formaPagamento,
+            dados.pagamentos,
             clienteSelecionadoId || undefined
           );
 

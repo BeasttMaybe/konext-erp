@@ -21,88 +21,55 @@ import {
 } from "@/components/ui/select";
 import {
   CheckCircle,
-  Banknote,
-  CreditCard,
   FileText,
-  QrCode,
-  Landmark,
   Loader2,
   MessageCircle,
+  Plus,
   Printer,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
-
-export type FormaPagamento =
-  | "PIX"
-  | "DINHEIRO"
-  | "CARTAO_DEBITO"
-  | "CARTAO_CREDITO"
-  | "BOLETO"
-  | "CREDIARIO";
+import {
+  calcularPagamentoPdv,
+  CONFIG_PAGAMENTOS_PDV,
+  type EntradaPagamentoPdv,
+  type FormaPagamentoPdv,
+} from "@/lib/pdv/pagamentos";
 
 export interface DadosPagamento {
-  formaPagamento: FormaPagamento;
-  parcelas: number;
-  taxaPercentual: number;
-  valorTaxa: number;
+  pagamentos: EntradaPagamentoPdv[];
+  totalTaxas: number;
   totalLiquido: number;
   totalCobrado: number;
-  valorRecebido?: number;
+  valorRecebidoDinheiro?: number;
   troco?: number;
 }
-
-interface OpcaoPagamento {
-  valor: FormaPagamento;
-  rotulo: string;
-  icone: React.ReactNode;
-  /** Taxa base da maquininha em % */
-  taxa: number;
-}
-
-const opcoesPagamento: OpcaoPagamento[] = [
-  {
-    valor: "PIX",
-    rotulo: "PIX (Instantaneo)",
-    icone: <QrCode className="h-5 w-5" />,
-    taxa: 0,
-  },
-  {
-    valor: "DINHEIRO",
-    rotulo: "Dinheiro",
-    icone: <Banknote className="h-5 w-5" />,
-    taxa: 0,
-  },
-  {
-    valor: "CARTAO_DEBITO",
-    rotulo: "Cartao de Debito",
-    icone: <Landmark className="h-5 w-5" />,
-    taxa: 1.36,
-  },
-  {
-    valor: "CARTAO_CREDITO",
-    rotulo: "Cartao de Credito",
-    icone: <CreditCard className="h-5 w-5" />,
-    taxa: 3.14,
-  },
-  {
-    valor: "BOLETO",
-    rotulo: "Boleto Bancario (A prazo)",
-    icone: <FileText className="h-5 w-5" />,
-    taxa: 0,
-  },
-  {
-    valor: "CREDIARIO",
-    rotulo: "Crediario / Promissoria (A prazo)",
-    icone: <FileText className="h-5 w-5" />,
-    taxa: 0,
-  },
-];
 
 const formatarMoeda = (valor: number): string =>
   new Intl.NumberFormat("pt-BR", {
     style: "currency",
     currency: "BRL",
   }).format(valor);
+
+const paraCentavos = (valor: number) => Math.round((valor + Number.EPSILON) * 100);
+
+interface LinhaPagamento {
+  id: string;
+  formaPagamento: FormaPagamentoPdv;
+  valorBruto: number;
+  parcelas: number;
+  diasVencimento: number;
+}
+
+function novaLinhaPagamento(total: number): LinhaPagamento {
+  return {
+    id: crypto.randomUUID(),
+    formaPagamento: "DINHEIRO",
+    valorBruto: total,
+    parcelas: 1,
+    diasVencimento: 0,
+  };
+}
 
 interface PropsModalPagamento {
   aberto: boolean;
@@ -121,50 +88,84 @@ export function ModalPagamento({
   aoConfirmar,
   aoNovaVenda,
 }: PropsModalPagamento) {
-  const [forma, setForma] = useState<FormaPagamento>("DINHEIRO");
-  const [parcelas, setParcelas] = useState(1);
-  const [valorRecebido, setValorRecebido] = useState<number>(0);
+  const [linhas, setLinhas] = useState<LinhaPagamento[]>([novaLinhaPagamento(total)]);
+  const [valorRecebidoDinheiro, setValorRecebidoDinheiro] = useState<number>(0);
   const [processando, setProcessando] = useState(false);
   const [vendaFinalizada, setVendaFinalizada] = useState(false);
   const [vendaIdGerada, setVendaIdGerada] = useState<string | null>(null);
 
-  // Taxa efetiva conforme forma de pagamento selecionada
-  const taxaPercentual = useMemo(() => {
-    const opcao = opcoesPagamento.find((o) => o.valor === forma);
-    return opcao?.taxa ?? 0;
-  }, [forma]);
+  const pagamentosCalculados = useMemo(() => {
+    return linhas.map((linha) =>
+      calcularPagamentoPdv({
+        formaPagamento: linha.formaPagamento,
+        valorBruto: linha.valorBruto,
+        parcelas: linha.parcelas,
+        diasVencimento: linha.diasVencimento,
+      })
+    );
+  }, [linhas]);
 
-  const valorTaxa = useMemo(
-    () => total * (taxaPercentual / 100),
-    [total, taxaPercentual]
-  );
+  const totalInformado = useMemo(() => {
+    return pagamentosCalculados.reduce((acc, item) => acc + paraCentavos(item.valorBruto), 0) / 100;
+  }, [pagamentosCalculados]);
 
-  // Valor líquido que o lojista recebe (descontada a taxa da maquininha)
-  const totalLiquido = useMemo(
-    () => total - valorTaxa,
-    [total, valorTaxa]
-  );
+  const totalTaxas = useMemo(() => {
+    return pagamentosCalculados.reduce((acc, item) => acc + paraCentavos(item.valorTaxa), 0) / 100;
+  }, [pagamentosCalculados]);
 
-  const troco = useMemo(() => {
-    if (forma !== "DINHEIRO") return 0;
-    return Math.max(0, valorRecebido - total);
-  }, [forma, valorRecebido, total]);
+  const totalLiquido = useMemo(() => {
+    return pagamentosCalculados.reduce((acc, item) => acc + paraCentavos(item.valorLiquido), 0) / 100;
+  }, [pagamentosCalculados]);
 
-  const dinheiroInsuficiente =
-    forma === "DINHEIRO" && valorRecebido > 0 && valorRecebido < total;
+  const totalDinheiro = useMemo(() => {
+    return pagamentosCalculados
+      .filter((item) => item.formaPagamento === "DINHEIRO")
+      .reduce((acc, item) => acc + paraCentavos(item.valorBruto), 0) / 100;
+  }, [pagamentosCalculados]);
+
+  const troco = Math.max(0, valorRecebidoDinheiro - totalDinheiro);
+  const dinheiroInsuficiente = totalDinheiro > 0 && valorRecebidoDinheiro > 0 && valorRecebidoDinheiro < totalDinheiro;
+  const totalCorreto = paraCentavos(totalInformado) === paraCentavos(total);
+  const diferenca = totalInformado - total;
 
   const podeConfirmar =
     !processando &&
     total > 0 &&
-    (forma !== "DINHEIRO" || valorRecebido >= total);
+    totalCorreto &&
+    (totalDinheiro === 0 || valorRecebidoDinheiro >= totalDinheiro);
 
   const resetar = () => {
-    setForma("DINHEIRO");
-    setParcelas(1);
-    setValorRecebido(0);
+    setLinhas([novaLinhaPagamento(total)]);
+    setValorRecebidoDinheiro(0);
     setProcessando(false);
     setVendaFinalizada(false);
     setVendaIdGerada(null);
+  };
+
+  const atualizarLinha = (id: string, patch: Partial<LinhaPagamento>) => {
+    setLinhas((estadoAtual) =>
+      estadoAtual.map((linha) => (linha.id === id ? { ...linha, ...patch } : linha))
+    );
+  };
+
+  const adicionarLinha = () => {
+    setLinhas((estadoAtual) => [
+      ...estadoAtual,
+      {
+        id: crypto.randomUUID(),
+        formaPagamento: "PIX",
+        valorBruto: 0,
+        parcelas: 1,
+        diasVencimento: 0,
+      },
+    ]);
+  };
+
+  const removerLinha = (id: string) => {
+    setLinhas((estadoAtual) => {
+      if (estadoAtual.length === 1) return estadoAtual;
+      return estadoAtual.filter((linha) => linha.id !== id);
+    });
   };
 
   const handleFechar = () => {
@@ -176,14 +177,17 @@ export function ModalPagamento({
     setProcessando(true);
 
     const dados: DadosPagamento = {
-      formaPagamento: forma,
-      parcelas: 1,
-      taxaPercentual,
-      valorTaxa,
+      pagamentos: linhas.map((linha) => ({
+        formaPagamento: linha.formaPagamento,
+        valorBruto: linha.valorBruto,
+        parcelas: linha.parcelas,
+        diasVencimento: linha.diasVencimento,
+      })),
+      totalTaxas,
       totalLiquido,
-      totalCobrado: total,
-      valorRecebido: forma === "DINHEIRO" ? valorRecebido : undefined,
-      troco: forma === "DINHEIRO" ? troco : undefined,
+      totalCobrado: totalInformado,
+      valorRecebidoDinheiro: totalDinheiro > 0 ? valorRecebidoDinheiro : undefined,
+      troco: totalDinheiro > 0 ? troco : undefined,
     };
 
     try {
@@ -308,7 +312,7 @@ export function ModalPagamento({
             <DialogHeader>
               <DialogTitle>Finalizar Venda</DialogTitle>
               <DialogDescription>
-                Selecione a forma de pagamento para concluir o recebimento.
+                Distribua o valor entre uma ou mais formas de pagamento.
               </DialogDescription>
             </DialogHeader>
 
@@ -323,61 +327,134 @@ export function ModalPagamento({
                 </span>
               </div>
 
-              {/* Formas de pagamento */}
-              <div className="space-y-2">
-                <Label>Forma de pagamento</Label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {opcoesPagamento.map((opcao) => {
-                    const ativo = forma === opcao.valor;
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label>Pagamentos</Label>
+                  <Button type="button" variant="outline" size="sm" onClick={adicionarLinha}>
+                    <Plus className="h-4 w-4 mr-1" />
+                    Adicionar forma
+                  </Button>
+                </div>
+
+                <div className="space-y-2">
+                  {linhas.map((linha, index) => {
+                    const config = CONFIG_PAGAMENTOS_PDV.find((item) => item.formaPagamento === linha.formaPagamento);
                     return (
-                      <button
-                        key={opcao.valor}
-                        type="button"
-                        onClick={() => {
-                          setForma(opcao.valor);
-                          setParcelas(1);
-                        }}
-                        className={`flex flex-col items-center gap-1.5 rounded-lg border p-3 text-center transition-all ${
-                          ativo
-                            ? "border-blue-500 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300"
-                            : "border-zinc-200 dark:border-zinc-800 hover:border-blue-300 text-slate-700 dark:text-slate-300"
-                        }`}
-                      >
-                        {opcao.icone}
-                        <span className="text-xs font-medium leading-tight">
-                          {opcao.rotulo}
-                        </span>
-                        <span className="text-[10px] text-zinc-500 dark:text-zinc-400">
-                          {opcao.taxa > 0 ? `taxa ${opcao.taxa}%` : "sem taxa"}
-                        </span>
-                      </button>
+                      <div key={linha.id} className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">Pagamento {index + 1}</p>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => removerLinha(linha.id)}
+                            disabled={linhas.length === 1}
+                          >
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <Label>Forma</Label>
+                            <Select
+                              value={linha.formaPagamento}
+                              onValueChange={(valor) => {
+                                const forma = valor as FormaPagamentoPdv;
+                                atualizarLinha(linha.id, {
+                                  formaPagamento: forma,
+                                  parcelas: 1,
+                                  diasVencimento: 0,
+                                });
+                              }}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {CONFIG_PAGAMENTOS_PDV.map((opcao) => (
+                                  <SelectItem key={opcao.formaPagamento} value={opcao.formaPagamento}>
+                                    {opcao.rotulo}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-1">
+                            <Label>Valor</Label>
+                            <Input
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              value={linha.valorBruto || ""}
+                              onChange={(e) => {
+                                const valor = Number(e.target.value) || 0;
+                                atualizarLinha(linha.id, { valorBruto: valor });
+                              }}
+                            />
+                          </div>
+                        </div>
+
+                        {config?.permiteParcelas && (
+                          <div className="space-y-1">
+                            <Label>Parcelas</Label>
+                            <Input
+                              type="number"
+                              min={1}
+                              max={24}
+                              value={linha.parcelas}
+                              onChange={(e) => {
+                                const parcelas = Math.max(1, Number(e.target.value) || 1);
+                                atualizarLinha(linha.id, { parcelas });
+                              }}
+                            />
+                          </div>
+                        )}
+
+                        {config?.exigePrazo && (
+                          <div className="space-y-1">
+                            <Label>Dias para vencimento</Label>
+                            <Input
+                              type="number"
+                              min={0}
+                              max={3650}
+                              value={linha.diasVencimento}
+                              onChange={(e) => {
+                                const dias = Math.max(0, Number(e.target.value) || 0);
+                                atualizarLinha(linha.id, { diasVencimento: dias });
+                              }}
+                            />
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
               </div>
 
-              {/* Valor recebido (apenas dinheiro) */}
-              {forma === "DINHEIRO" && (
+              {totalDinheiro > 0 && (
                 <div className="space-y-2">
-                  <Label>Valor recebido</Label>
+                  <Label>Valor recebido em dinheiro</Label>
                   <Input
                     type="number"
                     min={0}
                     step="0.01"
                     placeholder="0,00"
-                    value={valorRecebido || ""}
+                    value={valorRecebidoDinheiro || ""}
                     onChange={(e) =>
-                      setValorRecebido(Number(e.target.value) || 0)
+                      setValorRecebidoDinheiro(Number(e.target.value) || 0)
                     }
                   />
                   <div className="flex gap-2 flex-wrap">
-                    {[total, 50, 100, 200].map((v, idx) => (
+                    {[totalDinheiro, 50, 100, 200].map((v, idx) => (
                       <Button
                         key={idx}
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => setValorRecebido(v)}
+                        onClick={() => setValorRecebidoDinheiro(v)}
                       >
                         {idx === 0 ? "Exato" : formatarMoeda(v)}
                       </Button>
@@ -397,17 +474,25 @@ export function ModalPagamento({
                   <span>Total da venda</span>
                   <span>{formatarMoeda(total)}</span>
                 </div>
-                <div className="flex justify-between text-orange-600 dark:text-orange-400">
-                  <span>
-                    Taxa da maquininha ({taxaPercentual.toFixed(2)}%)
+                <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                  <span>Total informado</span>
+                  <span>{formatarMoeda(totalInformado)}</span>
+                </div>
+                <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                  <span>Diferenca</span>
+                  <span className={diferenca === 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}>
+                    {formatarMoeda(diferenca)}
                   </span>
-                  <span>- {formatarMoeda(valorTaxa)}</span>
+                </div>
+                <div className="flex justify-between text-orange-600 dark:text-orange-400">
+                  <span>Taxas totais</span>
+                  <span>- {formatarMoeda(totalTaxas)}</span>
                 </div>
                 <div className="flex justify-between font-semibold text-slate-900 dark:text-slate-100 pt-1.5 border-t border-zinc-100 dark:border-zinc-800">
                   <span>Você recebe (líquido)</span>
                   <span>{formatarMoeda(totalLiquido)}</span>
                 </div>
-                {forma === "DINHEIRO" && valorRecebido >= total && (
+                {totalDinheiro > 0 && valorRecebidoDinheiro >= totalDinheiro && (
                   <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-semibold pt-1.5 border-t border-zinc-100 dark:border-zinc-800">
                     <span>Troco</span>
                     <span>{formatarMoeda(troco)}</span>

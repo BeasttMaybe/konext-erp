@@ -61,8 +61,11 @@ type CfgForma = {
 
 const CFG_FORMA: Record<string, CfgForma> = {
   PIX:             { cor: "bg-teal-50 dark:bg-teal-950/30",      corTexto: "text-teal-700 dark:text-teal-300",      corBarra: "bg-teal-500",    Icone: QrCode          },
+  TED:             { cor: "bg-cyan-50 dark:bg-cyan-950/30",      corTexto: "text-cyan-700 dark:text-cyan-300",      corBarra: "bg-cyan-500",    Icone: QrCode          },
   DINHEIRO:        { cor: "bg-emerald-50 dark:bg-emerald-950/30", corTexto: "text-emerald-700 dark:text-emerald-300", corBarra: "bg-emerald-500", Icone: Wallet          },
   CARTAO_CREDITO:  { cor: "bg-violet-50 dark:bg-violet-950/30",  corTexto: "text-violet-700 dark:text-violet-300",   corBarra: "bg-violet-500",  Icone: CreditCard      },
+  CARTAO_CREDITO_AVISTA: { cor: "bg-fuchsia-50 dark:bg-fuchsia-950/30", corTexto: "text-fuchsia-700 dark:text-fuchsia-300", corBarra: "bg-fuchsia-500", Icone: CreditCard },
+  CARTAO_CREDITO_PARCELADO: { cor: "bg-pink-50 dark:bg-pink-950/30", corTexto: "text-pink-700 dark:text-pink-300", corBarra: "bg-pink-500", Icone: CreditCard },
   CARTAO_DEBITO:   { cor: "bg-blue-50 dark:bg-blue-950/30",      corTexto: "text-blue-700 dark:text-blue-300",       corBarra: "bg-blue-500",    Icone: CreditCard      },
   BOLETO:          { cor: "bg-orange-50 dark:bg-orange-950/30",  corTexto: "text-orange-700 dark:text-orange-300",   corBarra: "bg-orange-500",  Icone: Receipt         },
   CREDIARIO:       { cor: "bg-amber-50 dark:bg-amber-950/30",    corTexto: "text-amber-700 dark:text-amber-300",     corBarra: "bg-amber-500",   Icone: BadgeDollarSign },
@@ -77,8 +80,11 @@ const FALLBACK_CFG: CfgForma = {
 
 const ROTULOS_FORMA: Record<string, string> = {
   PIX: "PIX",
+  TED: "TED",
   DINHEIRO: "Dinheiro",
   CARTAO_CREDITO: "Cartão de Crédito",
+  CARTAO_CREDITO_AVISTA: "Cartão de Crédito à Vista",
+  CARTAO_CREDITO_PARCELADO: "Cartão de Crédito Parcelado",
   CARTAO_DEBITO: "Cartão de Débito",
   BOLETO: "Boleto",
   CREDIARIO: "Crediário",

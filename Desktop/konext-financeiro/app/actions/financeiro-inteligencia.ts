@@ -295,18 +295,27 @@ export async function obterDadosAnaliticos(
           valor: true,
         },
       }),
-      prisma.venda.groupBy({
-        by: ["formaPagamento"],
-        where: {
-          criadoEm: {
-            gte: inicio,
-            lte: fim,
-          },
-        },
-        _sum: {
-          valorTotal: true,
-        },
-      }),
+      prisma.$queryRaw<Array<{ formaPagamento: string; total: number }>>`
+        SELECT base."formaPagamento", COALESCE(SUM(base.valor), 0) AS total
+        FROM (
+          SELECT vp."formaPagamento"::text AS "formaPagamento", vp."valorBruto"::double precision AS valor
+          FROM "VendaPagamento" vp
+          INNER JOIN "Venda" v ON v.id = vp."vendaId"
+          WHERE v."criadoEm" >= ${inicio}
+            AND v."criadoEm" <= ${fim}
+
+          UNION ALL
+
+          SELECT v."formaPagamento"::text AS "formaPagamento", v."valorTotal"::double precision AS valor
+          FROM "Venda" v
+          WHERE v."criadoEm" >= ${inicio}
+            AND v."criadoEm" <= ${fim}
+            AND NOT EXISTS (
+              SELECT 1 FROM "VendaPagamento" vp2 WHERE vp2."vendaId" = v.id
+            )
+        ) base
+        GROUP BY base."formaPagamento"
+      `,
       prisma.itemVenda.groupBy({
         by: ["produtoId", "descricao"],
         where: {
@@ -410,7 +419,7 @@ export async function obterDadosAnaliticos(
 
       return {
         nome: paymentMethodLabel,
-        valor: Number(group._sum.valorTotal ?? 0),
+        valor: Number(group.total ?? 0),
       };
     })
     .filter((entry) => entry.valor > 0);
