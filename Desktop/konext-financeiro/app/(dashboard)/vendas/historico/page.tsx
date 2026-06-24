@@ -36,6 +36,24 @@ const formatCurrency = (value: number) =>
     currency: "BRL",
   }).format(value);
 
+const paymentMethodLabelMap: Record<string, string> = {
+  PIX: "PIX",
+  TED: "TED",
+  DINHEIRO: "Dinheiro",
+  CARTAO_CREDITO: "Cartão de Crédito",
+  CARTAO_CREDITO_AVISTA: "Cartão de Crédito (À vista)",
+  CARTAO_CREDITO_PARCELADO: "Cartão de Crédito (Parcelado)",
+  CARTAO_DEBITO: "Cartão de Débito",
+  BOLETO: "Boleto",
+  CREDIARIO: "Crediário",
+  EMPENHO_PUBLICO: "Empenho Público",
+};
+
+const formatPaymentMethod = (paymentMethod: string | null | undefined) => {
+  if (!paymentMethod) return "Não informado";
+  return paymentMethodLabelMap[paymentMethod] ?? paymentMethod;
+};
+
 const statusLabelMap: Record<StatusPedido, string> = {
   PENDENTE: "Pendente",
   APROVADO: "Aprovado",
@@ -59,6 +77,163 @@ const originClassNames: Record<OrigemPedido, string> = {
   PDV: "border-blue-500/30 bg-blue-500/12 text-blue-700 dark:border-blue-400/30 dark:bg-blue-400/12 dark:text-blue-300",
   VENDAS: "border-slate-400/30 bg-slate-400/10 text-slate-600 dark:border-slate-500/30 dark:bg-slate-500/10 dark:text-slate-200",
 };
+
+type PedidoHistoricoComPagamentos = Prisma.PedidoVendaGetPayload<{
+  include: {
+    cliente: {
+      select: {
+        nomeRazaoSocial: true;
+        nomeFantasia: true;
+      };
+    };
+    itens: {
+      select: {
+        id: true;
+        nome: true;
+        quantidade: true;
+        precoUnitario: true;
+      };
+    };
+    parcelas: {
+      select: {
+        id: true;
+        valor: true;
+        dataVencimento: true;
+      };
+    };
+    venda: {
+      select: {
+        pagamentos: {
+          select: {
+            formaPagamento: true;
+            valorBruto: true;
+          };
+        };
+      };
+    };
+  };
+}>;
+
+type PagamentoHistorico = {
+  formaPagamento: string;
+  valorBruto: number;
+};
+
+type PedidoHistoricoSeguro = Omit<PedidoHistoricoComPagamentos, "venda"> & {
+  venda: {
+    pagamentos: PagamentoHistorico[];
+  } | null;
+};
+
+async function carregarPedidosHistorico(
+  where: Prisma.PedidoVendaWhereInput,
+  skip: number,
+  take: number
+): Promise<PedidoHistoricoSeguro[]> {
+  const includeBase = {
+    cliente: {
+      select: {
+        nomeRazaoSocial: true,
+        nomeFantasia: true,
+      },
+    },
+    itens: {
+      select: {
+        id: true,
+        nome: true,
+        quantidade: true,
+        precoUnitario: true,
+      },
+    },
+    parcelas: {
+      select: {
+        id: true,
+        valor: true,
+        dataVencimento: true,
+      },
+      orderBy: {
+        dataVencimento: "asc" as const,
+      },
+    },
+  };
+
+  try {
+    const pedidos = await prisma.pedidoVenda.findMany({
+      where,
+      include: {
+        ...includeBase,
+        venda: {
+          select: {
+            pagamentos: {
+              select: {
+                formaPagamento: true,
+                valorBruto: true,
+              },
+              orderBy: {
+                criadoEm: "asc",
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        dataCriacao: "desc",
+      },
+      skip,
+      take,
+    });
+
+    return pedidos;
+  } catch {
+    const pedidosLegado = await prisma.pedidoVenda.findMany({
+      where,
+      include: includeBase,
+      orderBy: {
+        dataCriacao: "desc",
+      },
+      skip,
+      take,
+    });
+
+    const vendaIds = pedidosLegado
+      .map((pedido) => pedido.vendaId)
+      .filter((vendaId): vendaId is string => Boolean(vendaId));
+
+    if (vendaIds.length === 0) {
+      return pedidosLegado.map((pedido) => ({ ...pedido, venda: null }));
+    }
+
+    const pagamentosPorVenda = await prisma.$queryRaw<Array<{
+      vendaId: string;
+      formaPagamento: string;
+      valorBruto: number;
+    }>>`
+      SELECT vp."vendaId" AS "vendaId", vp."formaPagamento"::text AS "formaPagamento", vp."valorBruto" AS "valorBruto"
+      FROM "VendaPagamento" vp
+      WHERE vp."vendaId" IN (${Prisma.join(vendaIds)})
+      ORDER BY vp."criadoEm" ASC
+    `;
+
+    const mapaPagamentos = new Map<string, PagamentoHistorico[]>();
+    for (const pagamento of pagamentosPorVenda) {
+      const atual = mapaPagamentos.get(pagamento.vendaId) ?? [];
+      atual.push({
+        formaPagamento: pagamento.formaPagamento,
+        valorBruto: Number(pagamento.valorBruto ?? 0),
+      });
+      mapaPagamentos.set(pagamento.vendaId, atual);
+    }
+
+    return pedidosLegado.map((pedido) => ({
+      ...pedido,
+      venda: pedido.vendaId
+        ? {
+            pagamentos: mapaPagamentos.get(pedido.vendaId) ?? [],
+          }
+        : null,
+    }));
+  }
+}
 
 async function syncLegacyPdvSalesIntoOrderHistory() {
   const mirroredSaleIds = await prisma.pedidoVenda.findMany({
@@ -203,40 +378,7 @@ export default async function SalesHistoryPage({ searchParams }: PageProps) {
   const currentPage = Math.min(page, totalPages);
   const skip = (currentPage - 1) * ITEMS_PER_PAGE;
 
-  const orders = await prisma.pedidoVenda.findMany({
-    where,
-    include: {
-      cliente: {
-        select: {
-          nomeRazaoSocial: true,
-          nomeFantasia: true,
-        },
-      },
-      itens: {
-        select: {
-          id: true,
-          nome: true,
-          quantidade: true,
-          precoUnitario: true,
-        },
-      },
-      parcelas: {
-        select: {
-          id: true,
-          valor: true,
-          dataVencimento: true,
-        },
-        orderBy: {
-          dataVencimento: "asc",
-        },
-      },
-    },
-    orderBy: {
-      dataCriacao: "desc",
-    },
-    skip,
-    take: ITEMS_PER_PAGE,
-  });
+  const orders = await carregarPedidosHistorico(where, skip, ITEMS_PER_PAGE);
 
   const buildHistoryHref = (nextPage: number) => {
     const query = new URLSearchParams();
@@ -357,6 +499,7 @@ export default async function SalesHistoryPage({ searchParams }: PageProps) {
                     <TableHead className="text-slate-300">Cliente</TableHead>
                     <TableHead className="text-slate-300">Vendedor</TableHead>
                     <TableHead className="text-slate-300">Origem</TableHead>
+                    <TableHead className="text-slate-300">Pagamentos</TableHead>
                     <TableHead className="text-slate-300">Valor Total</TableHead>
                     <TableHead className="text-slate-300">Status</TableHead>
                     <TableHead className="text-right text-slate-300">Ações</TableHead>
@@ -365,12 +508,23 @@ export default async function SalesHistoryPage({ searchParams }: PageProps) {
                 <TableBody>
                   {orders.length === 0 ? (
                     <TableRow className="border-white/10 hover:bg-transparent">
-                      <TableCell colSpan={8} className="py-12 text-center text-slate-400">
+                      <TableCell colSpan={9} className="py-12 text-center text-slate-400">
                         Nenhum pedido encontrado para os filtros informados.
                       </TableCell>
                     </TableRow>
                   ) : (
                     orders.map((order) => {
+                      const orderPayments = (order.venda?.pagamentos ?? []).map((payment) => ({
+                        formaPagamento: payment.formaPagamento,
+                        valorBruto: payment.valorBruto,
+                      }));
+
+                      const paymentSummaryLabel = orderPayments.length > 0
+                        ? orderPayments
+                          .map((payment) => `${formatPaymentMethod(payment.formaPagamento)} ${formatCurrency(payment.valorBruto)}`)
+                          .join(" + ")
+                        : formatPaymentMethod(order.formaPagamento);
+
                       return (
                       <TableRow key={order.id} className="border-white/10 hover:bg-white/[0.03]">
                         <TableCell className="font-medium text-slate-100">#{order.numeroPedido}</TableCell>
@@ -383,6 +537,9 @@ export default async function SalesHistoryPage({ searchParams }: PageProps) {
                           <Badge variant="outline" className={originClassNames[order.origem]}>
                             {originLabelMap[order.origem]}
                           </Badge>
+                        </TableCell>
+                        <TableCell className="max-w-[280px] truncate text-slate-300" title={paymentSummaryLabel}>
+                          {paymentSummaryLabel}
                         </TableCell>
                         <TableCell className="font-medium text-slate-100">{formatCurrency(order.total)}</TableCell>
                         <TableCell>
@@ -406,6 +563,7 @@ export default async function SalesHistoryPage({ searchParams }: PageProps) {
                                 total: order.total,
                                 vendedor: order.vendedor,
                                 formaPagamento: order.formaPagamento,
+                                pagamentos: orderPayments,
                                 clienteNome:
                                   order.cliente?.nomeFantasia?.trim() ||
                                   order.cliente?.nomeRazaoSocial ||

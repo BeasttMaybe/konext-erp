@@ -12,6 +12,32 @@ type PropsReciboPage = {
   }>;
 };
 
+type VendaReciboView = {
+  id: string;
+  criadoEm: Date;
+  formaPagamento: string;
+  valorTotal: number;
+  desconto: number;
+  cliente: {
+    nomeRazaoSocial: string;
+    documento: string;
+  } | null;
+  itens: Array<{
+    id: string;
+    descricao: string;
+    quantidade: number;
+    precoUnitario: number;
+    subtotal: number;
+    produto: {
+      nome: string;
+    } | null;
+  }>;
+  pagamentos: Array<{
+    formaPagamento: string;
+    valorBruto: number;
+  }>;
+};
+
 const formatarMoeda = (valor: number) =>
   new Intl.NumberFormat("pt-BR", {
     style: "currency",
@@ -47,7 +73,7 @@ export default async function ReciboPage({ params, searchParams }: PropsReciboPa
   const autoPrint = filtros?.autoprint === "1";
   const embed = filtros?.embed === "1";
 
-  const venda = await prisma.venda.findUnique({
+  const consultaComPagamentos = {
     where: { id },
     include: {
       cliente: {
@@ -71,11 +97,93 @@ export default async function ReciboPage({ params, searchParams }: PropsReciboPa
           valorBruto: true,
         },
         orderBy: {
-          criadoEm: "asc",
+          criadoEm: "asc" as const,
         },
       },
     },
-  });
+  };
+
+  const consultaLegada = {
+    where: { id },
+    include: {
+      cliente: {
+        select: {
+          nomeRazaoSocial: true,
+          documento: true,
+        },
+      },
+      itens: {
+        include: {
+          produto: {
+            select: {
+              nome: true,
+            },
+          },
+        },
+      },
+    },
+  };
+
+  const carregarVendaRecibo = async (): Promise<VendaReciboView | null> => {
+    try {
+      const vendaComPagamentos = await prisma.venda.findUnique(consultaComPagamentos);
+      if (!vendaComPagamentos) return null;
+
+      return {
+        id: vendaComPagamentos.id,
+        criadoEm: vendaComPagamentos.criadoEm,
+        formaPagamento: vendaComPagamentos.formaPagamento,
+        valorTotal: vendaComPagamentos.valorTotal,
+        desconto: vendaComPagamentos.desconto ?? 0,
+        cliente: vendaComPagamentos.cliente
+          ? {
+              nomeRazaoSocial: vendaComPagamentos.cliente.nomeRazaoSocial,
+              documento: vendaComPagamentos.cliente.documento,
+            }
+          : null,
+        itens: vendaComPagamentos.itens.map((item) => ({
+          id: item.id,
+          descricao: item.descricao,
+          quantidade: item.quantidade,
+          precoUnitario: item.precoUnitario,
+          subtotal: item.subtotal,
+          produto: item.produto ? { nome: item.produto.nome } : null,
+        })),
+        pagamentos: vendaComPagamentos.pagamentos.map((pagamento) => ({
+          formaPagamento: pagamento.formaPagamento,
+          valorBruto: pagamento.valorBruto,
+        })),
+      };
+    } catch {
+      const vendaLegada = await prisma.venda.findUnique(consultaLegada);
+      if (!vendaLegada) return null;
+
+      return {
+        id: vendaLegada.id,
+        criadoEm: vendaLegada.criadoEm,
+        formaPagamento: vendaLegada.formaPagamento,
+        valorTotal: vendaLegada.valorTotal,
+        desconto: vendaLegada.desconto ?? 0,
+        cliente: vendaLegada.cliente
+          ? {
+              nomeRazaoSocial: vendaLegada.cliente.nomeRazaoSocial,
+              documento: vendaLegada.cliente.documento,
+            }
+          : null,
+        itens: vendaLegada.itens.map((item) => ({
+          id: item.id,
+          descricao: item.descricao,
+          quantidade: item.quantidade,
+          precoUnitario: item.precoUnitario,
+          subtotal: item.subtotal,
+          produto: item.produto ? { nome: item.produto.nome } : null,
+        })),
+        pagamentos: [],
+      };
+    }
+  };
+
+  const venda = await carregarVendaRecibo();
 
   if (!venda) {
     notFound();
@@ -153,12 +261,12 @@ export default async function ReciboPage({ params, searchParams }: PropsReciboPa
             <span className="font-semibold">Documento:</span>{" "}
             {venda.cliente?.documento ?? "-"}
           </p>
-          {venda.pagamentos.length > 0 ? (
+          {(venda.pagamentos?.length ?? 0) > 0 ? (
             <div>
               <p>
                 <span className="font-semibold">Pagamentos:</span>
               </p>
-              {venda.pagamentos.map((pagamento, indice) => (
+              {venda.pagamentos?.map((pagamento, indice) => (
                 <p key={`${pagamento.formaPagamento}-${indice}`} className="pl-2">
                   {formatarFormaPagamento(pagamento.formaPagamento)}: {formatarMoeda(pagamento.valorBruto)}
                 </p>

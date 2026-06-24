@@ -61,6 +61,10 @@ interface SalesHistoryOrderSheetProps {
     total: number;
     vendedor: string;
     formaPagamento: PaymentMethod;
+    pagamentos?: Array<{
+      formaPagamento: string;
+      valorBruto: number;
+    }>;
     clienteNome: string;
     itens: OrderItemSummary[];
     parcelas: OrderInstallmentSummary[];
@@ -122,17 +126,21 @@ export function SalesHistoryOrderSheet({ trigger, order }: SalesHistoryOrderShee
   const isLocked = order.status === "REJEITADO" || order.status === "CANCELADO" || (order.status === "APROVADO" && order.origem !== "PDV");
   const isMissingApprovalData = !order.formaPagamento || order.itens.length === 0;
 
-  const paymentDetailsLabel = useMemo(() => {
-    const paymentMethodLabel = order.formaPagamento
-      ? paymentMethodLabelMap[order.formaPagamento]
-      : "Não informado";
-
-    if (order.parcelas.length === 0) {
-      return paymentMethodLabel;
+  const paymentRows = useMemo(() => {
+    if ((order.pagamentos?.length ?? 0) > 0) {
+      return order.pagamentos!.map((payment) => ({
+        label: paymentMethodLabelMap[payment.formaPagamento as Exclude<PaymentMethod, null>] ?? payment.formaPagamento,
+        value: payment.valorBruto,
+      }));
     }
 
-    return `${paymentMethodLabel} · ${order.parcelas.length} parcela(s)`;
-  }, [order.formaPagamento, order.parcelas.length]);
+    return [
+      {
+        label: order.formaPagamento ? paymentMethodLabelMap[order.formaPagamento] : "Não informado",
+        value: order.total,
+      },
+    ];
+  }, [order.formaPagamento, order.pagamentos, order.total]);
 
   const handleApprove = () => {
     if (isMissingApprovalData) {
@@ -266,7 +274,17 @@ export function SalesHistoryOrderSheet({ trigger, order }: SalesHistoryOrderShee
             <section className="space-y-4 rounded-3xl border border-white/10 bg-white/[0.02] p-5">
               <div>
                 <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-300">Pagamento</h3>
-                <p className="mt-2 text-sm text-slate-100">{paymentDetailsLabel}</p>
+                <div className="mt-3 space-y-2">
+                  {paymentRows.map((payment, index) => (
+                    <div
+                      key={`${payment.label}-${index}`}
+                      className="flex items-center justify-between rounded-2xl border border-white/10 bg-slate-900/50 px-4 py-3 text-sm"
+                    >
+                      <span className="text-slate-200">{payment.label}</span>
+                      <span className="font-medium text-slate-100">{formatCurrency(payment.value)}</span>
+                    </div>
+                  ))}
+                </div>
                 <p className="mt-1 text-sm text-slate-400">Vendedor: {order.vendedor}</p>
                 {!order.formaPagamento && (
                   <p className="mt-2 text-xs text-amber-300/80">

@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 
 type OrdemServicoCustoItem = { custoPeca?: number | null };
 type OrdemServicoCustoRow = { itens?: OrdemServicoCustoItem[] };
@@ -77,9 +78,8 @@ export async function obterResumoCaixaDiario(): Promise<ResumoCaixaDiario> {
   };
   const ordemServicoDelegate = prismaAny.ordemServico ?? prismaAny.OrdemServico;
 
-  // Busca vendas PDV e peças de OS em paralelo para melhor performance
-  const [vendasHoje, osEntreguesHoje] = await Promise.all([
-    prisma.venda.findMany({
+  const buscarVendasHoje = async () => {
+    const vendasBase = await prisma.venda.findMany({
       where: {
         criadoEm: {
           gte: inicioHoje,
@@ -90,12 +90,6 @@ export async function obterResumoCaixaDiario(): Promise<ResumoCaixaDiario> {
         cliente: {
           select: {
             nomeRazaoSocial: true,
-          },
-        },
-        pagamentos: {
-          select: {
-            formaPagamento: true,
-            valorBruto: true,
           },
         },
         itens: {
@@ -116,7 +110,44 @@ export async function obterResumoCaixaDiario(): Promise<ResumoCaixaDiario> {
       orderBy: {
         criadoEm: "desc",
       },
-    }),
+    });
+
+    const idsVenda = vendasBase.map((venda) => venda.id);
+    if (idsVenda.length === 0) {
+      return vendasBase.map((venda) => ({ ...venda, pagamentos: [] as VendaResumoPagamento[] }));
+    }
+
+    let pagamentos: Array<{ vendaId: string; formaPagamento: string; valorBruto: number }> = [];
+    try {
+      pagamentos = await prisma.$queryRaw<Array<{ vendaId: string; formaPagamento: string; valorBruto: number }>>`
+        SELECT vp."vendaId" AS "vendaId", vp."formaPagamento"::text AS "formaPagamento", vp."valorBruto" AS "valorBruto"
+        FROM "VendaPagamento" vp
+        WHERE vp."vendaId" IN (${Prisma.join(idsVenda)})
+        ORDER BY vp."criadoEm" ASC
+      `;
+    } catch {
+      pagamentos = [];
+    }
+
+    const mapaPagamentos = new Map<string, VendaResumoPagamento[]>();
+    for (const pagamento of pagamentos) {
+      const listaAtual = mapaPagamentos.get(pagamento.vendaId) ?? [];
+      listaAtual.push({
+        formaPagamento: pagamento.formaPagamento,
+        valorBruto: Number(pagamento.valorBruto ?? 0),
+      });
+      mapaPagamentos.set(pagamento.vendaId, listaAtual);
+    }
+
+    return vendasBase.map((venda) => ({
+      ...venda,
+      pagamentos: mapaPagamentos.get(venda.id) ?? [],
+    }));
+  };
+
+  // Busca vendas PDV e peças de OS em paralelo para melhor performance
+  const [vendasHoje, osEntreguesHoje] = await Promise.all([
+    buscarVendasHoje(),
     // Custo das peças usadas em OS entregues hoje
     ordemServicoDelegate?.findMany
       ? ordemServicoDelegate.findMany({
@@ -362,21 +393,52 @@ export async function obterResumoDataEspecifica(
   };
   const ordemServicoDelegate = prismaAny.ordemServico ?? prismaAny.OrdemServico;
 
-  const [vendasData, osEntreguesData] = await Promise.all([
-    prisma.venda.findMany({
+  const buscarVendasData = async () => {
+    const vendasBase = await prisma.venda.findMany({
       where: { criadoEm: { gte: inicioData, lte: fimData } },
       select: {
+        id: true,
         valorTotal: true,
         formaPagamento: true,
-        pagamentos: {
-          select: {
-            formaPagamento: true,
-            valorBruto: true,
-          },
-        },
         itens: { select: { custoUnitario: true, quantidade: true, subtotal: true } },
       },
-    }),
+    });
+
+    const idsVenda = vendasBase.map((venda) => venda.id);
+    if (idsVenda.length === 0) {
+      return vendasBase.map((venda) => ({ ...venda, pagamentos: [] as VendaResumoPagamento[] }));
+    }
+
+    let pagamentos: Array<{ vendaId: string; formaPagamento: string; valorBruto: number }> = [];
+    try {
+      pagamentos = await prisma.$queryRaw<Array<{ vendaId: string; formaPagamento: string; valorBruto: number }>>`
+        SELECT vp."vendaId" AS "vendaId", vp."formaPagamento"::text AS "formaPagamento", vp."valorBruto" AS "valorBruto"
+        FROM "VendaPagamento" vp
+        WHERE vp."vendaId" IN (${Prisma.join(idsVenda)})
+        ORDER BY vp."criadoEm" ASC
+      `;
+    } catch {
+      pagamentos = [];
+    }
+
+    const mapaPagamentos = new Map<string, VendaResumoPagamento[]>();
+    for (const pagamento of pagamentos) {
+      const listaAtual = mapaPagamentos.get(pagamento.vendaId) ?? [];
+      listaAtual.push({
+        formaPagamento: pagamento.formaPagamento,
+        valorBruto: Number(pagamento.valorBruto ?? 0),
+      });
+      mapaPagamentos.set(pagamento.vendaId, listaAtual);
+    }
+
+    return vendasBase.map((venda) => ({
+      ...venda,
+      pagamentos: mapaPagamentos.get(venda.id) ?? [],
+    }));
+  };
+
+  const [vendasData, osEntreguesData] = await Promise.all([
+    buscarVendasData(),
     ordemServicoDelegate?.findMany
       ? ordemServicoDelegate.findMany({
           where: { status: "ENTREGUE", excluidaEm: null, atualizadoEm: { gte: inicioData, lte: fimData } },

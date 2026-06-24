@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -36,6 +36,17 @@ import {
   type FormaPagamentoPdv,
 } from "@/lib/pdv/pagamentos";
 
+const FORMAS_PAGAMENTO_VISIVEIS = new Set<FormaPagamentoPdv>([
+  "PIX",
+  "TED",
+  "DINHEIRO",
+  "CARTAO_DEBITO",
+  "CARTAO_CREDITO",
+  "BOLETO",
+  "CREDIARIO",
+  "EMPENHO_PUBLICO",
+]);
+
 export interface DadosPagamento {
   pagamentos: EntradaPagamentoPdv[];
   totalTaxas: number;
@@ -53,12 +64,76 @@ const formatarMoeda = (valor: number): string =>
 
 const paraCentavos = (valor: number) => Math.round((valor + Number.EPSILON) * 100);
 
+const formatarDecimalPtBr = (valor: number): string => valor.toFixed(2).replace(".", ",");
+
+const sanitizarEntradaMonetaria = (valor: string): string => {
+  const apenasPermitidos = valor.replace(/[^\d,\.]/g, "");
+  const valorComVirgula = apenasPermitidos.replace(/\./g, ",");
+  const [parteInteira, ...decimais] = valorComVirgula.split(",");
+  if (decimais.length === 0) return parteInteira;
+  return `${parteInteira},${decimais.join("").slice(0, 2)}`;
+};
+
+const parseEntradaMonetaria = (valor: string): number => {
+  if (!valor.trim()) return 0;
+  const normalizado = valor.replace(/\./g, "").replace(",", ".").trim();
+  const numero = Number(normalizado);
+  return Number.isFinite(numero) && numero >= 0 ? numero : 0;
+};
+
 interface LinhaPagamento {
   id: string;
   formaPagamento: FormaPagamentoPdv;
   valorBruto: number;
   parcelas: number;
   diasVencimento: number;
+}
+
+function distribuirValoresPagamentos(
+  linhas: LinhaPagamento[],
+  total: number
+): LinhaPagamento[] {
+  if (linhas.length <= 1) {
+    return linhas.map((linha) => ({ ...linha, valorBruto: total }));
+  }
+
+  const totalCentavos = paraCentavos(total);
+  const primeiraLinha = linhas[0];
+  const demais = linhas.slice(1);
+  const totalDemaisCentavos = demais.reduce((acc, linha) => acc + paraCentavos(linha.valorBruto), 0);
+  const valorPrimeiraCentavos = Math.max(0, totalCentavos - totalDemaisCentavos);
+
+  return [
+    { ...primeiraLinha, valorBruto: valorPrimeiraCentavos / 100 },
+    ...demais,
+  ];
+}
+
+function sincronizarValorDinheiroNasLinhas(
+  linhas: LinhaPagamento[],
+  total: number,
+  valorRecebidoDinheiro: number
+): LinhaPagamento[] {
+  const indiceDinheiro = linhas.findIndex((linha) => linha.formaPagamento === "DINHEIRO");
+  if (indiceDinheiro < 0) return linhas;
+
+  const atualizado = [...linhas];
+  const totalCentavos = paraCentavos(total);
+  const somaOutrasFormasCentavos = atualizado.reduce((acc, linha, index) => {
+    if (index === indiceDinheiro) return acc;
+    return acc + paraCentavos(linha.valorBruto);
+  }, 0);
+
+  const valorDevidoDinheiroCentavos = Math.max(0, totalCentavos - somaOutrasFormasCentavos);
+  const valorRecebidoCentavos = paraCentavos(valorRecebidoDinheiro);
+  const valorAplicadoDinheiroCentavos = Math.min(valorRecebidoCentavos, valorDevidoDinheiroCentavos);
+
+  atualizado[indiceDinheiro] = {
+    ...atualizado[indiceDinheiro],
+    valorBruto: valorAplicadoDinheiroCentavos / 100,
+  };
+
+  return atualizado;
 }
 
 function novaLinhaPagamento(total: number): LinhaPagamento {
@@ -93,6 +168,22 @@ export function ModalPagamento({
   const [processando, setProcessando] = useState(false);
   const [vendaFinalizada, setVendaFinalizada] = useState(false);
   const [vendaIdGerada, setVendaIdGerada] = useState<string | null>(null);
+  const [totalVendaFinalizada, setTotalVendaFinalizada] = useState<number>(0);
+  const [valoresPagamentosEmEdicao, setValoresPagamentosEmEdicao] = useState<Record<string, string>>({});
+  const [valorRecebidoEmEdicao, setValorRecebidoEmEdicao] = useState<string>("");
+
+  useEffect(() => {
+    if (!aberto) return;
+
+    setLinhas((estadoAtual) => {
+      if (estadoAtual.length !== 1) return estadoAtual;
+
+      const linhaAtual = estadoAtual[0];
+      return [{ ...linhaAtual, valorBruto: total }];
+    });
+
+    setValorRecebidoEmEdicao("");
+  }, [aberto, total]);
 
   const pagamentosCalculados = useMemo(() => {
     return linhas.map((linha) =>
@@ -124,7 +215,7 @@ export function ModalPagamento({
   }, [pagamentosCalculados]);
 
   const troco = Math.max(0, valorRecebidoDinheiro - totalDinheiro);
-  const dinheiroInsuficiente = totalDinheiro > 0 && valorRecebidoDinheiro > 0 && valorRecebidoDinheiro < totalDinheiro;
+  const dinheiroInsuficiente = totalDinheiro > 0 && paraCentavos(valorRecebidoDinheiro) < paraCentavos(totalDinheiro);
   const totalCorreto = paraCentavos(totalInformado) === paraCentavos(total);
   const diferenca = totalInformado - total;
 
@@ -132,7 +223,7 @@ export function ModalPagamento({
     !processando &&
     total > 0 &&
     totalCorreto &&
-    (totalDinheiro === 0 || valorRecebidoDinheiro >= totalDinheiro);
+    (totalDinheiro === 0 || !dinheiroInsuficiente);
 
   const resetar = () => {
     setLinhas([novaLinhaPagamento(total)]);
@@ -140,31 +231,108 @@ export function ModalPagamento({
     setProcessando(false);
     setVendaFinalizada(false);
     setVendaIdGerada(null);
+    setTotalVendaFinalizada(0);
+    setValoresPagamentosEmEdicao({});
+    setValorRecebidoEmEdicao("");
+  };
+
+  const sincronizarPagamentoDinheiro = (valorRecebido: number) => {
+    const novasLinhas = sincronizarValorDinheiroNasLinhas(linhas, total, valorRecebido);
+    setLinhas(novasLinhas);
+
+    setValoresPagamentosEmEdicao((estadoAtual) => {
+      const proximo = { ...estadoAtual };
+      for (const linha of novasLinhas) {
+        if (Object.prototype.hasOwnProperty.call(proximo, linha.id)) {
+          proximo[linha.id] = formatarDecimalPtBr(linha.valorBruto);
+        }
+      }
+      return proximo;
+    });
   };
 
   const atualizarLinha = (id: string, patch: Partial<LinhaPagamento>) => {
-    setLinhas((estadoAtual) =>
-      estadoAtual.map((linha) => (linha.id === id ? { ...linha, ...patch } : linha))
-    );
+    setLinhas((estadoAtual) => {
+      const atualizado = estadoAtual.map((linha) =>
+        linha.id === id ? { ...linha, ...patch } : linha
+      );
+
+      if (atualizado.length <= 1) {
+        return atualizado;
+      }
+
+      const primeiraLinhaId = atualizado[0]?.id;
+      if (!primeiraLinhaId || id === primeiraLinhaId) {
+        return atualizado;
+      }
+
+      return distribuirValoresPagamentos(atualizado, total);
+    });
+  };
+
+  const atualizarValorLinha = (id: string, valorBruto: number) => {
+    setLinhas((estadoAtual) => {
+      const indiceEditado = estadoAtual.findIndex((linha) => linha.id === id);
+      if (indiceEditado < 0) return estadoAtual;
+
+      const atualizado = estadoAtual.map((linha) => ({ ...linha }));
+      atualizado[indiceEditado].valorBruto = Math.max(0, valorBruto);
+
+      if (atualizado.length === 2) {
+        const outroIndice = indiceEditado === 0 ? 1 : 0;
+        const valorEditadoCentavos = paraCentavos(atualizado[indiceEditado].valorBruto);
+        const valorRestanteCentavos = Math.max(0, paraCentavos(total) - valorEditadoCentavos);
+        atualizado[outroIndice].valorBruto = valorRestanteCentavos / 100;
+        return atualizado;
+      }
+
+      if (atualizado.length <= 1) {
+        return atualizado;
+      }
+
+      const primeiraLinhaId = atualizado[0]?.id;
+      if (!primeiraLinhaId || id === primeiraLinhaId) {
+        return atualizado;
+      }
+
+      return distribuirValoresPagamentos(atualizado, total);
+    });
+
+    if (linhas.length === 2) {
+      const outraLinha = linhas.find((linha) => linha.id !== id);
+      if (!outraLinha) return;
+
+      const valorRestanteCentavos = Math.max(0, paraCentavos(total) - paraCentavos(Math.max(0, valorBruto)));
+      setValoresPagamentosEmEdicao((estadoAtual) => ({
+        ...estadoAtual,
+        [outraLinha.id]: formatarDecimalPtBr(valorRestanteCentavos / 100),
+      }));
+    }
   };
 
   const adicionarLinha = () => {
-    setLinhas((estadoAtual) => [
-      ...estadoAtual,
-      {
-        id: crypto.randomUUID(),
-        formaPagamento: "PIX",
-        valorBruto: 0,
-        parcelas: 1,
-        diasVencimento: 0,
-      },
-    ]);
+    setLinhas((estadoAtual) =>
+      distribuirValoresPagamentos(
+        [
+          ...estadoAtual,
+          {
+            id: crypto.randomUUID(),
+            formaPagamento: "PIX",
+            valorBruto: 0,
+            parcelas: 1,
+            diasVencimento: 0,
+          },
+        ],
+        total
+      )
+    );
   };
 
   const removerLinha = (id: string) => {
     setLinhas((estadoAtual) => {
       if (estadoAtual.length === 1) return estadoAtual;
-      return estadoAtual.filter((linha) => linha.id !== id);
+      const restante = estadoAtual.filter((linha) => linha.id !== id);
+      return distribuirValoresPagamentos(restante, total);
     });
   };
 
@@ -200,6 +368,7 @@ export function ModalPagamento({
         return;
       }
 
+      setTotalVendaFinalizada(totalInformado);
       setVendaIdGerada(resultado.vendaId || null);
       setVendaFinalizada(true);
     } finally {
@@ -225,7 +394,7 @@ export function ModalPagamento({
         if (!estado && !processando) handleFechar();
       }}
     >
-      <DialogContent className="max-w-lg transition-all duration-300">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto transition-all duration-300">
         {vendaFinalizada ? (
           <div className="flex flex-col items-center justify-center py-4 text-center space-y-5">
             <CheckCircle size={64} className="text-emerald-500 animate-pulse" />
@@ -235,7 +404,7 @@ export function ModalPagamento({
                 Venda Finalizada com Sucesso!
               </h3>
               <p className="text-slate-600 dark:text-slate-400">
-                Total da venda: <span className="font-semibold">{formatarMoeda(total)}</span>
+                Total da venda: <span className="font-semibold">{formatarMoeda(totalVendaFinalizada)}</span>
               </p>
               {vendaIdGerada && (
                 <p className="text-slate-600 dark:text-slate-400">
@@ -276,7 +445,7 @@ export function ModalPagamento({
                 onClick={() =>
                   window.open(
                     `https://wa.me/?text=${encodeURIComponent(
-                      `Ola! Segue o comprovante da sua compra na Konext. Total: ${formatarMoeda(total)}${
+                      `Ola! Segue o comprovante da sua compra na Konext. Total: ${formatarMoeda(totalVendaFinalizada)}${
                         vendaIdGerada ? ` | Venda: #${vendaIdGerada.slice(0, 8)}` : ""
                       }`
                     )}`,
@@ -355,7 +524,7 @@ export function ModalPagamento({
                           </Button>
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div className={`grid grid-cols-1 ${linhas.length > 1 ? "sm:grid-cols-2" : "sm:grid-cols-1"} gap-2`}>
                           <div className="space-y-1">
                             <Label>Forma</Label>
                             <Select
@@ -373,7 +542,9 @@ export function ModalPagamento({
                                 <SelectValue placeholder="Selecione" />
                               </SelectTrigger>
                               <SelectContent>
-                                {CONFIG_PAGAMENTOS_PDV.map((opcao) => (
+                                {CONFIG_PAGAMENTOS_PDV.filter((opcao) =>
+                                  FORMAS_PAGAMENTO_VISIVEIS.has(opcao.formaPagamento)
+                                ).map((opcao) => (
                                   <SelectItem key={opcao.formaPagamento} value={opcao.formaPagamento}>
                                     {opcao.rotulo}
                                   </SelectItem>
@@ -382,19 +553,31 @@ export function ModalPagamento({
                             </Select>
                           </div>
 
-                          <div className="space-y-1">
-                            <Label>Valor</Label>
-                            <Input
-                              type="number"
-                              min={0}
-                              step="0.01"
-                              value={linha.valorBruto || ""}
-                              onChange={(e) => {
-                                const valor = Number(e.target.value) || 0;
-                                atualizarLinha(linha.id, { valorBruto: valor });
-                              }}
-                            />
-                          </div>
+                          {linhas.length > 1 && (
+                            <div className="space-y-1">
+                              <Label>Valor</Label>
+                              <Input
+                                type="text"
+                                inputMode="decimal"
+                                value={valoresPagamentosEmEdicao[linha.id] ?? formatarDecimalPtBr(linha.valorBruto)}
+                                onChange={(e) => {
+                                  const texto = sanitizarEntradaMonetaria(e.target.value);
+                                  setValoresPagamentosEmEdicao((estadoAtual) => ({
+                                    ...estadoAtual,
+                                    [linha.id]: texto,
+                                  }));
+                                  const valor = parseEntradaMonetaria(texto);
+                                  atualizarValorLinha(linha.id, valor);
+                                }}
+                                onBlur={() => {
+                                  setValoresPagamentosEmEdicao((estadoAtual) => ({
+                                    ...estadoAtual,
+                                    [linha.id]: formatarDecimalPtBr(linha.valorBruto),
+                                  }));
+                                }}
+                              />
+                            </div>
+                          )}
                         </div>
 
                         {config?.permiteParcelas && (
@@ -438,14 +621,18 @@ export function ModalPagamento({
                 <div className="space-y-2">
                   <Label>Valor recebido em dinheiro</Label>
                   <Input
-                    type="number"
-                    min={0}
-                    step="0.01"
+                    type="text"
+                    inputMode="decimal"
                     placeholder="0,00"
-                    value={valorRecebidoDinheiro || ""}
-                    onChange={(e) =>
-                      setValorRecebidoDinheiro(Number(e.target.value) || 0)
-                    }
+                    value={valorRecebidoEmEdicao || formatarDecimalPtBr(valorRecebidoDinheiro)}
+                    onChange={(e) => {
+                      const texto = sanitizarEntradaMonetaria(e.target.value);
+                      const valor = parseEntradaMonetaria(texto);
+                      setValorRecebidoEmEdicao(texto);
+                      setValorRecebidoDinheiro(valor);
+                      sincronizarPagamentoDinheiro(valor);
+                    }}
+                    onBlur={() => setValorRecebidoEmEdicao(formatarDecimalPtBr(valorRecebidoDinheiro))}
                   />
                   <div className="flex gap-2 flex-wrap">
                     {[totalDinheiro, 50, 100, 200].map((v, idx) => (
@@ -454,7 +641,11 @@ export function ModalPagamento({
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => setValorRecebidoDinheiro(v)}
+                        onClick={() => {
+                          setValorRecebidoDinheiro(v);
+                          setValorRecebidoEmEdicao(formatarDecimalPtBr(v));
+                          sincronizarPagamentoDinheiro(v);
+                        }}
                       >
                         {idx === 0 ? "Exato" : formatarMoeda(v)}
                       </Button>
@@ -462,7 +653,7 @@ export function ModalPagamento({
                   </div>
                   {dinheiroInsuficiente && (
                     <p className="text-xs text-red-600 dark:text-red-400">
-                      Valor recebido menor que o total.
+                      Valor recebido em dinheiro menor que o valor da forma Dinheiro.
                     </p>
                   )}
                 </div>
@@ -492,39 +683,39 @@ export function ModalPagamento({
                   <span>Você recebe (líquido)</span>
                   <span>{formatarMoeda(totalLiquido)}</span>
                 </div>
-                {totalDinheiro > 0 && valorRecebidoDinheiro >= totalDinheiro && (
+                {totalDinheiro > 0 && !dinheiroInsuficiente && (
                   <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-semibold pt-1.5 border-t border-zinc-100 dark:border-zinc-800">
                     <span>Troco</span>
                     <span>{formatarMoeda(troco)}</span>
                   </div>
                 )}
               </div>
-            </div>
 
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleFechar}
-                disabled={processando}
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="button"
-                onClick={handleConfirmar}
-                disabled={!podeConfirmar}
-              >
-                {processando ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Processando...
-                  </>
-                ) : (
-                  <>Confirmar Recebimento</>
-                )}
-              </Button>
-            </DialogFooter>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleFechar}
+                  disabled={processando}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleConfirmar}
+                  disabled={!podeConfirmar}
+                >
+                  {processando ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Processando...
+                    </>
+                  ) : (
+                    <>Confirmar Recebimento</>
+                  )}
+                </Button>
+              </DialogFooter>
+            </div>
           </>
         )}
       </DialogContent>

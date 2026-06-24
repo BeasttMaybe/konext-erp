@@ -154,6 +154,8 @@ type TransacaoPdv = Record<string, unknown> & {
   $queryRaw?: <T = unknown>(query: TemplateStringsArray, ...values: unknown[]) => Promise<T>;
 };
 
+type DelegateCreate = { create: (args: unknown) => Promise<unknown> };
+
 function obterDelegateComFallback(
   tx: ClientePrismaAny,
   root: ClientePrismaAny,
@@ -176,6 +178,150 @@ function obterDelegateComFallback(
   }
 
   throw new Error(`Delegate Prisma '${nomeLogico}' nao disponivel para operacao de create.`);
+}
+
+function obterDelegateComFallbackOpcional(
+  tx: ClientePrismaAny,
+  root: ClientePrismaAny,
+  chaves: Array<keyof ClientePrismaAny>
+): DelegateCreate | null {
+  for (const chave of chaves) {
+    const delegateTx = tx[chave] as { create?: (args: unknown) => Promise<unknown> } | undefined;
+    if (delegateTx?.create) return delegateTx as DelegateCreate;
+  }
+
+  for (const chave of chaves) {
+    const delegateRoot = root[chave] as { create?: (args: unknown) => Promise<unknown> } | undefined;
+    if (delegateRoot?.create) return delegateRoot as DelegateCreate;
+  }
+
+  return null;
+}
+
+async function criarVendaPagamentoComFallback(
+  tx: TransacaoPdv,
+  vendaPagamentoDelegate: DelegateCreate | null,
+  input: {
+    vendaId: string;
+    formaPagamento:
+      | "PIX"
+      | "TED"
+      | "DINHEIRO"
+      | "CARTAO_CREDITO"
+      | "CARTAO_CREDITO_AVISTA"
+      | "CARTAO_CREDITO_PARCELADO"
+      | "CARTAO_DEBITO"
+      | "BOLETO"
+      | "CREDIARIO"
+      | "EMPENHO_PUBLICO";
+    valorBruto: number;
+    percentualTaxa: number;
+    valorTaxa: number;
+    valorLiquido: number;
+    parcelas: number;
+    diasVencimento: number | null;
+    dataVencimento: Date | null;
+  }
+): Promise<string> {
+  if (vendaPagamentoDelegate) {
+    try {
+      const criado = await vendaPagamentoDelegate.create({
+        data: {
+          venda: {
+            connect: {
+              id: input.vendaId,
+            },
+          },
+          formaPagamento: input.formaPagamento,
+          valorBruto: input.valorBruto,
+          percentualTaxa: input.percentualTaxa,
+          valorTaxa: input.valorTaxa,
+          valorLiquido: input.valorLiquido,
+          parcelas: input.parcelas,
+          diasVencimento: input.diasVencimento,
+          dataVencimento: input.dataVencimento,
+        },
+      });
+
+      return String((criado as { id: string }).id);
+    } catch (erro) {
+      const mensagem = erro instanceof Error ? erro.message : "";
+      if (!mensagem.includes("Unknown argument") && !mensagem.includes("delegate")) {
+        throw erro;
+      }
+    }
+  }
+
+  if (!tx.$queryRaw) {
+    throw new Error("Nao foi possivel registrar os pagamentos da venda.");
+  }
+
+  const registro = await tx.$queryRaw<Array<{ id: string }>>`
+    INSERT INTO "VendaPagamento" (
+      id,
+      "vendaId",
+      "formaPagamento",
+      "valorBruto",
+      "percentualTaxa",
+      "valorTaxa",
+      "valorLiquido",
+      parcelas,
+      "diasVencimento",
+      "dataVencimento",
+      "criadoEm",
+      "atualizadoEm"
+    )
+    VALUES (
+      gen_random_uuid()::text,
+      ${input.vendaId},
+      ${input.formaPagamento}::"FormaPagamento",
+      ${input.valorBruto},
+      ${input.percentualTaxa},
+      ${input.valorTaxa},
+      ${input.valorLiquido},
+      ${input.parcelas},
+      ${input.diasVencimento},
+      ${input.dataVencimento},
+      NOW(),
+      NOW()
+    )
+    RETURNING id
+  `;
+
+  const id = registro?.[0]?.id;
+  if (!id) {
+    throw new Error("Nao foi possivel registrar os pagamentos da venda.");
+  }
+
+  return String(id);
+}
+
+async function criarContaReceberComFallbackVendaPagamento(
+  contaReceberDelegate: { create: (args: unknown) => Promise<unknown> },
+  dataBase: Record<string, unknown>,
+  vendaPagamentoId?: string
+) {
+  const dataComVinculo = vendaPagamentoId
+    ? {
+        ...dataBase,
+        vendaPagamento: {
+          connect: {
+            id: vendaPagamentoId,
+          },
+        },
+      }
+    : dataBase;
+
+  try {
+    return await contaReceberDelegate.create({ data: dataComVinculo });
+  } catch (erro) {
+    const mensagem = erro instanceof Error ? erro.message : "";
+    if (mensagem.includes("Unknown argument `vendaPagamento`")) {
+      return contaReceberDelegate.create({ data: dataBase });
+    }
+
+    throw erro;
+  }
 }
 
 async function criarVendaComFallbackFormaPagamento(
@@ -476,11 +622,10 @@ export async function processarVenda(
         ["itemVenda", "ItemVenda"],
         "itemVenda"
       );
-      const vendaPagamentoDelegate = obterDelegateComFallback(
+      const vendaPagamentoDelegate = obterDelegateComFallbackOpcional(
         txAny,
         prismaAny,
-        ["vendaPagamento", "VendaPagamento"],
-        "vendaPagamento"
+        ["vendaPagamento", "VendaPagamento"]
       );
 
       const dadosVendaBase = {
@@ -609,27 +754,22 @@ export async function processarVenda(
 
       for (const pagamento of pagamentosProcessados) {
         const formaPagamentoAtual = mapearFormaPagamento(pagamento.formaPagamento);
-        const vendaPagamento = await vendaPagamentoDelegate.create({
-          data: {
-            venda: {
-              connect: {
-                id: vendaId,
-              },
-            },
-            formaPagamento: formaPagamentoAtual,
-            valorBruto: pagamento.valorBruto,
-            percentualTaxa: pagamento.percentualTaxa,
-            valorTaxa: pagamento.valorTaxa,
-            valorLiquido: pagamento.valorLiquido,
-            parcelas: pagamento.parcelas,
-            diasVencimento: pagamento.diasVencimento,
-            dataVencimento: pagamento.dataVencimento,
-          },
+        const vendaPagamentoId = await criarVendaPagamentoComFallback(tx, vendaPagamentoDelegate, {
+          vendaId,
+          formaPagamento: formaPagamentoAtual,
+          valorBruto: pagamento.valorBruto,
+          percentualTaxa: pagamento.percentualTaxa,
+          valorTaxa: pagamento.valorTaxa,
+          valorLiquido: pagamento.valorLiquido,
+          parcelas: pagamento.parcelas,
+          diasVencimento: pagamento.diasVencimento,
+          dataVencimento: pagamento.dataVencimento,
         });
 
         if (ehPagamentoPrazo(pagamento.formaPagamento)) {
-          await contaReceberDelegate.create({
-            data: {
+          await criarContaReceberComFallbackVendaPagamento(
+            contaReceberDelegate,
+            {
               descricao: `Venda PDV ${vendaId} - ${pagamento.formaPagamento}`,
               valor: pagamento.valorBruto,
               ...(clienteId
@@ -646,18 +786,14 @@ export async function processarVenda(
                   id: vendaId,
                 },
               },
-              vendaPagamento: {
-                connect: {
-                  id: String((vendaPagamento as { id: string }).id),
-                },
-              },
               dataVencimento: pagamento.dataVencimento ?? new Date(),
               status: "PENDENTE",
               formaRecebimento: formaPagamentoAtual,
               origem: "VENDA_PDV",
               notaFiscalEmitida: false,
             },
-          });
+            vendaPagamentoId
+          );
         }
       }
 
@@ -853,11 +989,10 @@ export async function processarVendaComOSNoPDV(
         ["itemVenda", "ItemVenda"],
         "itemVenda"
       );
-      const vendaPagamentoDelegate = obterDelegateComFallback(
+      const vendaPagamentoDelegate = obterDelegateComFallbackOpcional(
         txAny,
         prismaAny,
-        ["vendaPagamento", "VendaPagamento"],
-        "vendaPagamento"
+        ["vendaPagamento", "VendaPagamento"]
       );
       const ordemServicoDelegate = (txAny.ordemServico ?? txAny.OrdemServico) as
         | { update?: (args: unknown) => Promise<unknown> }
@@ -991,28 +1126,23 @@ export async function processarVendaComOSNoPDV(
 
       for (const pagamento of pagamentosProcessados) {
         const formaPagamentoAtual = mapearFormaPagamento(pagamento.formaPagamento);
-        const vendaPagamento = await vendaPagamentoDelegate.create({
-          data: {
-            venda: {
-              connect: {
-                id: vendaId,
-              },
-            },
-            formaPagamento: formaPagamentoAtual,
-            valorBruto: pagamento.valorBruto,
-            percentualTaxa: pagamento.percentualTaxa,
-            valorTaxa: pagamento.valorTaxa,
-            valorLiquido: pagamento.valorLiquido,
-            parcelas: pagamento.parcelas,
-            diasVencimento: pagamento.diasVencimento,
-            dataVencimento: pagamento.dataVencimento,
-          },
+        const vendaPagamentoId = await criarVendaPagamentoComFallback(tx, vendaPagamentoDelegate, {
+          vendaId,
+          formaPagamento: formaPagamentoAtual,
+          valorBruto: pagamento.valorBruto,
+          percentualTaxa: pagamento.percentualTaxa,
+          valorTaxa: pagamento.valorTaxa,
+          valorLiquido: pagamento.valorLiquido,
+          parcelas: pagamento.parcelas,
+          diasVencimento: pagamento.diasVencimento,
+          dataVencimento: pagamento.dataVencimento,
         });
 
         const statusConta = ehPagamentoPrazo(pagamento.formaPagamento) ? "PENDENTE" : "RECEBIDO";
 
-        await contaReceberDelegate.create({
-          data: {
+        await criarContaReceberComFallbackVendaPagamento(
+          contaReceberDelegate,
+          {
             descricao: `OS #${pedido.numeroOs} - ${pedido.aparelho} (+itens PDV) - ${pagamento.formaPagamento}`,
             valor: pagamento.valorBruto,
             cliente: {
@@ -1030,11 +1160,6 @@ export async function processarVendaComOSNoPDV(
                 id: vendaId,
               },
             },
-            vendaPagamento: {
-              connect: {
-                id: String((vendaPagamento as { id: string }).id),
-              },
-            },
             dataVencimento: pagamento.dataVencimento ?? new Date(),
             dataRecebimento: statusConta === "RECEBIDO" ? new Date() : null,
             status: statusConta,
@@ -1042,7 +1167,8 @@ export async function processarVendaComOSNoPDV(
             origem: "ORDEM_SERVICO",
             notaFiscalEmitida: false,
           },
-        });
+          vendaPagamentoId
+        );
       }
 
       await createSalesHistoryMirror(tx, {
