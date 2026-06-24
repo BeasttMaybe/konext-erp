@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { obterConfiguracoes } from "@/app/actions/configuracoes";
 import { BotaoImprimirPagina } from "@/components/os/botao-imprimir-pagina";
+import { montarResumoEmpresaDocumentos } from "@/lib/configuracoes-documentos";
 
 type PropsPaginaImpressaoOS = {
   params: Promise<{ id: string }>;
@@ -97,20 +98,12 @@ export default async function PaginaImpressaoOS({ params }: PropsPaginaImpressao
 
   if (!os) notFound();
 
-  // Dados da empresa
-  const nomeEmpresa = config.nomeFantasia || config.razaoSocial || "Konext";
-  const cnpjEmpresa = config.cnpj || "";
-  const enderecoEmpresa = [
-    config.logradouro,
-    config.numero,
-    config.bairro,
-    config.cidade,
-    config.estado,
-  ]
-    .filter(Boolean)
-    .join(", ");
-  const telefoneEmpresa = config.telefone || "";
-  const logoUrl = config.logoUrl || "";
+  const resumoEmpresa = montarResumoEmpresaDocumentos(config);
+  const nomeEmpresa = resumoEmpresa.nomeExibicao;
+  const cnpjEmpresa = resumoEmpresa.cnpj;
+  const enderecoEmpresa = resumoEmpresa.endereco;
+  const telefoneEmpresa = resumoEmpresa.telefone;
+  const logoUrl = resumoEmpresa.logoUrl;
 
   // Dados da OS
   const statusLabel =
@@ -235,14 +228,11 @@ export default async function PaginaImpressaoOS({ params }: PropsPaginaImpressao
                 <h1 className="text-xl font-black tracking-tight text-zinc-900 leading-tight">
                   {nomeEmpresa}
                 </h1>
-                {cnpjEmpresa && (
-                  <p className="text-xs text-zinc-500 mt-0.5">CNPJ: {cnpjEmpresa}</p>
-                )}
-                {enderecoEmpresa && (
-                  <p className="text-xs text-zinc-500">{enderecoEmpresa}</p>
-                )}
-                {telefoneEmpresa && (
-                  <p className="text-xs text-zinc-500">Tel.: {telefoneEmpresa}</p>
+                <p className="text-xs text-zinc-500 mt-0.5">{cnpjEmpresa}</p>
+                <p className="text-xs text-zinc-500">{enderecoEmpresa}</p>
+                <p className="text-xs text-zinc-500">Tel.: {telefoneEmpresa}</p>
+                {config.razaoSocial?.trim() && config.razaoSocial.trim() !== nomeEmpresa && (
+                  <p className="text-xs text-zinc-500">{config.razaoSocial.trim()}</p>
                 )}
               </div>
             </div>

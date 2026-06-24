@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import {
   consultarCnpjReceita,
@@ -10,6 +10,11 @@ import {
 } from "@/app/actions/configuracoes";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  formatarCepVisual,
+  formatarCnpjVisual,
+  formatarTelefoneVisual,
+} from "@/lib/configuracoes-documentos";
 import { MenuConfiguracoes } from "./menu-configuracoes";
 import { PainelAparencia } from "./painel-aparencia";
 import { PainelAuditoria } from "./painel-auditoria";
@@ -48,9 +53,24 @@ export function LayoutConfiguracoes({ defaultValues }: PropsLayoutConfiguracoes)
   const [salvando, setSalvando] = useState(false);
   const [buscandoCnpj, setBuscandoCnpj] = useState(false);
 
-  const { register, handleSubmit, getValues, setValue } = useForm<DadosConfiguracoes>({
-    defaultValues,
+  const valoresIniciais: DadosConfiguracoes = {
+    ...defaultValues,
+    cnpj: formatarCnpjVisual(defaultValues.cnpj),
+    telefone: formatarTelefoneVisual(defaultValues.telefone),
+    cep: formatarCepVisual(defaultValues.cep),
+  };
+
+  const { register, control, handleSubmit, getValues, setValue, reset, formState } = useForm<DadosConfiguracoes>({
+    defaultValues: valoresIniciais,
   });
+
+  const valoresMonitorados = useWatch({ control });
+  const configuracaoAtual: DadosConfiguracoes = {
+    ...valoresIniciais,
+    ...valoresMonitorados,
+  };
+
+  const secaoComPersistenciaAtiva = secaoAtiva === "empresa" || secaoAtiva === "documentos";
 
   const descricaoSecaoAtiva = useMemo(() => {
     return SECOES_CONFIGURACOES.find((secao) => secao.id === secaoAtiva)?.descricao ?? "";
@@ -67,13 +87,13 @@ export function LayoutConfiguracoes({ defaultValues }: PropsLayoutConfiguracoes)
       }
 
       const { razaoSocial, cep, logradouro, numero, bairro, cidade, estado } = resultado.dados;
-      setValue("razaoSocial", razaoSocial);
-      setValue("cep", cep);
-      setValue("logradouro", logradouro);
-      setValue("numero", numero);
-      setValue("bairro", bairro);
-      setValue("cidade", cidade);
-      setValue("estado", estado);
+      setValue("razaoSocial", razaoSocial, { shouldDirty: true });
+      setValue("cep", formatarCepVisual(cep), { shouldDirty: true });
+      setValue("logradouro", logradouro, { shouldDirty: true });
+      setValue("numero", numero, { shouldDirty: true });
+      setValue("bairro", bairro, { shouldDirty: true });
+      setValue("cidade", cidade, { shouldDirty: true });
+      setValue("estado", estado, { shouldDirty: true });
       setValue(
         "endereco",
         montarEnderecoCompleto({
@@ -82,8 +102,9 @@ export function LayoutConfiguracoes({ defaultValues }: PropsLayoutConfiguracoes)
           bairro,
           cidade,
           estado,
-          cep,
-        })
+          cep: formatarCepVisual(cep),
+        }),
+        { shouldDirty: true }
       );
 
       toast.success("Dados da empresa carregados com sucesso.");
@@ -98,10 +119,11 @@ export function LayoutConfiguracoes({ defaultValues }: PropsLayoutConfiguracoes)
     try {
       setSalvando(true);
       const dadosConsolidados: DadosConfiguracoes = {
-        ...defaultValues,
+        ...valoresIniciais,
         ...dados,
       };
       await salvarConfiguracoes(dadosConsolidados);
+      reset(dadosConsolidados);
       toast.success("Configurações salvas com sucesso.");
     } catch (error) {
       const mensagem = error instanceof Error ? error.message : "Não foi possível salvar as configurações.";
@@ -120,10 +142,17 @@ export function LayoutConfiguracoes({ defaultValues }: PropsLayoutConfiguracoes)
             buscandoCnpj={buscandoCnpj}
             onBuscarCnpj={aoBuscarDadosCnpj}
             salvando={salvando}
+            configuracaoAtual={configuracaoAtual}
           />
         );
       case "documentos":
-        return <PainelDocumentos />;
+        return (
+          <PainelDocumentos
+            register={register}
+            configuracaoAtual={configuracaoAtual}
+            salvando={salvando}
+          />
+        );
       case "os":
         return <PainelOs />;
       case "garantias":
@@ -172,13 +201,22 @@ export function LayoutConfiguracoes({ defaultValues }: PropsLayoutConfiguracoes)
       </div>
 
       <div className="sticky bottom-3 flex justify-end">
-        <Button
-          type="submit"
-          disabled={salvando || secaoAtiva !== "empresa"}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white"
-        >
-          {salvando ? "Salvando..." : "Salvar alterações"}
-        </Button>
+        <div className="flex items-center gap-3 rounded-xl border border-border bg-background/95 px-3 py-2 shadow-sm backdrop-blur">
+          <p className="text-xs text-muted-foreground">
+            {secaoComPersistenciaAtiva
+              ? formState.isDirty
+                ? "Há alterações pendentes nesta etapa."
+                : "Nenhuma alteração pendente no formulário atual."
+              : "Nesta etapa, apenas Empresa e Documentos possuem persistência ativa."}
+          </p>
+          <Button
+            type="submit"
+            disabled={salvando || !secaoComPersistenciaAtiva}
+            className="bg-emerald-600 text-white hover:bg-emerald-700"
+          >
+            {salvando ? "Salvando..." : secaoAtiva === "documentos" ? "Salvar documentos" : "Salvar empresa"}
+          </Button>
+        </div>
       </div>
     </form>
   );

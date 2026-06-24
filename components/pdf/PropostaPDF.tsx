@@ -1,4 +1,4 @@
-import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
+import { Document, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 
 export type ProposalPdfItem = {
   id?: string;
@@ -35,6 +35,7 @@ export type CompanyPdfInfo = {
   address?: string;
   cityState?: string;
   contacts?: string;
+  logoUrl?: string;
 };
 
 type PropostaPdfProps = {
@@ -74,6 +75,37 @@ const styles = StyleSheet.create({
   brandBlock: {
     flexGrow: 1,
     flexShrink: 1,
+  },
+  brandHeader: {
+    display: "flex",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  logoWrap: {
+    width: 72,
+    height: 48,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  logoImage: {
+    width: 72,
+    height: 48,
+    objectFit: "contain",
+  },
+  logoFallback: {
+    width: 72,
+    height: 48,
+    borderWidth: 1,
+    borderColor: palette.subtleBorder,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    color: palette.secondaryText,
+    fontSize: 7,
+    textAlign: "center",
+    padding: 6,
   },
   brandName: {
     fontSize: 26,
@@ -358,6 +390,7 @@ export function PropostaPDF({ proposal, company }: PropostaPdfProps) {
     address: normalizeText(company?.address),
     cityState: normalizeText(company?.cityState),
     contacts: normalizeText(company?.contacts),
+    logoUrl: normalizeText(company?.logoUrl),
   };
 
   return (
@@ -365,10 +398,24 @@ export function PropostaPDF({ proposal, company }: PropostaPdfProps) {
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
           <View style={styles.brandBlock}>
-            <Text style={styles.brandName}>{companyInfo.brandName}</Text>
-            {companyInfo.tagline && (
-              <Text style={styles.brandTagline}>{companyInfo.tagline}</Text>
-            )}
+            <View style={styles.brandHeader}>
+              <View style={styles.logoWrap}>
+                {companyInfo.logoUrl ? (
+                  <Image src={companyInfo.logoUrl} style={styles.logoImage} />
+                ) : (
+                  <View style={styles.logoFallback}>
+                    <Text>Logo não configurada</Text>
+                  </View>
+                )}
+              </View>
+
+              <View>
+                <Text style={styles.brandName}>{companyInfo.brandName}</Text>
+                {companyInfo.tagline && (
+                  <Text style={styles.brandTagline}>{companyInfo.tagline}</Text>
+                )}
+              </View>
+            </View>
           </View>
 
           <View style={styles.companyBlock}>

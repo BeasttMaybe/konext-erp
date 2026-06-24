@@ -137,6 +137,7 @@ export type DadosTermoGarantia = {
     documento: string | null;
     telefone: string | null;
     endereco: string | null;
+    logoUrl: string | null;
   };
 };
 
@@ -344,6 +345,7 @@ type ConfiguracaoTermo = {
   bairro: string;
   cidade: string;
   estado: string;
+  logoUrl?: string | null;
 };
 
 type ClientTx = Prisma.TransactionClient | typeof prisma;
@@ -692,6 +694,7 @@ export async function obterTermoGarantiaOS(osId: string): Promise<DadosTermoGara
       bairro: true,
       cidade: true,
       estado: true,
+      logoUrl: true,
     },
   });
 
@@ -722,6 +725,7 @@ export async function obterTermoGarantiaOS(osId: string): Promise<DadosTermoGara
       nome: normalizarTexto(config?.nomeFantasia) || normalizarTexto(config?.razaoSocial) || "Konext",
       documento: normalizarTexto(config?.cnpj) || null,
       telefone: normalizarTexto(config?.telefone) || null,
+      logoUrl: normalizarTexto(config?.logoUrl) || null,
       endereco: [
         normalizarTexto(config?.logradouro),
         normalizarTexto(config?.numero),

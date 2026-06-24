@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
+import { obterConfiguracoes } from "@/app/actions/configuracoes";
 import { prisma } from "@/lib/prisma";
 import { ImpressaoAutomaticaRecibo } from "@/components/pdv/impressao-automatica-recibo";
+import { montarResumoEmpresaDocumentos } from "@/lib/configuracoes-documentos";
 
 type PropsReciboPage = {
   params: Promise<{
@@ -183,11 +185,13 @@ export default async function ReciboPage({ params, searchParams }: PropsReciboPa
     }
   };
 
-  const venda = await carregarVendaRecibo();
+  const [venda, configuracao] = await Promise.all([carregarVendaRecibo(), obterConfiguracoes()]);
 
   if (!venda) {
     notFound();
   }
+
+  const resumoEmpresa = montarResumoEmpresaDocumentos(configuracao);
 
   return (
     <div
@@ -246,8 +250,20 @@ export default async function ReciboPage({ params, searchParams }: PropsReciboPa
         }`}
       >
         <div className="text-center border-b border-zinc-300 pb-3 mb-3">
-          <p className="text-lg font-bold">KONEXT</p>
+          {resumoEmpresa.logoUrl ? (
+            <div className="mb-2 flex justify-center">
+              <img
+                src={resumoEmpresa.logoUrl}
+                alt={`Logo ${resumoEmpresa.nomeExibicao}`}
+                className="max-h-12 max-w-[120px] object-contain"
+              />
+            </div>
+          ) : null}
+          <p className="text-lg font-bold">{resumoEmpresa.nomeExibicao}</p>
           <p className="text-xs">Recibo de Venda</p>
+          <p className="mt-1 text-[11px] text-zinc-600">{resumoEmpresa.cnpj}</p>
+          <p className="text-[11px] text-zinc-600">{resumoEmpresa.telefone}</p>
+          <p className="text-[11px] text-zinc-600">{resumoEmpresa.endereco}</p>
           <p className="text-xs mt-1">{formatarDataHora(venda.criadoEm)}</p>
           <p className="text-xs">Venda #{String(venda.id).slice(0, 8).toUpperCase()}</p>
         </div>
@@ -313,7 +329,9 @@ export default async function ReciboPage({ params, searchParams }: PropsReciboPa
           </div>
         </div>
 
-        <p className="text-[11px] text-center text-zinc-600 mt-4">Obrigado pela preferência.</p>
+        <p className="text-[11px] text-center text-zinc-600 mt-4 whitespace-pre-wrap">
+          {resumoEmpresa.mensagemCupom || "Obrigado pela preferência."}
+        </p>
       </div>
 
       {!embed && (

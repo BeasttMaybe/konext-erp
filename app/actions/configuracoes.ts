@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { exigirSessao } from "@/lib/auth/sessao";
 
@@ -112,6 +113,40 @@ type ResultadoAcaoPerfil =
       erro: string;
     };
 
+const schemaDadosConfiguracoes = z.object({
+  razaoSocial: z.string().trim().max(160, "Razão social excede o limite de 160 caracteres."),
+  nomeFantasia: z.string().trim().max(120, "Nome fantasia excede o limite de 120 caracteres."),
+  cnpj: z
+    .string()
+    .trim()
+    .max(18, "CNPJ excede o limite de 18 caracteres.")
+    .refine((valor) => {
+      const digitos = valor.replace(/\D/g, "");
+      return digitos.length === 0 || digitos.length === 14;
+    }, "CNPJ inválido."),
+  inscricaoEstadual: z.string().trim().max(40, "Inscrição estadual excede o limite de 40 caracteres."),
+  telefone: z.string().trim().max(20, "Telefone excede o limite de 20 caracteres."),
+  cep: z
+    .string()
+    .trim()
+    .max(9, "CEP excede o limite de 9 caracteres.")
+    .refine((valor) => {
+      const digitos = valor.replace(/\D/g, "");
+      return digitos.length === 0 || digitos.length === 8;
+    }, "CEP inválido."),
+  logradouro: z.string().trim().max(160, "Logradouro excede o limite de 160 caracteres."),
+  numero: z.string().trim().max(30, "Número excede o limite de 30 caracteres."),
+  bairro: z.string().trim().max(120, "Bairro excede o limite de 120 caracteres."),
+  cidade: z.string().trim().max(120, "Cidade excede o limite de 120 caracteres."),
+  estado: z.string().trim().max(2, "UF deve ter no máximo 2 caracteres."),
+  endereco: z.string().trim().max(255, "Endereço completo excede o limite de 255 caracteres."),
+  chavePix: z.string().trim().max(160, "Chave PIX excede o limite de 160 caracteres."),
+  mensagemCupom: z.string().trim().max(1000, "Mensagem do cupom excede o limite de 1000 caracteres."),
+  habilitarMargemAutomatica: z.boolean(),
+  permitirVendaSemEstoque: z.boolean(),
+  logoUrl: z.string().trim().max(4096, "URL da logo excede o limite de 4096 caracteres."),
+});
+
 function normalizarUrlImagem(url: string | null | undefined, nomeCampo: string): string | null {
   const valor = String(url ?? "").trim();
 
@@ -140,6 +175,21 @@ function normalizarUrlImagem(url: string | null | undefined, nomeCampo: string):
 function obterDelegateConfiguracao() {
   const prismaAny = prisma as PrismaConfiguracoesClient;
   return prismaAny.configuracao ?? prismaAny.Configuracao;
+}
+
+function normalizarConfiguracoesEntrada(data: DadosConfiguracoes): DadosConfiguracoes {
+  const resultado = schemaDadosConfiguracoes.safeParse(data);
+
+  if (!resultado.success) {
+    throw new Error(resultado.error.issues[0]?.message ?? "Dados de configuração inválidos.");
+  }
+
+  return {
+    ...resultado.data,
+    nomeFantasia: resultado.data.nomeFantasia || "Konext",
+    estado: resultado.data.estado.toUpperCase(),
+    logoUrl: normalizarUrlImagem(resultado.data.logoUrl, "URL da logo da empresa") ?? "",
+  };
 }
 
 export async function obterConfiguracoes() {
@@ -238,6 +288,8 @@ export async function salvarConfiguracoes(data: DadosConfiguracoes) {
   // C1: exige sessao valida antes de alterar configuracoes da empresa.
   await exigirSessao();
 
+  const dadosNormalizados = normalizarConfiguracoesEntrada(data);
+
   const configuracaoDelegate = obterDelegateConfiguracao();
 
   if (!configuracaoDelegate?.findFirst || !configuracaoDelegate?.update) {
@@ -283,27 +335,30 @@ export async function salvarConfiguracoes(data: DadosConfiguracoes) {
       id: configuracao.id,
     },
     data: {
-      razaoSocial: data.razaoSocial.trim(),
-      nomeFantasia: data.nomeFantasia.trim() || "Konext",
-      cnpj: data.cnpj.trim(),
-      inscricaoEstadual: data.inscricaoEstadual.trim(),
-      telefone: data.telefone.trim(),
-      cep: data.cep.trim(),
-      logradouro: data.logradouro.trim(),
-      numero: data.numero.trim(),
-      bairro: data.bairro.trim(),
-      cidade: data.cidade.trim(),
-      estado: data.estado.trim(),
-      endereco: data.endereco.trim(),
-      chavePix: data.chavePix.trim() || null,
-      mensagemCupom: data.mensagemCupom.trim() || null,
-      habilitarMargemAutomatica: Boolean(data.habilitarMargemAutomatica),
-      permitirVendaSemEstoque: Boolean(data.permitirVendaSemEstoque),
-      logoUrl: data.logoUrl.trim() || null,
+      razaoSocial: dadosNormalizados.razaoSocial,
+      nomeFantasia: dadosNormalizados.nomeFantasia,
+      cnpj: dadosNormalizados.cnpj,
+      inscricaoEstadual: dadosNormalizados.inscricaoEstadual,
+      telefone: dadosNormalizados.telefone,
+      cep: dadosNormalizados.cep,
+      logradouro: dadosNormalizados.logradouro,
+      numero: dadosNormalizados.numero,
+      bairro: dadosNormalizados.bairro,
+      cidade: dadosNormalizados.cidade,
+      estado: dadosNormalizados.estado,
+      endereco: dadosNormalizados.endereco,
+      chavePix: dadosNormalizados.chavePix || null,
+      mensagemCupom: dadosNormalizados.mensagemCupom || null,
+      habilitarMargemAutomatica: dadosNormalizados.habilitarMargemAutomatica,
+      permitirVendaSemEstoque: dadosNormalizados.permitirVendaSemEstoque,
+      logoUrl: dadosNormalizados.logoUrl || null,
     },
   });
 
   revalidatePath("/configuracoes");
+  revalidatePath("/os");
+  revalidatePath("/crm/propostas");
+  revalidatePath("/vendas/historico");
   revalidatePath("/", "layout");
 }
 

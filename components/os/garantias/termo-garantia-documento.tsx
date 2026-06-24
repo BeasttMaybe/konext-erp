@@ -46,16 +46,31 @@ export function TermoGarantiaDocumento({ termo }: TermoGarantiaDocumentoProps) {
   const marcaModelo = termo.marcaModelo?.trim() || "Nao informado";
   const imeiSerie = termo.imeiOuSerial?.trim() || "Nao informado";
   const diagnostico = termo.diagnosticoTecnico?.trim() || "Nao informado";
+  const nomeEmpresa = termo.empresa.nome?.trim() || "Empresa não configurada";
+  const documentoEmpresa = termo.empresa.documento?.trim() || "CNPJ não informado";
+  const telefoneEmpresa = termo.empresa.telefone?.trim() || "Telefone não informado";
+  const enderecoEmpresa = termo.empresa.endereco?.trim() || "Endereço não informado";
+  const logoUrl = termo.empresa.logoUrl?.trim() || "";
 
   return (
     <div className="space-y-5 text-[11px] leading-[1.45] text-zinc-800">
       <header className="border-b border-zinc-300 pb-4">
         <div className="flex items-start justify-between gap-6">
-          <div className="max-w-[70%]">
-            <p className="text-[28px] font-black leading-none tracking-tight text-zinc-900">{termo.empresa.nome}</p>
-            {termo.empresa.documento && <p className="mt-1 text-[11px] text-zinc-600">Documento: {termo.empresa.documento}</p>}
-            {termo.empresa.telefone && <p className="text-[11px] text-zinc-600">Telefone: {termo.empresa.telefone}</p>}
-            {termo.empresa.endereco && <p className="text-[11px] text-zinc-600">Endereco: {termo.empresa.endereco}</p>}
+          <div className="flex max-w-[70%] items-start gap-4">
+            <div className="flex h-16 w-24 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50">
+              {logoUrl ? (
+                <img src={logoUrl} alt={`Logo ${nomeEmpresa}`} className="h-full w-full object-contain p-2" />
+              ) : (
+                <span className="px-2 text-center text-[10px] font-medium text-zinc-400">Logo não configurada</span>
+              )}
+            </div>
+
+            <div>
+              <p className="text-[28px] font-black leading-none tracking-tight text-zinc-900">{nomeEmpresa}</p>
+              <p className="mt-1 text-[11px] text-zinc-600">Documento: {documentoEmpresa}</p>
+              <p className="text-[11px] text-zinc-600">Telefone: {telefoneEmpresa}</p>
+              <p className="text-[11px] text-zinc-600">Endereco: {enderecoEmpresa}</p>
+            </div>
           </div>
 
           <div className="text-right">

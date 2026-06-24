@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { obterConfiguracoes } from "@/app/actions/configuracoes";
 import PropostaPdfViewer from "@/components/pdf/proposta-pdf-viewer";
 import type { CompanyPdfInfo, ProposalPdfData } from "@/components/pdf/PropostaPDF";
+import { montarResumoEmpresaDocumentos } from "@/lib/configuracoes-documentos";
 import { prisma } from "@/lib/prisma";
 
 type ProposalPrintPageProps = {
@@ -31,6 +32,7 @@ export default async function ProposalPrintPage({ params }: ProposalPrintPagePro
   }
 
   const config = await obterConfiguracoes();
+  const resumoEmpresa = montarResumoEmpresaDocumentos(config);
 
   const composedAddress = [config.logradouro, config.numero, config.bairro]
     .map((value) => String(value ?? "").trim())
@@ -43,15 +45,16 @@ export default async function ProposalPrintPage({ params }: ProposalPrintPagePro
     .join(" - ");
 
   const company: CompanyPdfInfo = {
-    brandName: config.nomeFantasia?.trim() || "Konext",
-    legalName: config.razaoSocial?.trim() || undefined,
-    cnpj: config.cnpj?.trim() ? `CNPJ: ${config.cnpj.trim()}` : undefined,
+    brandName: resumoEmpresa.nomeExibicao,
+    legalName: config.razaoSocial?.trim() || resumoEmpresa.razaoSocial,
+    cnpj: resumoEmpresa.cnpj !== "CNPJ não informado" ? resumoEmpresa.cnpj : undefined,
     stateRegistration: config.inscricaoEstadual?.trim()
       ? `Inscrição Estadual: ${config.inscricaoEstadual.trim()}`
       : undefined,
-    address: config.endereco?.trim() || composedAddress || undefined,
-    cityState: cityState || undefined,
-    contacts: config.telefone?.trim() || undefined,
+    address: config.endereco?.trim() || composedAddress || resumoEmpresa.endereco,
+    cityState: cityState || resumoEmpresa.cidadeUf,
+    contacts: resumoEmpresa.telefone !== "Telefone não informado" ? resumoEmpresa.telefone : undefined,
+    logoUrl: resumoEmpresa.logoUrl || undefined,
   };
 
   const proposalData: ProposalPdfData = {
