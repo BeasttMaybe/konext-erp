@@ -75,6 +75,18 @@ model Configuracao {
   mensagemCupom             String?
   habilitarMargemAutomatica Boolean  @default(true)
   permitirVendaSemEstoque   Boolean  @default(false)
+  prazoGarantiaPadraoDias   Int      @default(90)
+  prazoMinimoGarantiaDias   Int      @default(1)
+  prazoMaximoGarantiaDias   Int      @default(365)
+  exigirGarantiaAntesEntrega Boolean @default(true)
+  exigirItemParaGarantia    Boolean  @default(true)
+  exigirItemParaEnviarPDV   Boolean  @default(true)
+  exigirDiagnosticoParaFinalizar Boolean @default(false)
+  permitirFinalizarSemPagamento Boolean @default(true)
+  permitirGarantiaPersonalizada Boolean @default(true)
+  textoCoberturaGarantia    String?
+  textoExclusoesGarantia    String?
+  textoResponsabilidadeDados String?
   criadoEm                  DateTime @default(now())
   atualizadoEm              DateTime @updatedAt
 }

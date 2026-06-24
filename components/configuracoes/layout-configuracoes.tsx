@@ -70,7 +70,11 @@ export function LayoutConfiguracoes({ defaultValues }: PropsLayoutConfiguracoes)
     ...valoresMonitorados,
   };
 
-  const secaoComPersistenciaAtiva = secaoAtiva === "empresa" || secaoAtiva === "documentos";
+  const secaoComPersistenciaAtiva =
+    secaoAtiva === "empresa" ||
+    secaoAtiva === "documentos" ||
+    secaoAtiva === "os" ||
+    secaoAtiva === "garantias";
 
   const descricaoSecaoAtiva = useMemo(() => {
     return SECOES_CONFIGURACOES.find((secao) => secao.id === secaoAtiva)?.descricao ?? "";
@@ -154,9 +158,23 @@ export function LayoutConfiguracoes({ defaultValues }: PropsLayoutConfiguracoes)
           />
         );
       case "os":
-        return <PainelOs />;
+        return (
+          <PainelOs
+            register={register}
+            control={control}
+            salvando={salvando}
+            configuracaoAtual={configuracaoAtual}
+          />
+        );
       case "garantias":
-        return <PainelGarantias />;
+        return (
+          <PainelGarantias
+            register={register}
+            control={control}
+            salvando={salvando}
+            configuracaoAtual={configuracaoAtual}
+          />
+        );
       case "pdv-vendas":
         return <PainelPdv />;
       case "financeiro":
@@ -214,7 +232,15 @@ export function LayoutConfiguracoes({ defaultValues }: PropsLayoutConfiguracoes)
             disabled={salvando || !secaoComPersistenciaAtiva}
             className="bg-emerald-600 text-white hover:bg-emerald-700"
           >
-            {salvando ? "Salvando..." : secaoAtiva === "documentos" ? "Salvar documentos" : "Salvar empresa"}
+            {salvando
+              ? "Salvando..."
+              : secaoAtiva === "documentos"
+                ? "Salvar documentos"
+                : secaoAtiva === "os"
+                  ? "Salvar regras de OS"
+                  : secaoAtiva === "garantias"
+                    ? "Salvar regras de garantia"
+                    : "Salvar empresa"}
           </Button>
         </div>
       </div>

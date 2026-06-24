@@ -21,27 +21,6 @@ function formatarMoeda(valor: number): string {
   }).format(valor);
 }
 
-const coberturaGarantia = [
-  "Defeito diretamente relacionado ao servico realizado.",
-  "Falha da peca substituida pela assistencia tecnica, quando aplicavel.",
-  "Retrabalho referente ao mesmo defeito descrito na OS.",
-  "Falha tecnica decorrente do reparo, apos analise interna.",
-];
-
-const naoCobertoGarantia = [
-  "Novos defeitos sem relacao com o reparo original.",
-  "Quedas, impactos, amassados, trincas, quebra de tela, carcaca danificada ou pressao no aparelho apos a entrega.",
-  "Danos por liquido, oxidacao, umidade, corrosao ou exposicao a agua apos a entrega.",
-  "Equipamento aberto ou reparado por terceiros apos a entrega.",
-  "Mau uso, carregamento inadequado, acessorios incompativeis ou cabos/carregadores de baixa qualidade.",
-  "Problemas de software causados por atualizacoes, resets, apps de terceiros, malware, configuracoes do usuario, bloqueios de conta, senhas, bloqueios iCloud/Google ou perda de dados.",
-  "Desgaste natural de bateria quando a OS nao incluiu troca de bateria.",
-  "Defeitos intermitentes nao identificados em testes e sem relacao com o reparo realizado.",
-  "Defeitos causados por danos preexistentes em placa, salvo quando a OS cobrir reparo de placa de forma especifica.",
-  "Acessorios nao inclusos na OS.",
-  "Desgaste estetico, riscos, marcas e detalhes visuais sem relacao com o reparo.",
-];
-
 export function TermoGarantiaDocumento({ termo }: TermoGarantiaDocumentoProps) {
   const marcaModelo = termo.marcaModelo?.trim() || "Nao informado";
   const imeiSerie = termo.imeiOuSerial?.trim() || "Nao informado";
@@ -134,30 +113,17 @@ export function TermoGarantiaDocumento({ termo }: TermoGarantiaDocumentoProps) {
 
       <section className="space-y-2 break-inside-avoid rounded-sm border border-zinc-200 p-3">
         <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">Cobertura da garantia</h2>
-        <p>
-          A garantia cobre exclusivamente o servico executado e as pecas substituidas nesta Ordem de Servico, desde que o defeito apresentado esteja diretamente relacionado ao reparo realizado.
-        </p>
-        <ul className="list-disc space-y-1 pl-5">
-          {coberturaGarantia.map((item) => (
-            <li key={item}>{item}</li>
-          ))}
-        </ul>
+        <p className="whitespace-pre-wrap">{termo.textoCoberturaGarantia}</p>
       </section>
 
       <section className="space-y-2 break-inside-avoid rounded-sm border border-zinc-200 p-3">
         <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">Nao coberto pela garantia</h2>
-        <ul className="list-disc space-y-1 pl-5">
-          {naoCobertoGarantia.map((item) => (
-            <li key={item}>{item}</li>
-          ))}
-        </ul>
+        <p className="whitespace-pre-wrap">{termo.textoExclusoesGarantia}</p>
       </section>
 
       <section className="space-y-2 break-inside-avoid rounded-sm border border-zinc-200 p-3">
         <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">Responsabilidade por dados</h2>
-        <p>
-          A assistencia tecnica nao se responsabiliza pela perda de dados, arquivos, fotos, videos, aplicativos, senhas, contas, backups ou informacoes pessoais armazenadas no aparelho. Recomenda-se que o cliente realize backup antes de qualquer procedimento tecnico.
-        </p>
+        <p className="whitespace-pre-wrap">{termo.textoResponsabilidadeDados}</p>
         <p>
           O aparelho foi testado no momento da entrega, juntamente com o cliente ou conforme os testes internos disponiveis. Ao retirar o equipamento, o cliente declara estar ciente dos servicos executados e das condicoes de garantia descritas neste termo.
         </p>

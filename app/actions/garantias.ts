@@ -6,6 +6,13 @@ import { prisma } from "@/lib/prisma";
 import { exigirSessao } from "@/lib/auth/sessao";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
+import {
+  obterDefaultsConfiguracaoOsGarantias,
+  normalizarTextoGarantia,
+  TEXTO_COBERTURA_GARANTIA_PADRAO,
+  TEXTO_EXCLUSOES_GARANTIA_PADRAO,
+  TEXTO_RESPONSABILIDADE_DADOS_PADRAO,
+} from "@/lib/configuracoes-os-garantias";
 
 export type StatusGarantia =
   | "ATIVA"
@@ -132,6 +139,9 @@ export type DadosTermoGarantia = {
   prazoGarantiaDias: number;
   dataFimGarantia: string;
   textoGarantia: string;
+  textoCoberturaGarantia: string;
+  textoExclusoesGarantia: string;
+  textoResponsabilidadeDados: string;
   empresa: {
     nome: string;
     documento: string | null;
@@ -254,6 +264,9 @@ function montarTextoGarantia(dados: {
   equipamento: string;
   servicosExecutados: string[];
   prazoGarantiaDias: number;
+  textoCoberturaGarantia: string;
+  textoExclusoesGarantia: string;
+  textoResponsabilidadeDados: string;
 }): string {
   const servicos = dados.servicosExecutados.length > 0
     ? dados.servicosExecutados.map((servico) => `- ${servico}`).join("\n")
@@ -272,7 +285,7 @@ function montarTextoGarantia(dados: {
     "",
     `Prazo de garantia: ${dados.prazoGarantiaDias} dias corridos a partir da data de finalizacao da OS.`,
     "",
-    "A garantia cobre exclusivamente o servico executado e as pecas substituidas nesta Ordem de Servico, desde que o defeito apresentado esteja diretamente relacionado ao reparo realizado.",
+    dados.textoCoberturaGarantia,
     "",
     "Cobertura da garantia:",
     "- Defeito diretamente relacionado ao servico realizado.",
@@ -281,20 +294,10 @@ function montarTextoGarantia(dados: {
     "- Falha tecnica decorrente do reparo, apos analise interna.",
     "",
     "Nao coberto pela garantia:",
-    "- Novos defeitos sem relacao com o reparo original.",
-    "- Quedas, impactos, amassados, trincas, quebra de tela, carcaça danificada ou pressao no aparelho apos a entrega.",
-    "- Danos por liquido, oxidacao, umidade, corrosao ou exposicao a agua apos a entrega.",
-    "- Equipamento aberto ou reparado por terceiros apos a entrega.",
-    "- Mau uso, carregamento inadequado, acessorios incompativeis ou cabos/carregadores de baixa qualidade.",
-    "- Problemas de software causados por atualizacoes, resets, apps de terceiros, malware, configuracoes do usuario, bloqueios de conta, senhas, bloqueios iCloud/Google ou perda de dados.",
-    "- Desgaste natural de bateria quando a OS nao incluiu troca de bateria.",
-    "- Defeitos intermitentes nao identificados em testes e sem relacao com o reparo realizado.",
-    "- Defeitos causados por danos preexistentes em placa, salvo quando a OS cobrir reparo de placa de forma especifica.",
-    "- Acessorios nao inclusos na OS.",
-    "- Desgaste estetico, riscos, marcas e detalhes visuais sem relacao com o reparo.",
+    dados.textoExclusoesGarantia,
     "",
     "Responsabilidade por dados:",
-    "A assistencia tecnica nao se responsabiliza pela perda de dados, arquivos, fotos, videos, aplicativos, senhas, contas, backups ou informacoes pessoais armazenadas no aparelho. Recomenda-se que o cliente realize backup antes de qualquer procedimento tecnico.",
+    dados.textoResponsabilidadeDados,
     "",
     "Testes e retirada:",
     "O aparelho foi testado no momento da entrega, juntamente com o cliente ou conforme os testes internos disponiveis. Ao retirar o equipamento, o cliente declara estar ciente dos servicos executados e das condicoes de garantia descritas neste termo.",
@@ -346,9 +349,85 @@ type ConfiguracaoTermo = {
   cidade: string;
   estado: string;
   logoUrl?: string | null;
+  prazoGarantiaPadraoDias?: number | null;
+  prazoMinimoGarantiaDias?: number | null;
+  prazoMaximoGarantiaDias?: number | null;
+  exigirItemParaGarantia?: boolean | null;
+  permitirGarantiaPersonalizada?: boolean | null;
+  textoCoberturaGarantia?: string | null;
+  textoExclusoesGarantia?: string | null;
+  textoResponsabilidadeDados?: string | null;
+};
+
+type RegrasGarantiaAplicadas = {
+  prazoPadrao: number;
+  prazoMinimo: number;
+  prazoMaximo: number;
+  exigirItemParaGarantia: boolean;
+  permitirGarantiaPersonalizada: boolean;
+  textoCoberturaGarantia: string;
+  textoExclusoesGarantia: string;
+  textoResponsabilidadeDados: string;
 };
 
 type ClientTx = Prisma.TransactionClient | typeof prisma;
+
+function obterRegrasGarantia(configuracao: ConfiguracaoTermo | null | undefined): RegrasGarantiaAplicadas {
+  const defaults = obterDefaultsConfiguracaoOsGarantias();
+
+  return {
+    prazoPadrao:
+      typeof configuracao?.prazoGarantiaPadraoDias === "number"
+        ? Number(configuracao.prazoGarantiaPadraoDias)
+        : defaults.prazoGarantiaPadraoDias,
+    prazoMinimo:
+      typeof configuracao?.prazoMinimoGarantiaDias === "number"
+        ? Number(configuracao.prazoMinimoGarantiaDias)
+        : defaults.prazoMinimoGarantiaDias,
+    prazoMaximo:
+      typeof configuracao?.prazoMaximoGarantiaDias === "number"
+        ? Number(configuracao.prazoMaximoGarantiaDias)
+        : defaults.prazoMaximoGarantiaDias,
+    exigirItemParaGarantia:
+      typeof configuracao?.exigirItemParaGarantia === "boolean"
+        ? Boolean(configuracao.exigirItemParaGarantia)
+        : defaults.exigirItemParaGarantia,
+    permitirGarantiaPersonalizada:
+      typeof configuracao?.permitirGarantiaPersonalizada === "boolean"
+        ? Boolean(configuracao.permitirGarantiaPersonalizada)
+        : defaults.permitirGarantiaPersonalizada,
+    textoCoberturaGarantia: normalizarTextoGarantia(configuracao?.textoCoberturaGarantia, TEXTO_COBERTURA_GARANTIA_PADRAO),
+    textoExclusoesGarantia: normalizarTextoGarantia(configuracao?.textoExclusoesGarantia, TEXTO_EXCLUSOES_GARANTIA_PADRAO),
+    textoResponsabilidadeDados: normalizarTextoGarantia(
+      configuracao?.textoResponsabilidadeDados,
+      TEXTO_RESPONSABILIDADE_DADOS_PADRAO
+    ),
+  };
+}
+
+function validarPrazoGarantiaConfigurado(
+  valorInformado: number | null | undefined,
+  regras: RegrasGarantiaAplicadas,
+  prazoAtualOs?: number | null
+): number {
+  const prazoBase = typeof valorInformado === "number" && Number.isFinite(valorInformado)
+    ? valorInformado
+    : typeof prazoAtualOs === "number" && Number.isFinite(prazoAtualOs)
+      ? prazoAtualOs
+      : regras.prazoPadrao;
+
+  const prazoInteiro = validarPrazoGarantiaDias(prazoBase);
+
+  if (!regras.permitirGarantiaPersonalizada) {
+    return regras.prazoPadrao;
+  }
+
+  if (prazoInteiro < regras.prazoMinimo || prazoInteiro > regras.prazoMaximo) {
+    throw new Error("O prazo de garantia informado está fora do limite permitido nas configurações.");
+  }
+
+  return prazoInteiro;
+}
 
 export async function garantirTermoGarantiaPorOS(
   client: ClientTx,
@@ -429,10 +508,6 @@ export async function garantirTermoGarantiaPorOS(
     throw new Error(MENSAGEM_ERRO_STATUS_GARANTIA);
   }
 
-  if ((os.itens ?? []).length === 0) {
-    throw new Error(MENSAGEM_ERRO_GARANTIA_SEM_ITENS);
-  }
-
   const configuracao = await client.configuracao.findFirst({
     orderBy: { criadoEm: "asc" },
     select: {
@@ -445,10 +520,24 @@ export async function garantirTermoGarantiaPorOS(
       bairro: true,
       cidade: true,
       estado: true,
+      prazoGarantiaPadraoDias: true,
+      prazoMinimoGarantiaDias: true,
+      prazoMaximoGarantiaDias: true,
+      exigirItemParaGarantia: true,
+      permitirGarantiaPersonalizada: true,
+      textoCoberturaGarantia: true,
+      textoExclusoesGarantia: true,
+      textoResponsabilidadeDados: true,
     },
   }) as ConfiguracaoTermo | null;
 
-  const prazoGarantiaDias = validarPrazoGarantiaDias(Number(input.prazoGarantiaDias ?? os.prazoGarantiaDias ?? 90));
+  const regrasGarantia = obterRegrasGarantia(configuracao);
+
+  if (regrasGarantia.exigirItemParaGarantia && (os.itens ?? []).length === 0) {
+    throw new Error(MENSAGEM_ERRO_GARANTIA_SEM_ITENS);
+  }
+
+  const prazoGarantiaDias = validarPrazoGarantiaConfigurado(input.prazoGarantiaDias, regrasGarantia, os.prazoGarantiaDias);
   const dataInicioGarantia = new Date(os.atualizadoEm);
   const dataFimGarantia = adicionarDias(dataInicioGarantia, prazoGarantiaDias);
   const numeroOS = formatarNumeroOS(os.numeroOs);
@@ -464,6 +553,9 @@ export async function garantirTermoGarantiaPorOS(
     equipamento: os.equipamento,
     servicosExecutados,
     prazoGarantiaDias,
+    textoCoberturaGarantia: regrasGarantia.textoCoberturaGarantia,
+    textoExclusoesGarantia: regrasGarantia.textoExclusoesGarantia,
+    textoResponsabilidadeDados: regrasGarantia.textoResponsabilidadeDados,
   });
 
   const nomeEmpresa = normalizarTexto(configuracao?.nomeFantasia) || normalizarTexto(configuracao?.razaoSocial) || "Konext";
@@ -524,7 +616,8 @@ export async function gerarTermoGarantiaOS(input: GerarTermoGarantiaOSInput): Pr
       return { sucesso: false, erro: "Ordem de servico nao encontrada." };
     }
 
-    const prazoGarantiaDias = validarPrazoGarantiaDias(input.prazoGarantiaDias);
+    const prazoGarantiaDiasInformado = Number(input.prazoGarantiaDias);
+    const prazoGarantiaDias = Number.isFinite(prazoGarantiaDiasInformado) ? prazoGarantiaDiasInformado : undefined;
 
     const termoGerado = await prisma.$transaction(async (tx) => {
       const resultado = await garantirTermoGarantiaPorOS(tx, {
@@ -575,6 +668,7 @@ export async function gerarTermoGarantiaOS(input: GerarTermoGarantiaOSInput): Pr
       mensagem === MENSAGEM_ERRO_GARANTIA_SEM_ITENS ||
       mensagem === MENSAGEM_PRAZO_OBRIGATORIO ||
       mensagem === MENSAGEM_PRAZO_INVALIDO ||
+      mensagem === "O prazo de garantia informado está fora do limite permitido nas configurações." ||
       mensagem === "Ordem de servico nao encontrada." ||
       mensagem === "Nao e permitido gerar garantia para OS excluida."
     ) {
@@ -695,6 +789,9 @@ export async function obterTermoGarantiaOS(osId: string): Promise<DadosTermoGara
       cidade: true,
       estado: true,
       logoUrl: true,
+      textoCoberturaGarantia: true,
+      textoExclusoesGarantia: true,
+      textoResponsabilidadeDados: true,
     },
   });
 
@@ -721,6 +818,12 @@ export async function obterTermoGarantiaOS(osId: string): Promise<DadosTermoGara
     prazoGarantiaDias: termo.prazoGarantiaDias,
     dataFimGarantia: termo.dataFimGarantia.toISOString(),
     textoGarantia: termo.textoGarantia,
+    textoCoberturaGarantia: normalizarTextoGarantia(config?.textoCoberturaGarantia, TEXTO_COBERTURA_GARANTIA_PADRAO),
+    textoExclusoesGarantia: normalizarTextoGarantia(config?.textoExclusoesGarantia, TEXTO_EXCLUSOES_GARANTIA_PADRAO),
+    textoResponsabilidadeDados: normalizarTextoGarantia(
+      config?.textoResponsabilidadeDados,
+      TEXTO_RESPONSABILIDADE_DADOS_PADRAO
+    ),
     empresa: {
       nome: normalizarTexto(config?.nomeFantasia) || normalizarTexto(config?.razaoSocial) || "Konext",
       documento: normalizarTexto(config?.cnpj) || null,

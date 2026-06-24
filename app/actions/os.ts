@@ -8,6 +8,7 @@ import { exigirSessao } from "@/lib/auth/sessao";
 import { garantirTermoGarantiaPorOS } from "@/app/actions/garantias";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
+import { obterDefaultsConfiguracaoOsGarantias } from "@/lib/configuracoes-os-garantias";
 import type { OrdemServico, OrdemServicoExcluida, TipoPecaOrcamento } from "@/types/os";
 
 type ItemEntrada = {
@@ -160,6 +161,7 @@ type OrdemServicoStatusDelegate = {
     archivedAt?: Date | null;
     excluidaEm?: Date | null;
     ehRetornoGarantia?: boolean | null;
+    observacoes?: string | null;
     _count?: {
       itens?: number | null;
     };
@@ -212,8 +214,56 @@ const statusValidos: StatusOS[] = [
 
 const MENSAGEM_MOVER_ENTREGUE_SEM_GARANTIA = "Para mover a OS para Entregue, gere o termo de garantia primeiro.";
 const MENSAGEM_MOVER_ENTREGUE_SEM_ITENS = "Para mover a OS para Entregue, cadastre pelo menos uma peca ou servico na OS.";
+const MENSAGEM_MOVER_ENTREGUE_SEM_DIAGNOSTICO = "Informe o diagnóstico técnico antes de finalizar a OS.";
 const MENSAGEM_FINALIZAR_SEM_GARANTIA = "Para finalizar a OS, informe o prazo de garantia e gere o termo de garantia.";
 const MENSAGEM_FINALIZAR_SEM_ITENS = "Para finalizar a OS, cadastre pelo menos uma peca ou servico na OS.";
+const MENSAGEM_FINALIZAR_SEM_PAGAMENTO = "Esta OS ainda não possui confirmação de pagamento.";
+
+type RegrasOs = {
+  exigirGarantiaAntesEntrega: boolean;
+  exigirDiagnosticoParaFinalizar: boolean;
+  permitirFinalizarSemPagamento: boolean;
+};
+
+async function obterRegrasOs(): Promise<RegrasOs> {
+  const defaults = obterDefaultsConfiguracaoOsGarantias();
+  const configuracao = await prisma.configuracao.findFirst({
+    orderBy: { criadoEm: "asc" },
+    select: {
+      exigirGarantiaAntesEntrega: true,
+      exigirDiagnosticoParaFinalizar: true,
+      permitirFinalizarSemPagamento: true,
+    },
+  });
+
+  return {
+    exigirGarantiaAntesEntrega:
+      typeof configuracao?.exigirGarantiaAntesEntrega === "boolean"
+        ? Boolean(configuracao.exigirGarantiaAntesEntrega)
+        : defaults.exigirGarantiaAntesEntrega,
+    exigirDiagnosticoParaFinalizar:
+      typeof configuracao?.exigirDiagnosticoParaFinalizar === "boolean"
+        ? Boolean(configuracao.exigirDiagnosticoParaFinalizar)
+        : defaults.exigirDiagnosticoParaFinalizar,
+    permitirFinalizarSemPagamento:
+      typeof configuracao?.permitirFinalizarSemPagamento === "boolean"
+        ? Boolean(configuracao.permitirFinalizarSemPagamento)
+        : defaults.permitirFinalizarSemPagamento,
+  };
+}
+
+async function osPossuiPagamentoConfirmado(osId: string): Promise<boolean> {
+  const totalConfirmado = await prisma.contaReceber.count({
+    where: {
+      ordemServicoId: osId,
+      status: {
+        in: ["PAGO", "RECEBIDO"],
+      },
+    },
+  });
+
+  return totalConfirmado > 0;
+}
 
 function paraNumero(valor: unknown): number {
   const numero = typeof valor === "number" ? valor : Number(valor ?? 0);
@@ -604,6 +654,7 @@ export async function atualizarStatusOrdemServico(osId: string, status: StatusOS
         archivedAt: true,
         excluidaEm: true,
         ehRetornoGarantia: true,
+        observacoes: true,
         _count: {
           select: {
             itens: true,
@@ -625,12 +676,30 @@ export async function atualizarStatusOrdemServico(osId: string, status: StatusOS
       throw new Error("Nao e permitido alterar status de uma OS excluida.");
     }
 
+    const regrasOs = await obterRegrasOs();
+
     if (status === "ENTREGUE" && Number(antes._count?.itens ?? 0) === 0) {
       throw new Error(MENSAGEM_MOVER_ENTREGUE_SEM_ITENS);
     }
 
-    if (status === "ENTREGUE" && !antes.ehRetornoGarantia && !antes.termoGarantia?.id) {
+    if (
+      status === "ENTREGUE" &&
+      regrasOs.exigirGarantiaAntesEntrega &&
+      !antes.ehRetornoGarantia &&
+      !antes.termoGarantia?.id
+    ) {
       throw new Error(MENSAGEM_MOVER_ENTREGUE_SEM_GARANTIA);
+    }
+
+    if (status === "ENTREGUE" && regrasOs.exigirDiagnosticoParaFinalizar && !String(antes.observacoes ?? "").trim()) {
+      throw new Error(MENSAGEM_MOVER_ENTREGUE_SEM_DIAGNOSTICO);
+    }
+
+    if (status === "ENTREGUE" && !regrasOs.permitirFinalizarSemPagamento) {
+      const possuiPagamento = await osPossuiPagamentoConfirmado(osId);
+      if (!possuiPagamento) {
+        throw new Error(MENSAGEM_FINALIZAR_SEM_PAGAMENTO);
+      }
     }
 
     try {
@@ -711,6 +780,8 @@ export async function atualizarStatusOrdemServico(osId: string, status: StatusOS
 
   revalidatePath("/os");
   revalidatePath(`/os/${osId}`);
+  revalidatePath("/os/garantias");
+  revalidatePath("/dashboard");
   revalidatePath("/");
 }
 
@@ -928,7 +999,8 @@ export async function gerarGarantiaEFinalizarOS(
 ): Promise<ResultadoFinalizacaoOrdemServico> {
   const usuario = await exigirSessao();
   const osId = String(input?.osId ?? "").trim();
-  const prazoGarantiaDias = Number(input?.prazoGarantiaDias ?? 0);
+  const prazoGarantiaDias = Number(input?.prazoGarantiaDias);
+  const regrasOs = await obterRegrasOs();
 
   if (!osId) {
     return {
@@ -937,7 +1009,7 @@ export async function gerarGarantiaEFinalizarOS(
     };
   }
 
-  if (!Number.isInteger(prazoGarantiaDias) || prazoGarantiaDias < 1 || prazoGarantiaDias > 365) {
+  if (Number.isFinite(prazoGarantiaDias) && (!Number.isInteger(prazoGarantiaDias) || prazoGarantiaDias < 1 || prazoGarantiaDias > 3650)) {
     return {
       sucesso: false,
       erro: "Informe um prazo de garantia valido.",
@@ -951,6 +1023,7 @@ export async function gerarGarantiaEFinalizarOS(
     archivedAt: Date | null;
     excluidaEm: Date | null;
     ehRetornoGarantia: boolean;
+    observacoes: string | null;
     termoGarantia: { id: string } | null;
     _count: {
       itens: number;
@@ -967,6 +1040,7 @@ export async function gerarGarantiaEFinalizarOS(
       archivedAt: true,
       excluidaEm: true,
       ehRetornoGarantia: true,
+      observacoes: true,
       termoGarantia: {
         select: {
           id: true,
@@ -1001,6 +1075,23 @@ export async function gerarGarantiaEFinalizarOS(
     };
   }
 
+  if (regrasOs.exigirDiagnosticoParaFinalizar && !String(ordemServico.observacoes ?? "").trim()) {
+    return {
+      sucesso: false,
+      erro: MENSAGEM_MOVER_ENTREGUE_SEM_DIAGNOSTICO,
+    };
+  }
+
+  if (!regrasOs.permitirFinalizarSemPagamento) {
+    const possuiPagamento = await osPossuiPagamentoConfirmado(osId);
+    if (!possuiPagamento) {
+      return {
+        sucesso: false,
+        erro: MENSAGEM_FINALIZAR_SEM_PAGAMENTO,
+      };
+    }
+  }
+
   if (String(ordemServico.status) !== "PRONTO" && String(ordemServico.status) !== "ENTREGUE") {
     return {
       sucesso: false,
@@ -1016,7 +1107,7 @@ export async function gerarGarantiaEFinalizarOS(
       const garantia = await garantirTermoGarantiaPorOS(tx, {
         osId,
         criadoPorId: String(usuario.id),
-        prazoGarantiaDias,
+        prazoGarantiaDias: Number.isFinite(prazoGarantiaDias) ? prazoGarantiaDias : undefined,
       });
 
       termoGarantiaId = garantia.termoGarantiaId;
@@ -1397,8 +1488,19 @@ export async function gerarPedidoVendaPorOS(osId: string) {
     };
   }
 
+  const configuracao = await prisma.configuracao.findFirst({
+    orderBy: { criadoEm: "asc" },
+    select: {
+      exigirItemParaEnviarPDV: true,
+    },
+  });
+  const exigirItemParaEnviarPDV =
+    typeof configuracao?.exigirItemParaEnviarPDV === "boolean"
+      ? Boolean(configuracao.exigirItemParaEnviarPDV)
+      : obterDefaultsConfiguracaoOsGarantias().exigirItemParaEnviarPDV;
+
   const quantidadeItens = (os.itens ?? []).length;
-  if (quantidadeItens === 0) {
+  if (exigirItemParaEnviarPDV && quantidadeItens === 0) {
     throw new Error("Para enviar ao PDV, cadastre pelo menos uma peca ou servico na OS.");
   }
 

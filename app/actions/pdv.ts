@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { exigirSessao } from "@/lib/auth/sessao";
+import { obterDefaultsConfiguracaoOsGarantias } from "@/lib/configuracoes-os-garantias";
 import {
   calcularPagamentoPdv,
   ehPagamentoPrazo,
@@ -860,6 +861,17 @@ export async function obterPedidoOSParaPDV(osId: string): Promise<PedidoOSPDV> {
     | { findFirst: (args: unknown) => Promise<{ vendaId?: string | null } | null> }
     | undefined;
 
+  const configuracao = await prisma.configuracao.findFirst({
+    orderBy: { criadoEm: "asc" },
+    select: {
+      exigirItemParaEnviarPDV: true,
+    },
+  });
+  const exigirItemParaEnviarPDV =
+    typeof configuracao?.exigirItemParaEnviarPDV === "boolean"
+      ? Boolean(configuracao.exigirItemParaEnviarPDV)
+      : obterDefaultsConfiguracaoOsGarantias().exigirItemParaEnviarPDV;
+
   if (!ordemServicoDelegate?.findUnique || !contaReceberDelegate?.findFirst) {
     throw new Error("Delegates Prisma de OS/ContaReceber nao disponiveis para o PDV.");
   }
@@ -912,6 +924,10 @@ export async function obterPedidoOSParaPDV(osId: string): Promise<PedidoOSPDV> {
 
   if (vendaExistente?.vendaId) {
     throw new Error("Esta OS ja possui venda gerada.");
+  }
+
+  if (exigirItemParaEnviarPDV && (os.itens ?? []).length === 0) {
+    throw new Error("Para enviar ao PDV, cadastre pelo menos uma peça ou serviço na OS.");
   }
 
   const items = (os.itens ?? []).map((item, index) => {

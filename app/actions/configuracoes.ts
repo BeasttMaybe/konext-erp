@@ -4,6 +4,14 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { exigirSessao } from "@/lib/auth/sessao";
+import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
+import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
+import {
+  obterDefaultsConfiguracaoOsGarantias,
+  TEXTO_COBERTURA_GARANTIA_PADRAO,
+  TEXTO_EXCLUSOES_GARANTIA_PADRAO,
+  TEXTO_RESPONSABILIDADE_DADOS_PADRAO,
+} from "@/lib/configuracoes-os-garantias";
 
 type ConfiguracaoRegistro = {
   id: string;
@@ -25,6 +33,18 @@ type ConfiguracaoRegistro = {
   habilitarMargemAutomatica?: boolean | null;
   permitirVendaSemEstoque?: boolean | null;
   logoUrl?: string | null;
+  prazoGarantiaPadraoDias?: number | null;
+  prazoMinimoGarantiaDias?: number | null;
+  prazoMaximoGarantiaDias?: number | null;
+  exigirGarantiaAntesEntrega?: boolean | null;
+  exigirItemParaGarantia?: boolean | null;
+  exigirItemParaEnviarPDV?: boolean | null;
+  exigirDiagnosticoParaFinalizar?: boolean | null;
+  permitirFinalizarSemPagamento?: boolean | null;
+  permitirGarantiaPersonalizada?: boolean | null;
+  textoCoberturaGarantia?: string | null;
+  textoExclusoesGarantia?: string | null;
+  textoResponsabilidadeDados?: string | null;
 };
 
 type UsuarioConfiguracaoRegistro = {
@@ -83,6 +103,18 @@ export type DadosConfiguracoes = {
   habilitarMargemAutomatica: boolean;
   permitirVendaSemEstoque: boolean;
   logoUrl: string;
+  prazoGarantiaPadraoDias: number;
+  prazoMinimoGarantiaDias: number;
+  prazoMaximoGarantiaDias: number;
+  exigirGarantiaAntesEntrega: boolean;
+  exigirItemParaGarantia: boolean;
+  exigirItemParaEnviarPDV: boolean;
+  exigirDiagnosticoParaFinalizar: boolean;
+  permitirFinalizarSemPagamento: boolean;
+  permitirGarantiaPersonalizada: boolean;
+  textoCoberturaGarantia: string;
+  textoExclusoesGarantia: string;
+  textoResponsabilidadeDados: string;
 };
 
 export type ResultadoConsultaCnpj =
@@ -145,6 +177,46 @@ const schemaDadosConfiguracoes = z.object({
   habilitarMargemAutomatica: z.boolean(),
   permitirVendaSemEstoque: z.boolean(),
   logoUrl: z.string().trim().max(4096, "URL da logo excede o limite de 4096 caracteres."),
+  prazoGarantiaPadraoDias: z.coerce
+    .number()
+    .int("O prazo padrão de garantia deve ser um número inteiro válido.")
+    .min(1, "O prazo padrão de garantia deve ser um número inteiro válido.")
+    .max(3650, "O prazo padrão de garantia deve ser um número inteiro válido."),
+  prazoMinimoGarantiaDias: z.coerce
+    .number()
+    .int("O prazo mínimo de garantia deve ser um número inteiro válido.")
+    .min(1, "O prazo mínimo de garantia deve ser um número inteiro válido.")
+    .max(3650, "O prazo mínimo de garantia deve ser um número inteiro válido."),
+  prazoMaximoGarantiaDias: z.coerce
+    .number()
+    .int("O prazo máximo de garantia deve ser um número inteiro válido.")
+    .min(1, "O prazo máximo de garantia deve ser um número inteiro válido.")
+    .max(3650, "O prazo máximo de garantia deve ser um número inteiro válido."),
+  exigirGarantiaAntesEntrega: z.boolean(),
+  exigirItemParaGarantia: z.boolean(),
+  exigirItemParaEnviarPDV: z.boolean(),
+  exigirDiagnosticoParaFinalizar: z.boolean(),
+  permitirFinalizarSemPagamento: z.boolean(),
+  permitirGarantiaPersonalizada: z.boolean(),
+  textoCoberturaGarantia: z.string().trim().max(4000, "Texto de cobertura excede o limite de 4000 caracteres."),
+  textoExclusoesGarantia: z.string().trim().max(4000, "Texto de exclusões excede o limite de 4000 caracteres."),
+  textoResponsabilidadeDados: z.string().trim().max(4000, "Texto de responsabilidade por dados excede o limite de 4000 caracteres."),
+}).superRefine((dados, contexto) => {
+  if (dados.prazoMinimoGarantiaDias > dados.prazoGarantiaPadraoDias) {
+    contexto.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["prazoMinimoGarantiaDias"],
+      message: "O prazo mínimo de garantia não pode ser maior que o prazo padrão.",
+    });
+  }
+
+  if (dados.prazoGarantiaPadraoDias > dados.prazoMaximoGarantiaDias) {
+    contexto.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["prazoMaximoGarantiaDias"],
+      message: "O prazo máximo de garantia não pode ser menor que o prazo padrão.",
+    });
+  }
 });
 
 function normalizarUrlImagem(url: string | null | undefined, nomeCampo: string): string | null {
@@ -177,6 +249,42 @@ function obterDelegateConfiguracao() {
   return prismaAny.configuracao ?? prismaAny.Configuracao;
 }
 
+function obterConfiguracoesPadrao(): DadosConfiguracoes {
+  const defaultsOsGarantias = obterDefaultsConfiguracaoOsGarantias();
+
+  return {
+    razaoSocial: "",
+    nomeFantasia: "Konext",
+    cnpj: "",
+    inscricaoEstadual: "",
+    telefone: "",
+    cep: "",
+    logradouro: "",
+    numero: "",
+    bairro: "",
+    cidade: "",
+    estado: "",
+    endereco: "",
+    chavePix: "",
+    mensagemCupom: "",
+    habilitarMargemAutomatica: true,
+    permitirVendaSemEstoque: false,
+    logoUrl: "",
+    prazoGarantiaPadraoDias: defaultsOsGarantias.prazoGarantiaPadraoDias,
+    prazoMinimoGarantiaDias: defaultsOsGarantias.prazoMinimoGarantiaDias,
+    prazoMaximoGarantiaDias: defaultsOsGarantias.prazoMaximoGarantiaDias,
+    exigirGarantiaAntesEntrega: defaultsOsGarantias.exigirGarantiaAntesEntrega,
+    exigirItemParaGarantia: defaultsOsGarantias.exigirItemParaGarantia,
+    exigirItemParaEnviarPDV: defaultsOsGarantias.exigirItemParaEnviarPDV,
+    exigirDiagnosticoParaFinalizar: defaultsOsGarantias.exigirDiagnosticoParaFinalizar,
+    permitirFinalizarSemPagamento: defaultsOsGarantias.permitirFinalizarSemPagamento,
+    permitirGarantiaPersonalizada: defaultsOsGarantias.permitirGarantiaPersonalizada,
+    textoCoberturaGarantia: defaultsOsGarantias.textoCoberturaGarantia,
+    textoExclusoesGarantia: defaultsOsGarantias.textoExclusoesGarantia,
+    textoResponsabilidadeDados: defaultsOsGarantias.textoResponsabilidadeDados,
+  };
+}
+
 function normalizarConfiguracoesEntrada(data: DadosConfiguracoes): DadosConfiguracoes {
   const resultado = schemaDadosConfiguracoes.safeParse(data);
 
@@ -189,6 +297,10 @@ function normalizarConfiguracoesEntrada(data: DadosConfiguracoes): DadosConfigur
     nomeFantasia: resultado.data.nomeFantasia || "Konext",
     estado: resultado.data.estado.toUpperCase(),
     logoUrl: normalizarUrlImagem(resultado.data.logoUrl, "URL da logo da empresa") ?? "",
+    textoCoberturaGarantia: resultado.data.textoCoberturaGarantia || TEXTO_COBERTURA_GARANTIA_PADRAO,
+    textoExclusoesGarantia: resultado.data.textoExclusoesGarantia || TEXTO_EXCLUSOES_GARANTIA_PADRAO,
+    textoResponsabilidadeDados:
+      resultado.data.textoResponsabilidadeDados || TEXTO_RESPONSABILIDADE_DADOS_PADRAO,
   };
 }
 
@@ -198,23 +310,7 @@ export async function obterConfiguracoes() {
   if (!configuracaoDelegate?.findFirst) {
     return {
       id: "",
-      razaoSocial: "",
-      nomeFantasia: "Konext",
-      cnpj: "",
-      inscricaoEstadual: "",
-      telefone: "",
-      cep: "",
-      logradouro: "",
-      numero: "",
-      bairro: "",
-      cidade: "",
-      estado: "",
-      endereco: "",
-      chavePix: "",
-      mensagemCupom: "",
-      habilitarMargemAutomatica: true,
-      permitirVendaSemEstoque: false,
-      logoUrl: "",
+      ...obterConfiguracoesPadrao(),
     };
   }
 
@@ -245,6 +341,18 @@ export async function obterConfiguracoes() {
           habilitarMargemAutomatica: true,
           permitirVendaSemEstoque: false,
           logoUrl: null,
+          prazoGarantiaPadraoDias: 90,
+          prazoMinimoGarantiaDias: 1,
+          prazoMaximoGarantiaDias: 365,
+          exigirGarantiaAntesEntrega: true,
+          exigirItemParaGarantia: true,
+          exigirItemParaEnviarPDV: true,
+          exigirDiagnosticoParaFinalizar: false,
+          permitirFinalizarSemPagamento: true,
+          permitirGarantiaPersonalizada: true,
+          textoCoberturaGarantia: TEXTO_COBERTURA_GARANTIA_PADRAO,
+          textoExclusoesGarantia: TEXTO_EXCLUSOES_GARANTIA_PADRAO,
+          textoResponsabilidadeDados: TEXTO_RESPONSABILIDADE_DADOS_PADRAO,
         },
       });
     } catch {
@@ -255,6 +363,8 @@ export async function obterConfiguracoes() {
       });
     }
   }
+
+  const defaults = obterConfiguracoesPadrao();
 
   return {
     id: configuracao?.id ? String(configuracao.id) : "",
@@ -281,12 +391,57 @@ export async function obterConfiguracoes() {
         ? Boolean(configuracao.permitirVendaSemEstoque)
         : false,
     logoUrl: configuracao?.logoUrl ? String(configuracao.logoUrl) : "",
+    prazoGarantiaPadraoDias:
+      typeof configuracao?.prazoGarantiaPadraoDias === "number"
+        ? Number(configuracao.prazoGarantiaPadraoDias)
+        : defaults.prazoGarantiaPadraoDias,
+    prazoMinimoGarantiaDias:
+      typeof configuracao?.prazoMinimoGarantiaDias === "number"
+        ? Number(configuracao.prazoMinimoGarantiaDias)
+        : defaults.prazoMinimoGarantiaDias,
+    prazoMaximoGarantiaDias:
+      typeof configuracao?.prazoMaximoGarantiaDias === "number"
+        ? Number(configuracao.prazoMaximoGarantiaDias)
+        : defaults.prazoMaximoGarantiaDias,
+    exigirGarantiaAntesEntrega:
+      typeof configuracao?.exigirGarantiaAntesEntrega === "boolean"
+        ? Boolean(configuracao.exigirGarantiaAntesEntrega)
+        : defaults.exigirGarantiaAntesEntrega,
+    exigirItemParaGarantia:
+      typeof configuracao?.exigirItemParaGarantia === "boolean"
+        ? Boolean(configuracao.exigirItemParaGarantia)
+        : defaults.exigirItemParaGarantia,
+    exigirItemParaEnviarPDV:
+      typeof configuracao?.exigirItemParaEnviarPDV === "boolean"
+        ? Boolean(configuracao.exigirItemParaEnviarPDV)
+        : defaults.exigirItemParaEnviarPDV,
+    exigirDiagnosticoParaFinalizar:
+      typeof configuracao?.exigirDiagnosticoParaFinalizar === "boolean"
+        ? Boolean(configuracao.exigirDiagnosticoParaFinalizar)
+        : defaults.exigirDiagnosticoParaFinalizar,
+    permitirFinalizarSemPagamento:
+      typeof configuracao?.permitirFinalizarSemPagamento === "boolean"
+        ? Boolean(configuracao.permitirFinalizarSemPagamento)
+        : defaults.permitirFinalizarSemPagamento,
+    permitirGarantiaPersonalizada:
+      typeof configuracao?.permitirGarantiaPersonalizada === "boolean"
+        ? Boolean(configuracao.permitirGarantiaPersonalizada)
+        : defaults.permitirGarantiaPersonalizada,
+    textoCoberturaGarantia: configuracao?.textoCoberturaGarantia
+      ? String(configuracao.textoCoberturaGarantia)
+      : defaults.textoCoberturaGarantia,
+    textoExclusoesGarantia: configuracao?.textoExclusoesGarantia
+      ? String(configuracao.textoExclusoesGarantia)
+      : defaults.textoExclusoesGarantia,
+    textoResponsabilidadeDados: configuracao?.textoResponsabilidadeDados
+      ? String(configuracao.textoResponsabilidadeDados)
+      : defaults.textoResponsabilidadeDados,
   };
 }
 
 export async function salvarConfiguracoes(data: DadosConfiguracoes) {
   // C1: exige sessao valida antes de alterar configuracoes da empresa.
-  await exigirSessao();
+  const usuario = await exigirSessao();
 
   const dadosNormalizados = normalizarConfiguracoesEntrada(data);
 
@@ -322,6 +477,18 @@ export async function salvarConfiguracoes(data: DadosConfiguracoes) {
         habilitarMargemAutomatica: true,
         permitirVendaSemEstoque: false,
         logoUrl: null,
+        prazoGarantiaPadraoDias: 90,
+        prazoMinimoGarantiaDias: 1,
+        prazoMaximoGarantiaDias: 365,
+        exigirGarantiaAntesEntrega: true,
+        exigirItemParaGarantia: true,
+        exigirItemParaEnviarPDV: true,
+        exigirDiagnosticoParaFinalizar: false,
+        permitirFinalizarSemPagamento: true,
+        permitirGarantiaPersonalizada: true,
+        textoCoberturaGarantia: TEXTO_COBERTURA_GARANTIA_PADRAO,
+        textoExclusoesGarantia: TEXTO_EXCLUSOES_GARANTIA_PADRAO,
+        textoResponsabilidadeDados: TEXTO_RESPONSABILIDADE_DADOS_PADRAO,
       },
     });
   }
@@ -329,6 +496,8 @@ export async function salvarConfiguracoes(data: DadosConfiguracoes) {
   if (!configuracao) {
     throw new Error("Nao foi possivel inicializar as configuracoes do sistema.");
   }
+
+  const dadosAntes = await obterConfiguracoes();
 
   await configuracaoDelegate.update({
     where: {
@@ -352,11 +521,59 @@ export async function salvarConfiguracoes(data: DadosConfiguracoes) {
       habilitarMargemAutomatica: dadosNormalizados.habilitarMargemAutomatica,
       permitirVendaSemEstoque: dadosNormalizados.permitirVendaSemEstoque,
       logoUrl: dadosNormalizados.logoUrl || null,
+      prazoGarantiaPadraoDias: dadosNormalizados.prazoGarantiaPadraoDias,
+      prazoMinimoGarantiaDias: dadosNormalizados.prazoMinimoGarantiaDias,
+      prazoMaximoGarantiaDias: dadosNormalizados.prazoMaximoGarantiaDias,
+      exigirGarantiaAntesEntrega: dadosNormalizados.exigirGarantiaAntesEntrega,
+      exigirItemParaGarantia: dadosNormalizados.exigirItemParaGarantia,
+      exigirItemParaEnviarPDV: dadosNormalizados.exigirItemParaEnviarPDV,
+      exigirDiagnosticoParaFinalizar: dadosNormalizados.exigirDiagnosticoParaFinalizar,
+      permitirFinalizarSemPagamento: dadosNormalizados.permitirFinalizarSemPagamento,
+      permitirGarantiaPersonalizada: dadosNormalizados.permitirGarantiaPersonalizada,
+      textoCoberturaGarantia: dadosNormalizados.textoCoberturaGarantia || null,
+      textoExclusoesGarantia: dadosNormalizados.textoExclusoesGarantia || null,
+      textoResponsabilidadeDados: dadosNormalizados.textoResponsabilidadeDados || null,
     },
   });
 
+  await registrarLogAuditoria(
+    prisma,
+    contextoAuditoriaDoUsuario(usuario, "app/actions/configuracoes.ts:salvarConfiguracoes"),
+    {
+      acao: ACOES_AUDITORIA.ATUALIZAR_CONFIGURACOES_OS_GARANTIA,
+      entidade: ENTIDADES_AUDITORIA.CONFIGURACAO,
+      entidadeId: configuracao.id,
+      dadosAntes: {
+        prazoGarantiaPadraoDias: dadosAntes.prazoGarantiaPadraoDias,
+        prazoMinimoGarantiaDias: dadosAntes.prazoMinimoGarantiaDias,
+        prazoMaximoGarantiaDias: dadosAntes.prazoMaximoGarantiaDias,
+        exigirGarantiaAntesEntrega: dadosAntes.exigirGarantiaAntesEntrega,
+        exigirItemParaGarantia: dadosAntes.exigirItemParaGarantia,
+        exigirItemParaEnviarPDV: dadosAntes.exigirItemParaEnviarPDV,
+        exigirDiagnosticoParaFinalizar: dadosAntes.exigirDiagnosticoParaFinalizar,
+        permitirFinalizarSemPagamento: dadosAntes.permitirFinalizarSemPagamento,
+        permitirGarantiaPersonalizada: dadosAntes.permitirGarantiaPersonalizada,
+        habilitarMargemAutomatica: dadosAntes.habilitarMargemAutomatica,
+      },
+      dadosDepois: {
+        prazoGarantiaPadraoDias: dadosNormalizados.prazoGarantiaPadraoDias,
+        prazoMinimoGarantiaDias: dadosNormalizados.prazoMinimoGarantiaDias,
+        prazoMaximoGarantiaDias: dadosNormalizados.prazoMaximoGarantiaDias,
+        exigirGarantiaAntesEntrega: dadosNormalizados.exigirGarantiaAntesEntrega,
+        exigirItemParaGarantia: dadosNormalizados.exigirItemParaGarantia,
+        exigirItemParaEnviarPDV: dadosNormalizados.exigirItemParaEnviarPDV,
+        exigirDiagnosticoParaFinalizar: dadosNormalizados.exigirDiagnosticoParaFinalizar,
+        permitirFinalizarSemPagamento: dadosNormalizados.permitirFinalizarSemPagamento,
+        permitirGarantiaPersonalizada: dadosNormalizados.permitirGarantiaPersonalizada,
+        habilitarMargemAutomatica: dadosNormalizados.habilitarMargemAutomatica,
+      },
+    }
+  );
+
   revalidatePath("/configuracoes");
   revalidatePath("/os");
+  revalidatePath("/os/garantias");
+  revalidatePath("/dashboard");
   revalidatePath("/crm/propostas");
   revalidatePath("/vendas/historico");
   revalidatePath("/", "layout");
