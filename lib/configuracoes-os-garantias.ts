@@ -54,3 +54,8 @@ export function montarFaixaGarantia(
 ): string {
   return `${configuracao.prazoMinimoGarantiaDias} a ${configuracao.prazoMaximoGarantiaDias} dias`;
 }
+
+export function mensagemIndicaRuntimeLegadoConfiguracao(erro: unknown): boolean {
+  const mensagem = erro instanceof Error ? erro.message : "";
+  return mensagem.includes("Unknown argument") || mensagem.includes("Invalid `") || mensagem.includes("configuracao.findFirst");
+}

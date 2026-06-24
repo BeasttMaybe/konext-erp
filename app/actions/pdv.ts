@@ -4,7 +4,10 @@ import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { exigirSessao } from "@/lib/auth/sessao";
-import { obterDefaultsConfiguracaoOsGarantias } from "@/lib/configuracoes-os-garantias";
+import {
+  mensagemIndicaRuntimeLegadoConfiguracao,
+  obterDefaultsConfiguracaoOsGarantias,
+} from "@/lib/configuracoes-os-garantias";
 import {
   calcularPagamentoPdv,
   ehPagamentoPrazo,
@@ -861,12 +864,21 @@ export async function obterPedidoOSParaPDV(osId: string): Promise<PedidoOSPDV> {
     | { findFirst: (args: unknown) => Promise<{ vendaId?: string | null } | null> }
     | undefined;
 
-  const configuracao = await prisma.configuracao.findFirst({
-    orderBy: { criadoEm: "asc" },
-    select: {
-      exigirItemParaEnviarPDV: true,
-    },
-  });
+  let configuracao: { exigirItemParaEnviarPDV?: boolean | null } | null = null;
+
+  try {
+    configuracao = await prisma.configuracao.findFirst({
+      orderBy: { criadoEm: "asc" },
+      select: {
+        exigirItemParaEnviarPDV: true,
+      },
+    });
+  } catch (erro) {
+    if (!mensagemIndicaRuntimeLegadoConfiguracao(erro)) {
+      throw erro;
+    }
+  }
+
   const exigirItemParaEnviarPDV =
     typeof configuracao?.exigirItemParaEnviarPDV === "boolean"
       ? Boolean(configuracao.exigirItemParaEnviarPDV)

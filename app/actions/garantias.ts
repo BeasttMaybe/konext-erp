@@ -7,6 +7,7 @@ import { exigirSessao } from "@/lib/auth/sessao";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 import {
+  mensagemIndicaRuntimeLegadoConfiguracao,
   obterDefaultsConfiguracaoOsGarantias,
   normalizarTextoGarantia,
   TEXTO_COBERTURA_GARANTIA_PADRAO,
@@ -508,28 +509,51 @@ export async function garantirTermoGarantiaPorOS(
     throw new Error(MENSAGEM_ERRO_STATUS_GARANTIA);
   }
 
-  const configuracao = await client.configuracao.findFirst({
-    orderBy: { criadoEm: "asc" },
-    select: {
-      nomeFantasia: true,
-      razaoSocial: true,
-      cnpj: true,
-      telefone: true,
-      logradouro: true,
-      numero: true,
-      bairro: true,
-      cidade: true,
-      estado: true,
-      prazoGarantiaPadraoDias: true,
-      prazoMinimoGarantiaDias: true,
-      prazoMaximoGarantiaDias: true,
-      exigirItemParaGarantia: true,
-      permitirGarantiaPersonalizada: true,
-      textoCoberturaGarantia: true,
-      textoExclusoesGarantia: true,
-      textoResponsabilidadeDados: true,
-    },
-  }) as ConfiguracaoTermo | null;
+  let configuracao: ConfiguracaoTermo | null = null;
+
+  try {
+    configuracao = await client.configuracao.findFirst({
+      orderBy: { criadoEm: "asc" },
+      select: {
+        nomeFantasia: true,
+        razaoSocial: true,
+        cnpj: true,
+        telefone: true,
+        logradouro: true,
+        numero: true,
+        bairro: true,
+        cidade: true,
+        estado: true,
+        prazoGarantiaPadraoDias: true,
+        prazoMinimoGarantiaDias: true,
+        prazoMaximoGarantiaDias: true,
+        exigirItemParaGarantia: true,
+        permitirGarantiaPersonalizada: true,
+        textoCoberturaGarantia: true,
+        textoExclusoesGarantia: true,
+        textoResponsabilidadeDados: true,
+      },
+    }) as ConfiguracaoTermo | null;
+  } catch (erro) {
+    if (!mensagemIndicaRuntimeLegadoConfiguracao(erro)) {
+      throw erro;
+    }
+
+    configuracao = await client.configuracao.findFirst({
+      orderBy: { criadoEm: "asc" },
+      select: {
+        nomeFantasia: true,
+        razaoSocial: true,
+        cnpj: true,
+        telefone: true,
+        logradouro: true,
+        numero: true,
+        bairro: true,
+        cidade: true,
+        estado: true,
+      },
+    }) as ConfiguracaoTermo | null;
+  }
 
   const regrasGarantia = obterRegrasGarantia(configuracao);
 
@@ -776,24 +800,62 @@ export async function obterTermoGarantiaOS(osId: string): Promise<DadosTermoGara
 
   if (!termo || termo.os.excluidaEm) return null;
 
-  const config = await prisma.configuracao.findFirst({
-    orderBy: { criadoEm: "asc" },
-    select: {
-      nomeFantasia: true,
-      razaoSocial: true,
-      cnpj: true,
-      telefone: true,
-      logradouro: true,
-      numero: true,
-      bairro: true,
-      cidade: true,
-      estado: true,
-      logoUrl: true,
-      textoCoberturaGarantia: true,
-      textoExclusoesGarantia: true,
-      textoResponsabilidadeDados: true,
-    },
-  });
+  let config: {
+    nomeFantasia?: string | null;
+    razaoSocial?: string | null;
+    cnpj?: string | null;
+    telefone?: string | null;
+    logradouro?: string | null;
+    numero?: string | null;
+    bairro?: string | null;
+    cidade?: string | null;
+    estado?: string | null;
+    logoUrl?: string | null;
+    textoCoberturaGarantia?: string | null;
+    textoExclusoesGarantia?: string | null;
+    textoResponsabilidadeDados?: string | null;
+  } | null = null;
+
+  try {
+    config = await prisma.configuracao.findFirst({
+      orderBy: { criadoEm: "asc" },
+      select: {
+        nomeFantasia: true,
+        razaoSocial: true,
+        cnpj: true,
+        telefone: true,
+        logradouro: true,
+        numero: true,
+        bairro: true,
+        cidade: true,
+        estado: true,
+        logoUrl: true,
+        textoCoberturaGarantia: true,
+        textoExclusoesGarantia: true,
+        textoResponsabilidadeDados: true,
+      },
+    });
+  } catch (erro) {
+    if (!mensagemIndicaRuntimeLegadoConfiguracao(erro)) {
+      throw erro;
+    }
+
+    config = await prisma.configuracao.findFirst({
+      orderBy: { criadoEm: "asc" },
+      select: {
+        nomeFantasia: true,
+        razaoSocial: true,
+        cnpj: true,
+        telefone: true,
+        logradouro: true,
+        numero: true,
+        bairro: true,
+        cidade: true,
+        estado: true,
+        logoUrl: true,
+      },
+    });
+  }
 
   const servicosExecutados = montarServicosExecutados(
     termo.os.itens.map((item) => ({ descricao: item.descricao, tipoPeca: String(item.tipoPeca) }))

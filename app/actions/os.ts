@@ -8,7 +8,10 @@ import { exigirSessao } from "@/lib/auth/sessao";
 import { garantirTermoGarantiaPorOS } from "@/app/actions/garantias";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
-import { obterDefaultsConfiguracaoOsGarantias } from "@/lib/configuracoes-os-garantias";
+import {
+  mensagemIndicaRuntimeLegadoConfiguracao,
+  obterDefaultsConfiguracaoOsGarantias,
+} from "@/lib/configuracoes-os-garantias";
 import type { OrdemServico, OrdemServicoExcluida, TipoPecaOrcamento } from "@/types/os";
 
 type ItemEntrada = {
@@ -227,14 +230,26 @@ type RegrasOs = {
 
 async function obterRegrasOs(): Promise<RegrasOs> {
   const defaults = obterDefaultsConfiguracaoOsGarantias();
-  const configuracao = await prisma.configuracao.findFirst({
-    orderBy: { criadoEm: "asc" },
-    select: {
-      exigirGarantiaAntesEntrega: true,
-      exigirDiagnosticoParaFinalizar: true,
-      permitirFinalizarSemPagamento: true,
-    },
-  });
+  let configuracao: {
+    exigirGarantiaAntesEntrega?: boolean | null;
+    exigirDiagnosticoParaFinalizar?: boolean | null;
+    permitirFinalizarSemPagamento?: boolean | null;
+  } | null = null;
+
+  try {
+    configuracao = await prisma.configuracao.findFirst({
+      orderBy: { criadoEm: "asc" },
+      select: {
+        exigirGarantiaAntesEntrega: true,
+        exigirDiagnosticoParaFinalizar: true,
+        permitirFinalizarSemPagamento: true,
+      },
+    });
+  } catch (erro) {
+    if (!mensagemIndicaRuntimeLegadoConfiguracao(erro)) {
+      throw erro;
+    }
+  }
 
   return {
     exigirGarantiaAntesEntrega:
@@ -1488,12 +1503,21 @@ export async function gerarPedidoVendaPorOS(osId: string) {
     };
   }
 
-  const configuracao = await prisma.configuracao.findFirst({
-    orderBy: { criadoEm: "asc" },
-    select: {
-      exigirItemParaEnviarPDV: true,
-    },
-  });
+  let configuracao: { exigirItemParaEnviarPDV?: boolean | null } | null = null;
+
+  try {
+    configuracao = await prisma.configuracao.findFirst({
+      orderBy: { criadoEm: "asc" },
+      select: {
+        exigirItemParaEnviarPDV: true,
+      },
+    });
+  } catch (erro) {
+    if (!mensagemIndicaRuntimeLegadoConfiguracao(erro)) {
+      throw erro;
+    }
+  }
+
   const exigirItemParaEnviarPDV =
     typeof configuracao?.exigirItemParaEnviarPDV === "boolean"
       ? Boolean(configuracao.exigirItemParaEnviarPDV)
