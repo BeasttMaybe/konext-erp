@@ -877,6 +877,14 @@ export async function obterPedidoOSParaPDV(osId: string): Promise<PedidoOSPDV> {
     if (!mensagemIndicaRuntimeLegadoConfiguracao(erro)) {
       throw erro;
     }
+    try {
+      const rows = await prisma.$queryRaw<Array<{ exigirItemParaEnviarPDV: boolean | null }>>`
+        SELECT "exigirItemParaEnviarPDV" FROM "Configuracao" ORDER BY "criadoEm" ASC LIMIT 1
+      `;
+      configuracao = rows[0] ?? null;
+    } catch {
+      // mantém null → defaults
+    }
   }
 
   const exigirItemParaEnviarPDV =

@@ -290,6 +290,47 @@ function obterConfiguracoesPadrao(): DadosConfiguracoes {
   };
 }
 
+type CamposOsGarantiaRaw = {
+  prazoGarantiaPadraoDias: number | null;
+  prazoMinimoGarantiaDias: number | null;
+  prazoMaximoGarantiaDias: number | null;
+  exigirGarantiaAntesEntrega: boolean | null;
+  exigirItemParaGarantia: boolean | null;
+  exigirItemParaEnviarPDV: boolean | null;
+  exigirDiagnosticoParaFinalizar: boolean | null;
+  permitirFinalizarSemPagamento: boolean | null;
+  permitirGarantiaPersonalizada: boolean | null;
+  textoCoberturaGarantia: string | null;
+  textoExclusoesGarantia: string | null;
+  textoResponsabilidadeDados: string | null;
+};
+
+async function lerCamposOsGarantiaViaSql(id: string): Promise<CamposOsGarantiaRaw | null> {
+  if (!id) return null;
+  try {
+    const rows = await prisma.$queryRaw<Array<CamposOsGarantiaRaw>>`
+      SELECT
+        "prazoGarantiaPadraoDias",
+        "prazoMinimoGarantiaDias",
+        "prazoMaximoGarantiaDias",
+        "exigirGarantiaAntesEntrega",
+        "exigirItemParaGarantia",
+        "exigirItemParaEnviarPDV",
+        "exigirDiagnosticoParaFinalizar",
+        "permitirFinalizarSemPagamento",
+        "permitirGarantiaPersonalizada",
+        "textoCoberturaGarantia",
+        "textoExclusoesGarantia",
+        "textoResponsabilidadeDados"
+      FROM "Configuracao"
+      WHERE id = ${id}
+    `;
+    return rows[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function normalizarConfiguracoesEntrada(data: DadosConfiguracoes): DadosConfiguracoes {
   const resultado = schemaDadosConfiguracoes.safeParse(data);
 
@@ -371,6 +412,12 @@ export async function obterConfiguracoes() {
 
   const defaults = obterConfiguracoesPadrao();
 
+  // Se o cliente Prisma em memória não retornou os campos novos (runtime legado), busca via SQL.
+  const camposOsGarantia: CamposOsGarantiaRaw | null =
+    typeof (configuracao as Record<string, unknown> | null)?.exigirItemParaEnviarPDV === "boolean"
+      ? (configuracao as unknown as CamposOsGarantiaRaw)
+      : await lerCamposOsGarantiaViaSql(configuracao?.id ? String(configuracao.id) : "");
+
   return {
     id: configuracao?.id ? String(configuracao.id) : "",
     razaoSocial: configuracao?.razaoSocial ? String(configuracao.razaoSocial) : "",
@@ -397,49 +444,49 @@ export async function obterConfiguracoes() {
         : false,
     logoUrl: configuracao?.logoUrl ? String(configuracao.logoUrl) : "",
     prazoGarantiaPadraoDias:
-      typeof configuracao?.prazoGarantiaPadraoDias === "number"
-        ? Number(configuracao.prazoGarantiaPadraoDias)
+      typeof camposOsGarantia?.prazoGarantiaPadraoDias === "number"
+        ? Number(camposOsGarantia.prazoGarantiaPadraoDias)
         : defaults.prazoGarantiaPadraoDias,
     prazoMinimoGarantiaDias:
-      typeof configuracao?.prazoMinimoGarantiaDias === "number"
-        ? Number(configuracao.prazoMinimoGarantiaDias)
+      typeof camposOsGarantia?.prazoMinimoGarantiaDias === "number"
+        ? Number(camposOsGarantia.prazoMinimoGarantiaDias)
         : defaults.prazoMinimoGarantiaDias,
     prazoMaximoGarantiaDias:
-      typeof configuracao?.prazoMaximoGarantiaDias === "number"
-        ? Number(configuracao.prazoMaximoGarantiaDias)
+      typeof camposOsGarantia?.prazoMaximoGarantiaDias === "number"
+        ? Number(camposOsGarantia.prazoMaximoGarantiaDias)
         : defaults.prazoMaximoGarantiaDias,
     exigirGarantiaAntesEntrega:
-      typeof configuracao?.exigirGarantiaAntesEntrega === "boolean"
-        ? Boolean(configuracao.exigirGarantiaAntesEntrega)
+      typeof camposOsGarantia?.exigirGarantiaAntesEntrega === "boolean"
+        ? Boolean(camposOsGarantia.exigirGarantiaAntesEntrega)
         : defaults.exigirGarantiaAntesEntrega,
     exigirItemParaGarantia:
-      typeof configuracao?.exigirItemParaGarantia === "boolean"
-        ? Boolean(configuracao.exigirItemParaGarantia)
+      typeof camposOsGarantia?.exigirItemParaGarantia === "boolean"
+        ? Boolean(camposOsGarantia.exigirItemParaGarantia)
         : defaults.exigirItemParaGarantia,
     exigirItemParaEnviarPDV:
-      typeof configuracao?.exigirItemParaEnviarPDV === "boolean"
-        ? Boolean(configuracao.exigirItemParaEnviarPDV)
+      typeof camposOsGarantia?.exigirItemParaEnviarPDV === "boolean"
+        ? Boolean(camposOsGarantia.exigirItemParaEnviarPDV)
         : defaults.exigirItemParaEnviarPDV,
     exigirDiagnosticoParaFinalizar:
-      typeof configuracao?.exigirDiagnosticoParaFinalizar === "boolean"
-        ? Boolean(configuracao.exigirDiagnosticoParaFinalizar)
+      typeof camposOsGarantia?.exigirDiagnosticoParaFinalizar === "boolean"
+        ? Boolean(camposOsGarantia.exigirDiagnosticoParaFinalizar)
         : defaults.exigirDiagnosticoParaFinalizar,
     permitirFinalizarSemPagamento:
-      typeof configuracao?.permitirFinalizarSemPagamento === "boolean"
-        ? Boolean(configuracao.permitirFinalizarSemPagamento)
+      typeof camposOsGarantia?.permitirFinalizarSemPagamento === "boolean"
+        ? Boolean(camposOsGarantia.permitirFinalizarSemPagamento)
         : defaults.permitirFinalizarSemPagamento,
     permitirGarantiaPersonalizada:
-      typeof configuracao?.permitirGarantiaPersonalizada === "boolean"
-        ? Boolean(configuracao.permitirGarantiaPersonalizada)
+      typeof camposOsGarantia?.permitirGarantiaPersonalizada === "boolean"
+        ? Boolean(camposOsGarantia.permitirGarantiaPersonalizada)
         : defaults.permitirGarantiaPersonalizada,
-    textoCoberturaGarantia: configuracao?.textoCoberturaGarantia
-      ? String(configuracao.textoCoberturaGarantia)
+    textoCoberturaGarantia: camposOsGarantia?.textoCoberturaGarantia
+      ? String(camposOsGarantia.textoCoberturaGarantia)
       : defaults.textoCoberturaGarantia,
-    textoExclusoesGarantia: configuracao?.textoExclusoesGarantia
-      ? String(configuracao.textoExclusoesGarantia)
+    textoExclusoesGarantia: camposOsGarantia?.textoExclusoesGarantia
+      ? String(camposOsGarantia.textoExclusoesGarantia)
       : defaults.textoExclusoesGarantia,
-    textoResponsabilidadeDados: configuracao?.textoResponsabilidadeDados
-      ? String(configuracao.textoResponsabilidadeDados)
+    textoResponsabilidadeDados: camposOsGarantia?.textoResponsabilidadeDados
+      ? String(camposOsGarantia.textoResponsabilidadeDados)
       : defaults.textoResponsabilidadeDados,
   };
 }
@@ -464,6 +511,40 @@ function houveMudancaCamposOsGarantia(antes: DadosConfiguracoes, depois: DadosCo
     antes.textoExclusoesGarantia !== depois.textoExclusoesGarantia ||
     antes.textoResponsabilidadeDados !== depois.textoResponsabilidadeDados
   );
+}
+
+async function atualizarCamposOsGarantiaComFallbackSql(configuracaoId: string, dados: {
+  prazoGarantiaPadraoDias: number;
+  prazoMinimoGarantiaDias: number;
+  prazoMaximoGarantiaDias: number;
+  exigirGarantiaAntesEntrega: boolean;
+  exigirItemParaGarantia: boolean;
+  exigirItemParaEnviarPDV: boolean;
+  exigirDiagnosticoParaFinalizar: boolean;
+  permitirFinalizarSemPagamento: boolean;
+  permitirGarantiaPersonalizada: boolean;
+  textoCoberturaGarantia: string | null;
+  textoExclusoesGarantia: string | null;
+  textoResponsabilidadeDados: string | null;
+}) {
+  await prisma.$executeRaw`
+    UPDATE "Configuracao"
+    SET
+      "prazoGarantiaPadraoDias" = ${dados.prazoGarantiaPadraoDias},
+      "prazoMinimoGarantiaDias" = ${dados.prazoMinimoGarantiaDias},
+      "prazoMaximoGarantiaDias" = ${dados.prazoMaximoGarantiaDias},
+      "exigirGarantiaAntesEntrega" = ${dados.exigirGarantiaAntesEntrega},
+      "exigirItemParaGarantia" = ${dados.exigirItemParaGarantia},
+      "exigirItemParaEnviarPDV" = ${dados.exigirItemParaEnviarPDV},
+      "exigirDiagnosticoParaFinalizar" = ${dados.exigirDiagnosticoParaFinalizar},
+      "permitirFinalizarSemPagamento" = ${dados.permitirFinalizarSemPagamento},
+      "permitirGarantiaPersonalizada" = ${dados.permitirGarantiaPersonalizada},
+      "textoCoberturaGarantia" = ${dados.textoCoberturaGarantia},
+      "textoExclusoesGarantia" = ${dados.textoExclusoesGarantia},
+      "textoResponsabilidadeDados" = ${dados.textoResponsabilidadeDados},
+      "atualizadoEm" = NOW()
+    WHERE id = ${configuracaoId}
+  `;
 }
 
 export async function salvarConfiguracoes(data: DadosConfiguracoes) {
@@ -568,12 +649,10 @@ export async function salvarConfiguracoes(data: DadosConfiguracoes) {
       });
     } catch (erro) {
       if (mensagemIndicaRuntimeLegadoConfiguracao(erro)) {
-        throw new Error(
-          "As configuracoes de OS e garantias exigem reiniciar o servidor dev para recarregar o Prisma atualizado."
-        );
+        await atualizarCamposOsGarantiaComFallbackSql(configuracao.id, dadosOsGarantiaAtualizacao);
+      } else {
+        throw erro;
       }
-
-      throw erro;
     }
   }
 

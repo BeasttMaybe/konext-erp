@@ -249,6 +249,19 @@ async function obterRegrasOs(): Promise<RegrasOs> {
     if (!mensagemIndicaRuntimeLegadoConfiguracao(erro)) {
       throw erro;
     }
+    try {
+      const rows = await prisma.$queryRaw<Array<{
+        exigirGarantiaAntesEntrega: boolean | null;
+        exigirDiagnosticoParaFinalizar: boolean | null;
+        permitirFinalizarSemPagamento: boolean | null;
+      }>>`
+        SELECT "exigirGarantiaAntesEntrega", "exigirDiagnosticoParaFinalizar", "permitirFinalizarSemPagamento"
+        FROM "Configuracao" ORDER BY "criadoEm" ASC LIMIT 1
+      `;
+      configuracao = rows[0] ?? null;
+    } catch {
+      // mantém null → defaults
+    }
   }
 
   return {
@@ -1515,6 +1528,14 @@ export async function gerarPedidoVendaPorOS(osId: string) {
   } catch (erro) {
     if (!mensagemIndicaRuntimeLegadoConfiguracao(erro)) {
       throw erro;
+    }
+    try {
+      const rows = await prisma.$queryRaw<Array<{ exigirItemParaEnviarPDV: boolean | null }>>`
+        SELECT "exigirItemParaEnviarPDV" FROM "Configuracao" ORDER BY "criadoEm" ASC LIMIT 1
+      `;
+      configuracao = rows[0] ?? null;
+    } catch {
+      // mantém null → defaults
     }
   }
 

@@ -539,20 +539,33 @@ export async function garantirTermoGarantiaPorOS(
       throw erro;
     }
 
-    configuracao = await client.configuracao.findFirst({
-      orderBy: { criadoEm: "asc" },
-      select: {
-        nomeFantasia: true,
-        razaoSocial: true,
-        cnpj: true,
-        telefone: true,
-        logradouro: true,
-        numero: true,
-        bairro: true,
-        cidade: true,
-        estado: true,
-      },
-    }) as ConfiguracaoTermo | null;
+    try {
+      const rows = await prisma.$queryRaw<Array<ConfiguracaoTermo>>`
+        SELECT
+          "nomeFantasia", "razaoSocial", "cnpj", "telefone",
+          "logradouro", "numero", "bairro", "cidade", "estado",
+          "prazoGarantiaPadraoDias", "prazoMinimoGarantiaDias", "prazoMaximoGarantiaDias",
+          "exigirItemParaGarantia", "permitirGarantiaPersonalizada",
+          "textoCoberturaGarantia", "textoExclusoesGarantia", "textoResponsabilidadeDados"
+        FROM "Configuracao" ORDER BY "criadoEm" ASC LIMIT 1
+      `;
+      configuracao = rows[0] ?? null;
+    } catch {
+      configuracao = await client.configuracao.findFirst({
+        orderBy: { criadoEm: "asc" },
+        select: {
+          nomeFantasia: true,
+          razaoSocial: true,
+          cnpj: true,
+          telefone: true,
+          logradouro: true,
+          numero: true,
+          bairro: true,
+          cidade: true,
+          estado: true,
+        },
+      }) as ConfiguracaoTermo | null;
+    }
   }
 
   const regrasGarantia = obterRegrasGarantia(configuracao);
@@ -840,21 +853,32 @@ export async function obterTermoGarantiaOS(osId: string): Promise<DadosTermoGara
       throw erro;
     }
 
-    config = await prisma.configuracao.findFirst({
-      orderBy: { criadoEm: "asc" },
-      select: {
-        nomeFantasia: true,
-        razaoSocial: true,
-        cnpj: true,
-        telefone: true,
-        logradouro: true,
-        numero: true,
-        bairro: true,
-        cidade: true,
-        estado: true,
-        logoUrl: true,
-      },
-    });
+    try {
+      const rows = await prisma.$queryRaw<Array<typeof config>>`
+        SELECT
+          "nomeFantasia", "razaoSocial", "cnpj", "telefone",
+          "logradouro", "numero", "bairro", "cidade", "estado", "logoUrl",
+          "textoCoberturaGarantia", "textoExclusoesGarantia", "textoResponsabilidadeDados"
+        FROM "Configuracao" ORDER BY "criadoEm" ASC LIMIT 1
+      `;
+      config = rows[0] ?? null;
+    } catch {
+      config = await prisma.configuracao.findFirst({
+        orderBy: { criadoEm: "asc" },
+        select: {
+          nomeFantasia: true,
+          razaoSocial: true,
+          cnpj: true,
+          telefone: true,
+          logradouro: true,
+          numero: true,
+          bairro: true,
+          cidade: true,
+          estado: true,
+          logoUrl: true,
+        },
+      });
+    }
   }
 
   const servicosExecutados = montarServicosExecutados(
