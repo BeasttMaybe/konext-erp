@@ -90,8 +90,24 @@ export function LayoutConfiguracoes({ defaultValues }: PropsLayoutConfiguracoes)
         return;
       }
 
-      const { razaoSocial, cep, logradouro, numero, bairro, cidade, estado } = resultado.dados;
+      const {
+        razaoSocial,
+        nomeFantasia,
+        cnpj,
+        inscricaoEstadual,
+        telefone,
+        cep,
+        logradouro,
+        numero,
+        bairro,
+        cidade,
+        estado,
+      } = resultado.dados;
       setValue("razaoSocial", razaoSocial, { shouldDirty: true });
+      setValue("nomeFantasia", nomeFantasia, { shouldDirty: true });
+      setValue("cnpj", formatarCnpjVisual(cnpj), { shouldDirty: true });
+      setValue("inscricaoEstadual", inscricaoEstadual, { shouldDirty: true });
+      setValue("telefone", formatarTelefoneVisual(telefone), { shouldDirty: true });
       setValue("cep", formatarCepVisual(cep), { shouldDirty: true });
       setValue("logradouro", logradouro, { shouldDirty: true });
       setValue("numero", numero, { shouldDirty: true });

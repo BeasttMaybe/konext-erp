@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { consultarCnpjReceitaCliente } from "@/app/actions/crm";
 import { prisma } from "@/lib/prisma";
 import { exigirSessao } from "@/lib/auth/sessao";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
@@ -122,6 +123,10 @@ export type ResultadoConsultaCnpj =
       sucesso: true;
       dados: {
         razaoSocial: string;
+        nomeFantasia: string;
+        cnpj: string;
+        inscricaoEstadual: string;
+        telefone: string;
         cep: string;
         logradouro: string;
         numero: string;
@@ -439,6 +444,28 @@ export async function obterConfiguracoes() {
   };
 }
 
+function mensagemIndicaRuntimeLegadoConfiguracao(erro: unknown): boolean {
+  const mensagem = erro instanceof Error ? erro.message : "";
+  return mensagem.includes("Unknown argument") || mensagem.includes("Invalid `configuracaoDelegate");
+}
+
+function houveMudancaCamposOsGarantia(antes: DadosConfiguracoes, depois: DadosConfiguracoes): boolean {
+  return (
+    antes.prazoGarantiaPadraoDias !== depois.prazoGarantiaPadraoDias ||
+    antes.prazoMinimoGarantiaDias !== depois.prazoMinimoGarantiaDias ||
+    antes.prazoMaximoGarantiaDias !== depois.prazoMaximoGarantiaDias ||
+    antes.exigirGarantiaAntesEntrega !== depois.exigirGarantiaAntesEntrega ||
+    antes.exigirItemParaGarantia !== depois.exigirItemParaGarantia ||
+    antes.exigirItemParaEnviarPDV !== depois.exigirItemParaEnviarPDV ||
+    antes.exigirDiagnosticoParaFinalizar !== depois.exigirDiagnosticoParaFinalizar ||
+    antes.permitirFinalizarSemPagamento !== depois.permitirFinalizarSemPagamento ||
+    antes.permitirGarantiaPersonalizada !== depois.permitirGarantiaPersonalizada ||
+    antes.textoCoberturaGarantia !== depois.textoCoberturaGarantia ||
+    antes.textoExclusoesGarantia !== depois.textoExclusoesGarantia ||
+    antes.textoResponsabilidadeDados !== depois.textoResponsabilidadeDados
+  );
+}
+
 export async function salvarConfiguracoes(data: DadosConfiguracoes) {
   // C1: exige sessao valida antes de alterar configuracoes da empresa.
   const usuario = await exigirSessao();
@@ -477,18 +504,6 @@ export async function salvarConfiguracoes(data: DadosConfiguracoes) {
         habilitarMargemAutomatica: true,
         permitirVendaSemEstoque: false,
         logoUrl: null,
-        prazoGarantiaPadraoDias: 90,
-        prazoMinimoGarantiaDias: 1,
-        prazoMaximoGarantiaDias: 365,
-        exigirGarantiaAntesEntrega: true,
-        exigirItemParaGarantia: true,
-        exigirItemParaEnviarPDV: true,
-        exigirDiagnosticoParaFinalizar: false,
-        permitirFinalizarSemPagamento: true,
-        permitirGarantiaPersonalizada: true,
-        textoCoberturaGarantia: TEXTO_COBERTURA_GARANTIA_PADRAO,
-        textoExclusoesGarantia: TEXTO_EXCLUSOES_GARANTIA_PADRAO,
-        textoResponsabilidadeDados: TEXTO_RESPONSABILIDADE_DADOS_PADRAO,
       },
     });
   }
@@ -499,76 +514,104 @@ export async function salvarConfiguracoes(data: DadosConfiguracoes) {
 
   const dadosAntes = await obterConfiguracoes();
 
+  const dadosBaseAtualizacao = {
+    razaoSocial: dadosNormalizados.razaoSocial,
+    nomeFantasia: dadosNormalizados.nomeFantasia,
+    cnpj: dadosNormalizados.cnpj,
+    inscricaoEstadual: dadosNormalizados.inscricaoEstadual,
+    telefone: dadosNormalizados.telefone,
+    cep: dadosNormalizados.cep,
+    logradouro: dadosNormalizados.logradouro,
+    numero: dadosNormalizados.numero,
+    bairro: dadosNormalizados.bairro,
+    cidade: dadosNormalizados.cidade,
+    estado: dadosNormalizados.estado,
+    endereco: dadosNormalizados.endereco,
+    chavePix: dadosNormalizados.chavePix || null,
+    mensagemCupom: dadosNormalizados.mensagemCupom || null,
+    habilitarMargemAutomatica: dadosNormalizados.habilitarMargemAutomatica,
+    permitirVendaSemEstoque: dadosNormalizados.permitirVendaSemEstoque,
+    logoUrl: dadosNormalizados.logoUrl || null,
+  };
+
+  const dadosOsGarantiaAtualizacao = {
+    prazoGarantiaPadraoDias: dadosNormalizados.prazoGarantiaPadraoDias,
+    prazoMinimoGarantiaDias: dadosNormalizados.prazoMinimoGarantiaDias,
+    prazoMaximoGarantiaDias: dadosNormalizados.prazoMaximoGarantiaDias,
+    exigirGarantiaAntesEntrega: dadosNormalizados.exigirGarantiaAntesEntrega,
+    exigirItemParaGarantia: dadosNormalizados.exigirItemParaGarantia,
+    exigirItemParaEnviarPDV: dadosNormalizados.exigirItemParaEnviarPDV,
+    exigirDiagnosticoParaFinalizar: dadosNormalizados.exigirDiagnosticoParaFinalizar,
+    permitirFinalizarSemPagamento: dadosNormalizados.permitirFinalizarSemPagamento,
+    permitirGarantiaPersonalizada: dadosNormalizados.permitirGarantiaPersonalizada,
+    textoCoberturaGarantia: dadosNormalizados.textoCoberturaGarantia || null,
+    textoExclusoesGarantia: dadosNormalizados.textoExclusoesGarantia || null,
+    textoResponsabilidadeDados: dadosNormalizados.textoResponsabilidadeDados || null,
+  };
+
   await configuracaoDelegate.update({
     where: {
       id: configuracao.id,
     },
-    data: {
-      razaoSocial: dadosNormalizados.razaoSocial,
-      nomeFantasia: dadosNormalizados.nomeFantasia,
-      cnpj: dadosNormalizados.cnpj,
-      inscricaoEstadual: dadosNormalizados.inscricaoEstadual,
-      telefone: dadosNormalizados.telefone,
-      cep: dadosNormalizados.cep,
-      logradouro: dadosNormalizados.logradouro,
-      numero: dadosNormalizados.numero,
-      bairro: dadosNormalizados.bairro,
-      cidade: dadosNormalizados.cidade,
-      estado: dadosNormalizados.estado,
-      endereco: dadosNormalizados.endereco,
-      chavePix: dadosNormalizados.chavePix || null,
-      mensagemCupom: dadosNormalizados.mensagemCupom || null,
-      habilitarMargemAutomatica: dadosNormalizados.habilitarMargemAutomatica,
-      permitirVendaSemEstoque: dadosNormalizados.permitirVendaSemEstoque,
-      logoUrl: dadosNormalizados.logoUrl || null,
-      prazoGarantiaPadraoDias: dadosNormalizados.prazoGarantiaPadraoDias,
-      prazoMinimoGarantiaDias: dadosNormalizados.prazoMinimoGarantiaDias,
-      prazoMaximoGarantiaDias: dadosNormalizados.prazoMaximoGarantiaDias,
-      exigirGarantiaAntesEntrega: dadosNormalizados.exigirGarantiaAntesEntrega,
-      exigirItemParaGarantia: dadosNormalizados.exigirItemParaGarantia,
-      exigirItemParaEnviarPDV: dadosNormalizados.exigirItemParaEnviarPDV,
-      exigirDiagnosticoParaFinalizar: dadosNormalizados.exigirDiagnosticoParaFinalizar,
-      permitirFinalizarSemPagamento: dadosNormalizados.permitirFinalizarSemPagamento,
-      permitirGarantiaPersonalizada: dadosNormalizados.permitirGarantiaPersonalizada,
-      textoCoberturaGarantia: dadosNormalizados.textoCoberturaGarantia || null,
-      textoExclusoesGarantia: dadosNormalizados.textoExclusoesGarantia || null,
-      textoResponsabilidadeDados: dadosNormalizados.textoResponsabilidadeDados || null,
-    },
+    data: dadosBaseAtualizacao,
   });
 
-  await registrarLogAuditoria(
-    prisma,
-    contextoAuditoriaDoUsuario(usuario, "app/actions/configuracoes.ts:salvarConfiguracoes"),
-    {
-      acao: ACOES_AUDITORIA.ATUALIZAR_CONFIGURACOES_OS_GARANTIA,
-      entidade: ENTIDADES_AUDITORIA.CONFIGURACAO,
-      entidadeId: configuracao.id,
-      dadosAntes: {
-        prazoGarantiaPadraoDias: dadosAntes.prazoGarantiaPadraoDias,
-        prazoMinimoGarantiaDias: dadosAntes.prazoMinimoGarantiaDias,
-        prazoMaximoGarantiaDias: dadosAntes.prazoMaximoGarantiaDias,
-        exigirGarantiaAntesEntrega: dadosAntes.exigirGarantiaAntesEntrega,
-        exigirItemParaGarantia: dadosAntes.exigirItemParaGarantia,
-        exigirItemParaEnviarPDV: dadosAntes.exigirItemParaEnviarPDV,
-        exigirDiagnosticoParaFinalizar: dadosAntes.exigirDiagnosticoParaFinalizar,
-        permitirFinalizarSemPagamento: dadosAntes.permitirFinalizarSemPagamento,
-        permitirGarantiaPersonalizada: dadosAntes.permitirGarantiaPersonalizada,
-        habilitarMargemAutomatica: dadosAntes.habilitarMargemAutomatica,
-      },
-      dadosDepois: {
-        prazoGarantiaPadraoDias: dadosNormalizados.prazoGarantiaPadraoDias,
-        prazoMinimoGarantiaDias: dadosNormalizados.prazoMinimoGarantiaDias,
-        prazoMaximoGarantiaDias: dadosNormalizados.prazoMaximoGarantiaDias,
-        exigirGarantiaAntesEntrega: dadosNormalizados.exigirGarantiaAntesEntrega,
-        exigirItemParaGarantia: dadosNormalizados.exigirItemParaGarantia,
-        exigirItemParaEnviarPDV: dadosNormalizados.exigirItemParaEnviarPDV,
-        exigirDiagnosticoParaFinalizar: dadosNormalizados.exigirDiagnosticoParaFinalizar,
-        permitirFinalizarSemPagamento: dadosNormalizados.permitirFinalizarSemPagamento,
-        permitirGarantiaPersonalizada: dadosNormalizados.permitirGarantiaPersonalizada,
-        habilitarMargemAutomatica: dadosNormalizados.habilitarMargemAutomatica,
-      },
+  const precisaSalvarCamposOsGarantia = houveMudancaCamposOsGarantia(dadosAntes, dadosNormalizados);
+
+  if (precisaSalvarCamposOsGarantia) {
+    try {
+      await configuracaoDelegate.update({
+        where: {
+          id: configuracao.id,
+        },
+        data: dadosOsGarantiaAtualizacao,
+      });
+    } catch (erro) {
+      if (mensagemIndicaRuntimeLegadoConfiguracao(erro)) {
+        throw new Error(
+          "As configuracoes de OS e garantias exigem reiniciar o servidor dev para recarregar o Prisma atualizado."
+        );
+      }
+
+      throw erro;
     }
-  );
+  }
+
+  if (precisaSalvarCamposOsGarantia) {
+    await registrarLogAuditoria(
+      prisma,
+      contextoAuditoriaDoUsuario(usuario, "app/actions/configuracoes.ts:salvarConfiguracoes"),
+      {
+        acao: ACOES_AUDITORIA.ATUALIZAR_CONFIGURACOES_OS_GARANTIA,
+        entidade: ENTIDADES_AUDITORIA.CONFIGURACAO,
+        entidadeId: configuracao.id,
+        dadosAntes: {
+          prazoGarantiaPadraoDias: dadosAntes.prazoGarantiaPadraoDias,
+          prazoMinimoGarantiaDias: dadosAntes.prazoMinimoGarantiaDias,
+          prazoMaximoGarantiaDias: dadosAntes.prazoMaximoGarantiaDias,
+          exigirGarantiaAntesEntrega: dadosAntes.exigirGarantiaAntesEntrega,
+          exigirItemParaGarantia: dadosAntes.exigirItemParaGarantia,
+          exigirItemParaEnviarPDV: dadosAntes.exigirItemParaEnviarPDV,
+          exigirDiagnosticoParaFinalizar: dadosAntes.exigirDiagnosticoParaFinalizar,
+          permitirFinalizarSemPagamento: dadosAntes.permitirFinalizarSemPagamento,
+          permitirGarantiaPersonalizada: dadosAntes.permitirGarantiaPersonalizada,
+          habilitarMargemAutomatica: dadosAntes.habilitarMargemAutomatica,
+        },
+        dadosDepois: {
+          prazoGarantiaPadraoDias: dadosNormalizados.prazoGarantiaPadraoDias,
+          prazoMinimoGarantiaDias: dadosNormalizados.prazoMinimoGarantiaDias,
+          prazoMaximoGarantiaDias: dadosNormalizados.prazoMaximoGarantiaDias,
+          exigirGarantiaAntesEntrega: dadosNormalizados.exigirGarantiaAntesEntrega,
+          exigirItemParaGarantia: dadosNormalizados.exigirItemParaGarantia,
+          exigirItemParaEnviarPDV: dadosNormalizados.exigirItemParaEnviarPDV,
+          exigirDiagnosticoParaFinalizar: dadosNormalizados.exigirDiagnosticoParaFinalizar,
+          permitirFinalizarSemPagamento: dadosNormalizados.permitirFinalizarSemPagamento,
+          permitirGarantiaPersonalizada: dadosNormalizados.permitirGarantiaPersonalizada,
+          habilitarMargemAutomatica: dadosNormalizados.habilitarMargemAutomatica,
+        },
+      }
+    );
+  }
 
   revalidatePath("/configuracoes");
   revalidatePath("/os");
@@ -580,44 +623,30 @@ export async function salvarConfiguracoes(data: DadosConfiguracoes) {
 }
 
 export async function consultarCnpjReceita(cnpj: string): Promise<ResultadoConsultaCnpj> {
-  const cnpjLimpo = String(cnpj ?? "").replace(/\D/g, "");
-
-  if (cnpjLimpo.length !== 14) {
-    return {
-      sucesso: false,
-      erro: "CNPJ inválido.",
-    };
-  }
-
   try {
-    const resposta = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpjLimpo}`, {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-      },
-      cache: "no-store",
-    });
+    const resultado = await consultarCnpjReceitaCliente(cnpj);
 
-    if (!resposta.ok) {
+    if (!resultado.sucesso) {
       return {
         sucesso: false,
-        erro: "CNPJ não encontrado na Receita.",
+        erro: resultado.mensagem,
       };
     }
-
-    const payload = await resposta.json();
-    const cepNumerico = String(payload?.cep ?? "").replace(/\D/g, "");
 
     return {
       sucesso: true,
       dados: {
-        razaoSocial: String(payload?.razao_social ?? ""),
-        cep: cepNumerico,
-        logradouro: String(payload?.logradouro ?? ""),
-        numero: String(payload?.numero ?? ""),
-        bairro: String(payload?.bairro ?? ""),
-        cidade: String(payload?.municipio ?? ""),
-        estado: String(payload?.uf ?? ""),
+        razaoSocial: resultado.dados.nomeRazaoSocial,
+        nomeFantasia: resultado.dados.nomeFantasia,
+        cnpj: resultado.dados.documento,
+        inscricaoEstadual: resultado.dados.inscricaoEstadual,
+        telefone: resultado.dados.telefone,
+        cep: resultado.dados.cep,
+        logradouro: resultado.dados.logradouro,
+        numero: resultado.dados.numero,
+        bairro: resultado.dados.bairro,
+        cidade: resultado.dados.cidade,
+        estado: resultado.dados.estado,
       },
     };
   } catch {

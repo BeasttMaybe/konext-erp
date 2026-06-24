@@ -5,7 +5,10 @@ import ws from "ws";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
+  prismaSchemaVersion: string | undefined;
 };
+
+const PRISMA_SCHEMA_VERSION = "20260624-configuracao-os-garantias";
 
 const connectionString = process.env.DATABASE_URL;
 
@@ -27,6 +30,7 @@ function criarPrismaClient() {
 }
 
 const prismaEmCache = globalForPrisma.prisma;
+const schemaVersionEmCache = globalForPrisma.prismaSchemaVersion;
 const cacheInvalidoParaMetas =
   !!prismaEmCache &&
   (
@@ -34,12 +38,14 @@ const cacheInvalidoParaMetas =
     !("historicoMeta" in (prismaEmCache as unknown as Record<string, unknown>)) ||
     !("itemChecklistMeta" in (prismaEmCache as unknown as Record<string, unknown>))
   );
+const cacheInvalidoPorVersaoSchema = schemaVersionEmCache !== PRISMA_SCHEMA_VERSION;
 
 export const prisma =
-  !prismaEmCache || cacheInvalidoParaMetas
+  !prismaEmCache || cacheInvalidoParaMetas || cacheInvalidoPorVersaoSchema
     ? criarPrismaClient()
     : prismaEmCache;
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;
+  globalForPrisma.prismaSchemaVersion = PRISMA_SCHEMA_VERSION;
 }
