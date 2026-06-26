@@ -271,7 +271,7 @@ export function ModalPagamento({
   const [vendaIdGerada, setVendaIdGerada] = useState<string | null>(null);
   const [totalVendaFinalizada, setTotalVendaFinalizada] = useState<number>(0);
   const [valoresPagamentosEmEdicao, setValoresPagamentosEmEdicao] = useState<Record<string, string>>({});
-  const [valorRecebidoEmEdicao, setValorRecebidoEmEdicao] = useState<string>("");
+  const [valorRecebidoEmEdicao, setValorRecebidoEmEdicao] = useState<string | null>(null);
   const [linhaEmEdicaoId, setLinhaEmEdicaoId] = useState<string | null>(null);
   const [seletorFormaAberto, setSeletorFormaAberto] = useState(false);
   const [pagamentoInicialAutomatico, setPagamentoInicialAutomatico] = useState(true);
@@ -286,7 +286,7 @@ export function ModalPagamento({
       return [{ ...linhaAtual, valorBruto: total }];
     });
 
-    setValorRecebidoEmEdicao("");
+    setValorRecebidoEmEdicao(null);
     setLinhaEmEdicaoId(null);
     setSeletorFormaAberto(false);
     setPagamentoInicialAutomatico(true);
@@ -296,11 +296,11 @@ export function ModalPagamento({
     if (!aberto) return;
 
     const linhaDinheiroUnica = linhas.length === 1 && linhas[0]?.formaPagamento === "DINHEIRO";
-    if (linhaDinheiroUnica) {
+    if (linhaDinheiroUnica && linhaEmEdicaoId === null && valorRecebidoEmEdicao === null) {
       setValorRecebidoDinheiro(total);
       setValorRecebidoEmEdicao(formatarDecimalPtBr(total));
     }
-  }, [aberto, linhas, total]);
+  }, [aberto, linhaEmEdicaoId, linhas, total, valorRecebidoEmEdicao]);
 
   useEffect(() => {
     if (!aberto) return;
@@ -436,7 +436,7 @@ export function ModalPagamento({
     setVendaIdGerada(null);
     setTotalVendaFinalizada(0);
     setValoresPagamentosEmEdicao({});
-    setValorRecebidoEmEdicao("");
+    setValorRecebidoEmEdicao(null);
     setLinhaEmEdicaoId(null);
     setSeletorFormaAberto(false);
     setPagamentoInicialAutomatico(true);
@@ -566,7 +566,7 @@ export function ModalPagamento({
 
   const fecharEditorLinha = () => {
     setLinhaEmEdicaoId(null);
-    setValorRecebidoEmEdicao("");
+    setValorRecebidoEmEdicao(null);
   };
 
   const valorInformadoPorForma = (forma: FormaPagamentoPdv): number => {
@@ -1121,7 +1121,7 @@ export function ModalPagamento({
                                         type="text"
                                         inputMode="decimal"
                                         className="h-10 border-slate-800 bg-slate-950 text-slate-100"
-                                        value={valorRecebidoEmEdicao || formatarDecimalPtBr(valorRecebidoDinheiro)}
+                                        value={valorRecebidoEmEdicao ?? formatarDecimalPtBr(valorRecebidoDinheiro)}
                                         onChange={(e) => {
                                           const texto = sanitizarEntradaMonetaria(e.target.value);
                                           const valor = parseEntradaMonetaria(texto);
