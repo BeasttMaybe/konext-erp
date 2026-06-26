@@ -976,6 +976,7 @@ function PDVPageConteudo() {
       <ModalPagamento
         aberto={modalPagamentoAberto}
         total={totalGeral}
+        descontoAplicado={resumo.descontoAplicado}
         configuracaoPagamento={configuracaoPagamentosPdv}
         aoFechar={() => setModalPagamentoAberto(false)}
         aoConfirmar={aoConfirmarPagamento}

@@ -98,7 +98,11 @@ function formaPagamentoHabilitada(
   formaPagamento: FormaPagamentoPdv,
   configuracao: ConfiguracaoPdvPagamentos
 ): boolean {
-  if (formaPagamento === "PIX" || formaPagamento === "TED") {
+  if (formaPagamento === "TED" || formaPagamento === "EMPENHO_PUBLICO") {
+    return false;
+  }
+
+  if (formaPagamento === "PIX") {
     return configuracao.habilitarPix;
   }
 
@@ -124,10 +128,6 @@ function formaPagamentoHabilitada(
 
   if (formaPagamento === "CREDIARIO") {
     return configuracao.habilitarCrediario;
-  }
-
-  if (formaPagamento === "EMPENHO_PUBLICO") {
-    return true;
   }
 
   return true;

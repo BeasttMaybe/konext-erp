@@ -423,7 +423,7 @@ type CamposOsGarantiaRaw = {
 type CamposPdvRaw = {
   permitirPagamentoMisto: boolean | null;
   permitirDescontoPDV: boolean | null;
-  descontoMaximoPDVPercentual: number | null;
+  descontoMaximoPDVPercentual: unknown;
   permitirVendaFiado: boolean | null;
   habilitarPix: boolean | null;
   habilitarDinheiro: boolean | null;
@@ -431,23 +431,54 @@ type CamposPdvRaw = {
   habilitarCartaoCredito: boolean | null;
   habilitarBoleto: boolean | null;
   habilitarCrediario: boolean | null;
-  taxaCartaoDebitoPercentual: number | null;
-  taxaCartaoCredito1xPercentual: number | null;
-  taxaCartaoCredito2xPercentual: number | null;
-  taxaCartaoCredito3xPercentual: number | null;
-  taxaCartaoCredito4xPercentual: number | null;
-  taxaCartaoCredito5xPercentual: number | null;
-  taxaCartaoCredito6xPercentual: number | null;
-  taxaCartaoCredito7xPercentual: number | null;
-  taxaCartaoCredito8xPercentual: number | null;
-  taxaCartaoCredito9xPercentual: number | null;
-  taxaCartaoCredito10xPercentual: number | null;
-  taxaCartaoCredito11xPercentual: number | null;
-  taxaCartaoCredito12xPercentual: number | null;
-  prazoPadraoBoletoDias: number | null;
-  prazoPadraoCrediarioDias: number | null;
-  maxParcelasCartaoCredito: number | null;
+  taxaCartaoDebitoPercentual: unknown;
+  taxaCartaoCredito1xPercentual: unknown;
+  taxaCartaoCredito2xPercentual: unknown;
+  taxaCartaoCredito3xPercentual: unknown;
+  taxaCartaoCredito4xPercentual: unknown;
+  taxaCartaoCredito5xPercentual: unknown;
+  taxaCartaoCredito6xPercentual: unknown;
+  taxaCartaoCredito7xPercentual: unknown;
+  taxaCartaoCredito8xPercentual: unknown;
+  taxaCartaoCredito9xPercentual: unknown;
+  taxaCartaoCredito10xPercentual: unknown;
+  taxaCartaoCredito11xPercentual: unknown;
+  taxaCartaoCredito12xPercentual: unknown;
+  prazoPadraoBoletoDias: unknown;
+  prazoPadraoCrediarioDias: unknown;
+  maxParcelasCartaoCredito: unknown;
 };
+
+function decimalParaNumero(valor: unknown, fallback = 0): number {
+  if (valor === null || valor === undefined) return fallback;
+
+  if (typeof valor === "number") {
+    return Number.isFinite(valor) ? valor : fallback;
+  }
+
+  if (typeof valor === "string") {
+    const numero = Number(valor.replace(",", "."));
+    return Number.isFinite(numero) ? numero : fallback;
+  }
+
+  if (
+    typeof valor === "object" &&
+    valor !== null &&
+    "toString" in valor &&
+    typeof valor.toString === "function"
+  ) {
+    const numero = Number(valor.toString());
+    return Number.isFinite(numero) ? numero : fallback;
+  }
+
+  return fallback;
+}
+
+function inteiroParaNumero(valor: unknown, fallback: number, minimo: number, maximo: number): number {
+  const numero = decimalParaNumero(valor, fallback);
+  const inteiro = Math.trunc(numero);
+  return Math.min(maximo, Math.max(minimo, inteiro));
+}
 
 async function lerCamposOsGarantiaViaSql(id: string): Promise<CamposOsGarantiaRaw | null> {
   if (!id) return null;
@@ -608,9 +639,7 @@ export async function obterConfiguracoes() {
         ? Boolean(camposPdv.permitirDescontoPDV)
         : defaultsPdv.permitirDescontoPDV,
     descontoMaximoPDVPercentual:
-      typeof camposPdv?.descontoMaximoPDVPercentual === "number"
-        ? Number(camposPdv.descontoMaximoPDVPercentual)
-        : defaultsPdv.descontoMaximoPDVPercentual,
+      decimalParaNumero(camposPdv?.descontoMaximoPDVPercentual, defaultsPdv.descontoMaximoPDVPercentual),
     permitirVendaFiado:
       typeof camposPdv?.permitirVendaFiado === "boolean"
         ? Boolean(camposPdv.permitirVendaFiado)
@@ -640,69 +669,37 @@ export async function obterConfiguracoes() {
         ? Boolean(camposPdv.habilitarCrediario)
         : defaultsPdv.habilitarCrediario,
     taxaCartaoDebitoPercentual:
-      typeof camposPdv?.taxaCartaoDebitoPercentual === "number"
-        ? Number(camposPdv.taxaCartaoDebitoPercentual)
-        : defaultsPdv.taxaCartaoDebitoPercentual,
+      decimalParaNumero(camposPdv?.taxaCartaoDebitoPercentual, defaultsPdv.taxaCartaoDebitoPercentual),
     taxaCartaoCredito1xPercentual:
-      typeof camposPdv?.taxaCartaoCredito1xPercentual === "number"
-        ? Number(camposPdv.taxaCartaoCredito1xPercentual)
-        : defaultsPdv.taxaCartaoCredito1xPercentual,
+      decimalParaNumero(camposPdv?.taxaCartaoCredito1xPercentual, defaultsPdv.taxaCartaoCredito1xPercentual),
     taxaCartaoCredito2xPercentual:
-      typeof camposPdv?.taxaCartaoCredito2xPercentual === "number"
-        ? Number(camposPdv.taxaCartaoCredito2xPercentual)
-        : defaultsPdv.taxaCartaoCredito2xPercentual,
+      decimalParaNumero(camposPdv?.taxaCartaoCredito2xPercentual, defaultsPdv.taxaCartaoCredito2xPercentual),
     taxaCartaoCredito3xPercentual:
-      typeof camposPdv?.taxaCartaoCredito3xPercentual === "number"
-        ? Number(camposPdv.taxaCartaoCredito3xPercentual)
-        : defaultsPdv.taxaCartaoCredito3xPercentual,
+      decimalParaNumero(camposPdv?.taxaCartaoCredito3xPercentual, defaultsPdv.taxaCartaoCredito3xPercentual),
     taxaCartaoCredito4xPercentual:
-      typeof camposPdv?.taxaCartaoCredito4xPercentual === "number"
-        ? Number(camposPdv.taxaCartaoCredito4xPercentual)
-        : defaultsPdv.taxaCartaoCredito4xPercentual,
+      decimalParaNumero(camposPdv?.taxaCartaoCredito4xPercentual, defaultsPdv.taxaCartaoCredito4xPercentual),
     taxaCartaoCredito5xPercentual:
-      typeof camposPdv?.taxaCartaoCredito5xPercentual === "number"
-        ? Number(camposPdv.taxaCartaoCredito5xPercentual)
-        : defaultsPdv.taxaCartaoCredito5xPercentual,
+      decimalParaNumero(camposPdv?.taxaCartaoCredito5xPercentual, defaultsPdv.taxaCartaoCredito5xPercentual),
     taxaCartaoCredito6xPercentual:
-      typeof camposPdv?.taxaCartaoCredito6xPercentual === "number"
-        ? Number(camposPdv.taxaCartaoCredito6xPercentual)
-        : defaultsPdv.taxaCartaoCredito6xPercentual,
+      decimalParaNumero(camposPdv?.taxaCartaoCredito6xPercentual, defaultsPdv.taxaCartaoCredito6xPercentual),
     taxaCartaoCredito7xPercentual:
-      typeof camposPdv?.taxaCartaoCredito7xPercentual === "number"
-        ? Number(camposPdv.taxaCartaoCredito7xPercentual)
-        : defaultsPdv.taxaCartaoCredito7xPercentual,
+      decimalParaNumero(camposPdv?.taxaCartaoCredito7xPercentual, defaultsPdv.taxaCartaoCredito7xPercentual),
     taxaCartaoCredito8xPercentual:
-      typeof camposPdv?.taxaCartaoCredito8xPercentual === "number"
-        ? Number(camposPdv.taxaCartaoCredito8xPercentual)
-        : defaultsPdv.taxaCartaoCredito8xPercentual,
+      decimalParaNumero(camposPdv?.taxaCartaoCredito8xPercentual, defaultsPdv.taxaCartaoCredito8xPercentual),
     taxaCartaoCredito9xPercentual:
-      typeof camposPdv?.taxaCartaoCredito9xPercentual === "number"
-        ? Number(camposPdv.taxaCartaoCredito9xPercentual)
-        : defaultsPdv.taxaCartaoCredito9xPercentual,
+      decimalParaNumero(camposPdv?.taxaCartaoCredito9xPercentual, defaultsPdv.taxaCartaoCredito9xPercentual),
     taxaCartaoCredito10xPercentual:
-      typeof camposPdv?.taxaCartaoCredito10xPercentual === "number"
-        ? Number(camposPdv.taxaCartaoCredito10xPercentual)
-        : defaultsPdv.taxaCartaoCredito10xPercentual,
+      decimalParaNumero(camposPdv?.taxaCartaoCredito10xPercentual, defaultsPdv.taxaCartaoCredito10xPercentual),
     taxaCartaoCredito11xPercentual:
-      typeof camposPdv?.taxaCartaoCredito11xPercentual === "number"
-        ? Number(camposPdv.taxaCartaoCredito11xPercentual)
-        : defaultsPdv.taxaCartaoCredito11xPercentual,
+      decimalParaNumero(camposPdv?.taxaCartaoCredito11xPercentual, defaultsPdv.taxaCartaoCredito11xPercentual),
     taxaCartaoCredito12xPercentual:
-      typeof camposPdv?.taxaCartaoCredito12xPercentual === "number"
-        ? Number(camposPdv.taxaCartaoCredito12xPercentual)
-        : defaultsPdv.taxaCartaoCredito12xPercentual,
+      decimalParaNumero(camposPdv?.taxaCartaoCredito12xPercentual, defaultsPdv.taxaCartaoCredito12xPercentual),
     prazoPadraoBoletoDias:
-      typeof camposPdv?.prazoPadraoBoletoDias === "number"
-        ? Number(camposPdv.prazoPadraoBoletoDias)
-        : defaultsPdv.prazoPadraoBoletoDias,
+      inteiroParaNumero(camposPdv?.prazoPadraoBoletoDias, defaultsPdv.prazoPadraoBoletoDias, 1, 365),
     prazoPadraoCrediarioDias:
-      typeof camposPdv?.prazoPadraoCrediarioDias === "number"
-        ? Number(camposPdv.prazoPadraoCrediarioDias)
-        : defaultsPdv.prazoPadraoCrediarioDias,
+      inteiroParaNumero(camposPdv?.prazoPadraoCrediarioDias, defaultsPdv.prazoPadraoCrediarioDias, 1, 365),
     maxParcelasCartaoCredito:
-      typeof camposPdv?.maxParcelasCartaoCredito === "number"
-        ? Number(camposPdv.maxParcelasCartaoCredito)
-        : defaultsPdv.maxParcelasCartaoCredito,
+      inteiroParaNumero(camposPdv?.maxParcelasCartaoCredito, defaultsPdv.maxParcelasCartaoCredito, 1, 12),
     logoUrl: configuracao?.logoUrl ? String(configuracao.logoUrl) : "",
     prazoGarantiaPadraoDias:
       typeof camposOsGarantia?.prazoGarantiaPadraoDias === "number"

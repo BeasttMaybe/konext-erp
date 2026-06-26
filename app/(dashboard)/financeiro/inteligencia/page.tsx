@@ -23,7 +23,9 @@ import {
 } from "recharts";
 import {
   obterDadosAnaliticos,
+  obterInteligenciaTaxasPagamento,
   type DadosAnaliticosFinanceiros,
+  type DadosInteligenciaTaxasPagamento,
   type FiltroDataAnalitico,
 } from "@/app/actions/financeiro-inteligencia";
 import { Button } from "@/components/ui/button";
@@ -117,6 +119,7 @@ export default function FinanceiroInteligenciaPage() {
   const [dataInicio, setDataInicio] = useState<string>("");
   const [dataFim, setDataFim] = useState<string>("");
   const [dados, setDados] = useState<DadosAnaliticosFinanceiros | null>(null);
+  const [dadosTaxas, setDadosTaxas] = useState<DadosInteligenciaTaxasPagamento | null>(null);
   const [carregando, setCarregando] = useState(false);
 
   const carregarDados = useCallback(async () => {
@@ -126,7 +129,10 @@ export default function FinanceiroInteligenciaPage() {
       const inicio = dataInicio ? new Date(`${dataInicio}T00:00:00`) : undefined;
       const fim = dataFim ? new Date(`${dataFim}T23:59:59`) : undefined;
 
-      const resposta = await obterDadosAnaliticos(filtroData, inicio, fim);
+      const [resposta, respostaTaxas] = await Promise.all([
+        obterDadosAnaliticos(filtroData, inicio, fim),
+        obterInteligenciaTaxasPagamento(filtroData, inicio, fim),
+      ]);
       setDados({
         ...resposta,
         periodo: {
@@ -135,6 +141,7 @@ export default function FinanceiroInteligenciaPage() {
           fim: new Date(resposta.periodo.fim),
         },
       });
+      setDadosTaxas(respostaTaxas);
     } catch {
       toast.error("Nao foi possivel carregar os dados analiticos.");
     } finally {
@@ -183,6 +190,8 @@ export default function FinanceiroInteligenciaPage() {
 
     return dados.indicadores.saldoPrevisto;
   }, [dados]);
+
+  const semDadosTaxas = (dadosTaxas?.quantidadePagamentos ?? 0) === 0;
 
   return (
     <div className="w-full min-h-full flex flex-col bg-transparent">
@@ -307,6 +316,112 @@ export default function FinanceiroInteligenciaPage() {
               </p>
             </Card>
           </div>
+
+          <Card className="border-zinc-200 dark:border-zinc-800 bg-white dark:bg-slate-800 p-5 space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="font-semibold text-slate-900 dark:text-slate-100">Taxas de Pagamento</p>
+                <p className="text-sm text-muted-foreground">
+                  Analise de custo por forma com base em registros de VendaPagamento no periodo.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+              <Card className="border-zinc-200 dark:border-zinc-800 bg-slate-50/70 dark:bg-slate-900/40 p-4">
+                <p className="text-xs text-muted-foreground">Taxas pagas</p>
+                <p className="text-2xl font-bold text-rose-500 mt-1">{formatarMoeda(dadosTaxas?.totalTaxas ?? 0)}</p>
+              </Card>
+              <Card className="border-zinc-200 dark:border-zinc-800 bg-slate-50/70 dark:bg-slate-900/40 p-4">
+                <p className="text-xs text-muted-foreground">Liquido estimado</p>
+                <p className="text-2xl font-bold text-emerald-500 mt-1">{formatarMoeda(dadosTaxas?.totalLiquido ?? 0)}</p>
+              </Card>
+              <Card className="border-zinc-200 dark:border-zinc-800 bg-slate-50/70 dark:bg-slate-900/40 p-4">
+                <p className="text-xs text-muted-foreground">Taxa media</p>
+                <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-1">
+                  {(dadosTaxas?.percentualMedioTaxa ?? 0).toFixed(2)}%
+                </p>
+              </Card>
+              <Card className="border-zinc-200 dark:border-zinc-800 bg-slate-50/70 dark:bg-slate-900/40 p-4">
+                <p className="text-xs text-muted-foreground">Maior custo</p>
+                <p className="text-base font-semibold text-slate-900 dark:text-slate-100 mt-2">
+                  {dadosTaxas?.formaMaiorCusto ?? "Sem dados"}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Pagamentos em cartao: {dadosTaxas?.quantidadePagamentosCartao ?? 0}
+                </p>
+              </Card>
+            </div>
+
+            {semDadosTaxas ? (
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Ainda nao ha pagamentos com taxa registrados no periodo.
+              </p>
+            ) : (
+              <>
+                <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-slate-100/80 dark:bg-slate-900/70 text-slate-600 dark:text-slate-300">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-medium">Forma de pagamento</th>
+                        <th className="px-3 py-2 text-right font-medium">Bruto</th>
+                        <th className="px-3 py-2 text-right font-medium">Taxas</th>
+                        <th className="px-3 py-2 text-right font-medium">Liquido</th>
+                        <th className="px-3 py-2 text-right font-medium">Taxa media</th>
+                        <th className="px-3 py-2 text-right font-medium">Qtd.</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(dadosTaxas?.porForma ?? []).map((linha) => (
+                        <tr key={linha.formaPagamento} className="border-t border-zinc-200 dark:border-zinc-800">
+                          <td className="px-3 py-2 text-slate-800 dark:text-slate-100">{linha.formaPagamento}</td>
+                          <td className="px-3 py-2 text-right">{formatarMoeda(linha.totalBruto)}</td>
+                          <td className="px-3 py-2 text-right text-rose-500">{formatarMoeda(linha.totalTaxas)}</td>
+                          <td className="px-3 py-2 text-right text-emerald-500">{formatarMoeda(linha.totalLiquido)}</td>
+                          <td className="px-3 py-2 text-right">{linha.percentualMedioTaxa.toFixed(2)}%</td>
+                          <td className="px-3 py-2 text-right">{linha.quantidade}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {(dadosTaxas?.cartaoCreditoPorParcela.length ?? 0) > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                      Taxas por parcela no cartao de credito
+                    </p>
+                    <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
+                      <table className="min-w-full text-sm">
+                        <thead className="bg-slate-100/80 dark:bg-slate-900/70 text-slate-600 dark:text-slate-300">
+                          <tr>
+                            <th className="px-3 py-2 text-left font-medium">Parcelas</th>
+                            <th className="px-3 py-2 text-right font-medium">Bruto</th>
+                            <th className="px-3 py-2 text-right font-medium">Taxas</th>
+                            <th className="px-3 py-2 text-right font-medium">Liquido</th>
+                            <th className="px-3 py-2 text-right font-medium">Taxa media</th>
+                            <th className="px-3 py-2 text-right font-medium">Qtd.</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(dadosTaxas?.cartaoCreditoPorParcela ?? []).map((linha) => (
+                            <tr key={linha.parcelas} className="border-t border-zinc-200 dark:border-zinc-800">
+                              <td className="px-3 py-2 text-slate-800 dark:text-slate-100">{linha.parcelas}x</td>
+                              <td className="px-3 py-2 text-right">{formatarMoeda(linha.totalBruto)}</td>
+                              <td className="px-3 py-2 text-right text-rose-500">{formatarMoeda(linha.totalTaxas)}</td>
+                              <td className="px-3 py-2 text-right text-emerald-500">{formatarMoeda(linha.totalLiquido)}</td>
+                              <td className="px-3 py-2 text-right">{linha.percentualMedioTaxa.toFixed(2)}%</td>
+                              <td className="px-3 py-2 text-right">{linha.quantidade}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </Card>
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
             <Card className="border-zinc-200 dark:border-zinc-800 bg-white dark:bg-slate-800 p-5 h-[360px]">

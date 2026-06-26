@@ -39,6 +39,36 @@ export interface DadoPrevisaoCaixa {
   saldoProjetado: number;
 }
 
+export interface DadoTaxaPagamentoPorForma {
+  formaPagamento: string;
+  totalBruto: number;
+  totalTaxas: number;
+  totalLiquido: number;
+  percentualMedioTaxa: number;
+  quantidade: number;
+}
+
+export interface DadoTaxaPagamentoCartaoPorParcela {
+  parcelas: number;
+  totalBruto: number;
+  totalTaxas: number;
+  totalLiquido: number;
+  percentualMedioTaxa: number;
+  quantidade: number;
+}
+
+export interface DadosInteligenciaTaxasPagamento {
+  totalBruto: number;
+  totalTaxas: number;
+  totalLiquido: number;
+  percentualMedioTaxa: number;
+  quantidadePagamentos: number;
+  formaMaiorCusto: string | null;
+  quantidadePagamentosCartao: number;
+  porForma: DadoTaxaPagamentoPorForma[];
+  cartaoCreditoPorParcela: DadoTaxaPagamentoCartaoPorParcela[];
+}
+
 export interface DadosAnaliticosFinanceiros {
   periodo: {
     inicio: Date;
@@ -183,6 +213,167 @@ function montarBucketsBase(inicio: Date, fim: Date, filtro: FiltroDataAnalitico)
 
 function arredondarPercentual(valor: number): number {
   return Number(valor.toFixed(2));
+}
+
+function rotuloFormaPagamento(forma: string): string {
+  const mapa: Record<string, string> = {
+    PIX: "PIX",
+    DINHEIRO: "Dinheiro",
+    CARTAO_DEBITO: "Cartao de Debito",
+    CARTAO_CREDITO: "Cartao de Credito",
+    CARTAO_CREDITO_AVISTA: "Cartao de Credito",
+    CARTAO_CREDITO_PARCELADO: "Cartao de Credito",
+    BOLETO: "Boleto",
+    CREDIARIO: "Crediario",
+  };
+
+  return mapa[forma] ?? forma.replaceAll("_", " ");
+}
+
+export async function obterInteligenciaTaxasPagamento(
+  filtroData: FiltroDataAnalitico,
+  dataInicio?: Date,
+  dataFim?: Date
+): Promise<DadosInteligenciaTaxasPagamento> {
+  await exigirSessao();
+  const { inicio, fim } = obterIntervaloDoFiltro(filtroData, dataInicio, dataFim);
+
+  const pagamentos = await prisma.vendaPagamento.findMany({
+    where: {
+      venda: {
+        criadoEm: {
+          gte: inicio,
+          lte: fim,
+        },
+      },
+    },
+    select: {
+      formaPagamento: true,
+      valorBruto: true,
+      valorTaxa: true,
+      valorLiquido: true,
+      percentualTaxa: true,
+      parcelas: true,
+    },
+  });
+
+  if (pagamentos.length === 0) {
+    return {
+      totalBruto: 0,
+      totalTaxas: 0,
+      totalLiquido: 0,
+      percentualMedioTaxa: 0,
+      quantidadePagamentos: 0,
+      formaMaiorCusto: null,
+      quantidadePagamentosCartao: 0,
+      porForma: [],
+      cartaoCreditoPorParcela: [],
+    };
+  }
+
+  const mapaPorForma = new Map<string, { totalBrutoCentavos: number; totalTaxasCentavos: number; totalLiquidoCentavos: number; quantidade: number }>();
+  const mapaCreditoPorParcela = new Map<number, { totalBrutoCentavos: number; totalTaxasCentavos: number; totalLiquidoCentavos: number; quantidade: number }>();
+
+  let totalBrutoCentavos = 0;
+  let totalTaxasCentavos = 0;
+  let totalLiquidoCentavos = 0;
+  let quantidadePagamentosCartao = 0;
+
+  for (const pagamento of pagamentos) {
+    const forma = String(pagamento.formaPagamento ?? "NAO_INFORMADO");
+    const brutoCentavos = paraCentavos(Number(pagamento.valorBruto ?? 0));
+    const taxaCentavos = paraCentavos(Number(pagamento.valorTaxa ?? 0));
+    const liquidoCentavos = paraCentavos(Number(pagamento.valorLiquido ?? 0));
+
+    totalBrutoCentavos += brutoCentavos;
+    totalTaxasCentavos += taxaCentavos;
+    totalLiquidoCentavos += liquidoCentavos;
+
+    const formaAtual = mapaPorForma.get(forma) ?? {
+      totalBrutoCentavos: 0,
+      totalTaxasCentavos: 0,
+      totalLiquidoCentavos: 0,
+      quantidade: 0,
+    };
+    formaAtual.totalBrutoCentavos += brutoCentavos;
+    formaAtual.totalTaxasCentavos += taxaCentavos;
+    formaAtual.totalLiquidoCentavos += liquidoCentavos;
+    formaAtual.quantidade += 1;
+    mapaPorForma.set(forma, formaAtual);
+
+    const ehCartaoCredito =
+      forma === "CARTAO_CREDITO" ||
+      forma === "CARTAO_CREDITO_AVISTA" ||
+      forma === "CARTAO_CREDITO_PARCELADO";
+
+    if (ehCartaoCredito) {
+      quantidadePagamentosCartao += 1;
+      const parcelas = Math.min(12, Math.max(1, Math.trunc(Number(pagamento.parcelas ?? 1))));
+      const parcelaAtual = mapaCreditoPorParcela.get(parcelas) ?? {
+        totalBrutoCentavos: 0,
+        totalTaxasCentavos: 0,
+        totalLiquidoCentavos: 0,
+        quantidade: 0,
+      };
+      parcelaAtual.totalBrutoCentavos += brutoCentavos;
+      parcelaAtual.totalTaxasCentavos += taxaCentavos;
+      parcelaAtual.totalLiquidoCentavos += liquidoCentavos;
+      parcelaAtual.quantidade += 1;
+      mapaCreditoPorParcela.set(parcelas, parcelaAtual);
+    }
+  }
+
+  const porForma: DadoTaxaPagamentoPorForma[] = Array.from(mapaPorForma.entries())
+    .map(([formaPagamento, agregado]) => {
+      const bruto = paraMoeda(agregado.totalBrutoCentavos);
+      const taxas = paraMoeda(agregado.totalTaxasCentavos);
+      const liquido = paraMoeda(agregado.totalLiquidoCentavos);
+      const percentualMedioTaxa = bruto > 0 ? arredondarPercentual((taxas / bruto) * 100) : 0;
+
+      return {
+        formaPagamento: rotuloFormaPagamento(formaPagamento),
+        totalBruto: bruto,
+        totalTaxas: taxas,
+        totalLiquido: liquido,
+        percentualMedioTaxa,
+        quantidade: agregado.quantidade,
+      };
+    })
+    .sort((a, b) => b.totalTaxas - a.totalTaxas);
+
+  const cartaoCreditoPorParcela: DadoTaxaPagamentoCartaoPorParcela[] = Array.from(mapaCreditoPorParcela.entries())
+    .map(([parcelas, agregado]) => {
+      const bruto = paraMoeda(agregado.totalBrutoCentavos);
+      const taxas = paraMoeda(agregado.totalTaxasCentavos);
+      const liquido = paraMoeda(agregado.totalLiquidoCentavos);
+      const percentualMedioTaxa = bruto > 0 ? arredondarPercentual((taxas / bruto) * 100) : 0;
+
+      return {
+        parcelas,
+        totalBruto: bruto,
+        totalTaxas: taxas,
+        totalLiquido: liquido,
+        percentualMedioTaxa,
+        quantidade: agregado.quantidade,
+      };
+    })
+    .sort((a, b) => a.parcelas - b.parcelas);
+
+  const totalBruto = paraMoeda(totalBrutoCentavos);
+  const totalTaxas = paraMoeda(totalTaxasCentavos);
+  const totalLiquido = paraMoeda(totalLiquidoCentavos);
+
+  return {
+    totalBruto,
+    totalTaxas,
+    totalLiquido,
+    percentualMedioTaxa: totalBruto > 0 ? arredondarPercentual((totalTaxas / totalBruto) * 100) : 0,
+    quantidadePagamentos: pagamentos.length,
+    formaMaiorCusto: porForma[0]?.formaPagamento ?? null,
+    quantidadePagamentosCartao,
+    porForma,
+    cartaoCreditoPorParcela,
+  };
 }
 
 export async function obterDadosAnaliticos(
