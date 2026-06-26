@@ -17,6 +17,14 @@ export interface EntradaPagamentoPdv {
   diasVencimento?: number;
 }
 
+export interface ParametrosCalculoPagamentoPdv {
+  taxaCartaoDebitoPercentual?: number;
+  taxaCartaoCreditoPorParcela?: Partial<Record<1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12, number>>;
+  maxParcelasCartaoCredito?: number;
+  prazoPadraoBoletoDias?: number;
+  prazoPadraoCrediarioDias?: number;
+}
+
 export interface ResultadoPagamentoPdv {
   formaPagamento: FormaPagamentoPdv;
   valorBruto: number;
@@ -125,9 +133,29 @@ export function obterConfigPagamento(formaPagamento: FormaPagamentoPdv): ConfigP
 
 export function calcularPercentualTaxa(
   formaPagamento: FormaPagamentoPdv,
-  parcelas: number
+  parcelas: number,
+  parametros?: ParametrosCalculoPagamentoPdv
 ): number {
+  const taxaDebitoConfig = Number(parametros?.taxaCartaoDebitoPercentual);
+  const taxaCreditoMap = parametros?.taxaCartaoCreditoPorParcela;
   const config = obterConfigPagamento(formaPagamento);
+
+  if (formaPagamento === "CARTAO_DEBITO" && Number.isFinite(taxaDebitoConfig) && taxaDebitoConfig >= 0) {
+    return Number(taxaDebitoConfig.toFixed(2));
+  }
+
+  if (
+    (formaPagamento === "CARTAO_CREDITO" ||
+      formaPagamento === "CARTAO_CREDITO_AVISTA" ||
+      formaPagamento === "CARTAO_CREDITO_PARCELADO") &&
+    taxaCreditoMap
+  ) {
+    const parcela = Math.min(12, Math.max(1, Math.trunc(parcelas)));
+    const taxaConfig = Number(taxaCreditoMap[parcela as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12]);
+    if (Number.isFinite(taxaConfig) && taxaConfig >= 0) {
+      return Number(taxaConfig.toFixed(2));
+    }
+  }
 
   if (formaPagamento === "CARTAO_CREDITO_PARCELADO") {
     const parcelasNorm = Math.max(1, parcelas);
@@ -137,17 +165,30 @@ export function calcularPercentualTaxa(
   return config.percentualTaxaBase;
 }
 
-export function calcularPagamentoPdv(input: EntradaPagamentoPdv): ResultadoPagamentoPdv {
+export function calcularPagamentoPdv(
+  input: EntradaPagamentoPdv,
+  parametros?: ParametrosCalculoPagamentoPdv
+): ResultadoPagamentoPdv {
   const config = obterConfigPagamento(input.formaPagamento);
   const valorBruto = Math.max(0, Number(input.valorBruto || 0));
-  const parcelas = config.permiteParcelas ? Math.max(1, Math.trunc(Number(input.parcelas || 1))) : 1;
-  const percentualTaxa = calcularPercentualTaxa(input.formaPagamento, parcelas);
+  const maxParcelasCredito = Math.min(12, Math.max(1, Math.trunc(Number(parametros?.maxParcelasCartaoCredito ?? 12))));
+  const parcelas = config.permiteParcelas
+    ? Math.min(maxParcelasCredito, Math.max(1, Math.trunc(Number(input.parcelas || 1))))
+    : 1;
+  const percentualTaxa = calcularPercentualTaxa(input.formaPagamento, parcelas, parametros);
   const valorBrutoCentavos = paraCentavos(valorBruto);
   const valorTaxaCentavos = Math.round((valorBrutoCentavos * percentualTaxa) / 100);
   const valorLiquidoCentavos = valorBrutoCentavos - valorTaxaCentavos;
 
+  const prazoPadrao =
+    input.formaPagamento === "BOLETO"
+      ? Math.max(1, Math.trunc(Number(parametros?.prazoPadraoBoletoDias ?? 7)))
+      : input.formaPagamento === "CREDIARIO"
+        ? Math.max(1, Math.trunc(Number(parametros?.prazoPadraoCrediarioDias ?? 30)))
+        : 0;
+
   const diasVencimento = config.exigePrazo
-    ? Math.max(0, Math.trunc(Number(input.diasVencimento || 0)))
+    ? Math.max(1, Math.trunc(Number(input.diasVencimento || prazoPadrao || 1)))
     : null;
 
   const dataVencimento = diasVencimento !== null

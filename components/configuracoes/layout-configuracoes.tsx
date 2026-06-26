@@ -74,7 +74,8 @@ export function LayoutConfiguracoes({ defaultValues }: PropsLayoutConfiguracoes)
     secaoAtiva === "empresa" ||
     secaoAtiva === "documentos" ||
     secaoAtiva === "os" ||
-    secaoAtiva === "garantias";
+    secaoAtiva === "garantias" ||
+    secaoAtiva === "pdv-vendas";
 
   const descricaoSecaoAtiva = useMemo(() => {
     return SECOES_CONFIGURACOES.find((secao) => secao.id === secaoAtiva)?.descricao ?? "";
@@ -192,7 +193,14 @@ export function LayoutConfiguracoes({ defaultValues }: PropsLayoutConfiguracoes)
           />
         );
       case "pdv-vendas":
-        return <PainelPdv />;
+        return (
+          <PainelPdv
+            register={register}
+            control={control}
+            salvando={salvando}
+            configuracaoAtual={configuracaoAtual}
+          />
+        );
       case "financeiro":
         return <PainelFinanceiro />;
       case "estoque":
@@ -241,7 +249,7 @@ export function LayoutConfiguracoes({ defaultValues }: PropsLayoutConfiguracoes)
               ? formState.isDirty
                 ? "Há alterações pendentes nesta etapa."
                 : "Nenhuma alteração pendente no formulário atual."
-              : "Nesta etapa, apenas Empresa e Documentos possuem persistência ativa."}
+              : "Nesta etapa não há persistência ativa."}
           </p>
           <Button
             type="submit"
@@ -256,6 +264,8 @@ export function LayoutConfiguracoes({ defaultValues }: PropsLayoutConfiguracoes)
                   ? "Salvar regras de OS"
                   : secaoAtiva === "garantias"
                     ? "Salvar regras de garantia"
+                    : secaoAtiva === "pdv-vendas"
+                      ? "Salvar regras de PDV"
                     : "Salvar empresa"}
           </Button>
         </div>

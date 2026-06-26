@@ -67,11 +67,13 @@ import { useCartStore, ProdutoPDV } from "@/store/useCartStore";
 import {
   listarClientesPDV,
   listarProdutosPDV,
+  obterConfiguracaoPagamentosPDV,
   obterPedidoOSParaPDV,
   processarVendaComOSNoPDV,
   type PedidoOSPDV,
   processarVenda,
   type ClientePDV,
+  type ConfiguracaoPagamentosPDV,
 } from "@/app/actions/pdv";
 import { obterResumoCaixaDiario, type ResumoCaixaDiario } from "@/app/actions/caixa";
 import { META_DIARIA_REAIS } from "@/types/fechamento-caixa";
@@ -172,6 +174,8 @@ function PDVPageConteudo() {
   const [abrindoCaixa, setAbrindoCaixa] = useState(false);
   const [fechandoCaixa, setFechandoCaixa] = useState(false);
   const [resumoCaixaDiario, setResumoCaixaDiario] = useState<ResumoCaixaDiario | null>(null);
+  const [configuracaoPagamentosPdv, setConfiguracaoPagamentosPdv] =
+    useState<ConfiguracaoPagamentosPDV | null>(null);
   const [carregandoResumoCaixa, setCarregandoResumoCaixa] = useState(false);
   const [precosEmEdicao, setPrecosEmEdicao] = useState<Record<string, string>>({});
   const {
@@ -344,6 +348,27 @@ function PDVPageConteudo() {
       ativo = false;
     };
   }, [sheetResumoAberto]);
+
+  useEffect(() => {
+    let ativo = true;
+
+    const carregarConfiguracoesPdv = async () => {
+      try {
+        const config = await obterConfiguracaoPagamentosPDV();
+        if (!ativo) return;
+        setConfiguracaoPagamentosPdv(config);
+      } catch {
+        if (!ativo) return;
+        toast.error("Nao foi possivel carregar as configuracoes de pagamento do PDV.");
+      }
+    };
+
+    carregarConfiguracoesPdv();
+
+    return () => {
+      ativo = false;
+    };
+  }, []);
 
   const resumo = getResumo();
   const totalGeral = (pedidoOS?.valor ?? 0) + resumo.total;
@@ -886,7 +911,17 @@ function PDVPageConteudo() {
                       min={0}
                       placeholder="Desconto"
                       value={desconto || ""}
-                      onChange={(e) => setDesconto(Number(e.target.value) || 0)}
+                      disabled={configuracaoPagamentosPdv ? !configuracaoPagamentosPdv.permitirDescontoPDV : false}
+                      onChange={(e) => {
+                        const valorDigitado = Number(e.target.value) || 0;
+                        const limitePercentual =
+                          configuracaoPagamentosPdv?.descontoMaximoPDVPercentual ?? 100;
+                        const valorAplicado =
+                          tipoDesconto === "PERCENTUAL"
+                            ? Math.min(limitePercentual, Math.max(0, valorDigitado))
+                            : Math.max(0, valorDigitado);
+                        setDesconto(valorAplicado);
+                      }}
                       className="flex-1"
                     />
                     <Select
@@ -941,6 +976,7 @@ function PDVPageConteudo() {
       <ModalPagamento
         aberto={modalPagamentoAberto}
         total={totalGeral}
+        configuracaoPagamento={configuracaoPagamentosPdv}
         aoFechar={() => setModalPagamentoAberto(false)}
         aoConfirmar={aoConfirmarPagamento}
         aoNovaVenda={aoNovaVenda}

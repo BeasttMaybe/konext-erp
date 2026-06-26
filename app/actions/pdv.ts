@@ -9,6 +9,11 @@ import {
   obterDefaultsConfiguracaoOsGarantias,
 } from "@/lib/configuracoes-os-garantias";
 import {
+  normalizarConfiguracaoPdv,
+  obterDefaultsConfiguracaoPdv,
+  type ConfiguracaoPdvPagamentos,
+} from "@/lib/configuracoes-pdv";
+import {
   calcularPagamentoPdv,
   ehPagamentoPrazo,
   type EntradaPagamentoPdv,
@@ -61,6 +66,193 @@ export interface OrderServicePdvItem {
 export type FormaPagamento = FormaPagamentoPdv;
 
 export interface PagamentoPdvInput extends EntradaPagamentoPdv {}
+
+export type ConfiguracaoPagamentosPDV = ConfiguracaoPdvPagamentos;
+
+type ConfiguracaoPdvRaw = Partial<ConfiguracaoPdvPagamentos>;
+
+function obterParametrosCalculoPdv(configuracao: ConfiguracaoPdvPagamentos) {
+  return {
+    taxaCartaoDebitoPercentual: configuracao.taxaCartaoDebitoPercentual,
+    taxaCartaoCreditoPorParcela: {
+      1: configuracao.taxaCartaoCredito1xPercentual,
+      2: configuracao.taxaCartaoCredito2xPercentual,
+      3: configuracao.taxaCartaoCredito3xPercentual,
+      4: configuracao.taxaCartaoCredito4xPercentual,
+      5: configuracao.taxaCartaoCredito5xPercentual,
+      6: configuracao.taxaCartaoCredito6xPercentual,
+      7: configuracao.taxaCartaoCredito7xPercentual,
+      8: configuracao.taxaCartaoCredito8xPercentual,
+      9: configuracao.taxaCartaoCredito9xPercentual,
+      10: configuracao.taxaCartaoCredito10xPercentual,
+      11: configuracao.taxaCartaoCredito11xPercentual,
+      12: configuracao.taxaCartaoCredito12xPercentual,
+    },
+    maxParcelasCartaoCredito: configuracao.maxParcelasCartaoCredito,
+    prazoPadraoBoletoDias: configuracao.prazoPadraoBoletoDias,
+    prazoPadraoCrediarioDias: configuracao.prazoPadraoCrediarioDias,
+  };
+}
+
+function formaPagamentoHabilitada(
+  formaPagamento: FormaPagamentoPdv,
+  configuracao: ConfiguracaoPdvPagamentos
+): boolean {
+  if (formaPagamento === "PIX" || formaPagamento === "TED") {
+    return configuracao.habilitarPix;
+  }
+
+  if (formaPagamento === "DINHEIRO") {
+    return configuracao.habilitarDinheiro;
+  }
+
+  if (
+    formaPagamento === "CARTAO_CREDITO" ||
+    formaPagamento === "CARTAO_CREDITO_AVISTA" ||
+    formaPagamento === "CARTAO_CREDITO_PARCELADO"
+  ) {
+    return configuracao.habilitarCartaoCredito;
+  }
+
+  if (formaPagamento === "CARTAO_DEBITO") {
+    return configuracao.habilitarCartaoDebito;
+  }
+
+  if (formaPagamento === "BOLETO") {
+    return configuracao.habilitarBoleto;
+  }
+
+  if (formaPagamento === "CREDIARIO") {
+    return configuracao.habilitarCrediario;
+  }
+
+  if (formaPagamento === "EMPENHO_PUBLICO") {
+    return true;
+  }
+
+  return true;
+}
+
+function validarPagamentosConformeConfiguracao(
+  pagamentos: PagamentoPdvInput[],
+  configuracao: ConfiguracaoPdvPagamentos
+) {
+  if (!configuracao.permitirPagamentoMisto && pagamentos.length > 1) {
+    throw new Error("Pagamento misto desabilitado nas configuracoes do PDV.");
+  }
+
+  for (const pagamento of pagamentos) {
+    if (!formaPagamentoHabilitada(pagamento.formaPagamento, configuracao)) {
+      throw new Error(`Forma de pagamento ${pagamento.formaPagamento} desabilitada nas configuracoes do PDV.`);
+    }
+
+    if (
+      (pagamento.formaPagamento === "CARTAO_CREDITO" ||
+        pagamento.formaPagamento === "CARTAO_CREDITO_PARCELADO") &&
+      Number(pagamento.parcelas ?? 1) > configuracao.maxParcelasCartaoCredito
+    ) {
+      throw new Error(
+        `Parcelamento acima do limite configurado (${configuracao.maxParcelasCartaoCredito}x).`
+      );
+    }
+  }
+
+  if (!configuracao.permitirVendaFiado && pagamentos.some((p) => p.formaPagamento === "CREDIARIO")) {
+    throw new Error("Crediario desabilitado para vendas fiado nas configuracoes do PDV.");
+  }
+}
+
+async function obterConfiguracaoPagamentosInterna(): Promise<ConfiguracaoPdvPagamentos> {
+  const defaults = obterDefaultsConfiguracaoPdv();
+  const prismaAny = prisma as typeof prisma & {
+    configuracao?: { findFirst?: (args: unknown) => Promise<Record<string, unknown> | null> };
+    Configuracao?: { findFirst?: (args: unknown) => Promise<Record<string, unknown> | null> };
+  };
+  const configuracaoDelegate = prismaAny.configuracao ?? prismaAny.Configuracao;
+
+  try {
+    const configuracao = await configuracaoDelegate?.findFirst?.({
+      orderBy: { criadoEm: "asc" },
+      select: {
+        permitirPagamentoMisto: true,
+        permitirDescontoPDV: true,
+        descontoMaximoPDVPercentual: true,
+        permitirVendaFiado: true,
+        habilitarPix: true,
+        habilitarDinheiro: true,
+        habilitarCartaoDebito: true,
+        habilitarCartaoCredito: true,
+        habilitarBoleto: true,
+        habilitarCrediario: true,
+        taxaCartaoDebitoPercentual: true,
+        taxaCartaoCredito1xPercentual: true,
+        taxaCartaoCredito2xPercentual: true,
+        taxaCartaoCredito3xPercentual: true,
+        taxaCartaoCredito4xPercentual: true,
+        taxaCartaoCredito5xPercentual: true,
+        taxaCartaoCredito6xPercentual: true,
+        taxaCartaoCredito7xPercentual: true,
+        taxaCartaoCredito8xPercentual: true,
+        taxaCartaoCredito9xPercentual: true,
+        taxaCartaoCredito10xPercentual: true,
+        taxaCartaoCredito11xPercentual: true,
+        taxaCartaoCredito12xPercentual: true,
+        prazoPadraoBoletoDias: true,
+        prazoPadraoCrediarioDias: true,
+        maxParcelasCartaoCredito: true,
+      },
+    });
+
+    return normalizarConfiguracaoPdv((configuracao ?? defaults) as ConfiguracaoPdvRaw);
+  } catch (erro) {
+    if (!mensagemIndicaRuntimeLegadoConfiguracao(erro)) {
+      throw erro;
+    }
+
+    try {
+      const rows = await prisma.$queryRaw<Array<ConfiguracaoPdvRaw>>`
+        SELECT
+          "permitirPagamentoMisto",
+          "permitirDescontoPDV",
+          "descontoMaximoPDVPercentual",
+          "permitirVendaFiado",
+          "habilitarPix",
+          "habilitarDinheiro",
+          "habilitarCartaoDebito",
+          "habilitarCartaoCredito",
+          "habilitarBoleto",
+          "habilitarCrediario",
+          "taxaCartaoDebitoPercentual",
+          "taxaCartaoCredito1xPercentual",
+          "taxaCartaoCredito2xPercentual",
+          "taxaCartaoCredito3xPercentual",
+          "taxaCartaoCredito4xPercentual",
+          "taxaCartaoCredito5xPercentual",
+          "taxaCartaoCredito6xPercentual",
+          "taxaCartaoCredito7xPercentual",
+          "taxaCartaoCredito8xPercentual",
+          "taxaCartaoCredito9xPercentual",
+          "taxaCartaoCredito10xPercentual",
+          "taxaCartaoCredito11xPercentual",
+          "taxaCartaoCredito12xPercentual",
+          "prazoPadraoBoletoDias",
+          "prazoPadraoCrediarioDias",
+          "maxParcelasCartaoCredito"
+        FROM "Configuracao"
+        ORDER BY "criadoEm" ASC
+        LIMIT 1
+      `;
+
+      return normalizarConfiguracaoPdv((rows[0] ?? defaults) as ConfiguracaoPdvRaw);
+    } catch {
+      return defaults;
+    }
+  }
+}
+
+export async function obterConfiguracaoPagamentosPDV(): Promise<ConfiguracaoPagamentosPDV> {
+  return obterConfiguracaoPagamentosInterna();
+}
 
 const paraCentavos = (valor: number) => Math.round((valor + Number.EPSILON) * 100);
 const paraMoeda = (centavos: number) => centavos / 100;
@@ -463,13 +655,17 @@ const mapearFormaPagamento = (
 };
 
 function normalizarPagamentosEntrada(
-  pagamentos: PagamentoPdvInput[]
+  pagamentos: PagamentoPdvInput[],
+  configuracaoPdv: ConfiguracaoPdvPagamentos
 ): ResultadoPagamentoPdv[] {
   if (!Array.isArray(pagamentos) || pagamentos.length === 0) {
     throw new Error("Informe ao menos uma forma de pagamento para concluir a venda.");
   }
 
-  return pagamentos.map((pagamento) => calcularPagamentoPdv(pagamento));
+  validarPagamentosConformeConfiguracao(pagamentos, configuracaoPdv);
+
+  const parametrosCalculo = obterParametrosCalculoPdv(configuracaoPdv);
+  return pagamentos.map((pagamento) => calcularPagamentoPdv(pagamento, parametrosCalculo));
 }
 
 function validarTotalPagamentos(
@@ -586,7 +782,8 @@ export async function processarVenda(
   }
 
   const totalCentavos = paraCentavos(total);
-  const pagamentosProcessados = normalizarPagamentosEntrada(pagamentos);
+  const configuracaoPdv = await obterConfiguracaoPagamentosInterna();
+  const pagamentosProcessados = normalizarPagamentosEntrada(pagamentos, configuracaoPdv);
   validarTotalPagamentos(pagamentosProcessados, totalCentavos);
   const formaPagamentoPrincipal = obterFormaPrincipal(pagamentosProcessados);
   const formaPagamentoBanco = mapearFormaPagamento(formaPagamentoPrincipal);
@@ -1001,7 +1198,8 @@ export async function processarVendaComOSNoPDV(
   }, 0);
   const totalOSCentavos = paraCentavos(pedido.valor);
   const totalVendaCentavos = totalOSCentavos + totalProdutosCentavos;
-  const pagamentosProcessados = normalizarPagamentosEntrada(pagamentos);
+  const configuracaoPdv = await obterConfiguracaoPagamentosInterna();
+  const pagamentosProcessados = normalizarPagamentosEntrada(pagamentos, configuracaoPdv);
   validarTotalPagamentos(pagamentosProcessados, totalVendaCentavos);
   const formaPagamentoPrincipal = obterFormaPrincipal(pagamentosProcessados);
   const formaPagamentoBanco = mapearFormaPagamento(formaPagamentoPrincipal);
@@ -1174,37 +1372,36 @@ export async function processarVendaComOSNoPDV(
           dataVencimento: pagamento.dataVencimento,
         });
 
-        const statusConta = ehPagamentoPrazo(pagamento.formaPagamento) ? "PENDENTE" : "RECEBIDO";
-
-        await criarContaReceberComFallbackVendaPagamento(
-          contaReceberDelegate,
-          {
-            descricao: `OS #${pedido.numeroOs} - ${pedido.aparelho} (+itens PDV) - ${pagamento.formaPagamento}`,
-            valor: pagamento.valorBruto,
-            cliente: {
-              connect: {
-                id: pedido.clienteId,
+        if (ehPagamentoPrazo(pagamento.formaPagamento)) {
+          await criarContaReceberComFallbackVendaPagamento(
+            contaReceberDelegate,
+            {
+              descricao: `OS #${pedido.numeroOs} - ${pedido.aparelho} (+itens PDV) - ${pagamento.formaPagamento}`,
+              valor: pagamento.valorBruto,
+              cliente: {
+                connect: {
+                  id: pedido.clienteId,
+                },
               },
-            },
-            ordemServico: {
-              connect: {
-                id: pedido.osId,
+              ordemServico: {
+                connect: {
+                  id: pedido.osId,
+                },
               },
-            },
-            venda: {
-              connect: {
-                id: vendaId,
+              venda: {
+                connect: {
+                  id: vendaId,
+                },
               },
+              dataVencimento: pagamento.dataVencimento ?? new Date(),
+              status: "PENDENTE",
+              formaRecebimento: formaPagamentoAtual,
+              origem: "ORDEM_SERVICO",
+              notaFiscalEmitida: false,
             },
-            dataVencimento: pagamento.dataVencimento ?? new Date(),
-            dataRecebimento: statusConta === "RECEBIDO" ? new Date() : null,
-            status: statusConta,
-            formaRecebimento: formaPagamentoAtual,
-            origem: "ORDEM_SERVICO",
-            notaFiscalEmitida: false,
-          },
-          vendaPagamentoId
-        );
+            vendaPagamentoId
+          );
+        }
       }
 
       await createSalesHistoryMirror(tx, {

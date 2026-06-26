@@ -35,17 +35,8 @@ import {
   type EntradaPagamentoPdv,
   type FormaPagamentoPdv,
 } from "@/lib/pdv/pagamentos";
-
-const FORMAS_PAGAMENTO_VISIVEIS = new Set<FormaPagamentoPdv>([
-  "PIX",
-  "TED",
-  "DINHEIRO",
-  "CARTAO_DEBITO",
-  "CARTAO_CREDITO",
-  "BOLETO",
-  "CREDIARIO",
-  "EMPENHO_PUBLICO",
-]);
+import { obterDefaultsConfiguracaoPdv, type ConfiguracaoPdvPagamentos } from "@/lib/configuracoes-pdv";
+import type { ConfiguracaoPagamentosPDV } from "@/app/actions/pdv";
 
 export interface DadosPagamento {
   pagamentos: EntradaPagamentoPdv[];
@@ -149,6 +140,7 @@ function novaLinhaPagamento(total: number): LinhaPagamento {
 interface PropsModalPagamento {
   aberto: boolean;
   total: number;
+  configuracaoPagamento: ConfiguracaoPagamentosPDV | null;
   aoFechar: () => void;
   aoConfirmar: (
     dados: DadosPagamento
@@ -159,10 +151,75 @@ interface PropsModalPagamento {
 export function ModalPagamento({
   aberto,
   total,
+  configuracaoPagamento,
   aoFechar,
   aoConfirmar,
   aoNovaVenda,
 }: PropsModalPagamento) {
+  const configuracaoAtiva = useMemo<ConfiguracaoPdvPagamentos>(() => {
+    return configuracaoPagamento ?? obterDefaultsConfiguracaoPdv();
+  }, [configuracaoPagamento]);
+
+  const formasPagamentoDisponiveis = useMemo(() => {
+    return CONFIG_PAGAMENTOS_PDV.filter((opcao) => {
+      if (opcao.formaPagamento === "PIX" || opcao.formaPagamento === "TED") {
+        return configuracaoAtiva.habilitarPix;
+      }
+
+      if (opcao.formaPagamento === "DINHEIRO") {
+        return configuracaoAtiva.habilitarDinheiro;
+      }
+
+      if (
+        opcao.formaPagamento === "CARTAO_CREDITO" ||
+        opcao.formaPagamento === "CARTAO_CREDITO_AVISTA" ||
+        opcao.formaPagamento === "CARTAO_CREDITO_PARCELADO"
+      ) {
+        return configuracaoAtiva.habilitarCartaoCredito;
+      }
+
+      if (opcao.formaPagamento === "CARTAO_DEBITO") {
+        return configuracaoAtiva.habilitarCartaoDebito;
+      }
+
+      if (opcao.formaPagamento === "BOLETO") {
+        return configuracaoAtiva.habilitarBoleto;
+      }
+
+      if (opcao.formaPagamento === "CREDIARIO") {
+        return configuracaoAtiva.habilitarCrediario;
+      }
+
+      return true;
+    });
+  }, [configuracaoAtiva]);
+
+  const formaPadrao = formasPagamentoDisponiveis[0]?.formaPagamento ?? "DINHEIRO";
+
+  const parametrosCalculo = useMemo(
+    () => ({
+      taxaCartaoDebitoPercentual: configuracaoAtiva.taxaCartaoDebitoPercentual,
+      taxaCartaoCreditoPorParcela: {
+        1: configuracaoAtiva.taxaCartaoCredito1xPercentual,
+        2: configuracaoAtiva.taxaCartaoCredito2xPercentual,
+        3: configuracaoAtiva.taxaCartaoCredito3xPercentual,
+        4: configuracaoAtiva.taxaCartaoCredito4xPercentual,
+        5: configuracaoAtiva.taxaCartaoCredito5xPercentual,
+        6: configuracaoAtiva.taxaCartaoCredito6xPercentual,
+        7: configuracaoAtiva.taxaCartaoCredito7xPercentual,
+        8: configuracaoAtiva.taxaCartaoCredito8xPercentual,
+        9: configuracaoAtiva.taxaCartaoCredito9xPercentual,
+        10: configuracaoAtiva.taxaCartaoCredito10xPercentual,
+        11: configuracaoAtiva.taxaCartaoCredito11xPercentual,
+        12: configuracaoAtiva.taxaCartaoCredito12xPercentual,
+      },
+      maxParcelasCartaoCredito: configuracaoAtiva.maxParcelasCartaoCredito,
+      prazoPadraoBoletoDias: configuracaoAtiva.prazoPadraoBoletoDias,
+      prazoPadraoCrediarioDias: configuracaoAtiva.prazoPadraoCrediarioDias,
+    }),
+    [configuracaoAtiva]
+  );
+
   const [linhas, setLinhas] = useState<LinhaPagamento[]>([novaLinhaPagamento(total)]);
   const [valorRecebidoDinheiro, setValorRecebidoDinheiro] = useState<number>(0);
   const [processando, setProcessando] = useState(false);
@@ -185,6 +242,60 @@ export function ModalPagamento({
     setValorRecebidoEmEdicao("");
   }, [aberto, total]);
 
+  useEffect(() => {
+    if (!aberto) return;
+
+    const formasAtivas = new Set(formasPagamentoDisponiveis.map((item) => item.formaPagamento));
+
+    setLinhas((estadoAtual) => {
+      let proximo = estadoAtual
+        .filter((linha, index) => {
+          if (index === 0) return true;
+          return configuracaoAtiva.permitirPagamentoMisto;
+        })
+        .map((linha) => {
+          if (formasAtivas.has(linha.formaPagamento)) {
+            return linha;
+          }
+
+          return {
+            ...linha,
+            formaPagamento: formaPadrao,
+            parcelas: 1,
+            diasVencimento:
+              formaPadrao === "BOLETO"
+                ? configuracaoAtiva.prazoPadraoBoletoDias
+                : formaPadrao === "CREDIARIO"
+                  ? configuracaoAtiva.prazoPadraoCrediarioDias
+                  : 0,
+          };
+        });
+
+      if (proximo.length === 0) {
+        proximo = [
+          {
+            id: crypto.randomUUID(),
+            formaPagamento: formaPadrao,
+            valorBruto: total,
+            parcelas: 1,
+            diasVencimento:
+              formaPadrao === "BOLETO"
+                ? configuracaoAtiva.prazoPadraoBoletoDias
+                : formaPadrao === "CREDIARIO"
+                  ? configuracaoAtiva.prazoPadraoCrediarioDias
+                  : 0,
+          },
+        ];
+      }
+
+      if (!configuracaoAtiva.permitirPagamentoMisto && proximo.length > 1) {
+        proximo = [proximo[0]];
+      }
+
+      return distribuirValoresPagamentos(proximo, total);
+    });
+  }, [aberto, configuracaoAtiva, formasPagamentoDisponiveis, formaPadrao, total]);
+
   const pagamentosCalculados = useMemo(() => {
     return linhas.map((linha) =>
       calcularPagamentoPdv({
@@ -192,9 +303,9 @@ export function ModalPagamento({
         valorBruto: linha.valorBruto,
         parcelas: linha.parcelas,
         diasVencimento: linha.diasVencimento,
-      })
+      }, parametrosCalculo)
     );
-  }, [linhas]);
+  }, [linhas, parametrosCalculo]);
 
   const totalInformado = useMemo(() => {
     return pagamentosCalculados.reduce((acc, item) => acc + paraCentavos(item.valorBruto), 0) / 100;
@@ -311,16 +422,23 @@ export function ModalPagamento({
   };
 
   const adicionarLinha = () => {
+    if (!configuracaoAtiva.permitirPagamentoMisto) return;
+
     setLinhas((estadoAtual) =>
       distribuirValoresPagamentos(
         [
           ...estadoAtual,
           {
             id: crypto.randomUUID(),
-            formaPagamento: "PIX",
+            formaPagamento: formaPadrao,
             valorBruto: 0,
             parcelas: 1,
-            diasVencimento: 0,
+            diasVencimento:
+              formaPadrao === "BOLETO"
+                ? configuracaoAtiva.prazoPadraoBoletoDias
+                : formaPadrao === "CREDIARIO"
+                  ? configuracaoAtiva.prazoPadraoCrediarioDias
+                  : 0,
           },
         ],
         total
@@ -499,11 +617,23 @@ export function ModalPagamento({
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <Label>Pagamentos</Label>
-                  <Button type="button" variant="outline" size="sm" onClick={adicionarLinha}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={adicionarLinha}
+                    disabled={!configuracaoAtiva.permitirPagamentoMisto}
+                  >
                     <Plus className="h-4 w-4 mr-1" />
                     Adicionar forma
                   </Button>
                 </div>
+
+                {!configuracaoAtiva.permitirPagamentoMisto && (
+                  <p className="text-xs text-muted-foreground">
+                    Pagamento misto está desabilitado nas configurações do PDV.
+                  </p>
+                )}
 
                 <div className="space-y-2">
                   {linhas.map((linha, index) => {
@@ -534,7 +664,12 @@ export function ModalPagamento({
                                 atualizarLinha(linha.id, {
                                   formaPagamento: forma,
                                   parcelas: 1,
-                                  diasVencimento: 0,
+                                  diasVencimento:
+                                    forma === "BOLETO"
+                                      ? configuracaoAtiva.prazoPadraoBoletoDias
+                                      : forma === "CREDIARIO"
+                                        ? configuracaoAtiva.prazoPadraoCrediarioDias
+                                        : 0,
                                 });
                               }}
                             >
@@ -542,9 +677,7 @@ export function ModalPagamento({
                                 <SelectValue placeholder="Selecione" />
                               </SelectTrigger>
                               <SelectContent>
-                                {CONFIG_PAGAMENTOS_PDV.filter((opcao) =>
-                                  FORMAS_PAGAMENTO_VISIVEIS.has(opcao.formaPagamento)
-                                ).map((opcao) => (
+                                {formasPagamentoDisponiveis.map((opcao) => (
                                   <SelectItem key={opcao.formaPagamento} value={opcao.formaPagamento}>
                                     {opcao.rotulo}
                                   </SelectItem>
@@ -586,10 +719,13 @@ export function ModalPagamento({
                             <Input
                               type="number"
                               min={1}
-                              max={24}
+                              max={configuracaoAtiva.maxParcelasCartaoCredito}
                               value={linha.parcelas}
                               onChange={(e) => {
-                                const parcelas = Math.max(1, Number(e.target.value) || 1);
+                                const parcelas = Math.min(
+                                  configuracaoAtiva.maxParcelasCartaoCredito,
+                                  Math.max(1, Number(e.target.value) || 1)
+                                );
                                 atualizarLinha(linha.id, { parcelas });
                               }}
                             />
@@ -601,11 +737,11 @@ export function ModalPagamento({
                             <Label>Dias para vencimento</Label>
                             <Input
                               type="number"
-                              min={0}
-                              max={3650}
+                              min={1}
+                              max={365}
                               value={linha.diasVencimento}
                               onChange={(e) => {
-                                const dias = Math.max(0, Number(e.target.value) || 0);
+                                const dias = Math.min(365, Math.max(1, Number(e.target.value) || 1));
                                 atualizarLinha(linha.id, { diasVencimento: dias });
                               }}
                             />

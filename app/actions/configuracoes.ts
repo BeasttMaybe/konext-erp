@@ -1,12 +1,18 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { consultarCnpjReceitaCliente } from "@/app/actions/crm";
 import { prisma } from "@/lib/prisma";
 import { exigirSessao } from "@/lib/auth/sessao";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
+import {
+  normalizarConfiguracaoPdv,
+  obterDefaultsConfiguracaoPdv,
+  possuiFormaPagamentoHabilitada,
+} from "@/lib/configuracoes-pdv";
 import {
   obterDefaultsConfiguracaoOsGarantias,
   TEXTO_COBERTURA_GARANTIA_PADRAO,
@@ -16,7 +22,8 @@ import {
 
 type ConfiguracaoRegistro = {
   id: string;
-  criadoEm?: Date;
+  criadoEm: Date;
+  atualizadoEm: Date;
   razaoSocial?: string | null;
   nomeFantasia?: string | null;
   cnpj?: string | null;
@@ -33,6 +40,32 @@ type ConfiguracaoRegistro = {
   mensagemCupom?: string | null;
   habilitarMargemAutomatica?: boolean | null;
   permitirVendaSemEstoque?: boolean | null;
+  permitirPagamentoMisto?: boolean | null;
+  permitirDescontoPDV?: boolean | null;
+  descontoMaximoPDVPercentual?: number | Prisma.Decimal | null;
+  permitirVendaFiado?: boolean | null;
+  habilitarPix?: boolean | null;
+  habilitarDinheiro?: boolean | null;
+  habilitarCartaoDebito?: boolean | null;
+  habilitarCartaoCredito?: boolean | null;
+  habilitarBoleto?: boolean | null;
+  habilitarCrediario?: boolean | null;
+  taxaCartaoDebitoPercentual?: number | Prisma.Decimal | null;
+  taxaCartaoCredito1xPercentual?: number | Prisma.Decimal | null;
+  taxaCartaoCredito2xPercentual?: number | Prisma.Decimal | null;
+  taxaCartaoCredito3xPercentual?: number | Prisma.Decimal | null;
+  taxaCartaoCredito4xPercentual?: number | Prisma.Decimal | null;
+  taxaCartaoCredito5xPercentual?: number | Prisma.Decimal | null;
+  taxaCartaoCredito6xPercentual?: number | Prisma.Decimal | null;
+  taxaCartaoCredito7xPercentual?: number | Prisma.Decimal | null;
+  taxaCartaoCredito8xPercentual?: number | Prisma.Decimal | null;
+  taxaCartaoCredito9xPercentual?: number | Prisma.Decimal | null;
+  taxaCartaoCredito10xPercentual?: number | Prisma.Decimal | null;
+  taxaCartaoCredito11xPercentual?: number | Prisma.Decimal | null;
+  taxaCartaoCredito12xPercentual?: number | Prisma.Decimal | null;
+  prazoPadraoBoletoDias?: number | null;
+  prazoPadraoCrediarioDias?: number | null;
+  maxParcelasCartaoCredito?: number | null;
   logoUrl?: string | null;
   prazoGarantiaPadraoDias?: number | null;
   prazoMinimoGarantiaDias?: number | null;
@@ -103,6 +136,32 @@ export type DadosConfiguracoes = {
   mensagemCupom: string;
   habilitarMargemAutomatica: boolean;
   permitirVendaSemEstoque: boolean;
+  permitirPagamentoMisto: boolean;
+  permitirDescontoPDV: boolean;
+  descontoMaximoPDVPercentual: number;
+  permitirVendaFiado: boolean;
+  habilitarPix: boolean;
+  habilitarDinheiro: boolean;
+  habilitarCartaoDebito: boolean;
+  habilitarCartaoCredito: boolean;
+  habilitarBoleto: boolean;
+  habilitarCrediario: boolean;
+  taxaCartaoDebitoPercentual: number;
+  taxaCartaoCredito1xPercentual: number;
+  taxaCartaoCredito2xPercentual: number;
+  taxaCartaoCredito3xPercentual: number;
+  taxaCartaoCredito4xPercentual: number;
+  taxaCartaoCredito5xPercentual: number;
+  taxaCartaoCredito6xPercentual: number;
+  taxaCartaoCredito7xPercentual: number;
+  taxaCartaoCredito8xPercentual: number;
+  taxaCartaoCredito9xPercentual: number;
+  taxaCartaoCredito10xPercentual: number;
+  taxaCartaoCredito11xPercentual: number;
+  taxaCartaoCredito12xPercentual: number;
+  prazoPadraoBoletoDias: number;
+  prazoPadraoCrediarioDias: number;
+  maxParcelasCartaoCredito: number;
   logoUrl: string;
   prazoGarantiaPadraoDias: number;
   prazoMinimoGarantiaDias: number;
@@ -181,6 +240,35 @@ const schemaDadosConfiguracoes = z.object({
   mensagemCupom: z.string().trim().max(1000, "Mensagem do cupom excede o limite de 1000 caracteres."),
   habilitarMargemAutomatica: z.boolean(),
   permitirVendaSemEstoque: z.boolean(),
+  permitirPagamentoMisto: z.boolean(),
+  permitirDescontoPDV: z.boolean(),
+  descontoMaximoPDVPercentual: z.coerce
+    .number()
+    .min(0, "O desconto máximo deve estar entre 0% e 100%.")
+    .max(100, "O desconto máximo deve estar entre 0% e 100%."),
+  permitirVendaFiado: z.boolean(),
+  habilitarPix: z.boolean(),
+  habilitarDinheiro: z.boolean(),
+  habilitarCartaoDebito: z.boolean(),
+  habilitarCartaoCredito: z.boolean(),
+  habilitarBoleto: z.boolean(),
+  habilitarCrediario: z.boolean(),
+  taxaCartaoDebitoPercentual: z.coerce.number().min(0, "As taxas não podem ser negativas."),
+  taxaCartaoCredito1xPercentual: z.coerce.number().min(0, "As taxas não podem ser negativas."),
+  taxaCartaoCredito2xPercentual: z.coerce.number().min(0, "As taxas não podem ser negativas."),
+  taxaCartaoCredito3xPercentual: z.coerce.number().min(0, "As taxas não podem ser negativas."),
+  taxaCartaoCredito4xPercentual: z.coerce.number().min(0, "As taxas não podem ser negativas."),
+  taxaCartaoCredito5xPercentual: z.coerce.number().min(0, "As taxas não podem ser negativas."),
+  taxaCartaoCredito6xPercentual: z.coerce.number().min(0, "As taxas não podem ser negativas."),
+  taxaCartaoCredito7xPercentual: z.coerce.number().min(0, "As taxas não podem ser negativas."),
+  taxaCartaoCredito8xPercentual: z.coerce.number().min(0, "As taxas não podem ser negativas."),
+  taxaCartaoCredito9xPercentual: z.coerce.number().min(0, "As taxas não podem ser negativas."),
+  taxaCartaoCredito10xPercentual: z.coerce.number().min(0, "As taxas não podem ser negativas."),
+  taxaCartaoCredito11xPercentual: z.coerce.number().min(0, "As taxas não podem ser negativas."),
+  taxaCartaoCredito12xPercentual: z.coerce.number().min(0, "As taxas não podem ser negativas."),
+  prazoPadraoBoletoDias: z.coerce.number().int().min(1, "Prazo de boleto deve ser entre 1 e 365 dias.").max(365, "Prazo de boleto deve ser entre 1 e 365 dias."),
+  prazoPadraoCrediarioDias: z.coerce.number().int().min(1, "Prazo de crediário deve ser entre 1 e 365 dias.").max(365, "Prazo de crediário deve ser entre 1 e 365 dias."),
+  maxParcelasCartaoCredito: z.coerce.number().int().min(1, "Máximo de parcelas deve ser entre 1 e 12.").max(12, "Máximo de parcelas deve ser entre 1 e 12."),
   logoUrl: z.string().trim().max(4096, "URL da logo excede o limite de 4096 caracteres."),
   prazoGarantiaPadraoDias: z.coerce
     .number()
@@ -256,6 +344,7 @@ function obterDelegateConfiguracao() {
 
 function obterConfiguracoesPadrao(): DadosConfiguracoes {
   const defaultsOsGarantias = obterDefaultsConfiguracaoOsGarantias();
+  const defaultsPdv = obterDefaultsConfiguracaoPdv();
 
   return {
     razaoSocial: "",
@@ -274,6 +363,32 @@ function obterConfiguracoesPadrao(): DadosConfiguracoes {
     mensagemCupom: "",
     habilitarMargemAutomatica: true,
     permitirVendaSemEstoque: false,
+    permitirPagamentoMisto: defaultsPdv.permitirPagamentoMisto,
+    permitirDescontoPDV: defaultsPdv.permitirDescontoPDV,
+    descontoMaximoPDVPercentual: defaultsPdv.descontoMaximoPDVPercentual,
+    permitirVendaFiado: defaultsPdv.permitirVendaFiado,
+    habilitarPix: defaultsPdv.habilitarPix,
+    habilitarDinheiro: defaultsPdv.habilitarDinheiro,
+    habilitarCartaoDebito: defaultsPdv.habilitarCartaoDebito,
+    habilitarCartaoCredito: defaultsPdv.habilitarCartaoCredito,
+    habilitarBoleto: defaultsPdv.habilitarBoleto,
+    habilitarCrediario: defaultsPdv.habilitarCrediario,
+    taxaCartaoDebitoPercentual: defaultsPdv.taxaCartaoDebitoPercentual,
+    taxaCartaoCredito1xPercentual: defaultsPdv.taxaCartaoCredito1xPercentual,
+    taxaCartaoCredito2xPercentual: defaultsPdv.taxaCartaoCredito2xPercentual,
+    taxaCartaoCredito3xPercentual: defaultsPdv.taxaCartaoCredito3xPercentual,
+    taxaCartaoCredito4xPercentual: defaultsPdv.taxaCartaoCredito4xPercentual,
+    taxaCartaoCredito5xPercentual: defaultsPdv.taxaCartaoCredito5xPercentual,
+    taxaCartaoCredito6xPercentual: defaultsPdv.taxaCartaoCredito6xPercentual,
+    taxaCartaoCredito7xPercentual: defaultsPdv.taxaCartaoCredito7xPercentual,
+    taxaCartaoCredito8xPercentual: defaultsPdv.taxaCartaoCredito8xPercentual,
+    taxaCartaoCredito9xPercentual: defaultsPdv.taxaCartaoCredito9xPercentual,
+    taxaCartaoCredito10xPercentual: defaultsPdv.taxaCartaoCredito10xPercentual,
+    taxaCartaoCredito11xPercentual: defaultsPdv.taxaCartaoCredito11xPercentual,
+    taxaCartaoCredito12xPercentual: defaultsPdv.taxaCartaoCredito12xPercentual,
+    prazoPadraoBoletoDias: defaultsPdv.prazoPadraoBoletoDias,
+    prazoPadraoCrediarioDias: defaultsPdv.prazoPadraoCrediarioDias,
+    maxParcelasCartaoCredito: defaultsPdv.maxParcelasCartaoCredito,
     logoUrl: "",
     prazoGarantiaPadraoDias: defaultsOsGarantias.prazoGarantiaPadraoDias,
     prazoMinimoGarantiaDias: defaultsOsGarantias.prazoMinimoGarantiaDias,
@@ -303,6 +418,35 @@ type CamposOsGarantiaRaw = {
   textoCoberturaGarantia: string | null;
   textoExclusoesGarantia: string | null;
   textoResponsabilidadeDados: string | null;
+};
+
+type CamposPdvRaw = {
+  permitirPagamentoMisto: boolean | null;
+  permitirDescontoPDV: boolean | null;
+  descontoMaximoPDVPercentual: number | null;
+  permitirVendaFiado: boolean | null;
+  habilitarPix: boolean | null;
+  habilitarDinheiro: boolean | null;
+  habilitarCartaoDebito: boolean | null;
+  habilitarCartaoCredito: boolean | null;
+  habilitarBoleto: boolean | null;
+  habilitarCrediario: boolean | null;
+  taxaCartaoDebitoPercentual: number | null;
+  taxaCartaoCredito1xPercentual: number | null;
+  taxaCartaoCredito2xPercentual: number | null;
+  taxaCartaoCredito3xPercentual: number | null;
+  taxaCartaoCredito4xPercentual: number | null;
+  taxaCartaoCredito5xPercentual: number | null;
+  taxaCartaoCredito6xPercentual: number | null;
+  taxaCartaoCredito7xPercentual: number | null;
+  taxaCartaoCredito8xPercentual: number | null;
+  taxaCartaoCredito9xPercentual: number | null;
+  taxaCartaoCredito10xPercentual: number | null;
+  taxaCartaoCredito11xPercentual: number | null;
+  taxaCartaoCredito12xPercentual: number | null;
+  prazoPadraoBoletoDias: number | null;
+  prazoPadraoCrediarioDias: number | null;
+  maxParcelasCartaoCredito: number | null;
 };
 
 async function lerCamposOsGarantiaViaSql(id: string): Promise<CamposOsGarantiaRaw | null> {
@@ -338,8 +482,15 @@ function normalizarConfiguracoesEntrada(data: DadosConfiguracoes): DadosConfigur
     throw new Error(resultado.error.issues[0]?.message ?? "Dados de configuração inválidos.");
   }
 
+  const configuracaoPdvNormalizada = normalizarConfiguracaoPdv(resultado.data);
+
+  if (!possuiFormaPagamentoHabilitada(configuracaoPdvNormalizada)) {
+    throw new Error("Informe pelo menos uma forma de pagamento habilitada.");
+  }
+
   return {
     ...resultado.data,
+    ...configuracaoPdvNormalizada,
     nomeFantasia: resultado.data.nomeFantasia || "Konext",
     estado: resultado.data.estado.toUpperCase(),
     logoUrl: normalizarUrlImagem(resultado.data.logoUrl, "URL da logo da empresa") ?? "",
@@ -360,15 +511,15 @@ export async function obterConfiguracoes() {
     };
   }
 
-  let configuracao = await configuracaoDelegate.findFirst({
+  let configuracao: ConfiguracaoRegistro | null = (await configuracaoDelegate.findFirst({
     orderBy: {
       criadoEm: "asc",
     },
-  });
+  })) as ConfiguracaoRegistro | null;
 
   if (!configuracao && configuracaoDelegate.create) {
     try {
-      configuracao = await configuracaoDelegate.create({
+      configuracao = (await configuracaoDelegate.create({
         data: {
           razaoSocial: "",
           nomeFantasia: "Konext",
@@ -400,7 +551,7 @@ export async function obterConfiguracoes() {
           textoExclusoesGarantia: TEXTO_EXCLUSOES_GARANTIA_PADRAO,
           textoResponsabilidadeDados: TEXTO_RESPONSABILIDADE_DADOS_PADRAO,
         },
-      });
+      })) as ConfiguracaoRegistro;
     } catch {
       configuracao = await configuracaoDelegate.findFirst({
         orderBy: {
@@ -411,12 +562,18 @@ export async function obterConfiguracoes() {
   }
 
   const defaults = obterConfiguracoesPadrao();
+  const defaultsPdv = obterDefaultsConfiguracaoPdv();
 
   // Se o cliente Prisma em memória não retornou os campos novos (runtime legado), busca via SQL.
   const camposOsGarantia: CamposOsGarantiaRaw | null =
     typeof (configuracao as Record<string, unknown> | null)?.exigirItemParaEnviarPDV === "boolean"
       ? (configuracao as unknown as CamposOsGarantiaRaw)
       : await lerCamposOsGarantiaViaSql(configuracao?.id ? String(configuracao.id) : "");
+
+  const camposPdv: CamposPdvRaw | null =
+    typeof (configuracao as Record<string, unknown> | null)?.habilitarPix === "boolean"
+      ? (configuracao as unknown as CamposPdvRaw)
+      : await lerCamposPdvViaSql(configuracao?.id ? String(configuracao.id) : "");
 
   return {
     id: configuracao?.id ? String(configuracao.id) : "",
@@ -442,6 +599,110 @@ export async function obterConfiguracoes() {
       typeof configuracao?.permitirVendaSemEstoque === "boolean"
         ? Boolean(configuracao.permitirVendaSemEstoque)
         : false,
+    permitirPagamentoMisto:
+      typeof camposPdv?.permitirPagamentoMisto === "boolean"
+        ? Boolean(camposPdv.permitirPagamentoMisto)
+        : defaultsPdv.permitirPagamentoMisto,
+    permitirDescontoPDV:
+      typeof camposPdv?.permitirDescontoPDV === "boolean"
+        ? Boolean(camposPdv.permitirDescontoPDV)
+        : defaultsPdv.permitirDescontoPDV,
+    descontoMaximoPDVPercentual:
+      typeof camposPdv?.descontoMaximoPDVPercentual === "number"
+        ? Number(camposPdv.descontoMaximoPDVPercentual)
+        : defaultsPdv.descontoMaximoPDVPercentual,
+    permitirVendaFiado:
+      typeof camposPdv?.permitirVendaFiado === "boolean"
+        ? Boolean(camposPdv.permitirVendaFiado)
+        : defaultsPdv.permitirVendaFiado,
+    habilitarPix:
+      typeof camposPdv?.habilitarPix === "boolean"
+        ? Boolean(camposPdv.habilitarPix)
+        : defaultsPdv.habilitarPix,
+    habilitarDinheiro:
+      typeof camposPdv?.habilitarDinheiro === "boolean"
+        ? Boolean(camposPdv.habilitarDinheiro)
+        : defaultsPdv.habilitarDinheiro,
+    habilitarCartaoDebito:
+      typeof camposPdv?.habilitarCartaoDebito === "boolean"
+        ? Boolean(camposPdv.habilitarCartaoDebito)
+        : defaultsPdv.habilitarCartaoDebito,
+    habilitarCartaoCredito:
+      typeof camposPdv?.habilitarCartaoCredito === "boolean"
+        ? Boolean(camposPdv.habilitarCartaoCredito)
+        : defaultsPdv.habilitarCartaoCredito,
+    habilitarBoleto:
+      typeof camposPdv?.habilitarBoleto === "boolean"
+        ? Boolean(camposPdv.habilitarBoleto)
+        : defaultsPdv.habilitarBoleto,
+    habilitarCrediario:
+      typeof camposPdv?.habilitarCrediario === "boolean"
+        ? Boolean(camposPdv.habilitarCrediario)
+        : defaultsPdv.habilitarCrediario,
+    taxaCartaoDebitoPercentual:
+      typeof camposPdv?.taxaCartaoDebitoPercentual === "number"
+        ? Number(camposPdv.taxaCartaoDebitoPercentual)
+        : defaultsPdv.taxaCartaoDebitoPercentual,
+    taxaCartaoCredito1xPercentual:
+      typeof camposPdv?.taxaCartaoCredito1xPercentual === "number"
+        ? Number(camposPdv.taxaCartaoCredito1xPercentual)
+        : defaultsPdv.taxaCartaoCredito1xPercentual,
+    taxaCartaoCredito2xPercentual:
+      typeof camposPdv?.taxaCartaoCredito2xPercentual === "number"
+        ? Number(camposPdv.taxaCartaoCredito2xPercentual)
+        : defaultsPdv.taxaCartaoCredito2xPercentual,
+    taxaCartaoCredito3xPercentual:
+      typeof camposPdv?.taxaCartaoCredito3xPercentual === "number"
+        ? Number(camposPdv.taxaCartaoCredito3xPercentual)
+        : defaultsPdv.taxaCartaoCredito3xPercentual,
+    taxaCartaoCredito4xPercentual:
+      typeof camposPdv?.taxaCartaoCredito4xPercentual === "number"
+        ? Number(camposPdv.taxaCartaoCredito4xPercentual)
+        : defaultsPdv.taxaCartaoCredito4xPercentual,
+    taxaCartaoCredito5xPercentual:
+      typeof camposPdv?.taxaCartaoCredito5xPercentual === "number"
+        ? Number(camposPdv.taxaCartaoCredito5xPercentual)
+        : defaultsPdv.taxaCartaoCredito5xPercentual,
+    taxaCartaoCredito6xPercentual:
+      typeof camposPdv?.taxaCartaoCredito6xPercentual === "number"
+        ? Number(camposPdv.taxaCartaoCredito6xPercentual)
+        : defaultsPdv.taxaCartaoCredito6xPercentual,
+    taxaCartaoCredito7xPercentual:
+      typeof camposPdv?.taxaCartaoCredito7xPercentual === "number"
+        ? Number(camposPdv.taxaCartaoCredito7xPercentual)
+        : defaultsPdv.taxaCartaoCredito7xPercentual,
+    taxaCartaoCredito8xPercentual:
+      typeof camposPdv?.taxaCartaoCredito8xPercentual === "number"
+        ? Number(camposPdv.taxaCartaoCredito8xPercentual)
+        : defaultsPdv.taxaCartaoCredito8xPercentual,
+    taxaCartaoCredito9xPercentual:
+      typeof camposPdv?.taxaCartaoCredito9xPercentual === "number"
+        ? Number(camposPdv.taxaCartaoCredito9xPercentual)
+        : defaultsPdv.taxaCartaoCredito9xPercentual,
+    taxaCartaoCredito10xPercentual:
+      typeof camposPdv?.taxaCartaoCredito10xPercentual === "number"
+        ? Number(camposPdv.taxaCartaoCredito10xPercentual)
+        : defaultsPdv.taxaCartaoCredito10xPercentual,
+    taxaCartaoCredito11xPercentual:
+      typeof camposPdv?.taxaCartaoCredito11xPercentual === "number"
+        ? Number(camposPdv.taxaCartaoCredito11xPercentual)
+        : defaultsPdv.taxaCartaoCredito11xPercentual,
+    taxaCartaoCredito12xPercentual:
+      typeof camposPdv?.taxaCartaoCredito12xPercentual === "number"
+        ? Number(camposPdv.taxaCartaoCredito12xPercentual)
+        : defaultsPdv.taxaCartaoCredito12xPercentual,
+    prazoPadraoBoletoDias:
+      typeof camposPdv?.prazoPadraoBoletoDias === "number"
+        ? Number(camposPdv.prazoPadraoBoletoDias)
+        : defaultsPdv.prazoPadraoBoletoDias,
+    prazoPadraoCrediarioDias:
+      typeof camposPdv?.prazoPadraoCrediarioDias === "number"
+        ? Number(camposPdv.prazoPadraoCrediarioDias)
+        : defaultsPdv.prazoPadraoCrediarioDias,
+    maxParcelasCartaoCredito:
+      typeof camposPdv?.maxParcelasCartaoCredito === "number"
+        ? Number(camposPdv.maxParcelasCartaoCredito)
+        : defaultsPdv.maxParcelasCartaoCredito,
     logoUrl: configuracao?.logoUrl ? String(configuracao.logoUrl) : "",
     prazoGarantiaPadraoDias:
       typeof camposOsGarantia?.prazoGarantiaPadraoDias === "number"
@@ -513,6 +774,37 @@ function houveMudancaCamposOsGarantia(antes: DadosConfiguracoes, depois: DadosCo
   );
 }
 
+function houveMudancaCamposPdv(antes: DadosConfiguracoes, depois: DadosConfiguracoes): boolean {
+  return (
+    antes.permitirPagamentoMisto !== depois.permitirPagamentoMisto ||
+    antes.permitirDescontoPDV !== depois.permitirDescontoPDV ||
+    antes.descontoMaximoPDVPercentual !== depois.descontoMaximoPDVPercentual ||
+    antes.permitirVendaFiado !== depois.permitirVendaFiado ||
+    antes.habilitarPix !== depois.habilitarPix ||
+    antes.habilitarDinheiro !== depois.habilitarDinheiro ||
+    antes.habilitarCartaoDebito !== depois.habilitarCartaoDebito ||
+    antes.habilitarCartaoCredito !== depois.habilitarCartaoCredito ||
+    antes.habilitarBoleto !== depois.habilitarBoleto ||
+    antes.habilitarCrediario !== depois.habilitarCrediario ||
+    antes.taxaCartaoDebitoPercentual !== depois.taxaCartaoDebitoPercentual ||
+    antes.taxaCartaoCredito1xPercentual !== depois.taxaCartaoCredito1xPercentual ||
+    antes.taxaCartaoCredito2xPercentual !== depois.taxaCartaoCredito2xPercentual ||
+    antes.taxaCartaoCredito3xPercentual !== depois.taxaCartaoCredito3xPercentual ||
+    antes.taxaCartaoCredito4xPercentual !== depois.taxaCartaoCredito4xPercentual ||
+    antes.taxaCartaoCredito5xPercentual !== depois.taxaCartaoCredito5xPercentual ||
+    antes.taxaCartaoCredito6xPercentual !== depois.taxaCartaoCredito6xPercentual ||
+    antes.taxaCartaoCredito7xPercentual !== depois.taxaCartaoCredito7xPercentual ||
+    antes.taxaCartaoCredito8xPercentual !== depois.taxaCartaoCredito8xPercentual ||
+    antes.taxaCartaoCredito9xPercentual !== depois.taxaCartaoCredito9xPercentual ||
+    antes.taxaCartaoCredito10xPercentual !== depois.taxaCartaoCredito10xPercentual ||
+    antes.taxaCartaoCredito11xPercentual !== depois.taxaCartaoCredito11xPercentual ||
+    antes.taxaCartaoCredito12xPercentual !== depois.taxaCartaoCredito12xPercentual ||
+    antes.prazoPadraoBoletoDias !== depois.prazoPadraoBoletoDias ||
+    antes.prazoPadraoCrediarioDias !== depois.prazoPadraoCrediarioDias ||
+    antes.maxParcelasCartaoCredito !== depois.maxParcelasCartaoCredito
+  );
+}
+
 async function atualizarCamposOsGarantiaComFallbackSql(configuracaoId: string, dados: {
   prazoGarantiaPadraoDias: number;
   prazoMinimoGarantiaDias: number;
@@ -547,6 +839,68 @@ async function atualizarCamposOsGarantiaComFallbackSql(configuracaoId: string, d
   `;
 }
 
+async function atualizarCamposPdvComFallbackSql(configuracaoId: string, dados: {
+  permitirPagamentoMisto: boolean;
+  permitirDescontoPDV: boolean;
+  descontoMaximoPDVPercentual: number;
+  permitirVendaFiado: boolean;
+  habilitarPix: boolean;
+  habilitarDinheiro: boolean;
+  habilitarCartaoDebito: boolean;
+  habilitarCartaoCredito: boolean;
+  habilitarBoleto: boolean;
+  habilitarCrediario: boolean;
+  taxaCartaoDebitoPercentual: number;
+  taxaCartaoCredito1xPercentual: number;
+  taxaCartaoCredito2xPercentual: number;
+  taxaCartaoCredito3xPercentual: number;
+  taxaCartaoCredito4xPercentual: number;
+  taxaCartaoCredito5xPercentual: number;
+  taxaCartaoCredito6xPercentual: number;
+  taxaCartaoCredito7xPercentual: number;
+  taxaCartaoCredito8xPercentual: number;
+  taxaCartaoCredito9xPercentual: number;
+  taxaCartaoCredito10xPercentual: number;
+  taxaCartaoCredito11xPercentual: number;
+  taxaCartaoCredito12xPercentual: number;
+  prazoPadraoBoletoDias: number;
+  prazoPadraoCrediarioDias: number;
+  maxParcelasCartaoCredito: number;
+}) {
+  await prisma.$executeRaw`
+    UPDATE "Configuracao"
+    SET
+      "permitirPagamentoMisto" = ${dados.permitirPagamentoMisto},
+      "permitirDescontoPDV" = ${dados.permitirDescontoPDV},
+      "descontoMaximoPDVPercentual" = ${dados.descontoMaximoPDVPercentual},
+      "permitirVendaFiado" = ${dados.permitirVendaFiado},
+      "habilitarPix" = ${dados.habilitarPix},
+      "habilitarDinheiro" = ${dados.habilitarDinheiro},
+      "habilitarCartaoDebito" = ${dados.habilitarCartaoDebito},
+      "habilitarCartaoCredito" = ${dados.habilitarCartaoCredito},
+      "habilitarBoleto" = ${dados.habilitarBoleto},
+      "habilitarCrediario" = ${dados.habilitarCrediario},
+      "taxaCartaoDebitoPercentual" = ${dados.taxaCartaoDebitoPercentual},
+      "taxaCartaoCredito1xPercentual" = ${dados.taxaCartaoCredito1xPercentual},
+      "taxaCartaoCredito2xPercentual" = ${dados.taxaCartaoCredito2xPercentual},
+      "taxaCartaoCredito3xPercentual" = ${dados.taxaCartaoCredito3xPercentual},
+      "taxaCartaoCredito4xPercentual" = ${dados.taxaCartaoCredito4xPercentual},
+      "taxaCartaoCredito5xPercentual" = ${dados.taxaCartaoCredito5xPercentual},
+      "taxaCartaoCredito6xPercentual" = ${dados.taxaCartaoCredito6xPercentual},
+      "taxaCartaoCredito7xPercentual" = ${dados.taxaCartaoCredito7xPercentual},
+      "taxaCartaoCredito8xPercentual" = ${dados.taxaCartaoCredito8xPercentual},
+      "taxaCartaoCredito9xPercentual" = ${dados.taxaCartaoCredito9xPercentual},
+      "taxaCartaoCredito10xPercentual" = ${dados.taxaCartaoCredito10xPercentual},
+      "taxaCartaoCredito11xPercentual" = ${dados.taxaCartaoCredito11xPercentual},
+      "taxaCartaoCredito12xPercentual" = ${dados.taxaCartaoCredito12xPercentual},
+      "prazoPadraoBoletoDias" = ${dados.prazoPadraoBoletoDias},
+      "prazoPadraoCrediarioDias" = ${dados.prazoPadraoCrediarioDias},
+      "maxParcelasCartaoCredito" = ${dados.maxParcelasCartaoCredito},
+      "atualizadoEm" = NOW()
+    WHERE id = ${configuracaoId}
+  `;
+}
+
 export async function salvarConfiguracoes(data: DadosConfiguracoes) {
   // C1: exige sessao valida antes de alterar configuracoes da empresa.
   const usuario = await exigirSessao();
@@ -559,14 +913,14 @@ export async function salvarConfiguracoes(data: DadosConfiguracoes) {
     throw new Error("Delegate Prisma de Configuracao nao disponivel.");
   }
 
-  let configuracao = await configuracaoDelegate.findFirst({
+  let configuracao: ConfiguracaoRegistro | null = (await configuracaoDelegate.findFirst({
     orderBy: {
       criadoEm: "asc",
     },
-  });
+  })) as ConfiguracaoRegistro | null;
 
   if (!configuracao && configuracaoDelegate.create) {
-    configuracao = await configuracaoDelegate.create({
+    configuracao = (await configuracaoDelegate.create({
       data: {
         razaoSocial: "",
         nomeFantasia: "Konext",
@@ -584,9 +938,35 @@ export async function salvarConfiguracoes(data: DadosConfiguracoes) {
         mensagemCupom: null,
         habilitarMargemAutomatica: true,
         permitirVendaSemEstoque: false,
+        permitirPagamentoMisto: true,
+        permitirDescontoPDV: true,
+        descontoMaximoPDVPercentual: 0,
+        permitirVendaFiado: false,
+        habilitarPix: true,
+        habilitarDinheiro: true,
+        habilitarCartaoDebito: true,
+        habilitarCartaoCredito: true,
+        habilitarBoleto: false,
+        habilitarCrediario: false,
+        taxaCartaoDebitoPercentual: 0,
+        taxaCartaoCredito1xPercentual: 0,
+        taxaCartaoCredito2xPercentual: 0,
+        taxaCartaoCredito3xPercentual: 0,
+        taxaCartaoCredito4xPercentual: 0,
+        taxaCartaoCredito5xPercentual: 0,
+        taxaCartaoCredito6xPercentual: 0,
+        taxaCartaoCredito7xPercentual: 0,
+        taxaCartaoCredito8xPercentual: 0,
+        taxaCartaoCredito9xPercentual: 0,
+        taxaCartaoCredito10xPercentual: 0,
+        taxaCartaoCredito11xPercentual: 0,
+        taxaCartaoCredito12xPercentual: 0,
+        prazoPadraoBoletoDias: 7,
+        prazoPadraoCrediarioDias: 30,
+        maxParcelasCartaoCredito: 12,
         logoUrl: null,
       },
-    });
+    })) as ConfiguracaoRegistro;
   }
 
   if (!configuracao) {
@@ -630,6 +1010,35 @@ export async function salvarConfiguracoes(data: DadosConfiguracoes) {
     textoResponsabilidadeDados: dadosNormalizados.textoResponsabilidadeDados || null,
   };
 
+  const dadosPdvAtualizacao = {
+    permitirPagamentoMisto: dadosNormalizados.permitirPagamentoMisto,
+    permitirDescontoPDV: dadosNormalizados.permitirDescontoPDV,
+    descontoMaximoPDVPercentual: dadosNormalizados.descontoMaximoPDVPercentual,
+    permitirVendaFiado: dadosNormalizados.permitirVendaFiado,
+    habilitarPix: dadosNormalizados.habilitarPix,
+    habilitarDinheiro: dadosNormalizados.habilitarDinheiro,
+    habilitarCartaoDebito: dadosNormalizados.habilitarCartaoDebito,
+    habilitarCartaoCredito: dadosNormalizados.habilitarCartaoCredito,
+    habilitarBoleto: dadosNormalizados.habilitarBoleto,
+    habilitarCrediario: dadosNormalizados.habilitarCrediario,
+    taxaCartaoDebitoPercentual: dadosNormalizados.taxaCartaoDebitoPercentual,
+    taxaCartaoCredito1xPercentual: dadosNormalizados.taxaCartaoCredito1xPercentual,
+    taxaCartaoCredito2xPercentual: dadosNormalizados.taxaCartaoCredito2xPercentual,
+    taxaCartaoCredito3xPercentual: dadosNormalizados.taxaCartaoCredito3xPercentual,
+    taxaCartaoCredito4xPercentual: dadosNormalizados.taxaCartaoCredito4xPercentual,
+    taxaCartaoCredito5xPercentual: dadosNormalizados.taxaCartaoCredito5xPercentual,
+    taxaCartaoCredito6xPercentual: dadosNormalizados.taxaCartaoCredito6xPercentual,
+    taxaCartaoCredito7xPercentual: dadosNormalizados.taxaCartaoCredito7xPercentual,
+    taxaCartaoCredito8xPercentual: dadosNormalizados.taxaCartaoCredito8xPercentual,
+    taxaCartaoCredito9xPercentual: dadosNormalizados.taxaCartaoCredito9xPercentual,
+    taxaCartaoCredito10xPercentual: dadosNormalizados.taxaCartaoCredito10xPercentual,
+    taxaCartaoCredito11xPercentual: dadosNormalizados.taxaCartaoCredito11xPercentual,
+    taxaCartaoCredito12xPercentual: dadosNormalizados.taxaCartaoCredito12xPercentual,
+    prazoPadraoBoletoDias: dadosNormalizados.prazoPadraoBoletoDias,
+    prazoPadraoCrediarioDias: dadosNormalizados.prazoPadraoCrediarioDias,
+    maxParcelasCartaoCredito: dadosNormalizados.maxParcelasCartaoCredito,
+  };
+
   await configuracaoDelegate.update({
     where: {
       id: configuracao.id,
@@ -638,6 +1047,7 @@ export async function salvarConfiguracoes(data: DadosConfiguracoes) {
   });
 
   const precisaSalvarCamposOsGarantia = houveMudancaCamposOsGarantia(dadosAntes, dadosNormalizados);
+  const precisaSalvarCamposPdv = houveMudancaCamposPdv(dadosAntes, dadosNormalizados);
 
   if (precisaSalvarCamposOsGarantia) {
     try {
@@ -650,6 +1060,23 @@ export async function salvarConfiguracoes(data: DadosConfiguracoes) {
     } catch (erro) {
       if (mensagemIndicaRuntimeLegadoConfiguracao(erro)) {
         await atualizarCamposOsGarantiaComFallbackSql(configuracao.id, dadosOsGarantiaAtualizacao);
+      } else {
+        throw erro;
+      }
+    }
+  }
+
+  if (precisaSalvarCamposPdv) {
+    try {
+      await configuracaoDelegate.update({
+        where: {
+          id: configuracao.id,
+        },
+        data: dadosPdvAtualizacao,
+      });
+    } catch (erro) {
+      if (mensagemIndicaRuntimeLegadoConfiguracao(erro)) {
+        await atualizarCamposPdvComFallbackSql(configuracao.id, dadosPdvAtualizacao);
       } else {
         throw erro;
       }
@@ -692,7 +1119,78 @@ export async function salvarConfiguracoes(data: DadosConfiguracoes) {
     );
   }
 
+  if (precisaSalvarCamposPdv) {
+    await registrarLogAuditoria(
+      prisma,
+      contextoAuditoriaDoUsuario(usuario, "app/actions/configuracoes.ts:salvarConfiguracoes"),
+      {
+        acao: ACOES_AUDITORIA.ATUALIZAR_CONFIGURACOES_PDV,
+        entidade: ENTIDADES_AUDITORIA.CONFIGURACAO,
+        entidadeId: configuracao.id,
+        dadosAntes: {
+          permitirPagamentoMisto: dadosAntes.permitirPagamentoMisto,
+          permitirDescontoPDV: dadosAntes.permitirDescontoPDV,
+          descontoMaximoPDVPercentual: dadosAntes.descontoMaximoPDVPercentual,
+          permitirVendaFiado: dadosAntes.permitirVendaFiado,
+          habilitarPix: dadosAntes.habilitarPix,
+          habilitarDinheiro: dadosAntes.habilitarDinheiro,
+          habilitarCartaoDebito: dadosAntes.habilitarCartaoDebito,
+          habilitarCartaoCredito: dadosAntes.habilitarCartaoCredito,
+          habilitarBoleto: dadosAntes.habilitarBoleto,
+          habilitarCrediario: dadosAntes.habilitarCrediario,
+          taxaCartaoDebitoPercentual: dadosAntes.taxaCartaoDebitoPercentual,
+          taxaCartaoCredito1xPercentual: dadosAntes.taxaCartaoCredito1xPercentual,
+          taxaCartaoCredito2xPercentual: dadosAntes.taxaCartaoCredito2xPercentual,
+          taxaCartaoCredito3xPercentual: dadosAntes.taxaCartaoCredito3xPercentual,
+          taxaCartaoCredito4xPercentual: dadosAntes.taxaCartaoCredito4xPercentual,
+          taxaCartaoCredito5xPercentual: dadosAntes.taxaCartaoCredito5xPercentual,
+          taxaCartaoCredito6xPercentual: dadosAntes.taxaCartaoCredito6xPercentual,
+          taxaCartaoCredito7xPercentual: dadosAntes.taxaCartaoCredito7xPercentual,
+          taxaCartaoCredito8xPercentual: dadosAntes.taxaCartaoCredito8xPercentual,
+          taxaCartaoCredito9xPercentual: dadosAntes.taxaCartaoCredito9xPercentual,
+          taxaCartaoCredito10xPercentual: dadosAntes.taxaCartaoCredito10xPercentual,
+          taxaCartaoCredito11xPercentual: dadosAntes.taxaCartaoCredito11xPercentual,
+          taxaCartaoCredito12xPercentual: dadosAntes.taxaCartaoCredito12xPercentual,
+          prazoPadraoBoletoDias: dadosAntes.prazoPadraoBoletoDias,
+          prazoPadraoCrediarioDias: dadosAntes.prazoPadraoCrediarioDias,
+          maxParcelasCartaoCredito: dadosAntes.maxParcelasCartaoCredito,
+        },
+        dadosDepois: {
+          permitirPagamentoMisto: dadosNormalizados.permitirPagamentoMisto,
+          permitirDescontoPDV: dadosNormalizados.permitirDescontoPDV,
+          descontoMaximoPDVPercentual: dadosNormalizados.descontoMaximoPDVPercentual,
+          permitirVendaFiado: dadosNormalizados.permitirVendaFiado,
+          habilitarPix: dadosNormalizados.habilitarPix,
+          habilitarDinheiro: dadosNormalizados.habilitarDinheiro,
+          habilitarCartaoDebito: dadosNormalizados.habilitarCartaoDebito,
+          habilitarCartaoCredito: dadosNormalizados.habilitarCartaoCredito,
+          habilitarBoleto: dadosNormalizados.habilitarBoleto,
+          habilitarCrediario: dadosNormalizados.habilitarCrediario,
+          taxaCartaoDebitoPercentual: dadosNormalizados.taxaCartaoDebitoPercentual,
+          taxaCartaoCredito1xPercentual: dadosNormalizados.taxaCartaoCredito1xPercentual,
+          taxaCartaoCredito2xPercentual: dadosNormalizados.taxaCartaoCredito2xPercentual,
+          taxaCartaoCredito3xPercentual: dadosNormalizados.taxaCartaoCredito3xPercentual,
+          taxaCartaoCredito4xPercentual: dadosNormalizados.taxaCartaoCredito4xPercentual,
+          taxaCartaoCredito5xPercentual: dadosNormalizados.taxaCartaoCredito5xPercentual,
+          taxaCartaoCredito6xPercentual: dadosNormalizados.taxaCartaoCredito6xPercentual,
+          taxaCartaoCredito7xPercentual: dadosNormalizados.taxaCartaoCredito7xPercentual,
+          taxaCartaoCredito8xPercentual: dadosNormalizados.taxaCartaoCredito8xPercentual,
+          taxaCartaoCredito9xPercentual: dadosNormalizados.taxaCartaoCredito9xPercentual,
+          taxaCartaoCredito10xPercentual: dadosNormalizados.taxaCartaoCredito10xPercentual,
+          taxaCartaoCredito11xPercentual: dadosNormalizados.taxaCartaoCredito11xPercentual,
+          taxaCartaoCredito12xPercentual: dadosNormalizados.taxaCartaoCredito12xPercentual,
+          prazoPadraoBoletoDias: dadosNormalizados.prazoPadraoBoletoDias,
+          prazoPadraoCrediarioDias: dadosNormalizados.prazoPadraoCrediarioDias,
+          maxParcelasCartaoCredito: dadosNormalizados.maxParcelasCartaoCredito,
+        },
+      }
+    );
+  }
+
   revalidatePath("/configuracoes");
+  revalidatePath("/pdv");
+  revalidatePath("/vendas");
+  revalidatePath("/financeiro");
   revalidatePath("/os");
   revalidatePath("/os/garantias");
   revalidatePath("/dashboard");
@@ -798,20 +1296,20 @@ export async function obterDadosPerfilConfiguracao() {
     }
   }
 
-  let configuracao = await configuracaoDelegate.findFirst({
+  let configuracao: ConfiguracaoRegistro | null = (await configuracaoDelegate.findFirst({
     orderBy: {
       criadoEm: "asc",
     },
-  });
+  })) as ConfiguracaoRegistro | null;
 
   if (!configuracao && configuracaoDelegate.create) {
     try {
-      configuracao = await configuracaoDelegate.create({
+      configuracao = (await configuracaoDelegate.create({
         data: {
           nomeFantasia: "Konext",
           logoUrl: null,
         },
-      });
+      })) as ConfiguracaoRegistro;
     } catch {
       configuracao = await configuracaoDelegate.findFirst({
         orderBy: {
@@ -1005,5 +1503,45 @@ export async function atualizarLogoEmpresa(
       sucesso: false,
       erro: mensagem,
     };
+  }
+}
+
+async function lerCamposPdvViaSql(id: string): Promise<CamposPdvRaw | null> {
+  if (!id) return null;
+  try {
+    const rows = await prisma.$queryRaw<Array<CamposPdvRaw>>`
+      SELECT
+        "permitirPagamentoMisto",
+        "permitirDescontoPDV",
+        "descontoMaximoPDVPercentual",
+        "permitirVendaFiado",
+        "habilitarPix",
+        "habilitarDinheiro",
+        "habilitarCartaoDebito",
+        "habilitarCartaoCredito",
+        "habilitarBoleto",
+        "habilitarCrediario",
+        "taxaCartaoDebitoPercentual",
+        "taxaCartaoCredito1xPercentual",
+        "taxaCartaoCredito2xPercentual",
+        "taxaCartaoCredito3xPercentual",
+        "taxaCartaoCredito4xPercentual",
+        "taxaCartaoCredito5xPercentual",
+        "taxaCartaoCredito6xPercentual",
+        "taxaCartaoCredito7xPercentual",
+        "taxaCartaoCredito8xPercentual",
+        "taxaCartaoCredito9xPercentual",
+        "taxaCartaoCredito10xPercentual",
+        "taxaCartaoCredito11xPercentual",
+        "taxaCartaoCredito12xPercentual",
+        "prazoPadraoBoletoDias",
+        "prazoPadraoCrediarioDias",
+        "maxParcelasCartaoCredito"
+      FROM "Configuracao"
+      WHERE id = ${id}
+    `;
+    return rows[0] ?? null;
+  } catch {
+    return null;
   }
 }
