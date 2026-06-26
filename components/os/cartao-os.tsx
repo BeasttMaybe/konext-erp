@@ -15,7 +15,8 @@ interface CartaoOSProps {
   onMoverAnterior?: () => void;
   onMoverProxima?: () => void;
   onFinalizar?: () => void;
-  ultimoEstagio?: boolean;
+  podeFinalizar?: boolean;
+  textoBotaoFinalizar?: string;
   desabilitarMoverAnterior?: boolean;
   desabilitarMoverProxima?: boolean;
 }
@@ -28,7 +29,8 @@ export function CartaoOS({
   onMoverAnterior,
   onMoverProxima,
   onFinalizar,
-  ultimoEstagio = false,
+  podeFinalizar = false,
+  textoBotaoFinalizar = "Finalizar OS",
   desabilitarMoverAnterior = false,
   desabilitarMoverProxima = false,
 }: CartaoOSProps) {
@@ -80,6 +82,11 @@ export function CartaoOS({
               <Badge className="bg-indigo-100 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300">
                 Garantia
               </Badge>
+              {os.retornoGarantiaFinalizadoEm && (
+                <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+                  Retorno finalizado
+                </Badge>
+              )}
               {os.numeroOSOrigemGarantia && (
                 <span className="text-xs text-muted-foreground">Origem: {os.numeroOSOrigemGarantia}</span>
               )}
@@ -150,17 +157,18 @@ export function CartaoOS({
             className="flex-1"
             onClick={(event) => {
               event.stopPropagation();
-              if (ultimoEstagio) {
+              if (podeFinalizar) {
                 onFinalizar?.();
                 return;
               }
 
               onMoverProxima?.();
             }}
-            disabled={ultimoEstagio ? !onFinalizar : desabilitarMoverProxima}
+            disabled={podeFinalizar ? !onFinalizar : desabilitarMoverProxima}
+            hidden={!podeFinalizar && desabilitarMoverProxima}
           >
-            {ultimoEstagio ? "Finalizar OS" : "Próxima"}
-            {!ultimoEstagio && <ArrowRight className="ml-2 h-4 w-4" />}
+            {podeFinalizar ? textoBotaoFinalizar : "Proxima"}
+            {!podeFinalizar && <ArrowRight className="ml-2 h-4 w-4" />}
           </Button>
         </div>
       </div>

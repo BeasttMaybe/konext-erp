@@ -61,6 +61,7 @@ export interface OrdemServico {
   osOrigemGarantiaId?: string;
   numeroOSOrigemGarantia?: string;
   retornoGarantiaId?: string;
+  retornoGarantiaFinalizadoEm?: string;
   observacoesInternas?: string;
   dataCriacao: string;
   dataAtualizacao: string;

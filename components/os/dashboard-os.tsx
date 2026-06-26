@@ -104,7 +104,11 @@ export function DashboardOS({
 
   const handleMoverOS = async (osId: string, novoStatus: StatusOS): Promise<boolean> => {
     try {
-      await atualizarStatusOrdemServico(osId, novoStatus);
+      const resultado = await atualizarStatusOrdemServico(osId, novoStatus);
+      if (!resultado.sucesso) {
+        toast.error(resultado.erro);
+        return false;
+      }
       router.refresh();
       return true;
     } catch (error) {

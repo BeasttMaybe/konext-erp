@@ -372,6 +372,14 @@ function PDVPageConteudo() {
 
   const resumo = getResumo();
   const totalGeral = (pedidoOS?.valor ?? 0) + resumo.total;
+  const clienteIniciais = clienteSelecionado
+    ? clienteSelecionado.nomeRazaoSocial
+        .split(" ")
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((parte) => parte[0]?.toUpperCase() ?? "")
+        .join("")
+    : "";
 
   const finalizarVenda = () => {
     if (itens.length === 0 && !pedidoOS) return;
@@ -654,89 +662,123 @@ function PDVPageConteudo() {
 
             {/* Carrinho */}
             <div className="lg:col-span-1">
-              <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-slate-800 flex flex-col sticky top-0">
-                <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
-                  <h2 className="font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                    <ShoppingCart className="h-5 w-5" />
-                    Carrinho ({itens.length})
-                  </h2>
-                  {itens.length > 0 && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setConfirmarLimpezaAberto(true)}
-                      className="text-red-600 hover:text-red-700"
-                    >
-                      Limpar
-                    </Button>
-                  )}
+              <div className="sticky top-2 flex flex-col gap-3 rounded-2xl border border-slate-200/70 bg-white/85 p-3 shadow-lg shadow-slate-900/5 backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/75 dark:shadow-black/20">
+                <div className="rounded-xl border border-slate-200/70 bg-gradient-to-br from-white via-slate-50 to-slate-100 px-4 py-3 dark:border-slate-700/70 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <div className="rounded-lg bg-blue-500/10 p-2 text-blue-600 dark:bg-blue-500/20 dark:text-blue-300">
+                        <ShoppingCart className="h-5 w-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">
+                          Carrinho
+                        </h2>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          Itens e fechamento do atendimento
+                        </p>
+                      </div>
+                    </div>
+                    <Badge variant="secondary" className="rounded-full px-2.5 py-0.5 text-xs font-semibold">
+                      {itens.length} {itens.length === 1 ? "item" : "itens"}
+                    </Badge>
+                  </div>
                 </div>
 
-                <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                    Ordem de Serviço no PDV
+                <div className="rounded-xl border border-slate-200/70 bg-slate-50/70 p-3 dark:border-slate-700/70 dark:bg-slate-800/45">
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Ordem de Servico no PDV
                   </p>
 
                   {carregandoPedidoOS && (
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
                       Carregando dados da OS...
                     </p>
                   )}
 
                   {!carregandoPedidoOS && !pedidoOS && (
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                      Nenhuma OS enviada para este atendimento.
-                    </p>
+                    <div className="flex items-start gap-2 rounded-lg border border-dashed border-slate-300/90 bg-white/80 px-3 py-2.5 dark:border-slate-600/80 dark:bg-slate-900/40">
+                      <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                      <div>
+                        <p className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                          Nenhuma OS vinculada a esta venda
+                        </p>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                          Envie uma OS para integrar atendimento e checkout.
+                        </p>
+                      </div>
+                    </div>
                   )}
 
                   {!carregandoPedidoOS && pedidoOS && (
-                    <div className="rounded-md border border-blue-200 dark:border-blue-900/50 bg-blue-50 dark:bg-blue-950/30 p-3 space-y-2">
-                      <p className="text-xs font-semibold text-blue-700 dark:text-blue-300">
-                        OS #{pedidoOS.numeroOs}
+                    <div className="space-y-2 rounded-lg border border-blue-200/70 bg-blue-50/80 p-3 dark:border-blue-900/50 dark:bg-blue-950/30">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs font-semibold text-blue-700 dark:text-blue-300">
+                          OS #{pedidoOS.numeroOs}
+                        </p>
+                        <Badge className="rounded-full border-blue-300/60 bg-blue-100 text-[10px] text-blue-700 dark:border-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
+                          Vinculada
+                        </Badge>
+                      </div>
+                      <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
+                        {pedidoOS.nomeCliente}
                       </p>
-                      <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                        Cliente: {pedidoOS.nomeCliente}
+                      <p className="text-xs text-slate-700 dark:text-slate-300 truncate">
+                        Equipamento: {pedidoOS.aparelho}
                       </p>
-                      <p className="text-xs text-zinc-700 dark:text-zinc-300">
-                        Aparelho: {pedidoOS.aparelho}
-                      </p>
-                      <p className="text-xs text-zinc-700 dark:text-zinc-300 line-clamp-2">
+                      <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2">
                         Defeito: {pedidoOS.defeito}
                       </p>
-                      <p className="text-sm font-bold text-blue-700 dark:text-blue-300">
-                        Valor OS: {formatarMoeda(pedidoOS.valor)}
-                      </p>
+                      <div className="flex items-center justify-between border-t border-blue-200/70 pt-2 text-xs dark:border-blue-900/50">
+                        <span className="text-blue-700/80 dark:text-blue-300/90">Valor OS</span>
+                        <span className="font-semibold text-blue-700 dark:text-blue-300">
+                          {formatarMoeda(pedidoOS.valor)}
+                        </span>
+                      </div>
                     </div>
                   )}
                 </div>
 
-                {/* Itens */}
-                <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                    Cliente da Venda
+                <div className="rounded-xl border border-slate-200/70 bg-slate-50/70 p-3 dark:border-slate-700/70 dark:bg-slate-800/45">
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Cliente da venda
                   </p>
 
-                  <Input
-                    placeholder="Buscar por nome, CPF ou telefone"
-                    value={buscaCliente}
-                    onChange={(e) => setBuscaCliente(e.target.value)}
-                  />
+                  <div className="relative mb-2">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                    <Input
+                      placeholder="Buscar por nome, CPF ou telefone"
+                      value={buscaCliente}
+                      onChange={(e) => setBuscaCliente(e.target.value)}
+                      className="h-9 border-slate-300/80 bg-white/85 pl-8 text-sm dark:border-slate-600/80 dark:bg-slate-900/40"
+                    />
+                  </div>
 
-                  <div className="max-h-40 overflow-y-auto rounded-md border border-zinc-200 dark:border-zinc-800 divide-y divide-zinc-100 dark:divide-zinc-800">
+                  {!clienteSelecionado && !buscaCliente.trim() && (
+                    <div className="mb-2 rounded-lg border border-dashed border-slate-300/90 bg-white/80 px-3 py-2 dark:border-slate-600/80 dark:bg-slate-900/40">
+                      <p className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                        Nenhum cliente selecionado
+                      </p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Busque por nome, CPF ou telefone.
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="max-h-36 overflow-y-auto rounded-lg border border-slate-200/80 bg-white/80 divide-y divide-slate-200/70 dark:border-slate-700/80 dark:bg-slate-900/35 dark:divide-slate-700/70">
                     {carregandoClientes && (
-                      <p className="text-xs text-zinc-500 dark:text-zinc-400 p-3">
+                      <p className="p-3 text-xs text-slate-500 dark:text-slate-400">
                         Carregando clientes...
                       </p>
                     )}
 
                     {!carregandoClientes && !buscaCliente.trim() && (
-                      <p className="text-xs text-zinc-500 dark:text-zinc-400 p-3">
+                      <p className="p-3 text-xs text-slate-500 dark:text-slate-400">
                         Digite para buscar um cliente.
                       </p>
                     )}
 
                     {!carregandoClientes && !!buscaCliente.trim() && clientesFiltrados.length === 0 && (
-                      <p className="text-xs text-zinc-500 dark:text-zinc-400 p-3">
+                      <p className="p-3 text-xs text-slate-500 dark:text-slate-400">
                         Nenhum cliente encontrado.
                       </p>
                     )}
@@ -750,28 +792,36 @@ function PDVPageConteudo() {
                             setClienteSelecionadoId(cliente.id);
                             setBuscaCliente(cliente.nomeRazaoSocial);
                           }}
-                          className={`w-full text-left p-3 transition-colors ${
+                          className={`w-full p-3 text-left transition-colors ${
                             clienteSelecionadoId === cliente.id
-                              ? "bg-blue-50 dark:bg-blue-950/40"
-                              : "hover:bg-zinc-50 dark:hover:bg-slate-700/40"
+                              ? "bg-blue-50/80 dark:bg-blue-950/35"
+                              : "hover:bg-slate-100 dark:hover:bg-slate-800/60"
                           }`}
                         >
-                          <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
+                          <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">
                             {cliente.nomeRazaoSocial}
+                          </p>
+                          <p className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400">
+                            {cliente.documento || cliente.telefone || "Sem documento informado"}
                           </p>
                         </button>
                       ))}
                   </div>
 
                   {clienteSelecionado && (
-                    <div className="flex items-center justify-between rounded-md bg-emerald-50 dark:bg-emerald-950/30 px-3 py-2">
-                      <div className="min-w-0">
-                        <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
-                          Cliente selecionado
-                        </p>
-                        <p className="text-sm text-emerald-800 dark:text-emerald-200 truncate">
-                          {clienteSelecionado.nomeRazaoSocial}
-                        </p>
+                    <div className="mt-2 flex items-center justify-between gap-3 rounded-lg border border-emerald-200/70 bg-emerald-50/80 px-3 py-2 dark:border-emerald-900/50 dark:bg-emerald-950/30">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-600/15 text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                          {clienteIniciais || "CL"}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-emerald-800 dark:text-emerald-200">
+                            {clienteSelecionado.nomeRazaoSocial}
+                          </p>
+                          <p className="truncate text-[11px] text-emerald-700/80 dark:text-emerald-300/80">
+                            {clienteSelecionado.telefone || clienteSelecionado.documento || "Sem contato"}
+                          </p>
+                        </div>
                       </div>
                       <Button
                         type="button"
@@ -781,6 +831,7 @@ function PDVPageConteudo() {
                           setClienteSelecionadoId("");
                           setBuscaCliente("");
                         }}
+                        className="h-8 text-emerald-800 hover:bg-emerald-100 hover:text-emerald-900 dark:text-emerald-200 dark:hover:bg-emerald-900/50"
                       >
                         Limpar
                       </Button>
@@ -788,184 +839,227 @@ function PDVPageConteudo() {
                   )}
                 </div>
 
-                <div className="max-h-80 overflow-y-auto divide-y divide-zinc-100 dark:divide-zinc-800">
-                  {itens.length === 0 && (
-                    <p className="text-center text-zinc-500 dark:text-zinc-400 py-10 text-sm">
-                      O carrinho está vazio.
-                      <br />
-                      Clique em um produto para adicionar.
+                <div className="rounded-xl border border-slate-200/70 bg-slate-50/70 p-3 dark:border-slate-700/70 dark:bg-slate-800/45">
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      Itens do carrinho
                     </p>
-                  )}
+                    {itens.length > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setConfirmarLimpezaAberto(true)}
+                        className="h-7 px-2 text-xs text-red-600 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/40"
+                      >
+                        Limpar
+                      </Button>
+                    )}
+                  </div>
 
-                  {itens.map((item) => (
-                    <div key={item.id} className="p-3 flex items-center gap-3">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
-                          {item.nome}
+                  <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
+                    {itens.length === 0 && (
+                      <div className="rounded-lg border border-dashed border-slate-300/90 bg-white/80 px-4 py-8 text-center dark:border-slate-600/80 dark:bg-slate-900/40">
+                        <ShoppingCart className="mx-auto mb-2 h-5 w-5 text-slate-400" />
+                        <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                          Seu carrinho esta vazio
                         </p>
-                        <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                          {item.quantidade > 1 ? `${item.quantidade} un.` : "1 un."}
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                          Clique em um produto para adicionar.
                         </p>
                       </div>
+                    )}
 
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() =>
-                            alterarQuantidade(item.id, item.quantidade - 1)
-                          }
-                        >
-                          <Minus className="h-3 w-3" />
-                        </Button>
-                        <span className="w-6 text-center text-sm font-medium">
-                          {item.quantidade}
-                        </span>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() =>
-                            alterarQuantidade(item.id, item.quantidade + 1)
-                          }
-                        >
-                          <Plus className="h-3 w-3" />
-                        </Button>
-                      </div>
+                    {itens.map((item) => (
+                      <div
+                        key={item.id}
+                        className="rounded-lg border border-slate-200/80 bg-white/90 p-2.5 shadow-sm dark:border-slate-700/70 dark:bg-slate-900/45"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+                              {item.nome}
+                            </p>
+                            <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                              Unitario: {formatarMoeda(item.preco)}
+                            </p>
+                          </div>
 
-                      {/* Preço unitário editável diretamente no carrinho */}
-                      <div className="w-24 text-right">
-                        <div className="flex items-center justify-end gap-0.5">
-                          <span className="text-xs text-zinc-400">R$</span>
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            value={precosEmEdicao[item.id] ?? formatarPrecoInput(item.preco)}
-                            onFocus={() => {
-                              setPrecosEmEdicao((estadoAnterior) => ({
-                                ...estadoAnterior,
-                                [item.id]: formatarPrecoInput(item.preco),
-                              }));
-                            }}
-                            onChange={(e) => {
-                              const valorSanitizado = sanitizarPrecoInput(e.target.value);
-                              setPrecosEmEdicao((estadoAnterior) => ({
-                                ...estadoAnterior,
-                                [item.id]: valorSanitizado,
-                              }));
-                            }}
-                            onBlur={() => {
-                              const valorDigitado = precosEmEdicao[item.id] ?? formatarPrecoInput(item.preco);
-                              alterarPreco(item.id, parsePrecoInput(valorDigitado));
-                              setPrecosEmEdicao((estadoAnterior) => {
-                                const novoEstado = { ...estadoAnterior };
-                                delete novoEstado[item.id];
-                                return novoEstado;
-                              });
-                            }}
-                            onKeyDown={(evento) => {
-                              if (evento.key === "Enter") {
-                                evento.currentTarget.blur();
-                                return;
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 shrink-0 text-red-600 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/40"
+                            onClick={() => removerItem(item.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+
+                        <div className="mt-2 grid grid-cols-[auto_1fr_auto] items-center gap-2">
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-7 w-7 border-slate-300/80 bg-white/80 dark:border-slate-600/80 dark:bg-slate-900/45"
+                              onClick={() =>
+                                alterarQuantidade(item.id, item.quantidade - 1)
                               }
+                            >
+                              <Minus className="h-3 w-3" />
+                            </Button>
+                            <span className="w-6 text-center text-sm font-semibold text-slate-900 dark:text-slate-100">
+                              {item.quantidade}
+                            </span>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-7 w-7 border-slate-300/80 bg-white/80 dark:border-slate-600/80 dark:bg-slate-900/45"
+                              onClick={() =>
+                                alterarQuantidade(item.id, item.quantidade + 1)
+                              }
+                            >
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                          </div>
 
-                              if (evento.key === "Escape") {
+                          {/* Preco unitario editavel diretamente no carrinho */}
+                          <div className="flex items-center justify-end gap-1">
+                            <span className="text-xs text-slate-400">R$</span>
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={precosEmEdicao[item.id] ?? formatarPrecoInput(item.preco)}
+                              onFocus={() => {
+                                setPrecosEmEdicao((estadoAnterior) => ({
+                                  ...estadoAnterior,
+                                  [item.id]: formatarPrecoInput(item.preco),
+                                }));
+                              }}
+                              onChange={(e) => {
+                                const valorSanitizado = sanitizarPrecoInput(e.target.value);
+                                setPrecosEmEdicao((estadoAnterior) => ({
+                                  ...estadoAnterior,
+                                  [item.id]: valorSanitizado,
+                                }));
+                              }}
+                              onBlur={() => {
+                                const valorDigitado = precosEmEdicao[item.id] ?? formatarPrecoInput(item.preco);
+                                alterarPreco(item.id, parsePrecoInput(valorDigitado));
                                 setPrecosEmEdicao((estadoAnterior) => {
                                   const novoEstado = { ...estadoAnterior };
                                   delete novoEstado[item.id];
                                   return novoEstado;
                                 });
-                                evento.currentTarget.blur();
-                              }
-                            }}
-                            className="w-16 text-sm font-semibold text-slate-900 dark:text-slate-100 bg-transparent border-b border-transparent hover:border-zinc-400 focus:border-blue-500 focus:outline-none text-right transition-colors"
-                            title="Editar preço unitário"
-                          />
-                        </div>
-                        {item.quantidade > 1 && (
-                          <p className="text-xs text-zinc-400 text-right mt-0.5">
-                            = {formatarMoeda(item.subtotal)}
-                          </p>
-                        )}
-                      </div>
+                              }}
+                              onKeyDown={(evento) => {
+                                if (evento.key === "Enter") {
+                                  evento.currentTarget.blur();
+                                  return;
+                                }
 
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-red-600 hover:text-red-700"
-                        onClick={() => removerItem(item.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
+                                if (evento.key === "Escape") {
+                                  setPrecosEmEdicao((estadoAnterior) => {
+                                    const novoEstado = { ...estadoAnterior };
+                                    delete novoEstado[item.id];
+                                    return novoEstado;
+                                  });
+                                  evento.currentTarget.blur();
+                                }
+                              }}
+                              className="w-16 rounded-md border border-slate-200/80 bg-slate-50 px-1.5 py-0.5 text-right text-sm font-semibold text-slate-900 outline-none transition-colors focus:border-blue-500 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-100"
+                              title="Editar preco unitario"
+                            />
+                          </div>
+
+                          <p className="text-right text-xs font-semibold text-slate-700 dark:text-slate-300">
+                            {formatarMoeda(item.subtotal)}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
-                {/* Desconto + Resumo */}
-                <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Tag className="h-4 w-4 text-zinc-500" />
-                    <Input
-                      type="number"
-                      min={0}
-                      placeholder="Desconto"
-                      value={desconto || ""}
-                      disabled={configuracaoPagamentosPdv ? !configuracaoPagamentosPdv.permitirDescontoPDV : false}
-                      onChange={(e) => {
-                        const valorDigitado = Number(e.target.value) || 0;
-                        const limitePercentual =
-                          configuracaoPagamentosPdv?.descontoMaximoPDVPercentual ?? 100;
-                        const valorAplicado =
-                          tipoDesconto === "PERCENTUAL"
-                            ? Math.min(limitePercentual, Math.max(0, valorDigitado))
-                            : Math.max(0, valorDigitado);
-                        setDesconto(valorAplicado);
-                      }}
-                      className="flex-1"
-                    />
-                    <Select
-                      value={tipoDesconto}
-                      onValueChange={(v) =>
-                        setTipoDesconto(v as "FIXO" | "PERCENTUAL")
-                      }
-                    >
-                      <SelectTrigger className="w-24">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="FIXO">R$</SelectItem>
-                        <SelectItem value="PERCENTUAL">%</SelectItem>
-                      </SelectContent>
-                    </Select>
+                <div className="space-y-3 rounded-xl border border-slate-200/70 bg-gradient-to-br from-white via-slate-50 to-slate-100 p-3 dark:border-slate-700/70 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Resumo da venda
+                  </p>
+
+                  <div className="rounded-lg border border-slate-200/80 bg-white/90 p-2.5 dark:border-slate-700/80 dark:bg-slate-900/50">
+                    <div className="mb-2 flex items-center gap-2">
+                      <Tag className="h-4 w-4 text-slate-500" />
+                      <span className="text-xs font-medium text-slate-600 dark:text-slate-300">Desconto</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={0}
+                        placeholder="Desconto"
+                        value={desconto || ""}
+                        disabled={configuracaoPagamentosPdv ? !configuracaoPagamentosPdv.permitirDescontoPDV : false}
+                        onChange={(e) => {
+                          const valorDigitado = Number(e.target.value) || 0;
+                          const limitePercentual =
+                            configuracaoPagamentosPdv?.descontoMaximoPDVPercentual ?? 100;
+                          const valorAplicado =
+                            tipoDesconto === "PERCENTUAL"
+                              ? Math.min(limitePercentual, Math.max(0, valorDigitado))
+                              : Math.max(0, valorDigitado);
+                          setDesconto(valorAplicado);
+                        }}
+                        className="h-9 flex-1 border-slate-300/80 bg-white/90 dark:border-slate-600/80 dark:bg-slate-900/40"
+                      />
+                      <Select
+                        value={tipoDesconto}
+                        onValueChange={(v) =>
+                          setTipoDesconto(v as "FIXO" | "PERCENTUAL")
+                        }
+                      >
+                        <SelectTrigger className="h-9 w-24 border-slate-300/80 bg-white/90 dark:border-slate-600/80 dark:bg-slate-900/40">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="FIXO">R$</SelectItem>
+                          <SelectItem value="PERCENTUAL">%</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
 
-                  <div className="space-y-1 text-sm">
-                    <div className="flex justify-between text-zinc-600 dark:text-zinc-400">
+                  <div className="space-y-1.5 rounded-lg border border-slate-200/80 bg-white/90 p-3 text-sm dark:border-slate-700/80 dark:bg-slate-900/50">
+                    <div className="flex items-center justify-between text-slate-600 dark:text-slate-400">
                       <span>Subtotal</span>
-                      <span>{formatarMoeda(resumo.subtotal)}</span>
+                      <span className="font-medium">{formatarMoeda(resumo.subtotal)}</span>
                     </div>
+
                     {pedidoOS && (
-                      <div className="flex justify-between text-blue-600 dark:text-blue-400">
+                      <div className="flex items-center justify-between text-blue-600 dark:text-blue-400">
                         <span>OS enviada para PDV</span>
-                        <span>{formatarMoeda(pedidoOS.valor)}</span>
+                        <span className="font-medium">{formatarMoeda(pedidoOS.valor)}</span>
                       </div>
                     )}
-                    <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
+
+                    <div className="flex items-center justify-between text-emerald-600 dark:text-emerald-400">
                       <span>Desconto</span>
-                      <span>- {formatarMoeda(resumo.descontoAplicado)}</span>
+                      <span className="font-medium">- {formatarMoeda(resumo.descontoAplicado)}</span>
                     </div>
-                    <div className="flex justify-between text-lg font-bold text-slate-900 dark:text-slate-100 pt-2 border-t border-zinc-100 dark:border-zinc-800">
-                      <span>Total</span>
-                      <span>{formatarMoeda(totalGeral)}</span>
+
+                    <div className="mt-2 flex items-center justify-between rounded-md border border-slate-200/80 bg-slate-100/80 px-2.5 py-2 dark:border-slate-700/80 dark:bg-slate-800/70">
+                      <span className="text-base font-semibold text-slate-800 dark:text-slate-200">Total</span>
+                      <span className="text-2xl font-black tabular-nums text-slate-900 dark:text-slate-50">
+                        {formatarMoeda(totalGeral)}
+                      </span>
                     </div>
                   </div>
-
-                  <Button className="w-full" disabled={(itens.length === 0 && !pedidoOS) || !clienteSelecionadoId} onClick={finalizarVenda}>
-                    <CreditCard className="h-4 w-4 mr-2" />
-                    {caixaAberto ? "Finalizar Venda" : "Abra o Caixa"}
-                  </Button>
                 </div>
+
+                <Button
+                  className="h-11 w-full bg-blue-600 text-base font-semibold shadow-md shadow-blue-500/20 transition hover:bg-blue-700 disabled:bg-slate-300 disabled:text-slate-500 dark:disabled:bg-slate-700 dark:disabled:text-slate-400"
+                  disabled={(itens.length === 0 && !pedidoOS) || !clienteSelecionadoId}
+                  onClick={finalizarVenda}
+                >
+                  <CreditCard className="mr-2 h-4 w-4" />
+                  {caixaAberto ? "Finalizar Venda" : "Abra o Caixa"}
+                </Button>
               </div>
             </div>
           </div>

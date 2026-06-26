@@ -276,6 +276,8 @@ function normalizeOrderServiceError(error: unknown): Error {
   return new Error("Erro ao gerar venda no PDV.");
 }
 
+const MENSAGEM_OS_JA_VINCULADA_PDV = "Esta OS já possui uma venda vinculada no PDV.";
+
 type SalesHistoryMirrorItem = {
   produtoId?: string | null;
   nome: string;
@@ -1140,7 +1142,7 @@ export async function obterPedidoOSParaPDV(osId: string): Promise<PedidoOSPDV> {
   });
 
   if (vendaExistente?.vendaId) {
-    throw new Error("Esta OS ja possui venda gerada.");
+    throw new Error(MENSAGEM_OS_JA_VINCULADA_PDV);
   }
 
   if (exigirItemParaEnviarPDV && (os.itens ?? []).length === 0) {
@@ -1244,7 +1246,7 @@ export async function processarVendaComOSNoPDV(
       });
 
       if (contaExistente) {
-        throw new Error("Esta OS ja foi faturada anteriormente.");
+        throw new Error(MENSAGEM_OS_JA_VINCULADA_PDV);
       }
 
       const novaVenda = await criarVendaComFallbackFormaPagamento(
@@ -1372,36 +1374,42 @@ export async function processarVendaComOSNoPDV(
           dataVencimento: pagamento.dataVencimento,
         });
 
-        if (ehPagamentoPrazo(pagamento.formaPagamento)) {
-          await criarContaReceberComFallbackVendaPagamento(
-            contaReceberDelegate,
-            {
-              descricao: `OS #${pedido.numeroOs} - ${pedido.aparelho} (+itens PDV) - ${pagamento.formaPagamento}`,
-              valor: pagamento.valorBruto,
-              cliente: {
-                connect: {
-                  id: pedido.clienteId,
-                },
+        const pagamentoPrazo = ehPagamentoPrazo(pagamento.formaPagamento);
+        await criarContaReceberComFallbackVendaPagamento(
+          contaReceberDelegate,
+          {
+            descricao: `OS #${pedido.numeroOs} - ${pedido.aparelho} (+itens PDV) - ${pagamento.formaPagamento}`,
+            valor: pagamento.valorBruto,
+            cliente: {
+              connect: {
+                id: pedido.clienteId,
               },
-              ordemServico: {
-                connect: {
-                  id: pedido.osId,
-                },
-              },
-              venda: {
-                connect: {
-                  id: vendaId,
-                },
-              },
-              dataVencimento: pagamento.dataVencimento ?? new Date(),
-              status: "PENDENTE",
-              formaRecebimento: formaPagamentoAtual,
-              origem: "ORDEM_SERVICO",
-              notaFiscalEmitida: false,
             },
-            vendaPagamentoId
-          );
-        }
+            ordemServico: {
+              connect: {
+                id: pedido.osId,
+              },
+            },
+            venda: {
+              connect: {
+                id: vendaId,
+              },
+            },
+            dataVencimento: pagamento.dataVencimento ?? new Date(),
+            ...(pagamentoPrazo
+              ? {
+                  status: "PENDENTE",
+                }
+              : {
+                  status: "RECEBIDO",
+                  dataRecebimento: new Date(),
+                }),
+            formaRecebimento: formaPagamentoAtual,
+            origem: "ORDEM_SERVICO",
+            notaFiscalEmitida: false,
+          },
+          vendaPagamentoId
+        );
       }
 
       await createSalesHistoryMirror(tx, {
@@ -1433,9 +1441,11 @@ export async function processarVendaComOSNoPDV(
 
     revalidatePath("/pdv");
     revalidatePath("/os");
+    revalidatePath(`/os/${pedido.osId}`);
     revalidatePath("/financeiro");
     revalidatePath("/financeiro/receber");
     revalidatePath("/financeiro/inteligencia");
+    revalidatePath("/vendas");
     revalidatePath("/vendas/historico");
     revalidatePath("/");
 

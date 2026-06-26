@@ -88,10 +88,24 @@ interface LinhaPagamento {
 }
 
 type EstadoFechamento =
-  | { status: "fechado"; mensagem: "Fechado" }
-  | { status: "faltando"; mensagem: string }
-  | { status: "excedente"; mensagem: string }
-  | { status: "erro"; mensagem: string };
+  | {
+      tipo: "fechado";
+      label: "Fechado";
+      mensagem?: string;
+      podeConfirmar: true;
+    }
+  | {
+      tipo: "falta_pagar";
+      label: "Falta pagar";
+      mensagem: string;
+      podeConfirmar: false;
+    }
+  | {
+      tipo: "corrigir";
+      label: "Corrigir";
+      mensagem: string;
+      podeConfirmar: false;
+    };
 
 type PagamentoCalculado = ReturnType<typeof calcularPagamentoPdv>;
 
@@ -137,29 +151,64 @@ function distribuirValoresPagamentos(
 
 function sincronizarValorDinheiroNasLinhas(
   linhas: LinhaPagamento[],
-  total: number,
+  _total: number,
   valorRecebidoDinheiro: number
 ): LinhaPagamento[] {
-  const indiceDinheiro = linhas.findIndex((linha) => linha.formaPagamento === "DINHEIRO");
-  if (indiceDinheiro < 0) return linhas;
+  // Valor recebido em dinheiro nao altera o valor atribuido a forma; ele apenas
+  // influencia validacao (corrigir/fechado) e calculo de troco.
+  if (!Number.isFinite(valorRecebidoDinheiro)) {
+    return linhas;
+  }
 
-  const atualizado = [...linhas];
-  const totalCentavos = paraCentavos(total);
-  const somaOutrasFormasCentavos = atualizado.reduce((acc, linha, index) => {
-    if (index === indiceDinheiro) return acc;
-    return acc + paraCentavos(linha.valorBruto);
-  }, 0);
+  return linhas;
+}
 
-  const valorDevidoDinheiroCentavos = Math.max(0, totalCentavos - somaOutrasFormasCentavos);
-  const valorRecebidoCentavos = paraCentavos(valorRecebidoDinheiro);
-  const valorAplicadoDinheiroCentavos = Math.min(valorRecebidoCentavos, valorDevidoDinheiroCentavos);
+function calcularEstadoFechamento(params: {
+  totalVenda: number;
+  totalInformado: number;
+  totalDinheiroInformado: number;
+  valorRecebidoDinheiro: number;
+}): EstadoFechamento {
+  const totalVendaCentavos = paraCentavos(params.totalVenda);
+  const totalInformadoCentavos = paraCentavos(params.totalInformado);
+  const saldoCentavos = totalVendaCentavos - totalInformadoCentavos;
 
-  atualizado[indiceDinheiro] = {
-    ...atualizado[indiceDinheiro],
-    valorBruto: valorAplicadoDinheiroCentavos / 100,
+  if (saldoCentavos > 0) {
+    return {
+      tipo: "falta_pagar",
+      label: "Falta pagar",
+      mensagem: `Falta pagar ${formatarMoeda(saldoCentavos / 100)}.`,
+      podeConfirmar: false,
+    };
+  }
+
+  if (saldoCentavos < 0) {
+    return {
+      tipo: "corrigir",
+      label: "Corrigir",
+      mensagem: `Valor informado excede o total em ${formatarMoeda(Math.abs(saldoCentavos) / 100)}.`,
+      podeConfirmar: false,
+    };
+  }
+
+  const totalDinheiroCentavos = paraCentavos(params.totalDinheiroInformado);
+  if (totalDinheiroCentavos > 0) {
+    const valorRecebidoCentavos = paraCentavos(params.valorRecebidoDinheiro);
+    if (valorRecebidoCentavos < totalDinheiroCentavos) {
+      return {
+        tipo: "corrigir",
+        label: "Corrigir",
+        mensagem: "Valor recebido em dinheiro menor que o valor do pagamento.",
+        podeConfirmar: false,
+      };
+    }
+  }
+
+  return {
+    tipo: "fechado",
+    label: "Fechado",
+    podeConfirmar: true,
   };
-
-  return atualizado;
 }
 
 function novaLinhaPagamento(total: number): LinhaPagamento {
@@ -390,43 +439,50 @@ export function ModalPagamento({
       .reduce((acc, item) => acc + paraCentavos(item.valorBruto), 0) / 100;
   }, [pagamentosCalculados]);
 
-  const troco = Math.max(0, valorRecebidoDinheiro - totalDinheiro);
-  const totalCorreto = paraCentavos(totalInformado) === paraCentavos(total);
-  const diferenca = totalInformado - total;
+  const troco = totalDinheiro > 0 ? Math.max(0, valorRecebidoDinheiro - totalDinheiro) : 0;
+  const saldoCentavos = paraCentavos(total) - paraCentavos(totalInformado);
   const totalAntesDesconto = total + Math.max(0, descontoAplicado);
   const percentualTaxaEstimado = totalInformado > 0 ? (totalTaxas / totalInformado) * 100 : 0;
-  const erroDinheiro = totalDinheiro > 0 && paraCentavos(valorRecebidoDinheiro) < paraCentavos(totalDinheiro);
-  const estadoFechamento: EstadoFechamento = erroDinheiro
-    ? { status: "erro", mensagem: "Valor recebido em dinheiro menor que o valor da forma Dinheiro." }
-    : diferenca < 0
-      ? { status: "faltando", mensagem: `Falta pagar ${formatarMoeda(Math.abs(diferenca))}` }
-      : diferenca > 0
-        ? { status: "excedente", mensagem: `Valor excedente ${formatarMoeda(diferenca)}` }
-        : { status: "fechado", mensagem: "Fechado" };
+  const estadoFechamento = calcularEstadoFechamento({
+    totalVenda: total,
+    totalInformado,
+    totalDinheiroInformado: totalDinheiro,
+    valorRecebidoDinheiro,
+  });
 
   const statusResumo =
-    estadoFechamento.status === "fechado"
-      ? { texto: "Fechado", cor: "text-emerald-400", borda: "border-emerald-500/20", fundo: "bg-emerald-500/10" }
-      : estadoFechamento.status === "faltando"
-        ? { texto: "Falta pagar", cor: "text-amber-400", borda: "border-amber-500/20", fundo: "bg-amber-500/10" }
-        : estadoFechamento.status === "excedente"
-          ? { texto: "Valor excedente", cor: "text-rose-400", borda: "border-rose-500/20", fundo: "bg-rose-500/10" }
-          : { texto: "Corrigir pagamento", cor: "text-rose-400", borda: "border-rose-500/20", fundo: "bg-rose-500/10" };
-  const resumoStatusTexto =
-    estadoFechamento.status === "erro"
-      ? "Corrigir pagamento"
-      : estadoFechamento.status === "faltando"
-        ? "Falta pagar"
-        : estadoFechamento.status === "excedente"
-          ? "Valor excedente"
-          : "Fechado";
+    estadoFechamento.tipo === "fechado"
+      ? { cor: "text-emerald-400", borda: "border-emerald-500/20", fundo: "bg-emerald-500/10" }
+      : estadoFechamento.tipo === "falta_pagar"
+        ? { cor: "text-amber-400", borda: "border-amber-500/20", fundo: "bg-amber-500/10" }
+        : { cor: "text-rose-400", borda: "border-rose-500/20", fundo: "bg-rose-500/10" };
 
-  const podeConfirmar =
-    !processando &&
-    total > 0 &&
-    estadoFechamento.status === "fechado" &&
-    totalCorreto &&
-    !erroDinheiro;
+  const resumoSaldo =
+    estadoFechamento.tipo === "falta_pagar"
+      ? {
+          label: "Falta pagar",
+          valor: formatarMoeda(Math.max(0, saldoCentavos) / 100),
+          cor: "text-amber-400",
+        }
+      : estadoFechamento.tipo === "fechado" && totalDinheiro > 0 && troco > 0
+        ? {
+            label: "Troco",
+            valor: formatarMoeda(troco),
+            cor: "text-emerald-400",
+          }
+        : estadoFechamento.tipo === "fechado"
+          ? {
+              label: "Saldo",
+              valor: formatarMoeda(0),
+              cor: "text-slate-200",
+            }
+          : {
+              label: "Ajuste",
+              valor: saldoCentavos < 0 ? formatarMoeda(Math.abs(saldoCentavos) / 100) : "Corrigir",
+              cor: "text-rose-400",
+            };
+
+  const podeConfirmar = total > 0 && estadoFechamento.podeConfirmar;
 
   const resetar = () => {
     setLinhas([novaLinhaPagamento(total)]);
@@ -713,6 +769,11 @@ export function ModalPagamento({
   };
 
   const handleConfirmar = async () => {
+    if (!estadoFechamento.podeConfirmar) {
+      toast.error(estadoFechamento.mensagem ?? "Ajuste os pagamentos para continuar.");
+      return;
+    }
+
     setProcessando(true);
 
     const dados: DadosPagamento = {
@@ -1177,7 +1238,22 @@ export function ModalPagamento({
                                         </Button>
                                       ))}
                                     </div>
-                                    <p className="text-xs text-slate-400">Troco: {formatarMoeda(troco)}</p>
+                                    <div className="grid grid-cols-1 gap-2 rounded-xl border border-slate-800 bg-slate-900/70 p-2.5 text-xs sm:grid-cols-3">
+                                      <div>
+                                        <p className="text-slate-500">Valor da venda</p>
+                                        <p className="font-semibold text-slate-100">{formatarMoeda(totalDinheiro)}</p>
+                                      </div>
+                                      <div>
+                                        <p className="text-slate-500">Recebido</p>
+                                        <p className="font-semibold text-slate-100">{formatarMoeda(valorRecebidoDinheiro)}</p>
+                                      </div>
+                                      <div>
+                                        <p className="text-slate-500">Troco</p>
+                                        <p className={`font-semibold ${troco > 0 ? "text-emerald-400" : "text-slate-100"}`}>
+                                          {formatarMoeda(troco)}
+                                        </p>
+                                      </div>
+                                    </div>
                                   </div>
                                 )}
 
@@ -1264,19 +1340,22 @@ export function ModalPagamento({
                       <p className="font-semibold text-slate-100">{formatarMoeda(totalInformado)}</p>
                     </div>
                     <div>
-                      <p className="text-[11px] text-slate-500">Diferença</p>
-                      <p className={`font-semibold ${statusResumo.cor}`}>{formatarMoeda(Math.abs(diferenca))}</p>
+                      <p className="text-[11px] text-slate-500">{resumoSaldo.label}</p>
+                      <p className={`font-semibold ${resumoSaldo.cor}`}>{resumoSaldo.valor}</p>
                     </div>
                     <div>
                       <p className="text-[11px] text-slate-500">Status</p>
-                      <p className={`font-semibold ${statusResumo.cor}`}>{resumoStatusTexto}</p>
+                      <p className={`font-semibold ${statusResumo.cor}`}>{estadoFechamento.label}</p>
                     </div>
                   </div>
-                  {estadoFechamento.status === "erro" && (
+                  {estadoFechamento.tipo !== "fechado" && estadoFechamento.mensagem && (
                     <p className="mt-2 text-xs text-rose-400">{estadoFechamento.mensagem}</p>
                   )}
-                  {totalDinheiro > 0 && troco > 0 && estadoFechamento.status === "fechado" && (
-                    <p className="mt-2 text-xs text-emerald-400">Troco: {formatarMoeda(troco)}</p>
+                  {totalDinheiro > 0 && troco > 0 && estadoFechamento.tipo === "fechado" && (
+                    <div className="mt-2 rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-2 text-xs">
+                      <p className="text-emerald-300">Troco para o cliente</p>
+                      <p className="text-base font-semibold text-emerald-200">{formatarMoeda(troco)}</p>
+                    </div>
                   )}
                 </div>
 
@@ -1318,7 +1397,7 @@ export function ModalPagamento({
                   <Button
                     type="button"
                     onClick={handleConfirmar}
-                    disabled={!podeConfirmar}
+                    disabled={processando || !podeConfirmar}
                     className="h-10 w-full min-w-36 bg-blue-600 text-white hover:bg-blue-500 sm:w-auto"
                   >
                     {processando ? (

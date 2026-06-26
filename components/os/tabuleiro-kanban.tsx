@@ -5,6 +5,16 @@ import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-p
 import { OrdemServico, StatusOS } from "@/types/os";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { CartaoOS } from "./cartao-os";
 
 interface TabuleiroKanbanProps {
@@ -27,6 +37,18 @@ type AcaoOtimistaOS =
       tipo: "SUBSTITUIR";
       ordens: OrdemServico[];
     };
+
+type ConfirmacaoEntregaSemItens = {
+  snapshotAnterior: OrdemServico[];
+  movimento: {
+    draggableId: string;
+    source: { droppableId: string; index: number };
+    destination: { droppableId: string; index: number };
+  };
+  osId: string;
+  statusOrigem: StatusOS;
+  statusDestino: StatusOS;
+};
 
 const STATUS_SEQUENCIA = [
   "AGUARDANDO_ORCAMENTO",
@@ -235,6 +257,8 @@ export function TabuleiroKanban({
   onFinalizarOS,
 }: TabuleiroKanbanProps) {
   const [, startTransition] = useTransition();
+  const [confirmacaoEntregaSemItens, setConfirmacaoEntregaSemItens] =
+    useState<ConfirmacaoEntregaSemItens | null>(null);
 
   const [ordensEstado, setOrdensEstado] = useOptimistic(
     ordensServico,
@@ -249,6 +273,10 @@ export function TabuleiroKanban({
   );
 
   const ordensPorStatus = useMemo(() => classificarOrdens(ordensEstado), [ordensEstado]);
+
+  const osSemItens = (os: OrdemServico): boolean => {
+    return (os.itensOrcamento?.length ?? 0) === 0;
+  };
 
   const persistirMovimento = async (
     osId: string,
@@ -290,6 +318,17 @@ export function TabuleiroKanban({
 
     const preVisualizacao = aplicarMovimentoOS(snapshotAnterior, movimento);
     if (!preVisualizacao.osMovida || !preVisualizacao.statusOrigem || !preVisualizacao.statusDestino) {
+      return;
+    }
+
+    if (preVisualizacao.statusDestino === "ENTREGUE" && osSemItens(preVisualizacao.osMovida)) {
+      setConfirmacaoEntregaSemItens({
+        snapshotAnterior,
+        movimento,
+        osId: preVisualizacao.osMovida.id,
+        statusOrigem: preVisualizacao.statusOrigem,
+        statusDestino: preVisualizacao.statusDestino,
+      });
       return;
     }
 
@@ -344,6 +383,17 @@ export function TabuleiroKanban({
       return;
     }
 
+    if (preVisualizacao.statusDestino === "ENTREGUE" && osSemItens(preVisualizacao.osMovida)) {
+      setConfirmacaoEntregaSemItens({
+        snapshotAnterior,
+        movimento,
+        osId: preVisualizacao.osMovida.id,
+        statusOrigem: preVisualizacao.statusOrigem,
+        statusDestino: preVisualizacao.statusDestino,
+      });
+      return;
+    }
+
     startTransition(() => {
       setOrdensEstado({ tipo: "REORGANIZAR", movimento });
     });
@@ -356,9 +406,28 @@ export function TabuleiroKanban({
     );
   };
 
+  const confirmarEntregaSemItens = async () => {
+    if (!confirmacaoEntregaSemItens) return;
+
+    const pendente = confirmacaoEntregaSemItens;
+    setConfirmacaoEntregaSemItens(null);
+
+    startTransition(() => {
+      setOrdensEstado({ tipo: "REORGANIZAR", movimento: pendente.movimento });
+    });
+
+    await persistirMovimento(
+      pendente.osId,
+      pendente.statusOrigem,
+      pendente.statusDestino,
+      pendente.snapshotAnterior
+    );
+  };
+
   return (
-    <DragDropContext onDragEnd={aoFinalizarDrag}>
-      <div className="flex gap-4 overflow-x-auto pb-4">
+    <>
+      <DragDropContext onDragEnd={aoFinalizarDrag}>
+        <div className="flex gap-4 overflow-x-auto pb-4">
         {STATUS_SEQUENCIA.map((status) => {
           const ordensFiltradas = ordensPorStatus[status];
           const configuracao = configuracaoStatus[status];
@@ -406,6 +475,14 @@ export function TabuleiroKanban({
 
                           const statusAnterior = encontrarStatusAnterior(os.status);
                           const statusSeguinte = encontrarStatusSeguinte(os.status);
+                          const retornoJaFinalizado = Boolean(os.retornoGarantiaFinalizadoEm);
+                          const podeFinalizarRetorno =
+                            Boolean(os.ehRetornoGarantia) &&
+                            !retornoJaFinalizado &&
+                            os.status !== "ENTREGUE";
+                          const podeFinalizarOSNormal = !os.ehRetornoGarantia && os.status === "PRONTO";
+                          const podeFinalizar = podeFinalizarRetorno || podeFinalizarOSNormal;
+                          const textoBotaoFinalizar = podeFinalizarRetorno ? "Finalizar retorno" : "Finalizar OS";
 
                           return (
                             <Draggable key={os.id} draggableId={os.id} index={index}>
@@ -424,7 +501,8 @@ export function TabuleiroKanban({
                                     onMoverAnterior={() => statusAnterior && moverPorBotao(os.id, statusAnterior)}
                                     onMoverProxima={() => statusSeguinte && moverPorBotao(os.id, statusSeguinte)}
                                     onFinalizar={() => finalizarOS(os)}
-                                    ultimoEstagio={os.status === "ENTREGUE"}
+                                    podeFinalizar={podeFinalizar}
+                                    textoBotaoFinalizar={textoBotaoFinalizar}
                                     desabilitarMoverAnterior={!statusAnterior}
                                     desabilitarMoverProxima={!statusSeguinte}
                                   />
@@ -442,7 +520,31 @@ export function TabuleiroKanban({
             </Droppable>
           );
         })}
-      </div>
-    </DragDropContext>
+        </div>
+      </DragDropContext>
+
+      <AlertDialog
+        open={Boolean(confirmacaoEntregaSemItens)}
+        onOpenChange={(aberto) => {
+          if (!aberto) {
+            setConfirmacaoEntregaSemItens(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Entregar OS sem peça/serviço?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta OS não possui nenhuma peça ou serviço cadastrado. Você ainda pode entregá-la,
+              mas ela ficará sem itens vinculados.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmarEntregaSemItens}>Entregar mesmo assim</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

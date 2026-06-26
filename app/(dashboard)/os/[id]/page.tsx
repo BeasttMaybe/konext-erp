@@ -59,7 +59,20 @@ type OrdemServicoDetalhe = {
     valorCobrado?: number | null;
     criadoEm?: Date | string | null;
   }>;
-  transacoes?: Array<{ vendaId?: string | null; origem?: string | null }>;
+  transacoes?: Array<{
+    vendaId?: string | null;
+    origem?: string | null;
+    valor?: number | null;
+    status?: string | null;
+    formaRecebimento?: string | null;
+    dataRecebimento?: Date | string | null;
+    venda?: {
+      id?: string | null;
+      valorTotal?: number | null;
+      formaPagamento?: string | null;
+      criadoEm?: Date | string | null;
+    } | null;
+  }>;
   termoGarantia?: { id?: string | null } | null;
 };
 
@@ -134,6 +147,18 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
         select: {
           vendaId: true,
           origem: true,
+          valor: true,
+          status: true,
+          formaRecebimento: true,
+          dataRecebimento: true,
+          venda: {
+            select: {
+              id: true,
+              valorTotal: true,
+              formaPagamento: true,
+              criadoEm: true,
+            },
+          },
         },
       },
     },
@@ -163,6 +188,18 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
             select: {
               vendaId: true,
               origem: true,
+              valor: true,
+              status: true,
+              formaRecebimento: true,
+              dataRecebimento: true,
+              venda: {
+                select: {
+                  id: true,
+                  valorTotal: true,
+                  formaPagamento: true,
+                  criadoEm: true,
+                },
+              },
             },
           },
         },
@@ -210,11 +247,18 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
   const idOs = String(osBanco.id);
   const possuiItens = itensNormalizados.length > 0;
   const possuiTermoGarantia = Boolean(osBanco.termoGarantia?.id);
-  const possuiPedidoVenda = (osBanco.transacoes ?? []).some((transacao) => {
+  const transacaoPdvVinculada = (osBanco.transacoes ?? []).find((transacao) => {
     return transacao?.vendaId && String(transacao.origem) === "ORDEM_SERVICO";
   });
+  const possuiPedidoVenda = Boolean(transacaoPdvVinculada);
   const podeEnviarAoPdv = statusAtual === "PRONTO" && !possuiPedidoVenda;
   const podeGerarPedidoVenda = podeEnviarAoPdv && possuiItens;
+  const vendaVinculadaId = String(transacaoPdvVinculada?.venda?.id ?? transacaoPdvVinculada?.vendaId ?? "");
+  const valorVendaVinculada =
+    typeof transacaoPdvVinculada?.venda?.valorTotal === "number"
+      ? transacaoPdvVinculada.venda.valorTotal
+      : Number(transacaoPdvVinculada?.valor ?? 0);
+  const statusVendaVinculada = String(transacaoPdvVinculada?.status ?? "PENDENTE");
 
   return (
     <div className="w-full min-h-full flex flex-col bg-slate-100 dark:bg-slate-950">
@@ -365,6 +409,44 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
           </div>
 
           <div className="space-y-6">
+            {possuiPedidoVenda && (
+              <Card className="border-emerald-300 bg-emerald-50/70 dark:border-emerald-800 dark:bg-emerald-950/20 p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">
+                      Pedido no PDV gerado
+                    </p>
+                    <p className="text-xs text-emerald-700/80 dark:text-emerald-400/80 mt-1">
+                      Venda vinculada e persistida para esta OS.
+                    </p>
+                  </div>
+                  <Badge variant="outline" className="border-emerald-500 text-emerald-700 dark:text-emerald-300">
+                    {statusVendaVinculada}
+                  </Badge>
+                </div>
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+                  <div>
+                    <p className="text-emerald-700/80 dark:text-emerald-400/80">Venda vinculada</p>
+                    <p className="font-semibold text-emerald-900 dark:text-emerald-200">
+                      {vendaVinculadaId ? `#${vendaVinculadaId.slice(0, 8)}` : "Nao informada"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-emerald-700/80 dark:text-emerald-400/80">Valor</p>
+                    <p className="font-semibold text-emerald-900 dark:text-emerald-200">
+                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
+                        Number.isFinite(valorVendaVinculada) ? valorVendaVinculada : 0
+                      )}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-emerald-700/80 dark:text-emerald-400/80">Origem</p>
+                    <p className="font-semibold text-emerald-900 dark:text-emerald-200">PDV</p>
+                  </div>
+                </div>
+              </Card>
+            )}
+
             <SecaoItensOS osId={idOs} numeroOs={numeroOs} itens={itensNormalizados} />
             <Card className="border-border bg-white dark:bg-slate-900 p-5">
               <p className="text-xs text-slate-500 dark:text-slate-400">Criada em</p>
