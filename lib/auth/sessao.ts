@@ -2,6 +2,7 @@
 
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
+import { COOKIE_SESSAO_LEGADA } from "@/lib/auth/cookies";
 
 type UsuarioSessaoDelegate = {
   findUnique?: (args: unknown) => Promise<{ id: string; nome: string; email: string; role: string } | null>;
@@ -34,7 +35,7 @@ export type UsuarioSessao = {
  */
 export async function obterUsuarioSessao(): Promise<UsuarioSessao | null> {
   const cookieStore = await cookies();
-  const sessaoId = cookieStore.get("konext_session")?.value;
+  const sessaoId = cookieStore.get(COOKIE_SESSAO_LEGADA)?.value;
 
   if (!sessaoId) {
     return null;

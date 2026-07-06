@@ -17,6 +17,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { useSidebar } from "@/contextos/contexto-sidebar";
 import { obterDadosPerfilConfiguracao } from "@/app/actions/configuracoes";
+import { obterPoliticaSessaoAtual, type PoliticaSessaoAtual } from "@/app/actions/auth";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,6 +40,7 @@ export function Cabecalho() {
   const [nomeUsuario, setNomeUsuario] = useState("Usuario Konext");
   const [emailUsuario, setEmailUsuario] = useState("usuario@konext.local");
   const [fotoPerfilUrl, setFotoPerfilUrl] = useState<string | null>(null);
+  const [politicaSessao, setPoliticaSessao] = useState<PoliticaSessaoAtual | null>(null);
   const montado = useSyncExternalStore(
     () => () => {},
     () => true,
@@ -51,11 +53,13 @@ export function Cabecalho() {
     const carregarUsuario = async () => {
       try {
         const dados = await obterDadosPerfilConfiguracao();
+        const politica = await obterPoliticaSessaoAtual();
         if (!ativo) return;
 
         setNomeUsuario(dados.usuario?.nome || "Usuario Konext");
         setEmailUsuario(dados.usuario?.email || "usuario@konext.local");
         setFotoPerfilUrl(dados.usuario?.fotoPerfilUrl || null);
+        setPoliticaSessao(politica);
       } catch {
         if (!ativo) return;
         setNomeUsuario("Usuario Konext");
@@ -153,13 +157,15 @@ export function Cabecalho() {
             <DropdownMenuSeparator />
 
             {/* Itens do Menu */}
-            <DropdownMenuItem
-              className="flex items-center gap-2 cursor-pointer"
-              onSelect={() => router.push("/perfil")}
-            >
-              <User className="h-4 w-4" />
-              <span>Meu Perfil</span>
-            </DropdownMenuItem>
+            {politicaSessao?.tipo !== "central" && (
+              <DropdownMenuItem
+                className="flex items-center gap-2 cursor-pointer"
+                onSelect={() => router.push("/perfil")}
+              >
+                <User className="h-4 w-4" />
+                <span>Meu Perfil</span>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem
               className="flex items-center gap-2 cursor-pointer"
               onSelect={() => router.push("/configuracoes")}

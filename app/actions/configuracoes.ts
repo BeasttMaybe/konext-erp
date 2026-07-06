@@ -6,6 +6,7 @@ import { z } from "zod";
 import { consultarCnpjReceitaCliente } from "@/app/actions/crm";
 import { prisma } from "@/lib/prisma";
 import { exigirSessao } from "@/lib/auth/sessao";
+import { obterSessaoCentral } from "@/lib/auth/sessao-central";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
@@ -1240,6 +1241,41 @@ export async function consultarCnpjReceita(cnpj: string): Promise<ResultadoConsu
 }
 
 export async function obterDadosPerfilConfiguracao() {
+  const sessaoCentral = await obterSessaoCentral();
+
+  if (sessaoCentral) {
+    const contextoTenant = await exigirContextoTenant();
+    const configuracaoDelegate = obterDelegateConfiguracao(contextoTenant.prisma);
+    const configuracao = configuracaoDelegate?.findFirst
+      ? await configuracaoDelegate.findFirst({
+          orderBy: {
+            criadoEm: "asc",
+          },
+        })
+      : null;
+
+    return {
+      usuario: {
+        id: sessaoCentral.usuarioCentralId,
+        nome: sessaoCentral.usuarioNome,
+        email: sessaoCentral.usuarioEmail,
+        fotoPerfilUrl: null,
+        role: sessaoCentral.role,
+      },
+      configuracao: configuracao
+        ? {
+            id: String(configuracao.id),
+            nomeFantasia: String(configuracao.nomeFantasia),
+            logoUrl: configuracao.logoUrl ? String(configuracao.logoUrl) : null,
+          }
+        : {
+            id: "",
+            nomeFantasia: "Konext",
+            logoUrl: null,
+          },
+    };
+  }
+
   const prismaAny = prisma as PrismaConfiguracoesClient;
   const usuarioDelegate = prismaAny.usuario ?? prismaAny.Usuario;
   const configuracaoDelegate = prismaAny.configuracao ?? prismaAny.Configuracao;

@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useSidebar } from "@/contextos/contexto-sidebar";
 import { obterDadosPerfilConfiguracao } from "@/app/actions/configuracoes";
+import { obterPoliticaSessaoAtual, type PoliticaSessaoAtual } from "@/app/actions/auth";
 
 /**
  * Componente da Barra Lateral (Sidebar) do Dashboard
@@ -44,6 +45,7 @@ export function BarraLateral() {
   const pathname = usePathname();
   const [companyName, setCompanyName] = useState("Konext");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [politicaSessao, setPoliticaSessao] = useState<PoliticaSessaoAtual | null>(null);
   const [toggledParents, setToggledParents] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -52,9 +54,11 @@ export function BarraLateral() {
     const carregarBranding = async () => {
       try {
         const dados = await obterDadosPerfilConfiguracao();
+        const politica = await obterPoliticaSessaoAtual();
         if (!ativo) return;
         setCompanyName(dados.configuracao?.nomeFantasia || "Konext");
         setLogoUrl(dados.configuracao?.logoUrl || null);
+        setPoliticaSessao(politica);
       } catch {
         if (!ativo) return;
         setCompanyName("Konext");
@@ -131,6 +135,10 @@ export function BarraLateral() {
     { label: "Metas", path: "/metas", iconKey: "Metas" },
     { label: "Configurações", path: "/configuracoes", iconKey: "Configuracoes" },
   ];
+  const itensNavegacaoVisiveis =
+    politicaSessao?.tipo === "central"
+      ? navigationItems.filter((item) => politicaSessao.rotasPermitidas.includes(item.path))
+      : navigationItems;
 
   const isPathActive = (path: string) => {
     if (path.includes("?")) {
@@ -143,7 +151,7 @@ export function BarraLateral() {
     return pathname === path || pathname.startsWith(`${path}/`);
   };
 
-  const autoExpandedParents = navigationItems.reduce<Record<string, boolean>>((acc, item) => {
+  const autoExpandedParents = itensNavegacaoVisiveis.reduce<Record<string, boolean>>((acc, item) => {
     if (!item.subItems?.length) return acc;
 
     const hasActiveSubItem = item.subItems.some((subItem) => isPathActive(subItem.path));
@@ -232,7 +240,7 @@ export function BarraLateral() {
 
       {/* Menu de Navegação */}
       <nav className="flex-1 overflow-y-auto bg-slate-950/20 px-2 py-4">
-        {navigationItems.map((item) => {
+        {itensNavegacaoVisiveis.map((item) => {
           const hasSubItems = Boolean(item.subItems?.length);
           const hasActiveSubItem = item.subItems?.some((subItem) => isPathActive(subItem.path)) ?? false;
           const isParentActive = isPathActive(item.path) || hasActiveSubItem;

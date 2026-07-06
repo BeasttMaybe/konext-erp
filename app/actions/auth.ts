@@ -4,6 +4,10 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { prismaCentral } from "@/lib/central/prisma-central";
+import { COOKIE_SESSAO_LEGADA } from "@/lib/auth/cookies";
+import { criarSessaoCentral, obterSessaoCentral, revogarSessaoCentralAtual } from "@/lib/auth/sessao-central";
+import { ROTAS_TENANT_MIGRADO } from "@/lib/tenant/rotas-migradas";
 import { randomUUID } from "node:crypto";
 
 // Numero de rounds do bcrypt. 10 e um bom equilibrio entre seguranca e desempenho.
@@ -32,10 +36,20 @@ type LoginState = {
   erro: string | null;
 };
 
+export type PoliticaSessaoAtual = {
+  tipo: "anonima" | "legada" | "central";
+  tenantSlug: string | null;
+  rotasPermitidas: readonly string[];
+};
+
 type UsuarioBasico = {
   id: string;
   senha: string;
 };
+
+type ResultadoLoginCentral =
+  | { autenticado: true; tenantSlug: string }
+  | { autenticado: false };
 
 type SqlExecutor = {
   $queryRaw: <T>(query: TemplateStringsArray, ...values: unknown[]) => Promise<T>;
@@ -99,6 +113,88 @@ async function buscarUsuarioPorEmailViaSql(
   };
 }
 
+async function tentarLoginCentral(email: string, senha: string): Promise<ResultadoLoginCentral> {
+  const usuarioCentral = await prismaCentral.usuarioCentral.findUnique({
+    where: { email },
+    select: {
+      id: true,
+      senha: true,
+      ativo: true,
+    },
+  });
+
+  if (!usuarioCentral?.ativo || !usuarioCentral.senha) {
+    return { autenticado: false };
+  }
+
+  const senhaConfere = await bcrypt.compare(senha, usuarioCentral.senha);
+
+  if (!senhaConfere) {
+    return { autenticado: false };
+  }
+
+  const vinculos = await prismaCentral.usuarioEmpresa.findMany({
+    where: {
+      usuarioId: usuarioCentral.id,
+      ativo: true,
+    },
+    select: {
+      role: true,
+      empresa: {
+        select: {
+          id: true,
+          slug: true,
+          status: true,
+        },
+      },
+    },
+  });
+
+  const vinculosAtivos = vinculos.filter((vinculo) => vinculo.empresa.status === "ATIVA");
+
+  if (vinculosAtivos.length !== 1) {
+    return { autenticado: false };
+  }
+
+  const vinculo = vinculosAtivos[0];
+  const tenantsAtivos = await prismaCentral.tenant.findMany({
+    where: {
+      empresaId: vinculo.empresa.id,
+      status: "ATIVO",
+    },
+    select: {
+      id: true,
+      slug: true,
+      connectionRef: true,
+    },
+  });
+
+  if (tenantsAtivos.length !== 1 || !tenantsAtivos[0].connectionRef) {
+    return { autenticado: false };
+  }
+
+  const tenant = tenantsAtivos[0];
+
+  if (tenant.slug === "principal" || tenant.connectionRef === "TENANT_PRINCIPAL_DATABASE_URL") {
+    return { autenticado: false };
+  }
+
+  await criarSessaoCentral({
+    usuarioCentralId: usuarioCentral.id,
+    empresaId: vinculo.empresa.id,
+    tenantId: tenant.id,
+    role: vinculo.role,
+  });
+
+  const cookieStore = await cookies();
+  cookieStore.delete(COOKIE_SESSAO_LEGADA);
+
+  return {
+    autenticado: true,
+    tenantSlug: tenant.slug,
+  };
+}
+
 export async function seedAdmin() {
   const prismaAny = prisma as typeof prisma & SqlExecutor & {
     usuario?: UsuarioDelegate;
@@ -141,6 +237,12 @@ export async function login(
 
   if (!email || !senha) {
     return { erro: "Informe e-mail e senha." };
+  }
+
+  const loginCentral = await tentarLoginCentral(email, senha);
+
+  if (loginCentral.autenticado) {
+    redirect("/inicio");
   }
 
   const prismaAny = prisma as typeof prisma & SqlExecutor & {
@@ -228,7 +330,8 @@ export async function login(
   }
 
   const cookieStore = await cookies();
-  cookieStore.set("konext_session", String(usuario.id), {
+  await revogarSessaoCentralAtual();
+  cookieStore.set(COOKIE_SESSAO_LEGADA, String(usuario.id), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
@@ -241,6 +344,36 @@ export async function login(
 
 export async function logout() {
   const cookieStore = await cookies();
-  cookieStore.delete("konext_session");
+  await revogarSessaoCentralAtual();
+  cookieStore.delete(COOKIE_SESSAO_LEGADA);
   redirect("/login");
+}
+
+export async function obterPoliticaSessaoAtual(): Promise<PoliticaSessaoAtual> {
+  const sessaoCentral = await obterSessaoCentral();
+
+  if (sessaoCentral) {
+    return {
+      tipo: "central",
+      tenantSlug: sessaoCentral.tenantSlug,
+      rotasPermitidas: ROTAS_TENANT_MIGRADO,
+    };
+  }
+
+  const cookieStore = await cookies();
+  const sessaoLegada = cookieStore.get(COOKIE_SESSAO_LEGADA)?.value;
+
+  if (sessaoLegada) {
+    return {
+      tipo: "legada",
+      tenantSlug: "principal",
+      rotasPermitidas: [],
+    };
+  }
+
+  return {
+    tipo: "anonima",
+    tenantSlug: null,
+    rotasPermitidas: [],
+  };
 }

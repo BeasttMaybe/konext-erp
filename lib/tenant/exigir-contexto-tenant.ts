@@ -1,10 +1,37 @@
 import { exigirSessao } from "@/lib/auth/sessao";
+import { obterSessaoCentral } from "@/lib/auth/sessao-central";
 import { prismaCentral } from "@/lib/central/prisma-central";
 import { obterPrismaTenant } from "@/lib/tenant/prisma-tenant";
 import { resolverConexaoTenant } from "@/lib/tenant/resolver-conexao-tenant";
 import type { ContextoTenantServidor } from "@/types/tenant";
 
 export async function exigirContextoTenant(): Promise<ContextoTenantServidor> {
+  const sessaoCentral = await obterSessaoCentral();
+
+  if (sessaoCentral) {
+    const connectionString = resolverConexaoTenant(sessaoCentral.connectionRef);
+    const prisma = obterPrismaTenant({
+      tenantId: sessaoCentral.tenantId,
+      connectionString,
+    });
+
+    return {
+      usuarioOperacional: {
+        id: "",
+        nome: sessaoCentral.usuarioNome,
+        email: sessaoCentral.usuarioEmail,
+        role: sessaoCentral.role,
+      },
+      usuarioCentralId: sessaoCentral.usuarioCentralId,
+      empresaId: sessaoCentral.empresaId,
+      empresaSlug: sessaoCentral.empresaSlug,
+      tenantId: sessaoCentral.tenantId,
+      tenantSlug: sessaoCentral.tenantSlug,
+      connectionRef: sessaoCentral.connectionRef,
+      prisma,
+    };
+  }
+
   const usuarioOperacional = await exigirSessao();
   const emailNormalizado = usuarioOperacional.email.trim().toLowerCase();
 

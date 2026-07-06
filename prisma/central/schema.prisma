@@ -64,6 +64,26 @@ model UsuarioCentral {
   atualizadoEm DateTime         @updatedAt
 }
 
+model SessaoCentral {
+  id               String      @id @default(uuid())
+  tokenHash        String      @unique
+  usuarioCentralId String
+  empresaId        String
+  tenantId         String
+  role             RoleEmpresa
+  expiraEm         DateTime
+  revogadaEm       DateTime?
+  ultimoUsoEm      DateTime?
+  criadoEm         DateTime    @default(now())
+  atualizadoEm     DateTime    @updatedAt
+
+  @@index([usuarioCentralId])
+  @@index([empresaId])
+  @@index([tenantId])
+  @@index([expiraEm])
+  @@index([revogadaEm])
+}
+
 model UsuarioEmpresa {
   id           String         @id @default(uuid())
   usuarioId    String
