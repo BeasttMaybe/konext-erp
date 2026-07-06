@@ -1,0 +1,81 @@
+generator client {
+  provider   = "prisma-client-js"
+  output     = "../../node_modules/@prisma/client-central"
+  engineType = "library"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum StatusEmpresa {
+  ATIVA
+  SUSPENSA
+  INATIVA
+}
+
+enum StatusTenant {
+  PROVISIONANDO
+  ATIVO
+  SUSPENSO
+  ERRO
+}
+
+enum RoleEmpresa {
+  ADMIN
+  GESTOR
+  USUARIO
+}
+
+model Empresa {
+  id           String           @id @default(uuid())
+  nome         String
+  slug         String           @unique
+  status       StatusEmpresa    @default(ATIVA)
+  tenants      Tenant[]
+  usuarios     UsuarioEmpresa[]
+  criadoEm     DateTime         @default(now())
+  atualizadoEm DateTime         @updatedAt
+}
+
+model Tenant {
+  id            String       @id @default(uuid())
+  empresaId     String
+  empresa       Empresa      @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  slug          String       @unique
+  status        StatusTenant @default(PROVISIONANDO)
+  versaoSchema  String
+  connectionRef String?
+  criadoEm      DateTime     @default(now())
+  atualizadoEm  DateTime     @updatedAt
+
+  @@index([empresaId])
+  @@index([status])
+}
+
+model UsuarioCentral {
+  id           String           @id @default(uuid())
+  nome         String
+  email        String           @unique
+  senha        String
+  ativo        Boolean          @default(true)
+  empresas     UsuarioEmpresa[]
+  criadoEm     DateTime         @default(now())
+  atualizadoEm DateTime         @updatedAt
+}
+
+model UsuarioEmpresa {
+  id           String         @id @default(uuid())
+  usuarioId    String
+  usuario      UsuarioCentral @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  empresaId    String
+  empresa      Empresa        @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  role         RoleEmpresa    @default(USUARIO)
+  ativo        Boolean        @default(true)
+  criadoEm     DateTime       @default(now())
+  atualizadoEm DateTime       @updatedAt
+
+  @@unique([usuarioId, empresaId])
+  @@index([empresaId])
+  @@index([role])
+}
