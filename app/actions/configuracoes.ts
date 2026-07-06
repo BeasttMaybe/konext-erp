@@ -6,6 +6,7 @@ import { z } from "zod";
 import { consultarCnpjReceitaCliente } from "@/app/actions/crm";
 import { prisma } from "@/lib/prisma";
 import { exigirSessao } from "@/lib/auth/sessao";
+import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import {
@@ -337,9 +338,9 @@ function normalizarUrlImagem(url: string | null | undefined, nomeCampo: string):
   return parsed.toString();
 }
 
-function obterDelegateConfiguracao() {
-  const prismaAny = prisma as PrismaConfiguracoesClient;
-  return prismaAny.configuracao ?? prismaAny.Configuracao;
+function obterDelegateConfiguracao(client: typeof prisma) {
+  const prismaClient = client as PrismaConfiguracoesClient;
+  return prismaClient.configuracao ?? prismaClient.Configuracao;
 }
 
 function obterConfiguracoesPadrao(): DadosConfiguracoes {
@@ -480,10 +481,13 @@ function inteiroParaNumero(valor: unknown, fallback: number, minimo: number, max
   return Math.min(maximo, Math.max(minimo, inteiro));
 }
 
-async function lerCamposOsGarantiaViaSql(id: string): Promise<CamposOsGarantiaRaw | null> {
+async function lerCamposOsGarantiaViaSql(
+  prismaClient: typeof prisma,
+  id: string
+): Promise<CamposOsGarantiaRaw | null> {
   if (!id) return null;
   try {
-    const rows = await prisma.$queryRaw<Array<CamposOsGarantiaRaw>>`
+    const rows = await prismaClient.$queryRaw<Array<CamposOsGarantiaRaw>>`
       SELECT
         "prazoGarantiaPadraoDias",
         "prazoMinimoGarantiaDias",
@@ -533,7 +537,9 @@ function normalizarConfiguracoesEntrada(data: DadosConfiguracoes): DadosConfigur
 }
 
 export async function obterConfiguracoes() {
-  const configuracaoDelegate = obterDelegateConfiguracao();
+  const contextoTenant = await exigirContextoTenant();
+  const prismaTenant = contextoTenant.prisma;
+  const configuracaoDelegate = obterDelegateConfiguracao(prismaTenant);
 
   if (!configuracaoDelegate?.findFirst) {
     return {
@@ -599,12 +605,12 @@ export async function obterConfiguracoes() {
   const camposOsGarantia: CamposOsGarantiaRaw | null =
     typeof (configuracao as Record<string, unknown> | null)?.exigirItemParaEnviarPDV === "boolean"
       ? (configuracao as unknown as CamposOsGarantiaRaw)
-      : await lerCamposOsGarantiaViaSql(configuracao?.id ? String(configuracao.id) : "");
+      : await lerCamposOsGarantiaViaSql(prismaTenant, configuracao?.id ? String(configuracao.id) : "");
 
   const camposPdv: CamposPdvRaw | null =
     typeof (configuracao as Record<string, unknown> | null)?.habilitarPix === "boolean"
       ? (configuracao as unknown as CamposPdvRaw)
-      : await lerCamposPdvViaSql(configuracao?.id ? String(configuracao.id) : "");
+      : await lerCamposPdvViaSql(prismaTenant, configuracao?.id ? String(configuracao.id) : "");
 
   return {
     id: configuracao?.id ? String(configuracao.id) : "",
@@ -802,7 +808,7 @@ function houveMudancaCamposPdv(antes: DadosConfiguracoes, depois: DadosConfigura
   );
 }
 
-async function atualizarCamposOsGarantiaComFallbackSql(configuracaoId: string, dados: {
+async function atualizarCamposOsGarantiaComFallbackSql(prismaClient: typeof prisma, configuracaoId: string, dados: {
   prazoGarantiaPadraoDias: number;
   prazoMinimoGarantiaDias: number;
   prazoMaximoGarantiaDias: number;
@@ -816,7 +822,7 @@ async function atualizarCamposOsGarantiaComFallbackSql(configuracaoId: string, d
   textoExclusoesGarantia: string | null;
   textoResponsabilidadeDados: string | null;
 }) {
-  await prisma.$executeRaw`
+  await prismaClient.$executeRaw`
     UPDATE "Configuracao"
     SET
       "prazoGarantiaPadraoDias" = ${dados.prazoGarantiaPadraoDias},
@@ -836,7 +842,7 @@ async function atualizarCamposOsGarantiaComFallbackSql(configuracaoId: string, d
   `;
 }
 
-async function atualizarCamposPdvComFallbackSql(configuracaoId: string, dados: {
+async function atualizarCamposPdvComFallbackSql(prismaClient: typeof prisma, configuracaoId: string, dados: {
   permitirPagamentoMisto: boolean;
   permitirDescontoPDV: boolean;
   descontoMaximoPDVPercentual: number;
@@ -864,7 +870,7 @@ async function atualizarCamposPdvComFallbackSql(configuracaoId: string, dados: {
   prazoPadraoCrediarioDias: number;
   maxParcelasCartaoCredito: number;
 }) {
-  await prisma.$executeRaw`
+  await prismaClient.$executeRaw`
     UPDATE "Configuracao"
     SET
       "permitirPagamentoMisto" = ${dados.permitirPagamentoMisto},
@@ -899,12 +905,14 @@ async function atualizarCamposPdvComFallbackSql(configuracaoId: string, dados: {
 }
 
 export async function salvarConfiguracoes(data: DadosConfiguracoes) {
-  // C1: exige sessao valida antes de alterar configuracoes da empresa.
-  const usuario = await exigirSessao();
+  // C1: exige sessao valida e resolve o tenant antes de alterar configuracoes da empresa.
+  const contextoTenant = await exigirContextoTenant();
+  const usuario = contextoTenant.usuarioOperacional;
+  const prismaTenant = contextoTenant.prisma;
 
   const dadosNormalizados = normalizarConfiguracoesEntrada(data);
 
-  const configuracaoDelegate = obterDelegateConfiguracao();
+  const configuracaoDelegate = obterDelegateConfiguracao(prismaTenant);
 
   if (!configuracaoDelegate?.findFirst || !configuracaoDelegate?.update) {
     throw new Error("Delegate Prisma de Configuracao nao disponivel.");
@@ -1056,7 +1064,7 @@ export async function salvarConfiguracoes(data: DadosConfiguracoes) {
       });
     } catch (erro) {
       if (mensagemIndicaRuntimeLegadoConfiguracao(erro)) {
-        await atualizarCamposOsGarantiaComFallbackSql(configuracao.id, dadosOsGarantiaAtualizacao);
+        await atualizarCamposOsGarantiaComFallbackSql(prismaTenant, configuracao.id, dadosOsGarantiaAtualizacao);
       } else {
         throw erro;
       }
@@ -1073,7 +1081,7 @@ export async function salvarConfiguracoes(data: DadosConfiguracoes) {
       });
     } catch (erro) {
       if (mensagemIndicaRuntimeLegadoConfiguracao(erro)) {
-        await atualizarCamposPdvComFallbackSql(configuracao.id, dadosPdvAtualizacao);
+        await atualizarCamposPdvComFallbackSql(prismaTenant, configuracao.id, dadosPdvAtualizacao);
       } else {
         throw erro;
       }
@@ -1082,7 +1090,7 @@ export async function salvarConfiguracoes(data: DadosConfiguracoes) {
 
   if (precisaSalvarCamposOsGarantia) {
     await registrarLogAuditoria(
-      prisma,
+      prismaTenant,
       contextoAuditoriaDoUsuario(usuario, "app/actions/configuracoes.ts:salvarConfiguracoes"),
       {
         acao: ACOES_AUDITORIA.ATUALIZAR_CONFIGURACOES_OS_GARANTIA,
@@ -1118,7 +1126,7 @@ export async function salvarConfiguracoes(data: DadosConfiguracoes) {
 
   if (precisaSalvarCamposPdv) {
     await registrarLogAuditoria(
-      prisma,
+      prismaTenant,
       contextoAuditoriaDoUsuario(usuario, "app/actions/configuracoes.ts:salvarConfiguracoes"),
       {
         acao: ACOES_AUDITORIA.ATUALIZAR_CONFIGURACOES_PDV,
@@ -1503,10 +1511,13 @@ export async function atualizarLogoEmpresa(
   }
 }
 
-async function lerCamposPdvViaSql(id: string): Promise<CamposPdvRaw | null> {
+async function lerCamposPdvViaSql(
+  prismaClient: typeof prisma,
+  id: string
+): Promise<CamposPdvRaw | null> {
   if (!id) return null;
   try {
-    const rows = await prisma.$queryRaw<Array<CamposPdvRaw>>`
+    const rows = await prismaClient.$queryRaw<Array<CamposPdvRaw>>`
       SELECT
         "permitirPagamentoMisto",
         "permitirDescontoPDV",
