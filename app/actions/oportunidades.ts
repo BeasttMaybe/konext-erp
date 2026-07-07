@@ -1,11 +1,11 @@
 "use server";
 
 import { Prisma } from "@prisma/client";
+import type { PrismaClient } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { ZodError } from "zod";
 
-import { exigirSessao } from "@/lib/auth/sessao";
-import { prisma } from "@/lib/prisma";
+import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import {
   formOportunidadeSchema,
   type EstagioFunil,
@@ -116,13 +116,13 @@ type OportunidadeDelegate = {
   >;
 };
 
-function obterDelegateOportunidade(): OportunidadeDelegate | null {
-  const prismaAny = prisma as unknown as {
+function obterDelegateOportunidade(client: PrismaClient): OportunidadeDelegate | null {
+  const prismaClient = client as unknown as {
     oportunidade?: OportunidadeDelegate;
     Oportunidade?: OportunidadeDelegate;
   };
 
-  return prismaAny.oportunidade ?? prismaAny.Oportunidade ?? null;
+  return prismaClient.oportunidade ?? prismaClient.Oportunidade ?? null;
 }
 
 function mapearLinhaRaw(linha: LinhaOportunidadeRaw): OportunidadeListagem {
@@ -141,12 +141,15 @@ function mapearLinhaRaw(linha: LinhaOportunidadeRaw): OportunidadeListagem {
   };
 }
 
-async function buscarOportunidadePorIdRaw(id: string): Promise<OportunidadeListagem | null> {
-  const prismaAny = prisma as unknown as {
+async function buscarOportunidadePorIdRaw(
+  client: PrismaClient,
+  id: string
+): Promise<OportunidadeListagem | null> {
+  const prismaClient = client as unknown as {
     $queryRaw<T = unknown>(query: TemplateStringsArray, ...values: unknown[]): Promise<T>;
   };
 
-  const linhas = await prismaAny.$queryRaw<LinhaOportunidadeRaw[]>`
+  const linhas = await prismaClient.$queryRaw<LinhaOportunidadeRaw[]>`
     SELECT
       o.id,
       o.titulo,
@@ -190,8 +193,9 @@ function mapearOportunidade(
 
 export async function criarOportunidade(dados: FormOportunidade): Promise<ResultadoOportunidade> {
   try {
-    await exigirSessao();
-    const delegate = obterDelegateOportunidade();
+    const contextoTenant = await exigirContextoTenant();
+    const prismaTenant = contextoTenant.prisma;
+    const delegate = obterDelegateOportunidade(prismaTenant);
 
     const dadosValidados = formOportunidadeSchema.parse(dados);
     const dataFechamentoInformada = dadosValidados.dataFechamento?.trim();
@@ -239,13 +243,13 @@ export async function criarOportunidade(dados: FormOportunidade): Promise<Result
       };
     }
 
-    const prismaAny = prisma as unknown as {
+    const prismaClient = prismaTenant as unknown as {
       $executeRaw(query: TemplateStringsArray, ...values: unknown[]): Promise<number>;
     };
 
     const oportunidadeId = crypto.randomUUID();
 
-    await prismaAny.$executeRaw`
+    await prismaClient.$executeRaw`
       INSERT INTO "Oportunidade" ("id", "titulo", "valor", "estagio", "dataFechamento", "clienteId")
       VALUES (
         ${oportunidadeId},
@@ -257,7 +261,7 @@ export async function criarOportunidade(dados: FormOportunidade): Promise<Result
       )
     `;
 
-    const oportunidadeRaw = await buscarOportunidadePorIdRaw(oportunidadeId);
+    const oportunidadeRaw = await buscarOportunidadePorIdRaw(prismaTenant, oportunidadeId);
 
     if (!oportunidadeRaw) {
       return {
@@ -311,7 +315,9 @@ export async function criarOportunidade(dados: FormOportunidade): Promise<Result
 }
 
 export async function listarOportunidades(): Promise<OportunidadeListagem[]> {
-  const delegate = obterDelegateOportunidade();
+  const contextoTenant = await exigirContextoTenant();
+  const prismaTenant = contextoTenant.prisma;
+  const delegate = obterDelegateOportunidade(prismaTenant);
 
   if (typeof delegate?.findMany === "function") {
     const oportunidades = await delegate.findMany({
@@ -333,11 +339,11 @@ export async function listarOportunidades(): Promise<OportunidadeListagem[]> {
 
   console.error("Delegate Prisma de oportunidade indisponivel. Usando fallback SQL para listagem.");
 
-  const prismaAny = prisma as unknown as {
+  const prismaClient = prismaTenant as unknown as {
     $queryRaw<T = unknown>(query: TemplateStringsArray, ...values: unknown[]): Promise<T>;
   };
 
-  const oportunidades = await prismaAny.$queryRaw<LinhaOportunidadeRaw[]>`
+  const oportunidades = await prismaClient.$queryRaw<LinhaOportunidadeRaw[]>`
     SELECT
       o.id,
       o.titulo,
@@ -363,8 +369,9 @@ export async function atualizarEstagioOportunidade(
   estagio: EstagioFunil
 ): Promise<ResultadoOportunidade> {
   try {
-    await exigirSessao();
-    const delegate = obterDelegateOportunidade();
+    const contextoTenant = await exigirContextoTenant();
+    const prismaTenant = contextoTenant.prisma;
+    const delegate = obterDelegateOportunidade(prismaTenant);
 
     if (typeof delegate?.update === "function") {
       const oportunidadeAtualizada = await delegate.update({
@@ -395,11 +402,11 @@ export async function atualizarEstagioOportunidade(
       };
     }
 
-    const prismaAny = prisma as unknown as {
+    const prismaClient = prismaTenant as unknown as {
       $queryRaw<T = unknown>(query: TemplateStringsArray, ...values: unknown[]): Promise<T>;
     };
 
-    const ids = await prismaAny.$queryRaw<Array<{ id: string }>>`
+    const ids = await prismaClient.$queryRaw<Array<{ id: string }>>`
       UPDATE "Oportunidade"
       SET
         "estagio" = CAST(${estagio} AS "EstagioFunil"),
@@ -416,7 +423,7 @@ export async function atualizarEstagioOportunidade(
       };
     }
 
-    const oportunidadeRaw = await buscarOportunidadePorIdRaw(oportunidadeId);
+    const oportunidadeRaw = await buscarOportunidadePorIdRaw(prismaTenant, oportunidadeId);
 
     if (!oportunidadeRaw) {
       return {

@@ -3,7 +3,7 @@ import { obterConfiguracoes } from "@/app/actions/configuracoes";
 import PropostaPdfViewer from "@/components/pdf/proposta-pdf-viewer";
 import type { CompanyPdfInfo, ProposalPdfData } from "@/components/pdf/PropostaPDF";
 import { montarResumoEmpresaDocumentos } from "@/lib/configuracoes-documentos";
-import { prisma } from "@/lib/prisma";
+import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 
 type ProposalPrintPageProps = {
   params: Promise<{ id: string }>;
@@ -11,8 +11,9 @@ type ProposalPrintPageProps = {
 
 export default async function ProposalPrintPage({ params }: ProposalPrintPageProps) {
   const { id } = await params;
+  const contextoTenant = await exigirContextoTenant();
 
-  const proposal = await prisma.propostaComercial.findUnique({
+  const proposal = await contextoTenant.prisma.propostaComercial.findUnique({
     where: { id },
     include: {
       itens: {

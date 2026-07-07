@@ -3,8 +3,7 @@
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
-import { exigirSessao } from "@/lib/auth/sessao";
+import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { propostaFormSchema, type PropostaFormValues } from "@/lib/validations/propostas";
 
 type PropostaStatusInput = "RASCUNHO" | "ENVIADA";
@@ -30,7 +29,8 @@ type ProdutoPropostaSugestao = {
 
 export async function listarClientesProposta(): Promise<ClientePropostaSugestao[]> {
   try {
-    await exigirSessao();
+    const contextoTenant = await exigirContextoTenant();
+    const prisma = contextoTenant.prisma;
 
     const clientes = await prisma.cliente.findMany({
       select: {
@@ -54,7 +54,8 @@ export async function listarClientesProposta(): Promise<ClientePropostaSugestao[
 
 export async function listarProdutosProposta(): Promise<ProdutoPropostaSugestao[]> {
   try {
-    await exigirSessao();
+    const contextoTenant = await exigirContextoTenant();
+    const prisma = contextoTenant.prisma;
 
     const produtos = await prisma.produto.findMany({
       select: {
@@ -93,7 +94,8 @@ export async function createProposta(
   status: PropostaStatusInput
 ): Promise<CreatePropostaResult> {
   try {
-    await exigirSessao();
+    const contextoTenant = await exigirContextoTenant();
+    const prisma = contextoTenant.prisma;
 
     const validated = propostaFormSchema.parse(data);
 

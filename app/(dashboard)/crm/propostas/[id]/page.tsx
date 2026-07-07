@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { prisma } from "@/lib/prisma";
+import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import {
   Table,
   TableBody,
@@ -79,12 +79,8 @@ const formatDate = (value: Date) =>
 
 export default async function ProposalDetailsPage({ params }: ProposalDetailsPageProps) {
   const { id } = await params;
-
-  const proposalDelegate = (prisma as unknown as {
-    propostaComercial: {
-      findUnique: (args: unknown) => Promise<ProposalDetails | null>;
-    };
-  }).propostaComercial;
+  const contextoTenant = await exigirContextoTenant();
+  const proposalDelegate = contextoTenant.prisma.propostaComercial;
 
   const proposal = await proposalDelegate.findUnique({
     where: {

@@ -3,9 +3,8 @@
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { ZodError } from "zod";
-import { prisma } from "@/lib/prisma";
 import { formClienteSchema, type FormCliente } from "@/lib/validations/crm";
-import { exigirSessao } from "@/lib/auth/sessao";
+import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 
 type ResultadoCriarCliente =
   | {
@@ -188,7 +187,8 @@ export async function criarCliente(
   data: FormCliente
 ): Promise<ResultadoCriarCliente> {
   try {
-    await exigirSessao();
+    const contextoTenant = await exigirContextoTenant();
+    const prisma = contextoTenant.prisma;
     const dadosValidados = formClienteSchema.parse(data);
     const papelNormalizado = dadosValidados.papel;
     const categoriaNormalizada =
@@ -221,6 +221,7 @@ export async function criarCliente(
     const cliente = await prisma.cliente.create({ data: payload });
 
     revalidatePath("/crm");
+    revalidatePath("/crm/contatos");
 
     return {
       sucesso: true,
@@ -282,12 +283,14 @@ export async function excluirCliente(
   clienteId: string
 ): Promise<{ sucesso: boolean; mensagem: string }> {
   try {
-    await exigirSessao();
+    const contextoTenant = await exigirContextoTenant();
+    const prisma = contextoTenant.prisma;
     await prisma.cliente.delete({
       where: { id: clienteId },
     });
 
     revalidatePath("/crm");
+    revalidatePath("/crm/contatos");
 
     return {
       sucesso: true,
@@ -337,7 +340,8 @@ export async function atualizarCliente(
   dados: FormCliente
 ): Promise<ResultadoCriarCliente> {
   try {
-    await exigirSessao();
+    const contextoTenant = await exigirContextoTenant();
+    const prisma = contextoTenant.prisma;
     const dadosValidados = formClienteSchema.parse(dados);
     const papelNormalizado = dadosValidados.papel;
     const categoriaNormalizada =
@@ -371,6 +375,7 @@ export async function atualizarCliente(
     });
 
     revalidatePath("/crm");
+    revalidatePath("/crm/contatos");
 
     return {
       sucesso: true,
@@ -412,6 +417,9 @@ export async function atualizarCliente(
 }
 
 export async function listarClientes() {
+  const contextoTenant = await exigirContextoTenant();
+  const prisma = contextoTenant.prisma;
+
   return prisma.cliente.findMany({
     orderBy: {
       nomeRazaoSocial: "asc",
@@ -499,6 +507,8 @@ export async function listarClientesPaginado(
   categoria: "CLIENTE_FINAL" | "EMPRESA" | "ORGAO_PUBLICO";
   observacoes: string | null;
 }>> {
+  const contextoTenant = await exigirContextoTenant();
+  const prisma = contextoTenant.prisma;
   const skip = (page - 1) * limit;
 
   const where = montarFiltroClientes(busca, categoria, papel);
@@ -566,6 +576,8 @@ export async function buscarClientesCRM(
   if (termoNormalizado.length < 1) return [];
 
   try {
+    const contextoTenant = await exigirContextoTenant();
+    const prisma = contextoTenant.prisma;
     const apenasDigitos = termoNormalizado.replace(/\D/g, "");
     
     const whereConditions: Prisma.ClienteWhereInput[] = [

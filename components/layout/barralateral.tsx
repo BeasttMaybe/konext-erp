@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
+  Home,
   Users,
   ShoppingCart,
   Briefcase,
@@ -76,6 +77,7 @@ export function BarraLateral() {
   // Mapeamento de ícones
   const icones: Record<string, React.ReactNode> = {
     Dashboard: <LayoutDashboard className="h-5 w-5" />,
+    Inicio: <Home className="h-5 w-5" />,
     CRM: <Users className="h-5 w-5" />,
     PDV: <ShoppingCart className="h-5 w-5" />,
     Vendas: <Briefcase className="h-5 w-5" />,
@@ -135,9 +137,24 @@ export function BarraLateral() {
     { label: "Metas", path: "/metas", iconKey: "Metas" },
     { label: "Configurações", path: "/configuracoes", iconKey: "Configuracoes" },
   ];
+  const navigationItemsTenantMigrado: SidebarItem[] = [
+    { label: "Inicio", path: "/inicio", iconKey: "Inicio" },
+    {
+      label: "CRM",
+      path: "/crm",
+      iconKey: "CRM",
+      subItems: [
+        { label: "Hub Central", path: "/crm" },
+        { label: "Contatos", path: "/crm/contatos" },
+        { label: "Oportunidades", path: "/crm/oportunidades" },
+        { label: "Propostas", path: "/crm/propostas" },
+      ],
+    },
+    { label: "Configuracoes", path: "/configuracoes", iconKey: "Configuracoes" },
+  ];
   const itensNavegacaoVisiveis =
     politicaSessao?.tipo === "central"
-      ? navigationItems.filter((item) => politicaSessao.rotasPermitidas.includes(item.path))
+      ? navigationItemsTenantMigrado.filter((item) => politicaSessao.rotasPermitidas.includes(item.path))
       : navigationItems;
 
   const isPathActive = (path: string) => {

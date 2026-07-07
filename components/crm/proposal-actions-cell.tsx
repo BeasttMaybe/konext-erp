@@ -24,10 +24,12 @@ import {
 
 type ProposalActionsCellProps = {
   proposalId: string;
+  permitirIntegracoesLegadas?: boolean;
 };
 
 export function ProposalActionsCell({
   proposalId,
+  permitirIntegracoesLegadas = true,
 }: ProposalActionsCellProps) {
   const router = useRouter();
 
@@ -52,29 +54,33 @@ export function ProposalActionsCell({
             type="button"
             variant="ghost"
             size="icon-sm"
-            aria-label="Mais ações"
+            aria-label="Mais acoes"
             className="text-slate-300 hover:bg-white/5 hover:text-slate-100"
           >
             <MoreHorizontal className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56 border-white/10 bg-slate-900/95 text-slate-100">
-          <DropdownMenuItem
-            className="cursor-pointer gap-2"
-            onSelect={() => router.push(`/vendas/pedidos/novo?propostaId=${proposalId}`)}
-          >
-            <ShoppingCart className="h-4 w-4 text-emerald-400" />
-            Gerar venda
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            className="cursor-pointer gap-2"
-            onSelect={() => router.push(`/os/nova?propostaId=${proposalId}`)}
-          >
-            <Wrench className="h-4 w-4 text-emerald-400" />
-            Gerar ordem de serviço
-          </DropdownMenuItem>
+          {permitirIntegracoesLegadas && (
+            <>
+              <DropdownMenuItem
+                className="cursor-pointer gap-2"
+                onSelect={() => router.push(`/vendas/pedidos/novo?propostaId=${proposalId}`)}
+              >
+                <ShoppingCart className="h-4 w-4 text-emerald-400" />
+                Gerar venda
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="cursor-pointer gap-2"
+                onSelect={() => router.push(`/os/nova?propostaId=${proposalId}`)}
+              >
+                <Wrench className="h-4 w-4 text-emerald-400" />
+                Gerar ordem de servico
+              </DropdownMenuItem>
 
-          <DropdownMenuSeparator className="bg-white/10" />
+              <DropdownMenuSeparator className="bg-white/10" />
+            </>
+          )}
 
           <DropdownMenuItem
             className="cursor-pointer gap-2"
