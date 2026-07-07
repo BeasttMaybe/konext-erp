@@ -150,6 +150,7 @@ export function BarraLateral() {
         { label: "Propostas", path: "/crm/propostas" },
       ],
     },
+    { label: "Estoque", path: "/estoque", iconKey: "Estoque" },
     { label: "Configuracoes", path: "/configuracoes", iconKey: "Configuracoes" },
   ];
   const itensNavegacaoVisiveis =

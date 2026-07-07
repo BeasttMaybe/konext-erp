@@ -2,9 +2,8 @@
 
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
+import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { formProdutoSchema, type FormProduto } from "@/lib/validations/estoque";
-import { exigirSessao } from "@/lib/auth/sessao";
 
 type ResultadoCriarProduto =
   | { sucesso: true; mensagem: string }
@@ -12,7 +11,8 @@ type ResultadoCriarProduto =
 
 export async function criarProduto(data: FormProduto): Promise<ResultadoCriarProduto> {
   try {
-    await exigirSessao();
+    const contexto = await exigirContextoTenant();
+    const prisma = contexto.prisma;
     const dadosValidados = formProdutoSchema.parse(data);
 
     await prisma.produto.create({
@@ -61,6 +61,9 @@ export async function criarProduto(data: FormProduto): Promise<ResultadoCriarPro
 }
 
 export async function listarProdutos() {
+  const contexto = await exigirContextoTenant();
+  const prisma = contexto.prisma;
+
   return prisma.produto.findMany({
     where: { ativo: true },
     orderBy: { nome: "asc" },
@@ -93,6 +96,8 @@ export async function listarProdutosPaginado(
   quantidadeEstoque: number;
   estoqueMinimo: number;
 }>> {
+  const contexto = await exigirContextoTenant();
+  const prisma = contexto.prisma;
   const skip = (page - 1) * limit;
 
   const where: Prisma.ProdutoWhereInput = { ativo: true };
@@ -144,7 +149,8 @@ export async function atualizarProduto(
   data: FormProduto
 ): Promise<ResultadoCriarProduto> {
   try {
-    await exigirSessao();
+    const contexto = await exigirContextoTenant();
+    const prisma = contexto.prisma;
     const dadosValidados = formProdutoSchema.parse(data);
 
     await prisma.produto.update({
@@ -207,7 +213,9 @@ export async function excluirProduto(
   id: string
 ): Promise<{ sucesso: boolean; mensagem: string }> {
   try {
-    await exigirSessao();
+    const contexto = await exigirContextoTenant();
+    const prisma = contexto.prisma;
+
     await prisma.produto.delete({
       where: { id },
     });
