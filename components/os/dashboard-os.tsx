@@ -226,6 +226,11 @@ export function DashboardOS({
     concluirSolicitacaoFinalizacao(false);
   };
 
+  const deveFinalizarRetornoGarantia =
+    Boolean(osParaFinalizar?.ehRetornoGarantia) &&
+    !osParaFinalizar?.retornoGarantiaFinalizadoEm &&
+    osParaFinalizar?.status !== "ENTREGUE";
+
   const handleAbrirDetalhesOS = (os: OrdemServico) => {
     router.push(`/os/${os.id}`);
   };
@@ -561,7 +566,7 @@ export function DashboardOS({
         clienteIdInicial={clienteIdInicial ?? undefined}
       />
 
-      {osParaFinalizar?.ehRetornoGarantia ? (
+      {deveFinalizarRetornoGarantia ? (
         <ModalFinalizarRetornoGarantia
           key={`${osParaFinalizar?.id ?? "sem-os"}-${Boolean(osParaFinalizar)}-retorno`}
           aberta={Boolean(osParaFinalizar)}

@@ -480,7 +480,7 @@ export function TabuleiroKanban({
                             Boolean(os.ehRetornoGarantia) &&
                             !retornoJaFinalizado &&
                             os.status !== "ENTREGUE";
-                          const podeFinalizarOSNormal = !os.ehRetornoGarantia && os.status === "PRONTO";
+                          const podeFinalizarOSNormal = os.status === "ENTREGUE";
                           const podeFinalizar = podeFinalizarRetorno || podeFinalizarOSNormal;
                           const textoBotaoFinalizar = podeFinalizarRetorno ? "Finalizar retorno" : "Finalizar OS";
 

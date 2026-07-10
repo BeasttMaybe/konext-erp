@@ -71,11 +71,13 @@ export function ModalFinalizarOS({
     >
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Finalizar ordem de servico</AlertDialogTitle>
+          <AlertDialogTitle>
+            {requerGarantia ? "Finalizar ordem de servico" : "Finalizar e arquivar OS?"}
+          </AlertDialogTitle>
           <AlertDialogDescription>
             {requerGarantia
               ? `Para finalizar a ${os?.numeroOS ?? "OS selecionada"}, informe o prazo de garantia e gere o termo de garantia.`
-              : `Confirme a finalizacao da ${os?.numeroOS ?? "OS selecionada"}.`}
+              : "Esta OS sairá do Kanban principal, mas continuará disponível no histórico e nos registros do sistema."}
           </AlertDialogDescription>
         </AlertDialogHeader>
 
