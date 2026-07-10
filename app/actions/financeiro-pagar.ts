@@ -1,8 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
-import { exigirSessao } from "@/lib/auth/sessao";
+import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 
@@ -60,7 +59,7 @@ type DelegateParcelaDespesa = {
   update: (args: unknown) => Promise<unknown>;
 };
 
-type PrismaFinanceiroPagarAny = typeof prisma & {
+type PrismaFinanceiroPagarAny = Record<string, unknown> & {
   despesa?: DelegateDespesaCreate;
   Despesa?: DelegateDespesaCreate;
   parcelaDespesa?: DelegateParcelaDespesa;
@@ -185,7 +184,9 @@ function gerarParcelas(
 
 export async function criarDespesa(data: DadosCriarDespesa) {
   // C1: exige sessao valida antes de criar despesa.
-  const usuario = await exigirSessao();
+  const contexto = await exigirContextoTenant();
+  const prisma = contexto.prisma;
+  const usuario = contexto.usuarioOperacional;
 
   const fornecedor = data.fornecedor.trim();
   const descricao = data.descricao.trim();
@@ -211,7 +212,7 @@ export async function criarDespesa(data: DadosCriarDespesa) {
 
   return prisma.$transaction(async (tx) => {
     const txAny = tx as unknown as PrismaFinanceiroPagarAny;
-    const prismaAny = prisma as PrismaFinanceiroPagarAny;
+    const prismaAny = prisma as unknown as PrismaFinanceiroPagarAny;
     const despesaDelegate = obterDelegateDespesaCreate(txAny, prismaAny);
     const parcelaDespesaDelegate = obterDelegateParcelaDespesa(txAny, prismaAny);
 
@@ -266,7 +267,8 @@ export async function criarDespesa(data: DadosCriarDespesa) {
 }
 
 export async function listarParcelasPagar(): Promise<ParcelaDespesaComRelacao[]> {
-  const prismaAny = prisma as PrismaFinanceiroPagarAny;
+  const { prisma } = await exigirContextoTenant();
+  const prismaAny = prisma as unknown as PrismaFinanceiroPagarAny;
   const parcelaDespesaDelegate = obterDelegateParcelaDespesa(prismaAny, prismaAny);
 
   const parcelas = await parcelaDespesaDelegate.findMany({
@@ -321,7 +323,7 @@ export interface ResumoPagar {
 export async function listarParcelasPagarFiltradas(
   filtros?: FiltrosPagar
 ): Promise<ParcelaDespesaComRelacao[]> {
-  await exigirSessao();
+  const { prisma } = await exigirContextoTenant();
 
   const where: Record<string, unknown> = {};
 
@@ -378,7 +380,6 @@ export async function listarParcelasPagarFiltradas(
  * Calcula o resumo financeiro das parcelas a pagar com base nos filtros.
  */
 export async function obterResumoPagar(filtros?: FiltrosPagar): Promise<ResumoPagar> {
-  await exigirSessao();
   const parcelas = await listarParcelasPagarFiltradas(filtros);
 
   const hoje = new Date();
@@ -415,7 +416,9 @@ export async function obterResumoPagar(filtros?: FiltrosPagar): Promise<ResumoPa
 
 export async function pagarParcela(parcelaId: string, valorPago: number) {
   // C1: exige sessao valida antes de pagar parcela.
-  const usuario = await exigirSessao();
+  const contexto = await exigirContextoTenant();
+  const prisma = contexto.prisma;
+  const usuario = contexto.usuarioOperacional;
 
   if (!parcelaId) {
     throw new Error("Parcela invalida para pagamento.");
@@ -425,7 +428,7 @@ export async function pagarParcela(parcelaId: string, valorPago: number) {
     throw new Error("Informe um valor pago valido.");
   }
 
-  const prismaAny = prisma as PrismaFinanceiroPagarAny;
+  const prismaAny = prisma as unknown as PrismaFinanceiroPagarAny;
   await prisma.$transaction(async (tx) => {
     const txAny = tx as unknown as PrismaFinanceiroPagarAny;
     const parcelaDespesaDelegate = obterDelegateParcelaDespesa(txAny, prismaAny);

@@ -1,8 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
-import { exigirSessao, obterUsuarioSessao } from "@/lib/auth/sessao";
+import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 
 export interface ContaReceberFinanceiro {
   id: string;
@@ -19,10 +18,13 @@ export interface ContaReceberFinanceiro {
 
 export async function listarContasReceber(): Promise<ContaReceberFinanceiro[]> {
   // Leitura: sem sessão válida, não expõe dados financeiros.
-  const usuario = await obterUsuarioSessao();
-  if (!usuario) {
+  let contexto: Awaited<ReturnType<typeof exigirContextoTenant>>;
+  try {
+    contexto = await exigirContextoTenant();
+  } catch {
     return [];
   }
+  const prisma = contexto.prisma;
 
   try {
     const contas = await prisma.contaReceber.findMany({
@@ -63,7 +65,7 @@ type ResultadoBaixaConta = { sucesso: boolean; erro: string | null };
 export async function darBaixaConta(id: string): Promise<ResultadoBaixaConta> {
   try {
     // Mutação sensível: exige sessão autenticada no backend.
-    await exigirSessao();
+    const { prisma } = await exigirContextoTenant();
 
     if (!id || typeof id !== "string") {
       return { sucesso: false, erro: "Identificador da conta inválido." };

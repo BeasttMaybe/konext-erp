@@ -31,6 +31,8 @@ type ContextoSchemaGarantiaRaw = {
   possuiColunaRetornoGarantiaId: boolean;
 };
 
+type ClienteRegrasFinanceiras = typeof prisma;
+
 let cacheContextoSchemaGarantiaRaw: ContextoSchemaGarantiaRaw | null = null;
 
 function serializarMetaErro(meta: unknown): Record<string, unknown> | undefined {
@@ -64,13 +66,15 @@ function registrarErroRawDashboard(contexto: string, erro: unknown): void {
   console.error("[dashboard:raw] erro desconhecido", { contexto, erro: String(erro) });
 }
 
-async function obterContextoSchemaGarantiaRaw(): Promise<ContextoSchemaGarantiaRaw> {
+async function obterContextoSchemaGarantiaRaw(
+  client: ClienteRegrasFinanceiras = prisma
+): Promise<ContextoSchemaGarantiaRaw> {
   if (cacheContextoSchemaGarantiaRaw) {
     return cacheContextoSchemaGarantiaRaw;
   }
 
   const [tabelaRetorno, colunaEhRetorno, colunaRetornoId] = await Promise.all([
-    prisma.$queryRaw<Array<{ existe: boolean }>>`
+    client.$queryRaw<Array<{ existe: boolean }>>`
       SELECT EXISTS (
         SELECT 1
         FROM information_schema.tables
@@ -78,7 +82,7 @@ async function obterContextoSchemaGarantiaRaw(): Promise<ContextoSchemaGarantiaR
           AND table_name = 'RetornoGarantiaOS'
       ) AS existe
     `,
-    prisma.$queryRaw<Array<{ existe: boolean }>>`
+    client.$queryRaw<Array<{ existe: boolean }>>`
       SELECT EXISTS (
         SELECT 1
         FROM information_schema.columns
@@ -87,7 +91,7 @@ async function obterContextoSchemaGarantiaRaw(): Promise<ContextoSchemaGarantiaR
           AND column_name = 'ehRetornoGarantia'
       ) AS existe
     `,
-    prisma.$queryRaw<Array<{ existe: boolean }>>`
+    client.$queryRaw<Array<{ existe: boolean }>>`
       SELECT EXISTS (
         SELECT 1
         FROM information_schema.columns
@@ -112,16 +116,20 @@ function normalizarNomeCliente(valor: string | null): string {
   return nome.length > 0 ? nome : "Cliente nao identificado";
 }
 
-export async function obterReceitaTotalPadrao(inicio: Date, fim: Date): Promise<number> {
+export async function obterReceitaTotalPadrao(
+  inicio: Date,
+  fim: Date,
+  client: ClienteRegrasFinanceiras = prisma
+): Promise<number> {
   try {
-    const contextoSchema = await obterContextoSchemaGarantiaRaw();
+    const contextoSchema = await obterContextoSchemaGarantiaRaw(client);
 
     if (
       contextoSchema.possuiTabelaRetornoGarantia &&
       contextoSchema.possuiColunaEhRetornoGarantia &&
       contextoSchema.possuiColunaRetornoGarantiaId
     ) {
-      const linhas = await prisma.$queryRaw<LinhaTotal[]>`
+      const linhas = await client.$queryRaw<LinhaTotal[]>`
         SELECT COALESCE(SUM(base.valor), 0) AS total
         FROM (
           SELECT v."valorTotal"::double precision AS valor
@@ -162,7 +170,7 @@ export async function obterReceitaTotalPadrao(inicio: Date, fim: Date): Promise<
       return Number(linhas[0]?.total ?? 0);
     }
 
-    const linhasLegado = await prisma.$queryRaw<LinhaTotal[]>`
+    const linhasLegado = await client.$queryRaw<LinhaTotal[]>`
       SELECT COALESCE(SUM(base.valor), 0) AS total
       FROM (
         SELECT v."valorTotal"::double precision AS valor
@@ -194,16 +202,20 @@ export async function obterReceitaTotalPadrao(inicio: Date, fim: Date): Promise<
   }
 }
 
-export async function obterReceitaMensalPadrao(inicio: Date, fim: Date): Promise<ReceitaMensal[]> {
+export async function obterReceitaMensalPadrao(
+  inicio: Date,
+  fim: Date,
+  client: ClienteRegrasFinanceiras = prisma
+): Promise<ReceitaMensal[]> {
   try {
-    const contextoSchema = await obterContextoSchemaGarantiaRaw();
+    const contextoSchema = await obterContextoSchemaGarantiaRaw(client);
     const possuiCamposGarantia =
       contextoSchema.possuiTabelaRetornoGarantia &&
       contextoSchema.possuiColunaEhRetornoGarantia &&
       contextoSchema.possuiColunaRetornoGarantiaId;
 
     const linhas = possuiCamposGarantia
-      ? await prisma.$queryRaw<LinhaMesReceita[]>`
+      ? await client.$queryRaw<LinhaMesReceita[]>`
           SELECT DATE_TRUNC('month', base.mes) AS mes, COALESCE(SUM(base.valor), 0) AS total
           FROM (
             SELECT v."criadoEm" AS mes, v."valorTotal"::double precision AS valor
@@ -243,7 +255,7 @@ export async function obterReceitaMensalPadrao(inicio: Date, fim: Date): Promise
           GROUP BY DATE_TRUNC('month', base.mes)
           ORDER BY DATE_TRUNC('month', base.mes) ASC
         `
-      : await prisma.$queryRaw<LinhaMesReceita[]>`
+      : await client.$queryRaw<LinhaMesReceita[]>`
           SELECT DATE_TRUNC('month', base.mes) AS mes, COALESCE(SUM(base.valor), 0) AS total
           FROM (
             SELECT v."criadoEm" AS mes, v."valorTotal"::double precision AS valor
@@ -287,17 +299,18 @@ export async function obterReceitaMensalPadrao(inicio: Date, fim: Date): Promise
 export async function obterReceitaPorClientePadrao(
   inicio: Date,
   fim: Date,
-  limite: number
+  limite: number,
+  client: ClienteRegrasFinanceiras = prisma
 ): Promise<ReceitaCliente[]> {
   try {
-    const contextoSchema = await obterContextoSchemaGarantiaRaw();
+    const contextoSchema = await obterContextoSchemaGarantiaRaw(client);
     const possuiCamposGarantia =
       contextoSchema.possuiTabelaRetornoGarantia &&
       contextoSchema.possuiColunaEhRetornoGarantia &&
       contextoSchema.possuiColunaRetornoGarantiaId;
 
     const linhas = possuiCamposGarantia
-      ? await prisma.$queryRaw<LinhaClienteReceita[]>`
+      ? await client.$queryRaw<LinhaClienteReceita[]>`
           SELECT base."clienteNome", COALESCE(SUM(base.valor), 0) AS total
           FROM (
             SELECT c."nomeRazaoSocial" AS "clienteNome", v."valorTotal"::double precision AS valor
@@ -339,7 +352,7 @@ export async function obterReceitaPorClientePadrao(
           ORDER BY total DESC
           LIMIT ${limite}
         `
-      : await prisma.$queryRaw<LinhaClienteReceita[]>`
+      : await client.$queryRaw<LinhaClienteReceita[]>`
           SELECT base."clienteNome", COALESCE(SUM(base.valor), 0) AS total
           FROM (
             SELECT c."nomeRazaoSocial" AS "clienteNome", v."valorTotal"::double precision AS valor

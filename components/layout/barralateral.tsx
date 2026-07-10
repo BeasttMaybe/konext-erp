@@ -171,6 +171,17 @@ export function BarraLateral() {
         { label: "Garantias", path: "/os/garantias" },
       ],
     },
+    {
+      label: "Financeiro",
+      path: "/financeiro",
+      iconKey: "Financeiro",
+      subItems: [
+        { label: "Visao financeira", path: "/financeiro" },
+        { label: "A receber", path: "/financeiro/receber" },
+        { label: "A pagar", path: "/financeiro/pagar" },
+        { label: "Inteligencia", path: "/financeiro/inteligencia" },
+      ],
+    },
     { label: "Configuracoes", path: "/configuracoes", iconKey: "Configuracoes" },
   ];
   const itensNavegacaoVisiveis =

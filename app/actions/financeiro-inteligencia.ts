@@ -1,7 +1,6 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
-import { exigirSessao } from "@/lib/auth/sessao";
+import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { obterReceitaPorClientePadrao, obterReceitaTotalPadrao } from "@/lib/dashboard/regras-financeiras";
 
 export type FiltroDataAnalitico = "HOJE" | "SEMANAL" | "MENSAL" | "ANUAL" | "CUSTOMIZADO";
@@ -235,7 +234,7 @@ export async function obterInteligenciaTaxasPagamento(
   dataInicio?: Date,
   dataFim?: Date
 ): Promise<DadosInteligenciaTaxasPagamento> {
-  await exigirSessao();
+  const { prisma } = await exigirContextoTenant();
   const { inicio, fim } = obterIntervaloDoFiltro(filtroData, dataInicio, dataFim);
 
   const pagamentos = await prisma.vendaPagamento.findMany({
@@ -381,7 +380,7 @@ export async function obterDadosAnaliticos(
   dataInicio?: Date,
   dataFim?: Date
 ): Promise<DadosAnaliticosFinanceiros> {
-  await exigirSessao();
+  const { prisma } = await exigirContextoTenant();
   const { inicio, fim } = obterIntervaloDoFiltro(filtroData, dataInicio, dataFim);
 
   const [
@@ -430,7 +429,7 @@ export async function obterDadosAnaliticos(
           dataRecebimento: true,
         },
       }),
-      obterReceitaTotalPadrao(inicio, fim),
+      obterReceitaTotalPadrao(inicio, fim, prisma),
       prisma.itemVenda.findMany({
         where: {
           venda: {
@@ -527,7 +526,7 @@ export async function obterDadosAnaliticos(
         },
         take: 5,
       }),
-      obterReceitaPorClientePadrao(inicio, fim, 5),
+      obterReceitaPorClientePadrao(inicio, fim, 5, prisma),
     ]);
   const faturamentoBrutoCentavos = paraCentavos(faturamentoBrutoPeriodo);
 

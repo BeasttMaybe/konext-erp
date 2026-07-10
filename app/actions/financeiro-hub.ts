@@ -1,7 +1,6 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
-import { exigirSessao } from "@/lib/auth/sessao";
+import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 
 export interface ResumoDashboardFinanceiro {
   totalVendasHoje: number;
@@ -34,7 +33,8 @@ type ParcelaDespesaBruta = {
   dataVencimento: Date;
 };
 
-type PrismaFinanceiroAny = typeof prisma & {
+type PrismaFinanceiroAny = Record<string, unknown> & {
+  $queryRaw: <T>(query: TemplateStringsArray, ...values: unknown[]) => Promise<T>;
   parcelaDespesa?: DelegateFindMany;
   ParcelaDespesa?: DelegateFindMany;
   contaReceber?: DelegateFindMany;
@@ -60,7 +60,7 @@ function obterIntervalosFinanceiros(): IntervalosFinanceiros {
   };
 }
 
-function obterDelegatesFinanceiros(): DelegatesFinanceiros {
+function obterDelegatesFinanceiros(prisma: PrismaFinanceiroAny): DelegatesFinanceiros {
   const prismaAny = prisma as PrismaFinanceiroAny;
 
   return {
@@ -82,7 +82,11 @@ function somarValoresCentavos(registros: Array<{ valor: number }>): number {
   return registros.reduce((acc, item) => acc + paraCentavos(Number(item.valor ?? 0)), 0);
 }
 
-async function buscarParcelasPagarBrutas(inicio: Date, fim: Date): Promise<ParcelaDespesaBruta[]> {
+async function buscarParcelasPagarBrutas(
+  prisma: PrismaFinanceiroAny,
+  inicio: Date,
+  fim: Date
+): Promise<ParcelaDespesaBruta[]> {
   const parcelas = await prisma.$queryRaw<Array<{ valor: number; dataVencimento: Date }>>`
     SELECT pd."valor", pd."dataVencimento"
     FROM "ParcelaDespesa" pd
@@ -98,7 +102,10 @@ async function buscarParcelasPagarBrutas(inicio: Date, fim: Date): Promise<Parce
   }));
 }
 
-async function buscarParcelasPagarAtrasadasBrutas(limite: Date): Promise<ParcelaDespesaBruta[]> {
+async function buscarParcelasPagarAtrasadasBrutas(
+  prisma: PrismaFinanceiroAny,
+  limite: Date
+): Promise<ParcelaDespesaBruta[]> {
   const parcelas = await prisma.$queryRaw<Array<{ valor: number; dataVencimento: Date }>>`
     SELECT pd."valor", pd."dataVencimento"
     FROM "ParcelaDespesa" pd
@@ -113,9 +120,9 @@ async function buscarParcelasPagarAtrasadasBrutas(limite: Date): Promise<Parcela
   }));
 }
 
-async function buscarTotalVendasHojeCentavos(): Promise<number> {
+async function buscarTotalVendasHojeCentavos(prisma: PrismaFinanceiroAny): Promise<number> {
   const { inicioHoje, fimHoje } = obterIntervalosFinanceiros();
-  const { vendaDelegate } = obterDelegatesFinanceiros();
+  const { vendaDelegate } = obterDelegatesFinanceiros(prisma);
 
   if (!vendaDelegate) {
     return 0;
@@ -151,9 +158,9 @@ async function buscarTotalVendasHojeCentavos(): Promise<number> {
   }
 }
 
-async function buscarFaturamentoCaixaFechadoHojeCentavos(): Promise<number> {
+async function buscarFaturamentoCaixaFechadoHojeCentavos(prisma: PrismaFinanceiroAny): Promise<number> {
   const { inicioHoje, fimHoje } = obterIntervalosFinanceiros();
-  const { vendaDelegate } = obterDelegatesFinanceiros();
+  const { vendaDelegate } = obterDelegatesFinanceiros(prisma);
 
   if (!vendaDelegate) {
     return 0;
@@ -199,27 +206,29 @@ async function buscarFaturamentoCaixaFechadoHojeCentavos(): Promise<number> {
 }
 
 export async function obterTotalVendasHoje(): Promise<number> {
-  await exigirSessao();
-  return paraMoeda(await buscarTotalVendasHojeCentavos());
+  const { prisma } = await exigirContextoTenant();
+  return paraMoeda(await buscarTotalVendasHojeCentavos(prisma as unknown as PrismaFinanceiroAny));
 }
 
 export async function obterFaturamentoCaixaFechadoHoje(): Promise<number> {
-  await exigirSessao();
-  return paraMoeda(await buscarFaturamentoCaixaFechadoHojeCentavos());
+  const { prisma } = await exigirContextoTenant();
+  return paraMoeda(await buscarFaturamentoCaixaFechadoHojeCentavos(prisma as unknown as PrismaFinanceiroAny));
 }
 
 export async function obterTotalPagarHoje(): Promise<number> {
-  await exigirSessao();
+  const { prisma } = await exigirContextoTenant();
+  const prismaFinanceiro = prisma as unknown as PrismaFinanceiroAny;
   const { fimHoje } = obterIntervalosFinanceiros();
-  const parcelasFornecedor = await buscarParcelasPagarAtrasadasBrutas(fimHoje);
+  const parcelasFornecedor = await buscarParcelasPagarAtrasadasBrutas(prismaFinanceiro, fimHoje);
 
   return paraMoeda(somarValoresCentavos(parcelasFornecedor));
 }
 
 export async function obterTotalReceberHoje(): Promise<number> {
-  await exigirSessao();
+  const { prisma } = await exigirContextoTenant();
+  const prismaFinanceiro = prisma as unknown as PrismaFinanceiroAny;
   const { fimHoje } = obterIntervalosFinanceiros();
-  const { contaReceberDelegate } = obterDelegatesFinanceiros();
+  const { contaReceberDelegate } = obterDelegatesFinanceiros(prismaFinanceiro);
 
   const contasReceberHoje = await contaReceberDelegate.findMany({
     where: {
@@ -233,13 +242,14 @@ export async function obterTotalReceberHoje(): Promise<number> {
 }
 
 export async function obterSaldoPrevisto(): Promise<number> {
-  await exigirSessao();
+  const { prisma } = await exigirContextoTenant();
+  const prismaFinanceiro = prisma as unknown as PrismaFinanceiroAny;
   const { fimMes } = obterIntervalosFinanceiros();
-  const { contaReceberDelegate } = obterDelegatesFinanceiros();
+  const { contaReceberDelegate } = obterDelegatesFinanceiros(prismaFinanceiro);
 
   const [parcelasPagarAteFimMes, contasReceberAteFimMes] =
     await Promise.all([
-      buscarParcelasPagarAtrasadasBrutas(fimMes),
+      buscarParcelasPagarAtrasadasBrutas(prismaFinanceiro, fimMes),
       contaReceberDelegate.findMany({
         where: {
           status: "PENDENTE",
@@ -281,7 +291,6 @@ function obterDelegateVendaFindMany(clientePrisma: PrismaFinanceiroAny): Delegat
 }
 
 export async function obterResumoDashboardFinanceiro(): Promise<ResumoDashboardFinanceiro> {
-  await exigirSessao();
   const [
     totalVendasHoje,
     totalPagarHoje,

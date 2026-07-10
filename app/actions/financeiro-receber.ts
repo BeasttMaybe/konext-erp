@@ -1,8 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
-import { exigirSessao, obterUsuarioSessao } from "@/lib/auth/sessao";
+import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 
@@ -59,10 +58,13 @@ export interface ContaReceberFinanceiro {
 
 export async function listarContasReceber(): Promise<ContaReceberFinanceiro[]> {
   // Leitura: sem sessao valida nao expoe dados financeiros.
-  const usuario = await obterUsuarioSessao();
-  if (!usuario) {
+  let contexto: Awaited<ReturnType<typeof exigirContextoTenant>>;
+  try {
+    contexto = await exigirContextoTenant();
+  } catch {
     return [];
   }
+  const prisma = contexto.prisma;
 
   const contas = await prisma.contaReceber.findMany({
     include: {
@@ -107,7 +109,9 @@ export interface CriarContaReceberInput {
 }
 
 export async function criarContaReceber(input: CriarContaReceberInput) {
-  const usuario = await exigirSessao();
+  const contexto = await exigirContextoTenant();
+  const prisma = contexto.prisma;
+  const usuario = contexto.usuarioOperacional;
 
   const qtdParcelas = Math.max(1, Math.trunc(input.qtdParcelas || 1));
   const valorTotalCentavos = paraCentavos(input.valorTotal);
@@ -170,7 +174,9 @@ export async function criarContaReceber(input: CriarContaReceberInput) {
 
 export async function darBaixaConta(id: string, observacaoPagamento?: string) {
   // C1: exige sessao valida antes de registrar recebimento.
-  const usuario = await exigirSessao();
+  const contexto = await exigirContextoTenant();
+  const prisma = contexto.prisma;
+  const usuario = contexto.usuarioOperacional;
 
   const momentoBaixa = new Date();
   const observacao = observacaoPagamento?.trim() || null;
@@ -279,7 +285,7 @@ export async function editarContaReceber(
   id: string,
   input: EditarContaReceberInput
 ): Promise<void> {
-  await exigirSessao();
+  const { prisma } = await exigirContextoTenant();
 
   const conta = await prisma.contaReceber.findUnique({
     where: { id },
@@ -312,7 +318,9 @@ export async function editarContaReceber(
  * Contas vinculadas a vendas não podem ser excluídas manualmente.
  */
 export async function excluirContaReceber(id: string): Promise<void> {
-  const usuario = await exigirSessao();
+  const contexto = await exigirContextoTenant();
+  const prisma = contexto.prisma;
+  const usuario = contexto.usuarioOperacional;
 
   await prisma.$transaction(async (tx) => {
     const conta = await tx.contaReceber.findUnique({
@@ -378,8 +386,13 @@ export interface ResumoReceber {
 export async function listarContasReceberFiltradas(
   filtros?: FiltrosReceber
 ): Promise<ContaReceberFinanceiro[]> {
-  const usuario = await obterUsuarioSessao();
-  if (!usuario) return [];
+  let contexto: Awaited<ReturnType<typeof exigirContextoTenant>>;
+  try {
+    contexto = await exigirContextoTenant();
+  } catch {
+    return [];
+  }
+  const prisma = contexto.prisma;
 
   const where: Record<string, unknown> = {};
 
