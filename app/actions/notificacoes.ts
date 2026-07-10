@@ -1,5 +1,6 @@
 "use server";
-import { prisma } from "@/lib/prisma";
+import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
+import type { ContextoTenantServidor } from "@/types/tenant";
 
 type NotificacaoRegistro = {
   id: string | number;
@@ -16,10 +17,16 @@ type NotificacaoDelegate = {
   updateMany?: (args: unknown) => Promise<unknown>;
 };
 
-type PrismaNotificacoesAny = typeof prisma & {
+type PrismaNotificacoesAny = ContextoTenantServidor["prisma"] & {
   notificacao?: NotificacaoDelegate;
   Notificacao?: NotificacaoDelegate;
 };
+
+async function obterDelegateNotificacaoTenant(): Promise<NotificacaoDelegate | null> {
+  const contexto = await exigirContextoTenant();
+  const prismaAny = contexto.prisma as PrismaNotificacoesAny;
+  return prismaAny.notificacao ?? prismaAny.Notificacao ?? null;
+}
 
 export type NotificacaoItem = {
   id: string;
@@ -30,11 +37,10 @@ export type NotificacaoItem = {
 };
 
 /**
- * Busca as 10 notificações mais recentes, priorizando as não lidas.
+ * Busca as 10 notificações mais recentes do tenant, priorizando as não lidas.
  */
 export async function listarNotificacoes(): Promise<NotificacaoItem[]> {
-  const prismaAny = prisma as PrismaNotificacoesAny;
-  const delegate = prismaAny.notificacao ?? prismaAny.Notificacao;
+  const delegate = await obterDelegateNotificacaoTenant();
   if (!delegate?.findMany) return [];
 
   const itens = await delegate.findMany({
@@ -52,33 +58,30 @@ export async function listarNotificacoes(): Promise<NotificacaoItem[]> {
 }
 
 /**
- * Conta somente as notificações não lidas — usado para o indicador vermelho.
+ * Conta somente as notificações não lidas do tenant — usado para o indicador vermelho.
  */
 export async function contarNaoLidas(): Promise<number> {
-  const prismaAny = prisma as PrismaNotificacoesAny;
-  const delegate = prismaAny.notificacao ?? prismaAny.Notificacao;
+  const delegate = await obterDelegateNotificacaoTenant();
   if (!delegate?.count) return 0;
 
   return delegate.count({ where: { lida: false } });
 }
 
 /**
- * Marca uma notificação específica como lida.
+ * Marca uma notificação específica do tenant como lida.
  */
 export async function marcarComoLida(id: string): Promise<void> {
-  const prismaAny = prisma as PrismaNotificacoesAny;
-  const delegate = prismaAny.notificacao ?? prismaAny.Notificacao;
+  const delegate = await obterDelegateNotificacaoTenant();
   if (!delegate?.update) return;
 
   await delegate.update({ where: { id }, data: { lida: true } });
 }
 
 /**
- * Marca todas as notificações como lidas de uma vez.
+ * Marca todas as notificações do tenant como lidas de uma vez.
  */
 export async function marcarTodasComoLidas(): Promise<void> {
-  const prismaAny = prisma as PrismaNotificacoesAny;
-  const delegate = prismaAny.notificacao ?? prismaAny.Notificacao;
+  const delegate = await obterDelegateNotificacaoTenant();
   if (!delegate?.updateMany) return;
 
   await delegate.updateMany({ where: { lida: false }, data: { lida: true } });

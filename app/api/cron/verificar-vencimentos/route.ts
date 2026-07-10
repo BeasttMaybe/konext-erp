@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { prismaCentral } from "@/lib/central/prisma-central";
+import { obterPrismaTenant } from "@/lib/tenant/prisma-tenant";
+import { resolverConexaoTenant } from "@/lib/tenant/resolver-conexao-tenant";
 
 type ContaVencimento = {
   id: string;
@@ -30,32 +32,19 @@ type NotificacaoDelegate = {
  * Configurar a variável de ambiente CRON_SECRET no ambiente de produção.
  * Ideal para ser chamado por um agendador (Vercel Cron, Cron-job.org, etc.) uma vez por dia.
  */
-export async function GET(request: NextRequest) {
-  // Proteção básica por token — impede que terceiros acionem o cron manualmente.
-  const authHeader = request.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET;
-
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
-  }
-
-  const prismaAny = prisma as typeof prisma & {
-    conta?: ContaDelegate;
-    Conta?: ContaDelegate;
-    notificacao?: NotificacaoDelegate;
-    Notificacao?: NotificacaoDelegate;
-  };
-  const contaDelegate = prismaAny.conta ?? prismaAny.Conta;
-  const notifDelegate = prismaAny.notificacao ?? prismaAny.Notificacao;
+async function processarVencimentosTenant(prisma: {
+  conta?: ContaDelegate;
+  Conta?: ContaDelegate;
+  notificacao?: NotificacaoDelegate;
+  Notificacao?: NotificacaoDelegate;
+}): Promise<number> {
+  const contaDelegate = prisma.conta ?? prisma.Conta;
+  const notifDelegate = prisma.notificacao ?? prisma.Notificacao;
 
   if (!contaDelegate?.findMany || !notifDelegate?.create) {
-    return NextResponse.json(
-      { error: "Delegates Prisma necessários não estão disponíveis." },
-      { status: 500 }
-    );
+    throw new Error("Delegates Prisma necessarios nao estao disponiveis no tenant.");
   }
 
-  // Janela de verificação: início do dia atual até o fim do dia seguinte.
   const agora = new Date();
   const inicioDiaAtual = new Date(agora);
   inicioDiaAtual.setHours(0, 0, 0, 0);
@@ -90,10 +79,9 @@ export async function GET(request: NextRequest) {
   });
 
   if (contas.length === 0) {
-    return NextResponse.json({ success: true, notificationsCreated: 0 });
+    return 0;
   }
 
-  // Formata valor em BRL para a mensagem da notificação.
   const formatarMoeda = (valor: number) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(valor);
 
@@ -101,7 +89,7 @@ export async function GET(request: NextRequest) {
 
   for (const conta of contas) {
     const venceHoje = conta.vencimento >= inicioDiaAtual && conta.vencimento < inicioAmanha;
-    const prazo = venceHoje ? "hoje" : "amanhã";
+    const prazo = venceHoje ? "hoje" : "amanha";
 
     const nomeContraparte = conta.cliente?.nome ?? conta.descricao;
     const valorFormatado = formatarMoeda(conta.valor);
@@ -111,15 +99,14 @@ export async function GET(request: NextRequest) {
 
     if (conta.tipo === "PAGAR") {
       titulo = "Conta a Pagar Vencendo";
-      mensagem = `Conta a Pagar vence ${prazo}: ${valorFormatado} — ${nomeContraparte}`;
+      mensagem = `Conta a Pagar vence ${prazo}: ${valorFormatado} - ${nomeContraparte}`;
     } else {
       titulo = "Conta a Receber Vencendo";
-      mensagem = `Conta a Receber vence ${prazo}: ${valorFormatado} — ${nomeContraparte}`;
+      mensagem = `Conta a Receber vence ${prazo}: ${valorFormatado} - ${nomeContraparte}`;
     }
 
     try {
-      // Evita duplicatas: se já existe notificação não lida para esta conta, pula.
-      const notifExistente = await notifDelegate.findFirst({
+      const notifExistente = await notifDelegate.findFirst?.({
         where: {
           lida: false,
           mensagem: { contains: nomeContraparte },
@@ -134,9 +121,83 @@ export async function GET(request: NextRequest) {
         notificationsCreated++;
       }
     } catch {
-      // Falha em uma notificação individual não deve interromper as demais.
+      // Falhas pontuais de registro nao interrompem o restante do tenant.
     }
   }
 
-  return NextResponse.json({ success: true, notificationsCreated });
+  return notificationsCreated;
+}
+
+export async function GET(request: NextRequest) {
+  const authHeader = request.headers.get("authorization");
+  const cronSecret = process.env.CRON_SECRET;
+
+  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: "Nao autorizado." }, { status: 401 });
+  }
+
+  try {
+    const tenantsAtivos = await prismaCentral.tenant.findMany({
+      where: { status: "ATIVO" },
+      select: {
+        id: true,
+        slug: true,
+        connectionRef: true,
+      },
+    });
+
+    let notificationsCreated = 0;
+    let tenantsProcessados = 0;
+    const falhas: Array<{ tenantId: string; tenantSlug: string; erro: string }> = [];
+
+    for (const tenant of tenantsAtivos) {
+      if (!tenant.connectionRef) {
+        falhas.push({
+          tenantId: tenant.id,
+          tenantSlug: tenant.slug,
+          erro: "Tenant sem connectionRef.",
+        });
+        continue;
+      }
+
+      try {
+        const connectionString = resolverConexaoTenant(tenant.connectionRef);
+        const prismaTenant = obterPrismaTenant({
+          tenantId: tenant.id,
+          connectionString,
+        }) as unknown as {
+          conta?: ContaDelegate;
+          Conta?: ContaDelegate;
+          notificacao?: NotificacaoDelegate;
+          Notificacao?: NotificacaoDelegate;
+        };
+
+        const criadasNoTenant = await processarVencimentosTenant(prismaTenant);
+        notificationsCreated += criadasNoTenant;
+        tenantsProcessados += 1;
+      } catch (erro) {
+        falhas.push({
+          tenantId: tenant.id,
+          tenantSlug: tenant.slug,
+          erro: erro instanceof Error ? erro.message : String(erro),
+        });
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      notificationsCreated,
+      tenantsProcessados,
+      tenantsComFalha: falhas.length,
+      falhas,
+    });
+  } catch (erro) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: erro instanceof Error ? erro.message : String(erro),
+      },
+      { status: 500 }
+    );
+  }
 }

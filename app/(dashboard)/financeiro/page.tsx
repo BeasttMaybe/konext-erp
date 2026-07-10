@@ -20,7 +20,6 @@ import {
   obterTotalReceberHoje,
   obterTotalVendasHoje,
 } from "@/app/actions/financeiro-hub";
-import { obterPoliticaSessaoAtual } from "@/app/actions/auth";
 
 const formatarMoeda = (valor: number) =>
   new Intl.NumberFormat("pt-BR", {
@@ -125,9 +124,6 @@ async function CartaoFaturamentoCaixaFechado() {
  * Renderiza cada indicador em um fluxo independente no servidor.
  */
 export default async function FinanceiroPage() {
-  const politicaSessao = await obterPoliticaSessaoAtual();
-  const mostrarNotasFiscais = politicaSessao.tipo !== "central";
-
   return (
     <div className="w-full min-h-full flex flex-col bg-transparent">
       <div className="border-b border-slate-200/70 bg-white/75 px-6 py-6 backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/50 lg:px-8">
@@ -200,19 +196,17 @@ export default async function FinanceiroPage() {
                   </Card>
                 </Link>
 
-                {mostrarNotasFiscais && (
-                  <Link href="/financeiro/notas-fiscais" className="block">
-                    <Card className="h-full cursor-pointer border-zinc-200 bg-white/85 transition-colors hover:border-primary dark:border-zinc-800 dark:bg-slate-900/55">
-                      <div className="flex items-center justify-between">
-                        <p className="font-semibold text-slate-900 dark:text-slate-100">Notas Fiscais</p>
-                        <Receipt className="h-5 w-5 text-blue-500" />
-                      </div>
-                      <p className="text-sm text-slate-600 dark:text-slate-400">
-                        Emissao, acompanhamento de status e historico fiscal.
-                      </p>
-                    </Card>
-                  </Link>
-                )}
+                <Link href="/financeiro/notas-fiscais" className="block">
+                  <Card className="h-full cursor-pointer border-zinc-200 bg-white/85 transition-colors hover:border-primary dark:border-zinc-800 dark:bg-slate-900/55">
+                    <div className="flex items-center justify-between">
+                      <p className="font-semibold text-slate-900 dark:text-slate-100">Notas Fiscais</p>
+                      <Receipt className="h-5 w-5 text-blue-500" />
+                    </div>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">
+                      Emissao, acompanhamento de status e historico fiscal.
+                    </p>
+                  </Card>
+                </Link>
 
                 <Link href="/financeiro/inteligencia" className="block">
                   <Card className="h-full cursor-pointer border-zinc-200 bg-white/85 transition-colors hover:border-primary dark:border-zinc-800 dark:bg-slate-900/55">

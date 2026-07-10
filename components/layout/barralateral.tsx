@@ -23,7 +23,6 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useSidebar } from "@/contextos/contexto-sidebar";
 import { obterDadosPerfilConfiguracao } from "@/app/actions/configuracoes";
-import { obterPoliticaSessaoAtual, type PoliticaSessaoAtual } from "@/app/actions/auth";
 
 /**
  * Componente da Barra Lateral (Sidebar) do Dashboard
@@ -46,7 +45,6 @@ export function BarraLateral() {
   const pathname = usePathname();
   const [companyName, setCompanyName] = useState("Konext");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
-  const [politicaSessao, setPoliticaSessao] = useState<PoliticaSessaoAtual | null>(null);
   const [toggledParents, setToggledParents] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -55,11 +53,9 @@ export function BarraLateral() {
     const carregarBranding = async () => {
       try {
         const dados = await obterDadosPerfilConfiguracao();
-        const politica = await obterPoliticaSessaoAtual();
         if (!ativo) return;
         setCompanyName(dados.configuracao?.nomeFantasia || "Konext");
         setLogoUrl(dados.configuracao?.logoUrl || null);
-        setPoliticaSessao(politica);
       } catch {
         if (!ativo) return;
         setCompanyName("Konext");
@@ -88,6 +84,8 @@ export function BarraLateral() {
     Configuracoes: <Settings className="h-5 w-5" />,
   };
 
+  // Sidebar unica para todos os tenants: derivada dos modulos migrados.
+  // Diferencas futuras devem vir de role/permissao, nunca de tipo de sessao.
   const navigationItems: SidebarItem[] = [
     { label: "Dashboard", path: "/", iconKey: "Dashboard" },
     {
@@ -132,62 +130,14 @@ export function BarraLateral() {
         { label: "Hub Financeiro", path: "/financeiro" },
         { label: "Contas a Receber", path: "/financeiro/receber" },
         { label: "Contas a Pagar", path: "/financeiro/pagar" },
+        { label: "Inteligência", path: "/financeiro/inteligencia" },
+        { label: "Notas Fiscais", path: "/financeiro/notas-fiscais" },
       ],
     },
     { label: "Metas", path: "/metas", iconKey: "Metas" },
     { label: "Configurações", path: "/configuracoes", iconKey: "Configuracoes" },
   ];
-  const navigationItemsTenantMigrado: SidebarItem[] = [
-    { label: "Inicio", path: "/inicio", iconKey: "Inicio" },
-    {
-      label: "CRM",
-      path: "/crm",
-      iconKey: "CRM",
-      subItems: [
-        { label: "Hub Central", path: "/crm" },
-        { label: "Contatos", path: "/crm/contatos" },
-        { label: "Oportunidades", path: "/crm/oportunidades" },
-        { label: "Propostas", path: "/crm/propostas" },
-      ],
-    },
-    { label: "PDV", path: "/pdv", iconKey: "PDV" },
-    {
-      label: "Vendas",
-      path: "/vendas",
-      iconKey: "Vendas",
-      subItems: [
-        { label: "Hub Central", path: "/vendas" },
-        { label: "Novo Pedido", path: "/vendas/pedidos/novo" },
-        { label: "Historico", path: "/vendas/historico" },
-      ],
-    },
-    { label: "Estoque", path: "/estoque", iconKey: "Estoque" },
-    {
-      label: "Ordens de Servico",
-      path: "/os",
-      iconKey: "OS",
-      subItems: [
-        { label: "Kanban", path: "/os" },
-        { label: "Garantias", path: "/os/garantias" },
-      ],
-    },
-    {
-      label: "Financeiro",
-      path: "/financeiro",
-      iconKey: "Financeiro",
-      subItems: [
-        { label: "Visao financeira", path: "/financeiro" },
-        { label: "A receber", path: "/financeiro/receber" },
-        { label: "A pagar", path: "/financeiro/pagar" },
-        { label: "Inteligencia", path: "/financeiro/inteligencia" },
-      ],
-    },
-    { label: "Configuracoes", path: "/configuracoes", iconKey: "Configuracoes" },
-  ];
-  const itensNavegacaoVisiveis =
-    politicaSessao?.tipo === "central"
-      ? navigationItemsTenantMigrado.filter((item) => politicaSessao.rotasPermitidas.includes(item.path))
-      : navigationItems;
+  const itensNavegacaoVisiveis = navigationItems;
 
   const isPathActive = (path: string) => {
     if (path.includes("?")) {

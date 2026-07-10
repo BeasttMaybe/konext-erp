@@ -1,147 +1,91 @@
-import { exigirSessao } from "@/lib/auth/sessao";
-import { obterSessaoCentral } from "@/lib/auth/sessao-central";
-import { prismaCentral } from "@/lib/central/prisma-central";
+import { exigirSessaoCentral } from "@/lib/auth/sessao-central";
 import { obterPrismaTenant } from "@/lib/tenant/prisma-tenant";
 import { resolverConexaoTenant } from "@/lib/tenant/resolver-conexao-tenant";
 import type { ContextoTenantServidor } from "@/types/tenant";
 
-export async function exigirContextoTenant(): Promise<ContextoTenantServidor> {
-  const sessaoCentral = await obterSessaoCentral();
+type UsuarioOperacionalMapeado = {
+  id: string;
+  nome: string;
+  email: string;
+  role: string;
+};
 
-  if (sessaoCentral) {
-    const connectionString = resolverConexaoTenant(sessaoCentral.connectionRef);
-    const prisma = obterPrismaTenant({
-      tenantId: sessaoCentral.tenantId,
-      connectionString,
-    });
+/**
+ * Mapeamento read-only do usuario central para um Usuario operacional
+ * pre-existente no banco do tenant (por e-mail). Nunca cria usuario.
+ * Sem correspondencia local, o id fica vazio e fluxos tratam como null.
+ */
+async function mapearUsuarioOperacional(
+  prisma: ContextoTenantServidor["prisma"],
+  email: string,
+  fallback: { nome: string; role: string }
+): Promise<UsuarioOperacionalMapeado> {
+  const semMapeamento: UsuarioOperacionalMapeado = {
+    id: "",
+    nome: fallback.nome,
+    email,
+    role: fallback.role,
+  };
 
-    return {
-      usuarioOperacional: {
-        id: "",
-        nome: sessaoCentral.usuarioNome,
-        email: sessaoCentral.usuarioEmail,
-        role: sessaoCentral.role,
-      },
-      usuarioCentralId: sessaoCentral.usuarioCentralId,
-      empresaId: sessaoCentral.empresaId,
-      empresaSlug: sessaoCentral.empresaSlug,
-      tenantId: sessaoCentral.tenantId,
-      tenantSlug: sessaoCentral.tenantSlug,
-      connectionRef: sessaoCentral.connectionRef,
-      prisma,
-    };
-  }
-
-  const usuarioOperacional = await exigirSessao();
-  const emailNormalizado = usuarioOperacional.email.trim().toLowerCase();
+  const emailNormalizado = email.trim().toLowerCase();
 
   if (!emailNormalizado) {
-    throw new Error("Usuario operacional autenticado sem e-mail valido.");
+    return semMapeamento;
   }
 
-  const usuariosCentrais = await prismaCentral.usuarioCentral.findMany({
-    where: {
-      email: {
-        equals: emailNormalizado,
-        mode: "insensitive",
-      },
-    },
-    select: {
-      id: true,
-      ativo: true,
-    },
-  });
-
-  if (usuariosCentrais.length === 0) {
-    throw new Error("UsuarioCentral correspondente ao usuario operacional nao encontrado.");
-  }
-
-  if (usuariosCentrais.length > 1) {
-    throw new Error("Mais de um UsuarioCentral encontrado para o e-mail operacional. Resolucao abortada.");
-  }
-
-  const usuarioCentral = usuariosCentrais[0];
-
-  if (!usuarioCentral.ativo) {
-    throw new Error("UsuarioCentral correspondente esta inativo.");
-  }
-
-  const vinculosAtivos = await prismaCentral.usuarioEmpresa.findMany({
-    where: {
-      usuarioId: usuarioCentral.id,
-      ativo: true,
-    },
-    select: {
-      empresaId: true,
-      empresa: {
-        select: {
-          id: true,
-          slug: true,
-          status: true,
+  try {
+    const usuario = await prisma.usuario.findFirst({
+      where: {
+        email: {
+          equals: emailNormalizado,
+          mode: "insensitive",
         },
       },
-    },
-  });
+      select: {
+        id: true,
+        nome: true,
+        email: true,
+        role: true,
+      },
+    });
 
-  if (vinculosAtivos.length === 0) {
-    throw new Error("UsuarioCentral sem vinculo ativo com empresa.");
+    if (!usuario) {
+      return semMapeamento;
+    }
+
+    return {
+      id: usuario.id,
+      nome: usuario.nome,
+      email: usuario.email,
+      role: String(usuario.role),
+    };
+  } catch {
+    return semMapeamento;
   }
+}
 
-  if (vinculosAtivos.length > 1) {
-    throw new Error("UsuarioCentral possui multiplos vinculos ativos. Selecao de empresa ainda nao foi implementada.");
-  }
+export async function exigirContextoTenant(): Promise<ContextoTenantServidor> {
+  const sessaoCentral = await exigirSessaoCentral();
 
-  const vinculo = vinculosAtivos[0];
-
-  if (vinculo.empresa.status !== "ATIVA") {
-    throw new Error("Empresa vinculada ao UsuarioCentral nao esta ativa.");
-  }
-
-  const tenantsAtivos = await prismaCentral.tenant.findMany({
-    where: {
-      empresaId: vinculo.empresaId,
-      status: "ATIVO",
-    },
-    select: {
-      id: true,
-      slug: true,
-      connectionRef: true,
-    },
-  });
-
-  if (tenantsAtivos.length === 0) {
-    throw new Error("Empresa ativa sem tenant ativo configurado.");
-  }
-
-  if (tenantsAtivos.length > 1) {
-    throw new Error("Empresa possui multiplos tenants ativos. Selecao de tenant ainda nao foi implementada.");
-  }
-
-  const tenant = tenantsAtivos[0];
-
-  if (!tenant.connectionRef) {
-    throw new Error("Tenant ativo sem connectionRef configurada.");
-  }
-
-  const connectionString = resolverConexaoTenant(tenant.connectionRef);
+  const connectionString = resolverConexaoTenant(sessaoCentral.connectionRef);
   const prisma = obterPrismaTenant({
-    tenantId: tenant.id,
+    tenantId: sessaoCentral.tenantId,
     connectionString,
   });
 
+  const usuarioOperacional = await mapearUsuarioOperacional(prisma, sessaoCentral.usuarioEmail, {
+    nome: sessaoCentral.usuarioNome,
+    role: sessaoCentral.role,
+  });
+
   return {
-    usuarioOperacional: {
-      id: usuarioOperacional.id,
-      nome: usuarioOperacional.nome,
-      email: usuarioOperacional.email,
-      role: usuarioOperacional.role,
-    },
-    usuarioCentralId: usuarioCentral.id,
-    empresaId: vinculo.empresa.id,
-    empresaSlug: vinculo.empresa.slug,
-    tenantId: tenant.id,
-    tenantSlug: tenant.slug,
-    connectionRef: tenant.connectionRef,
+    usuarioOperacional,
+    usuarioCentralId: sessaoCentral.usuarioCentralId,
+    empresaId: sessaoCentral.empresaId,
+    empresaSlug: sessaoCentral.empresaSlug,
+    tenantId: sessaoCentral.tenantId,
+    tenantSlug: sessaoCentral.tenantSlug,
+    connectionRef: sessaoCentral.connectionRef,
     prisma,
   };
 }

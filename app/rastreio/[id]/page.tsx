@@ -1,6 +1,12 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { CheckCircle2, Circle, Clock, Wrench, Package, Truck, ClipboardList } from "lucide-react";
+// EXCECAO DOCUMENTADA (multi-tenant): rota de rastreio usa o Prisma global
+// (DATABASE_URL = banco do tenant principal). Rota sem sessao nao consegue
+// resolver tenant com seguranca sem um token publico opaco associado a OS,
+// que o schema atual nao possui. Nao usar fallback/descoberta entre bancos.
+// O rastreio permanece restrito ao legado do tenant principal ate existir
+// identificador publico seguro (exigiria migration, fora desta etapa).
 import { prisma } from "@/lib/prisma";
 
 // ── Metadados dinâmicos ────────────────────────────────────────────────────────

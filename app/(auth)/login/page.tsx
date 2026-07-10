@@ -1,12 +1,12 @@
 "use client";
 
-import { useActionState, useEffect, useTransition } from "react";
+import { useActionState } from "react";
 import { ShieldCheck } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { login, seedAdmin } from "@/app/actions/auth";
+import { login } from "@/app/actions/auth";
 
 const estadoInicial = {
   erro: null as string | null,
@@ -14,13 +14,6 @@ const estadoInicial = {
 
 export default function LoginPage() {
   const [estado, acaoLogin, carregandoLogin] = useActionState(login, estadoInicial);
-  const [semeandoAdmin, iniciarTransicao] = useTransition();
-
-  useEffect(() => {
-    iniciarTransicao(() => {
-      void seedAdmin();
-    });
-  }, []);
 
   return (
     <Card className="w-full max-w-md p-8 bg-slate-900 border-slate-800 text-slate-100">
@@ -64,7 +57,7 @@ export default function LoginPage() {
             <p className="text-sm text-red-400">{estado.erro}</p>
           )}
 
-          <Button type="submit" className="w-full" disabled={carregandoLogin || semeandoAdmin}>
+          <Button type="submit" className="w-full" disabled={carregandoLogin}>
             {carregandoLogin ? "Entrando..." : "Entrar"}
           </Button>
         </form>

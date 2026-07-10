@@ -3,7 +3,6 @@ import { FileText, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { obterPoliticaSessaoAtual } from "@/app/actions/auth";
 import { ProposalActionsCell } from "@/components/crm/proposal-actions-cell";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import {
@@ -62,12 +61,8 @@ export const metadata = {
 };
 
 export default async function PropostasPage() {
-  const [contextoTenant, politicaSessao] = await Promise.all([
-    exigirContextoTenant(),
-    obterPoliticaSessaoAtual(),
-  ]);
+  const contextoTenant = await exigirContextoTenant();
   const proposalDelegate = contextoTenant.prisma.propostaComercial;
-  const permitirIntegracoesLegadas = politicaSessao.tipo !== "central";
 
   const propostas = await proposalDelegate.findMany({
     orderBy: {
@@ -161,10 +156,7 @@ export default async function PropostasPage() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <ProposalActionsCell
-                            proposalId={proposta.id}
-                            permitirIntegracoesLegadas={permitirIntegracoesLegadas}
-                          />
+                          <ProposalActionsCell proposalId={proposta.id} />
                         </TableCell>
                       </TableRow>
                     ))}

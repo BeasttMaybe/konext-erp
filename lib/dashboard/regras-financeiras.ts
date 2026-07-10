@@ -1,4 +1,3 @@
-import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 
 type LinhaMesReceita = {
@@ -31,9 +30,11 @@ type ContextoSchemaGarantiaRaw = {
   possuiColunaRetornoGarantiaId: boolean;
 };
 
-type ClienteRegrasFinanceiras = typeof prisma;
+type ClienteRegrasFinanceiras = {
+  $queryRaw: <T>(query: TemplateStringsArray, ...values: unknown[]) => Promise<T>;
+};
 
-let cacheContextoSchemaGarantiaRaw: ContextoSchemaGarantiaRaw | null = null;
+const cacheContextoSchemaGarantiaRaw = new WeakMap<ClienteRegrasFinanceiras, ContextoSchemaGarantiaRaw>();
 
 function serializarMetaErro(meta: unknown): Record<string, unknown> | undefined {
   if (!meta || typeof meta !== "object") {
@@ -66,11 +67,10 @@ function registrarErroRawDashboard(contexto: string, erro: unknown): void {
   console.error("[dashboard:raw] erro desconhecido", { contexto, erro: String(erro) });
 }
 
-async function obterContextoSchemaGarantiaRaw(
-  client: ClienteRegrasFinanceiras = prisma
-): Promise<ContextoSchemaGarantiaRaw> {
-  if (cacheContextoSchemaGarantiaRaw) {
-    return cacheContextoSchemaGarantiaRaw;
+async function obterContextoSchemaGarantiaRaw(client: ClienteRegrasFinanceiras): Promise<ContextoSchemaGarantiaRaw> {
+  const cachePorClient = cacheContextoSchemaGarantiaRaw.get(client);
+  if (cachePorClient) {
+    return cachePorClient;
   }
 
   const [tabelaRetorno, colunaEhRetorno, colunaRetornoId] = await Promise.all([
@@ -102,13 +102,15 @@ async function obterContextoSchemaGarantiaRaw(
     `,
   ]);
 
-  cacheContextoSchemaGarantiaRaw = {
+  const contextoSchema = {
     possuiTabelaRetornoGarantia: Boolean(tabelaRetorno[0]?.existe),
     possuiColunaEhRetornoGarantia: Boolean(colunaEhRetorno[0]?.existe),
     possuiColunaRetornoGarantiaId: Boolean(colunaRetornoId[0]?.existe),
   };
 
-  return cacheContextoSchemaGarantiaRaw;
+  cacheContextoSchemaGarantiaRaw.set(client, contextoSchema);
+
+  return contextoSchema;
 }
 
 function normalizarNomeCliente(valor: string | null): string {
@@ -119,7 +121,7 @@ function normalizarNomeCliente(valor: string | null): string {
 export async function obterReceitaTotalPadrao(
   inicio: Date,
   fim: Date,
-  client: ClienteRegrasFinanceiras = prisma
+  client: ClienteRegrasFinanceiras
 ): Promise<number> {
   try {
     const contextoSchema = await obterContextoSchemaGarantiaRaw(client);
@@ -205,7 +207,7 @@ export async function obterReceitaTotalPadrao(
 export async function obterReceitaMensalPadrao(
   inicio: Date,
   fim: Date,
-  client: ClienteRegrasFinanceiras = prisma
+  client: ClienteRegrasFinanceiras
 ): Promise<ReceitaMensal[]> {
   try {
     const contextoSchema = await obterContextoSchemaGarantiaRaw(client);
@@ -300,7 +302,7 @@ export async function obterReceitaPorClientePadrao(
   inicio: Date,
   fim: Date,
   limite: number,
-  client: ClienteRegrasFinanceiras = prisma
+  client: ClienteRegrasFinanceiras
 ): Promise<ReceitaCliente[]> {
   try {
     const contextoSchema = await obterContextoSchemaGarantiaRaw(client);

@@ -1,7 +1,6 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
-import { exigirSessao } from "@/lib/auth/sessao";
+import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { obterReceitaMensalPadrao } from "@/lib/dashboard/regras-financeiras";
 import { Prisma } from "@prisma/client";
 
@@ -110,6 +109,8 @@ type MovimentacaoInterna = {
   href?: string;
 };
 
+type PrismaDashboardClient = Awaited<ReturnType<typeof exigirContextoTenant>>["prisma"];
+
 const STATUS_OS_CONCLUIDA = ["PRONTO", "ENTREGUE"] as const;
 const STATUS_OS_ABERTA_EXCLUIDOS = ["PRONTO", "ENTREGUE"] as const;
 const STATUS_CONTA_PENDENTE = ["PENDENTE", "ATRASADO", "RENEGOCIADO"] as const;
@@ -162,9 +163,9 @@ async function executarComFallback<T>(
   }
 }
 
-async function validarConectividadeBanco(): Promise<void> {
+async function validarConectividadeBanco(prismaClient: PrismaDashboardClient): Promise<void> {
   try {
-    await prisma.$queryRaw<Array<{ ok: number }>>`SELECT 1 AS ok`;
+    await prismaClient.$queryRaw<Array<{ ok: number }>>`SELECT 1 AS ok`;
   } catch (erro) {
     registrarErroDashboard("validarConectividadeBanco", erro);
     throw new Error("Falha de conectividade com o banco para montar o dashboard.");
@@ -266,9 +267,13 @@ function transformarLinhasMes(linhas: LinhaMesValor[]): Map<string, number> {
   return mapa;
 }
 
-async function obterReceitaPdvPorMes(inicio: Date, fim: Date): Promise<Map<string, number>> {
+async function obterReceitaPdvPorMes(
+  prismaClient: PrismaDashboardClient,
+  inicio: Date,
+  fim: Date
+): Promise<Map<string, number>> {
   try {
-    const linhas = await prisma.$queryRaw<LinhaMesValor[]>`
+    const linhas = await prismaClient.$queryRaw<LinhaMesValor[]>`
       SELECT DATE_TRUNC('month', v."criadoEm") AS mes,
              COALESCE(SUM(v."valorTotal"), 0) AS total
       FROM "Venda" v
@@ -284,9 +289,13 @@ async function obterReceitaPdvPorMes(inicio: Date, fim: Date): Promise<Map<strin
   }
 }
 
-async function obterReceitaVendasAprovadasPorMes(inicio: Date, fim: Date): Promise<Map<string, number>> {
+async function obterReceitaVendasAprovadasPorMes(
+  prismaClient: PrismaDashboardClient,
+  inicio: Date,
+  fim: Date
+): Promise<Map<string, number>> {
   try {
-    const linhas = await prisma.$queryRaw<LinhaMesValor[]>`
+    const linhas = await prismaClient.$queryRaw<LinhaMesValor[]>`
       SELECT DATE_TRUNC('month', p."dataCriacao") AS mes,
              COALESCE(SUM(p."total"), 0) AS total
       FROM "PedidoVenda" p
@@ -304,9 +313,13 @@ async function obterReceitaVendasAprovadasPorMes(inicio: Date, fim: Date): Promi
   }
 }
 
-async function obterReceitaOSPorMes(inicio: Date, fim: Date): Promise<Map<string, number>> {
+async function obterReceitaOSPorMes(
+  prismaClient: PrismaDashboardClient,
+  inicio: Date,
+  fim: Date
+): Promise<Map<string, number>> {
   try {
-    const linhas = await prisma.$queryRaw<LinhaMesValor[]>`
+    const linhas = await prismaClient.$queryRaw<LinhaMesValor[]>`
       SELECT DATE_TRUNC('month', base."referenciaMes") AS mes,
              COALESCE(SUM(base."valorReceita"), 0) AS total
       FROM (
@@ -339,9 +352,13 @@ async function obterReceitaOSPorMes(inicio: Date, fim: Date): Promise<Map<string
   }
 }
 
-async function obterCustosPdvPorMes(inicio: Date, fim: Date): Promise<Map<string, number>> {
+async function obterCustosPdvPorMes(
+  prismaClient: PrismaDashboardClient,
+  inicio: Date,
+  fim: Date
+): Promise<Map<string, number>> {
   try {
-    const linhas = await prisma.$queryRaw<LinhaMesValor[]>`
+    const linhas = await prismaClient.$queryRaw<LinhaMesValor[]>`
       SELECT DATE_TRUNC('month', v."criadoEm") AS mes,
              COALESCE(SUM(iv."custoUnitario" * iv."quantidade"), 0) AS total
       FROM "ItemVenda" iv
@@ -358,9 +375,13 @@ async function obterCustosPdvPorMes(inicio: Date, fim: Date): Promise<Map<string
   }
 }
 
-async function obterCustosOSPorMes(inicio: Date, fim: Date): Promise<Map<string, number>> {
+async function obterCustosOSPorMes(
+  prismaClient: PrismaDashboardClient,
+  inicio: Date,
+  fim: Date
+): Promise<Map<string, number>> {
   try {
-    const linhas = await prisma.$queryRaw<LinhaMesValor[]>`
+    const linhas = await prismaClient.$queryRaw<LinhaMesValor[]>`
       SELECT DATE_TRUNC('month', os."atualizadoEm") AS mes,
              COALESCE(SUM(i."custoPeca"), 0) AS total
       FROM "OrdemServico" os
@@ -379,9 +400,13 @@ async function obterCustosOSPorMes(inicio: Date, fim: Date): Promise<Map<string,
   }
 }
 
-async function obterDespesasFinanceirasPorMes(inicio: Date, fim: Date): Promise<Map<string, number>> {
+async function obterDespesasFinanceirasPorMes(
+  prismaClient: PrismaDashboardClient,
+  inicio: Date,
+  fim: Date
+): Promise<Map<string, number>> {
   try {
-    const linhas = await prisma.$queryRaw<LinhaMesValor[]>`
+    const linhas = await prismaClient.$queryRaw<LinhaMesValor[]>`
       SELECT DATE_TRUNC(
                'month',
                CASE WHEN pd."status"::text = 'PAGO' THEN pd."dataPagamento" ELSE pd."dataVencimento" END
@@ -409,9 +434,13 @@ async function obterDespesasFinanceirasPorMes(inicio: Date, fim: Date): Promise<
   }
 }
 
-async function obterTicketMedioOSMes(inicioMesAtual: Date, fimMesAtual: Date): Promise<number> {
+async function obterTicketMedioOSMes(
+  prismaClient: PrismaDashboardClient,
+  inicioMesAtual: Date,
+  fimMesAtual: Date
+): Promise<number> {
   try {
-    const linhas = await prisma.$queryRaw<LinhaTicketMedio[]>`
+    const linhas = await prismaClient.$queryRaw<LinhaTicketMedio[]>`
       SELECT COALESCE(AVG(base.total_os), 0) AS media
       FROM (
         SELECT os.id,
@@ -473,8 +502,10 @@ function calcularProgressoMeta(parametros: {
 }
 
 export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
-  const usuario = await exigirSessao();
-  await validarConectividadeBanco();
+  const contexto = await exigirContextoTenant();
+  const prisma = contexto.prisma;
+  const usuarioOperacionalId = String(contexto.usuarioOperacional.id ?? "").trim() || null;
+  await validarConectividadeBanco(prisma);
 
   const agora = new Date();
   const inicioHoje = inicioDoDia(agora);
@@ -531,22 +562,22 @@ export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
   ] = await Promise.all([
     executarComFallback(
       "cards.grafico.receitaMensalPadrao",
-      () => obterReceitaMensalPadrao(inicioJanela6Meses, fimMesAtual),
+      () => obterReceitaMensalPadrao(inicioJanela6Meses, fimMesAtual, prisma),
       []
     ),
     executarComFallback(
       "cards.grafico.custosPdvMesMap",
-      () => obterCustosPdvPorMes(inicioJanela6Meses, fimMesAtual),
+      () => obterCustosPdvPorMes(prisma, inicioJanela6Meses, fimMesAtual),
       new Map<string, number>()
     ),
     executarComFallback(
       "cards.grafico.custosOSMesMap",
-      () => obterCustosOSPorMes(inicioJanela6Meses, fimMesAtual),
+      () => obterCustosOSPorMes(prisma, inicioJanela6Meses, fimMesAtual),
       new Map<string, number>()
     ),
     executarComFallback(
       "cards.grafico.despesasFinanceirasMesMap",
-      () => obterDespesasFinanceirasPorMes(inicioJanela6Meses, fimMesAtual),
+      () => obterDespesasFinanceirasPorMes(prisma, inicioJanela6Meses, fimMesAtual),
       new Map<string, number>()
     ),
     prisma.contaReceber.aggregate({
@@ -602,7 +633,7 @@ export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
     }),
     executarComFallback(
       "cardsOperacionais.ticketMedioOS",
-      () => obterTicketMedioOSMes(inicioMesAtual, fimMesAtual),
+      () => obterTicketMedioOSMes(prisma, inicioMesAtual, fimMesAtual),
       0
     ),
     prisma.ordemServico.count({ where: { excluidaEm: null, status: "AGUARDANDO_ORCAMENTO" } }),
@@ -673,7 +704,7 @@ export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
       "atencao.metasAtrasadas",
       () =>
         prisma.meta.count({
-          where: { criadoPorId: usuario.id, excluidaEm: null, status: "ATRASADA" },
+          where: { criadoPorId: usuarioOperacionalId, excluidaEm: null, status: "ATRASADA" },
         }),
       0
     ),
@@ -681,7 +712,7 @@ export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
       "atencao.metasEmAtencao",
       () =>
         prisma.meta.count({
-          where: { criadoPorId: usuario.id, excluidaEm: null, status: "ATENCAO" },
+          where: { criadoPorId: usuarioOperacionalId, excluidaEm: null, status: "ATENCAO" },
         }),
       0
     ),
@@ -707,7 +738,7 @@ export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
     ),
     executarComFallback("metas.principais", () => prisma.meta.findMany({
       where: {
-        criadoPorId: usuario.id,
+        criadoPorId: usuarioOperacionalId,
         excluidaEm: null,
         status: { in: ["EM_ANDAMENTO", "ATENCAO", "ATRASADA"] },
       },
@@ -727,17 +758,17 @@ export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
     }), []),
     executarComFallback(
       "metas.totalEmAndamento",
-      () => prisma.meta.count({ where: { criadoPorId: usuario.id, excluidaEm: null, status: "EM_ANDAMENTO" } }),
+      () => prisma.meta.count({ where: { criadoPorId: usuarioOperacionalId, excluidaEm: null, status: "EM_ANDAMENTO" } }),
       0
     ),
     executarComFallback(
       "metas.totalEmAtencao",
-      () => prisma.meta.count({ where: { criadoPorId: usuario.id, excluidaEm: null, status: "ATENCAO" } }),
+      () => prisma.meta.count({ where: { criadoPorId: usuarioOperacionalId, excluidaEm: null, status: "ATENCAO" } }),
       0
     ),
     executarComFallback(
       "metas.totalAtrasadas",
-      () => prisma.meta.count({ where: { criadoPorId: usuario.id, excluidaEm: null, status: "ATRASADA" } }),
+      () => prisma.meta.count({ where: { criadoPorId: usuarioOperacionalId, excluidaEm: null, status: "ATRASADA" } }),
       0
     ),
     executarComFallback("garantias.ativas", () => prisma.termoGarantiaOS.count({
@@ -828,7 +859,7 @@ export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
       orderBy: { criadoEm: "desc" },
       where: {
         meta: {
-          criadoPorId: usuario.id,
+          criadoPorId: usuarioOperacionalId,
           excluidaEm: null,
         },
       },

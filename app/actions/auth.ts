@@ -3,117 +3,26 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
-import { prisma } from "@/lib/prisma";
 import { prismaCentral } from "@/lib/central/prisma-central";
 import { COOKIE_SESSAO_LEGADA } from "@/lib/auth/cookies";
-import { criarSessaoCentral, obterSessaoCentral, revogarSessaoCentralAtual } from "@/lib/auth/sessao-central";
-import { ROTAS_TENANT_MIGRADO } from "@/lib/tenant/rotas-migradas";
-import { randomUUID } from "node:crypto";
-
-// Numero de rounds do bcrypt. 10 e um bom equilibrio entre seguranca e desempenho.
-const FATOR_HASH = 10;
-
-// Senha padrao do admin criado no primeiro boot. Trocar apos o primeiro acesso.
-const SENHA_ADMIN_PADRAO = "admin";
-
-/**
- * Gera o hash seguro de uma senha em texto plano.
- */
-async function gerarHashSenha(senhaPura: string): Promise<string> {
-  return bcrypt.hash(senhaPura, FATOR_HASH);
-}
-
-/**
- * Verifica se um valor armazenado parece um hash bcrypt valido
- * (formato $2a$, $2b$ ou $2y$). Usado para suportar migracao suave
- * de senhas legadas que foram salvas em texto plano.
- */
-function pareceHashBcrypt(valor: string): boolean {
-  return /^\$2[aby]\$\d{2}\$/.test(valor);
-}
+import { criarSessaoCentral, revogarSessaoCentralAtual } from "@/lib/auth/sessao-central";
 
 type LoginState = {
   erro: string | null;
 };
 
-export type PoliticaSessaoAtual = {
-  tipo: "anonima" | "legada" | "central";
-  tenantSlug: string | null;
-  rotasPermitidas: readonly string[];
-};
-
-type UsuarioBasico = {
-  id: string;
-  senha: string;
-};
+const ERRO_CREDENCIAIS = "Credenciais inválidas.";
 
 type ResultadoLoginCentral =
-  | { autenticado: true; tenantSlug: string }
+  | { autenticado: true }
   | { autenticado: false };
 
-type SqlExecutor = {
-  $queryRaw: <T>(query: TemplateStringsArray, ...values: unknown[]) => Promise<T>;
-  $executeRaw: (query: TemplateStringsArray, ...values: unknown[]) => Promise<unknown>;
-};
-
-type UsuarioDelegate = {
-  findUnique?: (args: unknown) => Promise<UsuarioBasico | null>;
-  findFirst?: (args: unknown) => Promise<UsuarioBasico | null>;
-  count?: (args?: unknown) => Promise<number>;
-  create?: (args: unknown) => Promise<UsuarioBasico | null>;
-  update?: (args: unknown) => Promise<UsuarioBasico | null>;
-};
-
-function obterUsuarioDelegate(client: unknown): UsuarioDelegate | null {
-  const prismaClient = client as {
-    usuario?: UsuarioDelegate;
-    Usuario?: UsuarioDelegate;
-  };
-
-  return prismaClient.usuario ?? prismaClient.Usuario ?? null;
-}
-
-async function contarUsuariosViaSql(client: SqlExecutor): Promise<number> {
-  const resultado = await client.$queryRaw<Array<{ total: number }>>`
-    SELECT COUNT(*)::int AS total
-    FROM "Usuario"
-  `;
-
-  return Number(resultado?.[0]?.total ?? 0);
-}
-
-async function criarAdminViaSql(client: SqlExecutor) {
-  const id = randomUUID();
-  const senhaHash = await gerarHashSenha(SENHA_ADMIN_PADRAO);
-
-  await client.$executeRaw`
-    INSERT INTO "Usuario" (id, nome, email, senha, role, "criadoEm", "atualizadoEm")
-    VALUES (${id}, 'Gabriel Konext', 'gabriel@konext.com.br', ${senhaHash}, 'ADMIN', NOW(), NOW())
-  `;
-}
-
-async function buscarUsuarioPorEmailViaSql(
-  client: SqlExecutor,
-  email: string
-): Promise<{ id: string; senha: string } | null> {
-  const resultado = await client.$queryRaw<Array<{ id: string; senha: string }>>`
-    SELECT id, senha
-    FROM "Usuario"
-    WHERE LOWER(email) = LOWER(${email})
-    LIMIT 1
-  `;
-
-  if (!Array.isArray(resultado) || resultado.length === 0) {
-    return null;
-  }
-
-  return {
-    id: String(resultado[0].id),
-    senha: String(resultado[0].senha ?? ""),
-  };
-}
-
-async function tentarLoginCentral(email: string, senha: string): Promise<ResultadoLoginCentral> {
+/**
+ * Fluxo unico de autenticacao para todos os usuarios:
+ * e-mail + senha -> UsuarioCentral -> hash -> UsuarioEmpresa -> Empresa -> Tenant -> SessaoCentral.
+ * Nao existe fallback para o banco operacional.
+ */
+async function autenticarCentral(email: string, senha: string): Promise<ResultadoLoginCentral> {
   const usuarioCentral = await prismaCentral.usuarioCentral.findUnique({
     where: { email },
     select: {
@@ -127,7 +36,13 @@ async function tentarLoginCentral(email: string, senha: string): Promise<Resulta
     return { autenticado: false };
   }
 
-  const senhaConfere = await bcrypt.compare(senha, usuarioCentral.senha);
+  let senhaConfere = await bcrypt.compare(senha, usuarioCentral.senha);
+
+  // Tolerancia para input acidental com espacos no inicio/fim.
+  const senhaNormalizada = senha.trim();
+  if (!senhaConfere && senhaNormalizada !== senha) {
+    senhaConfere = await bcrypt.compare(senhaNormalizada, usuarioCentral.senha);
+  }
 
   if (!senhaConfere) {
     return { autenticado: false };
@@ -175,10 +90,6 @@ async function tentarLoginCentral(email: string, senha: string): Promise<Resulta
 
   const tenant = tenantsAtivos[0];
 
-  if (tenant.slug === "principal" || tenant.connectionRef === "TENANT_PRINCIPAL_DATABASE_URL") {
-    return { autenticado: false };
-  }
-
   await criarSessaoCentral({
     usuarioCentralId: usuarioCentral.id,
     empresaId: vinculo.empresa.id,
@@ -186,158 +97,30 @@ async function tentarLoginCentral(email: string, senha: string): Promise<Resulta
     role: vinculo.role,
   });
 
+  // Remove qualquer cookie legado residual: konext_session nao autentica mais.
   const cookieStore = await cookies();
   cookieStore.delete(COOKIE_SESSAO_LEGADA);
 
-  return {
-    autenticado: true,
-    tenantSlug: tenant.slug,
-  };
-}
-
-export async function seedAdmin() {
-  const prismaAny = prisma as typeof prisma & SqlExecutor & {
-    usuario?: UsuarioDelegate;
-    Usuario?: UsuarioDelegate;
-  };
-  const usuarioDelegate = obterUsuarioDelegate(prismaAny);
-
-  const totalUsuarios = usuarioDelegate?.count
-    ? await usuarioDelegate.count()
-    : await contarUsuariosViaSql(prismaAny);
-
-  if (totalUsuarios > 0) {
-    return;
-  }
-
-  if (usuarioDelegate?.create) {
-    await usuarioDelegate.create({
-      data: {
-        nome: "Gabriel Konext",
-        email: "gabriel@konext.com.br",
-        senha: await gerarHashSenha(SENHA_ADMIN_PADRAO),
-        role: "ADMIN",
-      },
-    });
-    return;
-  }
-
-  await criarAdminViaSql(prismaAny);
+  return { autenticado: true };
 }
 
 export async function login(
   _prevState: LoginState,
   formData: FormData
 ): Promise<LoginState> {
-  await seedAdmin();
-
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const senha = String(formData.get("senha") ?? "");
-  const senhaNormalizada = senha.trim();
 
   if (!email || !senha) {
     return { erro: "Informe e-mail e senha." };
   }
 
-  const loginCentral = await tentarLoginCentral(email, senha);
+  const resultado = await autenticarCentral(email, senha);
 
-  if (loginCentral.autenticado) {
-    redirect("/inicio");
+  if (!resultado.autenticado) {
+    // Mensagem generica: nao revela existencia do e-mail.
+    return { erro: ERRO_CREDENCIAIS };
   }
-
-  const prismaAny = prisma as typeof prisma & SqlExecutor & {
-    usuario?: UsuarioDelegate;
-    Usuario?: UsuarioDelegate;
-  };
-  const usuarioDelegate = obterUsuarioDelegate(prismaAny);
-
-  const usuario = usuarioDelegate?.findUnique
-    ? await usuarioDelegate.findUnique({
-        where: { email },
-        select: {
-          id: true,
-          senha: true,
-        },
-      })
-    : usuarioDelegate?.findFirst
-      ? await usuarioDelegate.findFirst({
-          where: { email },
-          select: {
-            id: true,
-            senha: true,
-          },
-        })
-      : await buscarUsuarioPorEmailViaSql(prismaAny, email);
-
-  const senhaArmazenada = String(usuario?.senha ?? "");
-
-  if (!usuario || !senhaArmazenada) {
-    return { erro: "Credenciais inválidas." };
-  }
-
-  // Suporta migracao suave: se a senha no banco ainda estiver em texto plano,
-  // compara diretamente e re-hasheia ao autenticar com sucesso.
-  let senhaConfere = false;
-  let precisaReHash = false;
-  let senhaParaHash = senha;
-
-  if (pareceHashBcrypt(senhaArmazenada)) {
-    senhaConfere = await bcrypt.compare(senha, senhaArmazenada);
-
-    // Tolerancia para input acidental com espacos no inicio/fim.
-    if (!senhaConfere && senhaNormalizada !== senha) {
-      senhaConfere = await bcrypt.compare(senhaNormalizada, senhaArmazenada);
-    }
-  } else {
-    // Migração de senha legada: também tolera espaços/quebras de linha
-    // residuais salvos no banco (ex.: "senha\n").
-    const senhaArmazenadaNormalizada = senhaArmazenada.trim();
-
-    senhaConfere =
-      senhaArmazenada === senha ||
-      senhaArmazenada === senhaNormalizada ||
-      senhaArmazenadaNormalizada === senha ||
-      senhaArmazenadaNormalizada === senhaNormalizada;
-
-    senhaParaHash = senhaNormalizada || senha;
-    precisaReHash = senhaConfere;
-  }
-
-  if (!senhaConfere) {
-    return { erro: "Credenciais inválidas." };
-  }
-
-  if (precisaReHash) {
-    try {
-      const novoHash = await gerarHashSenha(senhaParaHash);
-
-      if (usuarioDelegate?.update) {
-        await usuarioDelegate.update({
-          where: { id: String(usuario.id) },
-          data: { senha: novoHash },
-        });
-      } else {
-        await prismaAny.$executeRaw`
-          UPDATE "Usuario"
-          SET senha = ${novoHash}
-          WHERE id = ${String(usuario.id)}
-        `;
-      }
-    } catch (erro) {
-      // Falha ao re-hashear nao deve bloquear o login ja autenticado.
-      console.error("Falha ao migrar senha legada para hash:", erro);
-    }
-  }
-
-  const cookieStore = await cookies();
-  await revogarSessaoCentralAtual();
-  cookieStore.set(COOKIE_SESSAO_LEGADA, String(usuario.id), {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 7,
-  });
 
   redirect("/");
 }
@@ -345,35 +128,7 @@ export async function login(
 export async function logout() {
   const cookieStore = await cookies();
   await revogarSessaoCentralAtual();
+  // Limpeza do cookie legado mantida temporariamente por compatibilidade.
   cookieStore.delete(COOKIE_SESSAO_LEGADA);
   redirect("/login");
-}
-
-export async function obterPoliticaSessaoAtual(): Promise<PoliticaSessaoAtual> {
-  const sessaoCentral = await obterSessaoCentral();
-
-  if (sessaoCentral) {
-    return {
-      tipo: "central",
-      tenantSlug: sessaoCentral.tenantSlug,
-      rotasPermitidas: ROTAS_TENANT_MIGRADO,
-    };
-  }
-
-  const cookieStore = await cookies();
-  const sessaoLegada = cookieStore.get(COOKIE_SESSAO_LEGADA)?.value;
-
-  if (sessaoLegada) {
-    return {
-      tipo: "legada",
-      tenantSlug: "principal",
-      rotasPermitidas: [],
-    };
-  }
-
-  return {
-    tipo: "anonima",
-    tenantSlug: null,
-    rotasPermitidas: [],
-  };
 }

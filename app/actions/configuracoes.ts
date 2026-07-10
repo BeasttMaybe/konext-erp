@@ -4,10 +4,8 @@ import { revalidatePath } from "next/cache";
 import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { consultarCnpjReceitaCliente } from "@/app/actions/crm";
-import { prisma } from "@/lib/prisma";
-import { exigirSessao } from "@/lib/auth/sessao";
-import { obterSessaoCentral } from "@/lib/auth/sessao-central";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
+import type { ContextoTenantServidor } from "@/types/tenant";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import {
@@ -108,7 +106,9 @@ type UsuarioDelegate = {
   update?: (args: unknown) => Promise<UsuarioConfiguracaoRegistro>;
 };
 
-type PrismaConfiguracoesClient = typeof prisma & {
+type PrismaOperacionalTenant = ContextoTenantServidor["prisma"];
+
+type PrismaConfiguracoesClient = PrismaOperacionalTenant & {
   configuracao?: ConfiguracaoDelegate;
   Configuracao?: ConfiguracaoDelegate;
   usuario?: UsuarioDelegate;
@@ -339,7 +339,7 @@ function normalizarUrlImagem(url: string | null | undefined, nomeCampo: string):
   return parsed.toString();
 }
 
-function obterDelegateConfiguracao(client: typeof prisma) {
+function obterDelegateConfiguracao(client: PrismaOperacionalTenant) {
   const prismaClient = client as PrismaConfiguracoesClient;
   return prismaClient.configuracao ?? prismaClient.Configuracao;
 }
@@ -483,7 +483,7 @@ function inteiroParaNumero(valor: unknown, fallback: number, minimo: number, max
 }
 
 async function lerCamposOsGarantiaViaSql(
-  prismaClient: typeof prisma,
+  prismaClient: PrismaOperacionalTenant,
   id: string
 ): Promise<CamposOsGarantiaRaw | null> {
   if (!id) return null;
@@ -809,7 +809,7 @@ function houveMudancaCamposPdv(antes: DadosConfiguracoes, depois: DadosConfigura
   );
 }
 
-async function atualizarCamposOsGarantiaComFallbackSql(prismaClient: typeof prisma, configuracaoId: string, dados: {
+async function atualizarCamposOsGarantiaComFallbackSql(prismaClient: PrismaOperacionalTenant, configuracaoId: string, dados: {
   prazoGarantiaPadraoDias: number;
   prazoMinimoGarantiaDias: number;
   prazoMaximoGarantiaDias: number;
@@ -843,7 +843,7 @@ async function atualizarCamposOsGarantiaComFallbackSql(prismaClient: typeof pris
   `;
 }
 
-async function atualizarCamposPdvComFallbackSql(prismaClient: typeof prisma, configuracaoId: string, dados: {
+async function atualizarCamposPdvComFallbackSql(prismaClient: PrismaOperacionalTenant, configuracaoId: string, dados: {
   permitirPagamentoMisto: boolean;
   permitirDescontoPDV: boolean;
   descontoMaximoPDVPercentual: number;
@@ -1241,141 +1241,42 @@ export async function consultarCnpjReceita(cnpj: string): Promise<ResultadoConsu
 }
 
 export async function obterDadosPerfilConfiguracao() {
-  const sessaoCentral = await obterSessaoCentral();
+  const contextoTenant = await exigirContextoTenant();
+  const prismaTenant = contextoTenant.prisma as PrismaConfiguracoesClient;
 
-  if (sessaoCentral) {
-    const contextoTenant = await exigirContextoTenant();
-    const configuracaoDelegate = obterDelegateConfiguracao(contextoTenant.prisma);
-    const configuracao = configuracaoDelegate?.findFirst
-      ? await configuracaoDelegate.findFirst({
-          orderBy: {
-            criadoEm: "asc",
-          },
-        })
-      : null;
-
-    return {
-      usuario: {
-        id: sessaoCentral.usuarioCentralId,
-        nome: sessaoCentral.usuarioNome,
-        email: sessaoCentral.usuarioEmail,
-        fotoPerfilUrl: null,
-        role: sessaoCentral.role,
-      },
-      configuracao: configuracao
-        ? {
-            id: String(configuracao.id),
-            nomeFantasia: String(configuracao.nomeFantasia),
-            logoUrl: configuracao.logoUrl ? String(configuracao.logoUrl) : null,
-          }
-        : {
-            id: "",
-            nomeFantasia: "Konext",
-            logoUrl: null,
-          },
-    };
-  }
-
-  const prismaAny = prisma as PrismaConfiguracoesClient;
-  const usuarioDelegate = prismaAny.usuario ?? prismaAny.Usuario;
-  const configuracaoDelegate = prismaAny.configuracao ?? prismaAny.Configuracao;
-
-  if (!usuarioDelegate?.findFirst || !configuracaoDelegate?.findFirst) {
-    return {
-      usuario: {
-        id: "",
-        nome: "Usuario Konext",
-        email: "usuario@konext.local",
-        fotoPerfilUrl: null,
-        role: "ADMIN",
-      },
-      configuracao: {
-        id: "",
-        nomeFantasia: "Konext",
-        logoUrl: null,
-      },
-    };
-  }
-
-  let usuario = await usuarioDelegate.findFirst({
-    orderBy: {
-      criadoEm: "asc",
-    },
-  });
-
-  if (!usuario && usuarioDelegate.upsert) {
-    usuario = await usuarioDelegate.upsert({
-      where: {
-        email: "usuario@konext.local",
-      },
-      update: {},
-      create: {
-        nome: "Usuario Konext",
-        email: "usuario@konext.local",
-        senha: "pendente",
-        role: "ADMIN",
-      },
-    });
-  }
-
-  if (!usuario && usuarioDelegate.create) {
-    try {
-      usuario = await usuarioDelegate.create({
-        data: {
-          nome: "Usuario Konext",
-          email: "usuario@konext.local",
-          senha: "pendente",
-          role: "ADMIN",
-        },
-      });
-    } catch {
-      usuario = await usuarioDelegate.findFirst({
+  const configuracaoDelegate = obterDelegateConfiguracao(contextoTenant.prisma);
+  const configuracao = configuracaoDelegate?.findFirst
+    ? await configuracaoDelegate.findFirst({
         orderBy: {
           criadoEm: "asc",
         },
-      });
-    }
-  }
+      })
+    : null;
 
-  let configuracao: ConfiguracaoRegistro | null = (await configuracaoDelegate.findFirst({
-    orderBy: {
-      criadoEm: "asc",
-    },
-  })) as ConfiguracaoRegistro | null;
+  // Identidade exibida: usuario operacional mapeado (quando existe) ou dados da sessao central.
+  let fotoPerfilUrl: string | null = null;
+  const usuarioOperacionalId = contextoTenant.usuarioOperacional.id;
 
-  if (!configuracao && configuracaoDelegate.create) {
+  if (usuarioOperacionalId) {
     try {
-      configuracao = (await configuracaoDelegate.create({
-        data: {
-          nomeFantasia: "Konext",
-          logoUrl: null,
-        },
-      })) as ConfiguracaoRegistro;
+      const usuarioDelegate = prismaTenant.usuario ?? prismaTenant.Usuario;
+      const usuarioOperacional = usuarioDelegate?.findUnique
+        ? await usuarioDelegate.findUnique({ where: { id: usuarioOperacionalId } })
+        : null;
+      fotoPerfilUrl = usuarioOperacional?.fotoPerfilUrl ? String(usuarioOperacional.fotoPerfilUrl) : null;
     } catch {
-      configuracao = await configuracaoDelegate.findFirst({
-        orderBy: {
-          criadoEm: "asc",
-        },
-      });
+      fotoPerfilUrl = null;
     }
   }
 
   return {
-    usuario: usuario
-      ? {
-          id: String(usuario.id),
-          nome: String(usuario.nome),
-          email: String(usuario.email),
-          fotoPerfilUrl: usuario.fotoPerfilUrl ? String(usuario.fotoPerfilUrl) : null,
-          role: String(usuario.role),
-        }
-      : {
-          id: "",
-          nome: "Usuario Konext",
-          email: "usuario@konext.local",
-          fotoPerfilUrl: null,
-          role: "ADMIN",
-        },
+    usuario: {
+      id: usuarioOperacionalId || contextoTenant.usuarioCentralId,
+      nome: contextoTenant.usuarioOperacional.nome,
+      email: contextoTenant.usuarioOperacional.email,
+      fotoPerfilUrl,
+      role: contextoTenant.usuarioOperacional.role,
+    },
     configuracao: configuracao
       ? {
           id: String(configuracao.id),
@@ -1394,12 +1295,11 @@ export async function atualizarPerfil(
   usuarioId: string | null,
   data: DadosPerfil
 ): Promise<ResultadoAcaoPerfil> {
-  // C1: exige sessao valida antes de alterar perfil.
+  // Exige contexto tenant valido antes de alterar perfil.
   try {
-    await exigirSessao();
-
-    const prismaAny = prisma as PrismaConfiguracoesClient;
-    const usuarioDelegate = prismaAny.usuario ?? prismaAny.Usuario;
+    const contextoTenant = await exigirContextoTenant();
+    const prismaTenant = contextoTenant.prisma as PrismaConfiguracoesClient;
+    const usuarioDelegate = prismaTenant.usuario ?? prismaTenant.Usuario;
 
     if (!usuarioDelegate?.findFirst || !usuarioDelegate?.update) {
       return {
@@ -1416,31 +1316,18 @@ export async function atualizarPerfil(
       usuarioAlvo = await usuarioDelegate.findUnique({ where: { id: usuarioId } });
     }
 
-    if (!usuarioAlvo) {
-      usuarioAlvo = await usuarioDelegate.findFirst({
-        orderBy: {
-          criadoEm: "asc",
-        },
+    if (!usuarioAlvo && contextoTenant.usuarioOperacional.id && usuarioDelegate.findUnique) {
+      usuarioAlvo = await usuarioDelegate.findUnique({
+        where: { id: contextoTenant.usuarioOperacional.id },
       });
     }
 
     if (!usuarioAlvo) {
-      if (!usuarioDelegate.create) {
-        return {
-          sucesso: false,
-          erro: "Nao foi possivel criar usuario padrao para atualizacao de perfil.",
-        };
-      }
-
-      usuarioAlvo = await usuarioDelegate.create({
-        data: {
-          nome: data.nome?.trim() || "Usuario Konext",
-          email: data.email?.trim() || `usuario-${Date.now()}@konext.local`,
-          senha: "pendente",
-          role: "ADMIN",
-          fotoPerfilUrl: fotoPerfilNormalizada,
-        },
-      });
+      // Nao inventa Usuario operacional: sessao central sem mapeamento local nao edita perfil operacional.
+      return {
+        sucesso: false,
+        erro: "Nenhum usuario operacional correspondente encontrado neste tenant.",
+      };
     }
 
     const usuarioAtualizado = await usuarioDelegate.update({
@@ -1475,12 +1362,11 @@ export async function atualizarLogoEmpresa(
   logoUrl: string,
   nomeFantasia?: string
 ): Promise<ResultadoAcaoPerfil> {
-  // C1: exige sessao valida antes de alterar a logo da empresa.
+  // Exige contexto tenant valido antes de alterar a logo da empresa.
   try {
-    await exigirSessao();
-
-    const prismaAny = prisma as PrismaConfiguracoesClient;
-    const configuracaoDelegate = prismaAny.configuracao ?? prismaAny.Configuracao;
+    const contextoTenant = await exigirContextoTenant();
+    const prismaTenant = contextoTenant.prisma as PrismaConfiguracoesClient;
+    const configuracaoDelegate = prismaTenant.configuracao ?? prismaTenant.Configuracao;
 
     if (!configuracaoDelegate?.findFirst || !configuracaoDelegate?.update) {
       return {
@@ -1548,7 +1434,7 @@ export async function atualizarLogoEmpresa(
 }
 
 async function lerCamposPdvViaSql(
-  prismaClient: typeof prisma,
+  prismaClient: PrismaOperacionalTenant,
   id: string
 ): Promise<CamposPdvRaw | null> {
   if (!id) return null;

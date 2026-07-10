@@ -1,8 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
-import { exigirSessao, obterUsuarioSessao } from "@/lib/auth/sessao";
+import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 import { Prisma } from "@prisma/client";
@@ -170,6 +169,17 @@ type MetaCalculoAutomatico = {
   dataInicio: Date | null;
   dataPrazo: Date | null;
 };
+
+type PrismaMetasClient = Awaited<ReturnType<typeof exigirContextoTenant>>["prisma"];
+
+function obterUsuarioOperacionalId(contexto: Awaited<ReturnType<typeof exigirContextoTenant>>): string | null {
+  const idNormalizado = String(contexto.usuarioOperacional.id ?? "").trim();
+  return idNormalizado.length > 0 ? idNormalizado : null;
+}
+
+function contextoAuditoriaMetas(usuarioOperacionalId: string | null, origem: string) {
+  return contextoAuditoriaDoUsuario(usuarioOperacionalId ? { id: usuarioOperacionalId } : null, origem);
+}
 
 function normalizarTexto(valor: unknown): string {
   if (typeof valor !== "string") return "";
@@ -501,7 +511,7 @@ function validarEntradaMeta(input: CriarMetaInput): string | null {
   return null;
 }
 
-async function registrarHistorico(params: {
+async function registrarHistorico(prismaClient: PrismaMetasClient, params: {
   metaId: string;
   tipo: TipoHistoricoMeta;
   descricao: string;
@@ -509,7 +519,7 @@ async function registrarHistorico(params: {
   valorNovo?: number | null;
   criadoPorId?: string | null;
 }) {
-  await prisma.historicoMeta.create({
+  await prismaClient.historicoMeta.create({
     data: {
       metaId: params.metaId,
       tipo: params.tipo,
@@ -538,7 +548,10 @@ function montarFiltroPeriodoContaReceber(
   };
 }
 
-async function executarCalculoMetaAutomatica(meta: MetaCalculoAutomatico): Promise<ResultadoCalculoMetaAutomatica> {
+async function executarCalculoMetaAutomatica(
+  prismaClient: PrismaMetasClient,
+  meta: MetaCalculoAutomatico
+): Promise<ResultadoCalculoMetaAutomatica> {
   if (meta.origemProgresso !== "AUTOMATICA") {
     return { sucesso: false, erro: "Meta não é automática." };
   }
@@ -563,7 +576,7 @@ async function executarCalculoMetaAutomatica(meta: MetaCalculoAutomatico): Promi
         where.AND = [filtroPeriodo];
       }
 
-      const agregado = await prisma.contaReceber.aggregate({
+      const agregado = await prismaClient.contaReceber.aggregate({
         where,
         _sum: { valor: true },
       });
@@ -579,7 +592,7 @@ async function executarCalculoMetaAutomatica(meta: MetaCalculoAutomatico): Promi
         ...(filtroAtualizacao ? { atualizadoEm: filtroAtualizacao } : {}),
       };
 
-      const total = await prisma.ordemServico.count({ where });
+      const total = await prismaClient.ordemServico.count({ where });
       return { sucesso: true, valorAtual: total };
     }
 
@@ -589,7 +602,7 @@ async function executarCalculoMetaAutomatica(meta: MetaCalculoAutomatico): Promi
         excluidaEm: null,
         ...(filtroCriacao ? { criadoEm: filtroCriacao } : {}),
       };
-      const total = await prisma.ordemServico.count({ where });
+      const total = await prismaClient.ordemServico.count({ where });
       return { sucesso: true, valorAtual: total };
     }
 
@@ -605,7 +618,7 @@ async function executarCalculoMetaAutomatica(meta: MetaCalculoAutomatico): Promi
         where.AND = [filtroPeriodo];
       }
 
-      const agregado = await prisma.contaReceber.aggregate({
+      const agregado = await prismaClient.contaReceber.aggregate({
         where,
         _avg: { valor: true },
       });
@@ -615,7 +628,7 @@ async function executarCalculoMetaAutomatica(meta: MetaCalculoAutomatico): Promi
 
     if (meta.metricaAutomatica === "RETORNOS_GARANTIA") {
       const filtroCriacao = montarFiltroData(periodo.inicio, periodo.fim);
-      const total = await prisma.retornoGarantiaOS.count({
+      const total = await prismaClient.retornoGarantiaOS.count({
         where: filtroCriacao ? { criadoEm: filtroCriacao } : {},
       });
       return { sucesso: true, valorAtual: total };
@@ -623,7 +636,7 @@ async function executarCalculoMetaAutomatica(meta: MetaCalculoAutomatico): Promi
 
     if (meta.metricaAutomatica === "GARANTIAS_ATIVAS") {
       const hoje = new Date();
-      const total = await prisma.termoGarantiaOS.count({
+      const total = await prismaClient.termoGarantiaOS.count({
         where: {
           canceladaEm: null,
           dataFimGarantia: { gte: hoje },
@@ -634,11 +647,11 @@ async function executarCalculoMetaAutomatica(meta: MetaCalculoAutomatico): Promi
 
     if (meta.metricaAutomatica === "TAXA_RETORNO_GARANTIA") {
       const filtroPeriodo = montarFiltroData(periodo.inicio, periodo.fim);
-      const [retornos, garantias] = await prisma.$transaction([
-        prisma.retornoGarantiaOS.count({
+      const [retornos, garantias] = await prismaClient.$transaction([
+        prismaClient.retornoGarantiaOS.count({
           where: filtroPeriodo ? { criadoEm: filtroPeriodo } : {},
         }),
-        prisma.termoGarantiaOS.count({
+        prismaClient.termoGarantiaOS.count({
           where: filtroPeriodo ? { criadoEm: filtroPeriodo } : {},
         }),
       ]);
@@ -666,7 +679,7 @@ async function executarCalculoMetaAutomatica(meta: MetaCalculoAutomatico): Promi
         where.AND = [filtroPeriodo];
       }
 
-      const agregado = await prisma.contaReceber.aggregate({ where, _sum: { valor: true } });
+      const agregado = await prismaClient.contaReceber.aggregate({ where, _sum: { valor: true } });
       return { sucesso: true, valorAtual: agregado._sum.valor ?? 0 };
     }
 
@@ -676,7 +689,7 @@ async function executarCalculoMetaAutomatica(meta: MetaCalculoAutomatico): Promi
         status: "PAGO",
         ...(filtroPagamento ? { dataPagamento: filtroPagamento } : {}),
       };
-      const agregado = await prisma.parcelaDespesa.aggregate({
+      const agregado = await prismaClient.parcelaDespesa.aggregate({
         where,
         _sum: { valorPago: true },
       });
@@ -694,13 +707,13 @@ async function executarCalculoMetaAutomatica(meta: MetaCalculoAutomatico): Promi
         where.AND = [filtroPeriodo];
       }
 
-      const agregado = await prisma.contaReceber.aggregate({ where, _sum: { valor: true } });
+      const agregado = await prismaClient.contaReceber.aggregate({ where, _sum: { valor: true } });
       return { sucesso: true, valorAtual: agregado._sum.valor ?? 0 };
     }
 
     if (meta.metricaAutomatica === "QUANTIDADE_VENDAS") {
       const filtroCriacao = montarFiltroData(periodo.inicio, periodo.fim);
-      const total = await prisma.venda.count({
+      const total = await prismaClient.venda.count({
         where: filtroCriacao ? { criadoEm: filtroCriacao } : {},
       });
       return { sucesso: true, valorAtual: total };
@@ -712,7 +725,7 @@ async function executarCalculoMetaAutomatica(meta: MetaCalculoAutomatico): Promi
         return { sucesso: false, erro: "Produto não configurado para a meta automática de estoque." };
       }
 
-      const produto = await prisma.produto.findFirst({
+      const produto = await prismaClient.produto.findFirst({
         where: { id: produtoId, ativo: true },
         select: { quantidadeEstoque: true },
       });
@@ -750,7 +763,9 @@ function mensagemSincronizacao(
 
 export async function criarMeta(input: CriarMetaInput): Promise<ResultadoAcaoComId> {
   try {
-    const usuario = await exigirSessao();
+    const contexto = await exigirContextoTenant();
+    const prisma = contexto.prisma;
+    const usuario = { id: obterUsuarioOperacionalId(contexto) };
 
     const erroValidacao = validarEntradaMeta(input);
     if (erroValidacao) {
@@ -814,7 +829,7 @@ export async function criarMeta(input: CriarMetaInput): Promise<ResultadoAcaoCom
 
       await registrarLogAuditoria(
         tx,
-        contextoAuditoriaDoUsuario(usuario, "app/actions/metas.ts:criarMeta"),
+        contextoAuditoriaMetas(usuario.id, "app/actions/metas.ts:criarMeta"),
         {
           acao: ACOES_AUDITORIA.CRIAR_META,
           entidade: ENTIDADES_AUDITORIA.META,
@@ -860,10 +875,9 @@ export async function listarMetas(
   filtros: FiltrosMetasInput = {}
 ): Promise<{ sucesso: true; dados: LinhaMetaLista[]; total: number } | { sucesso: false; erro: string }> {
   try {
-    const usuario = await obterUsuarioSessao();
-    if (!usuario) {
-      return { sucesso: false, erro: "Sessão expirada." };
-    }
+    const contexto = await exigirContextoTenant();
+    const prisma = contexto.prisma;
+    const usuario = { id: obterUsuarioOperacionalId(contexto) };
 
     const pagina = Math.max(1, filtros.pagina ?? 1);
     const tamanhoPagina = Math.min(100, Math.max(1, filtros.tamanhoPagina ?? 20));
@@ -991,8 +1005,9 @@ export async function listarMetas(
 
 export async function obterMetaPorId(id: string): Promise<DetalhesMeta | null> {
   try {
-    const usuario = await obterUsuarioSessao();
-    if (!usuario) return null;
+    const contexto = await exigirContextoTenant();
+    const prisma = contexto.prisma;
+    const usuario = { id: obterUsuarioOperacionalId(contexto) };
 
     const meta = await prisma.meta.findFirst({
       where: { id, excluidaEm: null, criadoPorId: usuario.id },
@@ -1125,8 +1140,9 @@ export async function obterDashboardMetas(): Promise<DashboardMetasResult> {
   };
 
   try {
-    const usuario = await obterUsuarioSessao();
-    if (!usuario) return vazio;
+    const contexto = await exigirContextoTenant();
+    const prisma = contexto.prisma;
+    const usuario = { id: obterUsuarioOperacionalId(contexto) };
 
     const agora = new Date();
     const em7dias = new Date(agora);
@@ -1199,7 +1215,9 @@ export async function obterDashboardMetas(): Promise<DashboardMetasResult> {
 
 export async function atualizarMeta(input: AtualizarMetaInput): Promise<ResultadoAcao> {
   try {
-    const usuario = await exigirSessao();
+    const contexto = await exigirContextoTenant();
+    const prisma = contexto.prisma;
+    const usuario = { id: obterUsuarioOperacionalId(contexto) };
 
     const erroValidacao = validarEntradaMeta(input);
     if (erroValidacao) {
@@ -1259,7 +1277,7 @@ export async function atualizarMeta(input: AtualizarMetaInput): Promise<Resultad
 
       await registrarLogAuditoria(
         tx,
-        contextoAuditoriaDoUsuario(usuario, "app/actions/metas.ts:atualizarMeta"),
+        contextoAuditoriaMetas(usuario.id, "app/actions/metas.ts:atualizarMeta"),
         {
           acao: ACOES_AUDITORIA.ATUALIZAR_META,
           entidade: ENTIDADES_AUDITORIA.META,
@@ -1300,7 +1318,9 @@ export async function atualizarMeta(input: AtualizarMetaInput): Promise<Resultad
 
 export async function atualizarProgressoMeta(input: AtualizarProgressoInput): Promise<ResultadoAcao> {
   try {
-    const usuario = await exigirSessao();
+    const contexto = await exigirContextoTenant();
+    const prisma = contexto.prisma;
+    const usuario = { id: obterUsuarioOperacionalId(contexto) };
 
     if (!input.id) {
       return { sucesso: false, erro: "ID da meta inválido." };
@@ -1355,7 +1375,7 @@ export async function atualizarProgressoMeta(input: AtualizarProgressoInput): Pr
 
       await registrarLogAuditoria(
         tx,
-        contextoAuditoriaDoUsuario(usuario, "app/actions/metas.ts:atualizarProgressoMeta"),
+        contextoAuditoriaMetas(usuario.id, "app/actions/metas.ts:atualizarProgressoMeta"),
         {
           acao: ACOES_AUDITORIA.ATUALIZAR_PROGRESSO_META,
           entidade: ENTIDADES_AUDITORIA.META,
@@ -1386,7 +1406,9 @@ export async function atualizarProgressoMeta(input: AtualizarProgressoInput): Pr
 
 export async function alterarStatusMeta(input: AlterarStatusInput): Promise<ResultadoAcao> {
   try {
-    const usuario = await exigirSessao();
+    const contexto = await exigirContextoTenant();
+    const prisma = contexto.prisma;
+    const usuario = { id: obterUsuarioOperacionalId(contexto) };
 
     if (!statusValidos.includes(input.status)) {
       return { sucesso: false, erro: "Status inválido." };
@@ -1446,7 +1468,7 @@ export async function alterarStatusMeta(input: AlterarStatusInput): Promise<Resu
 
       await registrarLogAuditoria(
         tx,
-        contextoAuditoriaDoUsuario(usuario, "app/actions/metas.ts:alterarStatusMeta"),
+        contextoAuditoriaMetas(usuario.id, "app/actions/metas.ts:alterarStatusMeta"),
         {
           acao: ACOES_AUDITORIA.ALTERAR_STATUS_META,
           entidade: ENTIDADES_AUDITORIA.META,
@@ -1479,7 +1501,9 @@ export async function alterarStatusMeta(input: AlterarStatusInput): Promise<Resu
 
 export async function adicionarItemChecklistMeta(input: ItemChecklistInput): Promise<ResultadoAcao> {
   try {
-    const usuario = await exigirSessao();
+    const contexto = await exigirContextoTenant();
+    const prisma = contexto.prisma;
+    const usuario = { id: obterUsuarioOperacionalId(contexto) };
 
     const titulo = normalizarTexto(input.titulo);
     if (titulo.length < 2 || titulo.length > 160) {
@@ -1518,7 +1542,7 @@ export async function adicionarItemChecklistMeta(input: ItemChecklistInput): Pro
 
       await registrarLogAuditoria(
         tx,
-        contextoAuditoriaDoUsuario(usuario, "app/actions/metas.ts:adicionarItemChecklistMeta"),
+        contextoAuditoriaMetas(usuario.id, "app/actions/metas.ts:adicionarItemChecklistMeta"),
         {
           acao: ACOES_AUDITORIA.ATUALIZAR_META,
           entidade: ENTIDADES_AUDITORIA.META,
@@ -1548,7 +1572,9 @@ export async function adicionarItemChecklistMeta(input: ItemChecklistInput): Pro
 
 export async function alternarItemChecklistMeta(itemId: string): Promise<ResultadoAcao> {
   try {
-    const usuario = await exigirSessao();
+    const contexto = await exigirContextoTenant();
+    const prisma = contexto.prisma;
+    const usuario = { id: obterUsuarioOperacionalId(contexto) };
 
     const item = await prisma.itemChecklistMeta.findUnique({
       where: { id: itemId },
@@ -1590,7 +1616,7 @@ export async function alternarItemChecklistMeta(itemId: string): Promise<Resulta
 
       await registrarLogAuditoria(
         tx,
-        contextoAuditoriaDoUsuario(usuario, "app/actions/metas.ts:alternarItemChecklistMeta"),
+        contextoAuditoriaMetas(usuario.id, "app/actions/metas.ts:alternarItemChecklistMeta"),
         {
           acao: ACOES_AUDITORIA.ATUALIZAR_META,
           entidade: ENTIDADES_AUDITORIA.META,
@@ -1625,7 +1651,9 @@ export async function alternarItemChecklistMeta(itemId: string): Promise<Resulta
 
 export async function removerItemChecklistMeta(itemId: string): Promise<ResultadoAcao> {
   try {
-    const usuario = await exigirSessao();
+    const contexto = await exigirContextoTenant();
+    const prisma = contexto.prisma;
+    const usuario = { id: obterUsuarioOperacionalId(contexto) };
 
     const item = await prisma.itemChecklistMeta.findUnique({
       where: { id: itemId },
@@ -1655,7 +1683,7 @@ export async function removerItemChecklistMeta(itemId: string): Promise<Resultad
 
       await registrarLogAuditoria(
         tx,
-        contextoAuditoriaDoUsuario(usuario, "app/actions/metas.ts:removerItemChecklistMeta"),
+        contextoAuditoriaMetas(usuario.id, "app/actions/metas.ts:removerItemChecklistMeta"),
         {
           acao: ACOES_AUDITORIA.ATUALIZAR_META,
           entidade: ENTIDADES_AUDITORIA.META,
@@ -1690,7 +1718,9 @@ export async function removerItemChecklistMeta(itemId: string): Promise<Resultad
 
 export async function adicionarHistoricoMeta(metaId: string, observacao: string): Promise<ResultadoAcao> {
   try {
-    const usuario = await exigirSessao();
+    const contexto = await exigirContextoTenant();
+    const prisma = contexto.prisma;
+    const usuario = { id: obterUsuarioOperacionalId(contexto) };
 
     const texto = normalizarTexto(observacao);
     if (texto.length < 2 || texto.length > 500) {
@@ -1706,7 +1736,7 @@ export async function adicionarHistoricoMeta(metaId: string, observacao: string)
       return { sucesso: false, erro: "Meta não encontrada." };
     }
 
-    await registrarHistorico({
+    await registrarHistorico(prisma, {
       metaId,
       tipo: "OBSERVACAO",
       descricao: texto,
@@ -1727,7 +1757,9 @@ export async function adicionarHistoricoMeta(metaId: string, observacao: string)
 
 export async function calcularValorAtualMetaAutomatica(metaId: string): Promise<ResultadoCalculoMetaAutomatica> {
   try {
-    const usuario = await exigirSessao();
+    const contexto = await exigirContextoTenant();
+    const prisma = contexto.prisma;
+    const usuario = { id: obterUsuarioOperacionalId(contexto) };
 
     const meta = await prisma.meta.findFirst({
       where: {
@@ -1751,7 +1783,7 @@ export async function calcularValorAtualMetaAutomatica(metaId: string): Promise<
       return { sucesso: false, erro: "Meta não encontrada." };
     }
 
-    return executarCalculoMetaAutomatica(meta);
+    return executarCalculoMetaAutomatica(prisma, meta);
   } catch (erro) {
     if (erro instanceof Error && /sess/i.test(erro.message)) {
       return { sucesso: false, erro: erro.message };
@@ -1763,7 +1795,9 @@ export async function calcularValorAtualMetaAutomatica(metaId: string): Promise<
 
 export async function sincronizarMetaAutomatica(metaId: string): Promise<ResultadoAcao> {
   try {
-    const usuario = await exigirSessao();
+    const contexto = await exigirContextoTenant();
+    const prisma = contexto.prisma;
+    const usuario = { id: obterUsuarioOperacionalId(contexto) };
 
     const meta = await prisma.meta.findFirst({
       where: {
@@ -1796,7 +1830,7 @@ export async function sincronizarMetaAutomatica(metaId: string): Promise<Resulta
       return { sucesso: false, erro: "Esta meta é manual e não pode ser sincronizada automaticamente." };
     }
 
-    const calculo = await executarCalculoMetaAutomatica(meta);
+    const calculo = await executarCalculoMetaAutomatica(prisma, meta);
     if (!calculo.sucesso) {
       await prisma.meta.update({
         where: { id: meta.id },
@@ -1840,7 +1874,7 @@ export async function sincronizarMetaAutomatica(metaId: string): Promise<Resulta
 
       await registrarLogAuditoria(
         tx,
-        contextoAuditoriaDoUsuario(usuario, "app/actions/metas.ts:sincronizarMetaAutomatica"),
+        contextoAuditoriaMetas(usuario.id, "app/actions/metas.ts:sincronizarMetaAutomatica"),
         {
           acao: ACOES_AUDITORIA.ATUALIZAR_META,
           entidade: ENTIDADES_AUDITORIA.META,
@@ -1879,7 +1913,9 @@ export async function sincronizarMetaAutomatica(metaId: string): Promise<Resulta
 
 export async function sincronizarTodasMetasAutomaticas(): Promise<ResultadoAcao> {
   try {
-    const usuario = await exigirSessao();
+    const contexto = await exigirContextoTenant();
+    const prisma = contexto.prisma;
+    const usuario = { id: obterUsuarioOperacionalId(contexto) };
 
     const metasAutomaticas = await prisma.meta.findMany({
       where: {
@@ -1930,7 +1966,9 @@ export async function sincronizarTodasMetasAutomaticas(): Promise<ResultadoAcao>
 
 export async function excluirMeta(id: string): Promise<ResultadoAcao> {
   try {
-    const usuario = await exigirSessao();
+    const contexto = await exigirContextoTenant();
+    const prisma = contexto.prisma;
+    const usuario = { id: obterUsuarioOperacionalId(contexto) };
 
     const meta = await prisma.meta.findFirst({
       where: { id, excluidaEm: null, criadoPorId: usuario.id },
@@ -1952,7 +1990,7 @@ export async function excluirMeta(id: string): Promise<ResultadoAcao> {
 
       await registrarLogAuditoria(
         tx,
-        contextoAuditoriaDoUsuario(usuario, "app/actions/metas.ts:excluirMeta"),
+        contextoAuditoriaMetas(usuario.id, "app/actions/metas.ts:excluirMeta"),
         {
           acao: ACOES_AUDITORIA.EXCLUIR_META,
           entidade: ENTIDADES_AUDITORIA.META,

@@ -163,3 +163,17 @@ export async function revogarSessaoCentralAtual(): Promise<void> {
 
   cookieStore.delete(COOKIE_SESSAO_CENTRAL);
 }
+
+/**
+ * Exige sessao central valida. Unico conceito de identidade autenticadora do sistema.
+ * Lanca erro padronizado quando nao autenticado.
+ */
+export async function exigirSessaoCentral(): Promise<SessaoCentralResolvida> {
+  const sessao = await obterSessaoCentral();
+
+  if (!sessao) {
+    throw new Error("Sessão expirada ou inválida. Faça login novamente.");
+  }
+
+  return sessao;
+}

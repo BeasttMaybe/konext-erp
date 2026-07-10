@@ -1,7 +1,6 @@
 "use server";
 
-import { exigirSessao } from "@/lib/auth/sessao";
-import { prisma } from "@/lib/prisma";
+import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 
@@ -38,7 +37,8 @@ function textoAusente(valor: unknown): boolean {
 }
 
 export async function auditarDadosLegados(): Promise<RelatorioAuditoriaLegado> {
-  await exigirSessao();
+  const contexto = await exigirContextoTenant();
+  const prisma = contexto.prisma;
 
   const [
     ordensServico,
@@ -144,7 +144,9 @@ export async function auditarDadosLegados(): Promise<RelatorioAuditoriaLegado> {
 }
 
 export async function gerarSnapshotPreSaneamento(): Promise<SnapshotPreSaneamento> {
-  const usuario = await exigirSessao();
+  const contexto = await exigirContextoTenant();
+  const prisma = contexto.prisma;
+  const usuarioOperacionalId = String(contexto.usuarioOperacional.id ?? "").trim() || null;
 
   const [
     totalOrdensServico,
@@ -174,7 +176,10 @@ export async function gerarSnapshotPreSaneamento(): Promise<SnapshotPreSaneament
   const logAuditoria = await prisma.$transaction(async (tx) => {
     return registrarLogAuditoria(
       tx,
-      contextoAuditoriaDoUsuario(usuario, "app/actions/auditoria.ts:gerarSnapshotPreSaneamento"),
+      contextoAuditoriaDoUsuario(
+        usuarioOperacionalId ? { id: usuarioOperacionalId } : null,
+        "app/actions/auditoria.ts:gerarSnapshotPreSaneamento"
+      ),
       {
         acao: ACOES_AUDITORIA.SNAPSHOT_PRE_SANEAMENTO,
         entidade: ENTIDADES_AUDITORIA.SISTEMA,

@@ -1,6 +1,5 @@
 import { Prisma } from "@prisma/client";
-
-import { prisma } from "@/lib/prisma";
+import type { PrismaClient } from "@prisma/client";
 
 const CAMPOS_SENSIVEIS = new Set([
   "senha",
@@ -30,7 +29,9 @@ export type EntradaLogAuditoria = {
   motivo?: string | null;
 };
 
-type ClienteAuditoria = Prisma.TransactionClient | typeof prisma;
+// Helpers de auditoria exigem client explicito (tx do tenant ou PrismaClient do tenant).
+// Nao existe fallback para Prisma global.
+type ClienteAuditoria = Prisma.TransactionClient | PrismaClient;
 
 type DelegateLogAuditoria = {
   create: (args: unknown) => Promise<{ id: string }>;

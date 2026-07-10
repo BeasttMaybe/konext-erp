@@ -22,13 +22,14 @@ export default async function PaginaInicioTenantMigrado() {
             <Settings className="h-6 w-6" />
           </div>
           <div className="space-y-2">
-            <h2 className="text-xl font-semibold text-foreground">Modulo liberado nesta etapa</h2>
+            <h2 className="text-xl font-semibold text-foreground">Modulos operacionais liberados</h2>
             <p className="text-sm text-muted-foreground">
-              Durante a migracao multiempresa, apenas Configuracoes esta disponivel para este tenant.
+              O tenant migrado ja pode operar Dashboard, CRM, Estoque, OS, Garantias, PDV, Vendas,
+              Financeiro, Metas, Notas Fiscais e Configuracoes com isolamento de dados.
             </p>
           </div>
           <Button asChild>
-            <Link href="/configuracoes">Abrir Configuracoes</Link>
+            <Link href="/">Abrir Dashboard</Link>
           </Button>
         </div>
       </Card>
