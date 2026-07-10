@@ -1,5 +1,5 @@
 import { OrdemServicoForm, type OrdemServicoFormInitialData } from "@/components/os/ordem-servico-form";
-import { prisma } from "@/lib/prisma";
+import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 
 interface OSNewPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -21,6 +21,8 @@ export const metadata = {
 export default async function OSNewPage({ searchParams }: OSNewPageProps) {
   const params = await searchParams;
   const proposalId = getSingleParam(params, "propostaId")?.trim();
+  const contexto = await exigirContextoTenant();
+  const prisma = contexto.prisma;
 
   const proposal = proposalId
     ? await prisma.propostaComercial.findUnique({

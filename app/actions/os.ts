@@ -2,9 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import type { StatusOS, TipoPeca } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
+import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 // Importação de calcularPrecoVendaPeca removida — preços são definidos manualmente pelo operador.
-import { exigirSessao } from "@/lib/auth/sessao";
 import { garantirTermoGarantiaPorOS } from "@/app/actions/garantias";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
@@ -13,6 +12,8 @@ import {
   obterDefaultsConfiguracaoOsGarantias,
 } from "@/lib/configuracoes-os-garantias";
 import type { OrdemServico, OrdemServicoExcluida, TipoPecaOrcamento } from "@/types/os";
+
+type PrismaTenant = Awaited<ReturnType<typeof exigirContextoTenant>>["prisma"];
 
 type ItemEntrada = {
   tipo: TipoPeca;
@@ -251,7 +252,7 @@ type RegrasOs = {
   permitirFinalizarSemPagamento: boolean;
 };
 
-async function obterRegrasOs(): Promise<RegrasOs> {
+async function obterRegrasOs(prisma: PrismaTenant): Promise<RegrasOs> {
   const defaults = obterDefaultsConfiguracaoOsGarantias();
   let configuracao: {
     exigirGarantiaAntesEntrega?: boolean | null;
@@ -303,7 +304,7 @@ async function obterRegrasOs(): Promise<RegrasOs> {
   };
 }
 
-async function osPossuiPagamentoConfirmado(osId: string): Promise<boolean> {
+async function osPossuiPagamentoConfirmado(prisma: PrismaTenant, osId: string): Promise<boolean> {
   const totalConfirmado = await prisma.contaReceber.count({
     where: {
       ordemServicoId: osId,
@@ -328,6 +329,8 @@ function archivedAtUnsupported(error: unknown): boolean {
 }
 
 export async function buscarClientesOS(termoBusca: string): Promise<ClienteBuscaOS[]> {
+  const contexto = await exigirContextoTenant();
+  const prisma = contexto.prisma;
   const termo = termoBusca.trim();
 
   if (termo.length < 2) {
@@ -392,6 +395,8 @@ export async function buscarClientesOS(termoBusca: string): Promise<ClienteBusca
 export async function buscarClientePorId(clienteId: string): Promise<ClienteBuscaOS | null> {
   if (!clienteId) return null;
 
+  const contexto = await exigirContextoTenant();
+  const prisma = contexto.prisma;
   const prismaAny = prisma as typeof prisma & Record<string, unknown>;
   const clienteDelegate = prismaAny.cliente ?? prismaAny.Cliente;
 
@@ -413,7 +418,8 @@ export async function buscarClientePorId(clienteId: string): Promise<ClienteBusc
 }
 
 export async function obterDadosDashboardOS(): Promise<DadosDashboardOS> {
-  await exigirSessao();
+  const contexto = await exigirContextoTenant();
+  const prisma = contexto.prisma;
 
   const prismaAny = prisma as unknown as Record<string, unknown>;
   const ordemServicoDelegate =
@@ -539,7 +545,9 @@ export async function obterDadosDashboardOS(): Promise<DadosDashboardOS> {
 
 export async function criarOrdemServico(dados: DadosNovaOS) {
   // C1: rejeita chamadas nao autenticadas diretamente no backend.
-  const usuario = await exigirSessao();
+  const contexto = await exigirContextoTenant();
+  const prisma = contexto.prisma;
+  const usuario = contexto.usuarioOperacional;
 
   if (!dados?.clienteId) {
     throw new Error("Selecione um cliente para criar a ordem de servico.");
@@ -555,6 +563,20 @@ export async function criarOrdemServico(dados: DadosNovaOS) {
 
   if (!statusValidos.includes(dados.status)) {
     throw new Error("Status da ordem de servico invalido.");
+  }
+
+  const cliente = await prisma.cliente.findFirst({
+    where: {
+      id: dados.clienteId,
+      papel: "CLIENTE",
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!cliente) {
+    throw new Error("Cliente nao encontrado para criar a ordem de servico.");
   }
 
   const itensTratados = (dados.itensOrcamento ?? [])
@@ -673,7 +695,9 @@ export async function atualizarStatusOrdemServico(
 ): Promise<ResultadoAtualizacaoStatusOrdemServico> {
   try {
     // C1: exige sessao valida antes de alterar dados.
-    const usuario = await exigirSessao();
+    const contexto = await exigirContextoTenant();
+    const prisma = contexto.prisma;
+    const usuario = contexto.usuarioOperacional;
 
     if (!osId) {
       return {
@@ -744,7 +768,7 @@ export async function atualizarStatusOrdemServico(
         throw new ErroRegraNegocioOS("Nao e permitido alterar status de uma OS excluida.");
       }
 
-      const regrasOs = await obterRegrasOs();
+      const regrasOs = await obterRegrasOs(prisma);
 
       if (
         status === "ENTREGUE" &&
@@ -760,7 +784,7 @@ export async function atualizarStatusOrdemServico(
       }
 
       if (status === "ENTREGUE" && !regrasOs.permitirFinalizarSemPagamento) {
-        const possuiPagamento = await osPossuiPagamentoConfirmado(osId);
+        const possuiPagamento = await osPossuiPagamentoConfirmado(prisma, osId);
         if (!possuiPagamento) {
           throw new ErroRegraNegocioOS(MENSAGEM_FINALIZAR_SEM_PAGAMENTO);
         }
@@ -897,7 +921,9 @@ export type ResultadoFinalizacaoOrdemServico =
 export async function archiveDeliveredOrderService(
   input: FinalizarOrdemServicoInput
 ): Promise<ResultadoFinalizacaoOrdemServico> {
-  const usuario = await exigirSessao();
+  const contexto = await exigirContextoTenant();
+  const prisma = contexto.prisma;
+  const usuario = contexto.usuarioOperacional;
   const orderServiceId = String(input?.osId ?? "").trim();
 
   if (!orderServiceId) {
@@ -1083,10 +1109,12 @@ export async function archiveDeliveredOrderService(
 export async function gerarGarantiaEFinalizarOS(
   input: GerarGarantiaEFinalizarOSInput
 ): Promise<ResultadoFinalizacaoOrdemServico> {
-  const usuario = await exigirSessao();
+  const contexto = await exigirContextoTenant();
+  const prisma = contexto.prisma;
+  const usuario = contexto.usuarioOperacional;
   const osId = String(input?.osId ?? "").trim();
   const prazoGarantiaDias = Number(input?.prazoGarantiaDias);
-  const regrasOs = await obterRegrasOs();
+  const regrasOs = await obterRegrasOs(prisma);
 
   if (!osId) {
     return {
@@ -1169,7 +1197,7 @@ export async function gerarGarantiaEFinalizarOS(
   }
 
   if (!regrasOs.permitirFinalizarSemPagamento) {
-    const possuiPagamento = await osPossuiPagamentoConfirmado(osId);
+    const possuiPagamento = await osPossuiPagamentoConfirmado(prisma, osId);
     if (!possuiPagamento) {
       return {
         sucesso: false,
@@ -1309,7 +1337,9 @@ function normalizarMotivoExclusao(valor: string): string | null {
 
 export async function excluirOrdemServico(input: EntradaExcluirOrdemServico): Promise<ResultadoExcluirOrdemServico> {
   try {
-    const usuario = await exigirSessao();
+    const contexto = await exigirContextoTenant();
+    const prisma = contexto.prisma;
+    const usuario = contexto.usuarioOperacional;
 
     const idNormalizado = String(input.osId ?? "").trim();
     const motivoNormalizado = normalizarMotivoExclusao(input.motivoExclusao);
@@ -1450,7 +1480,8 @@ export async function excluirOrdemServico(input: EntradaExcluirOrdemServico): Pr
 }
 
 export async function listarOrdensServicoExcluidas(): Promise<DadosOrdemServicoExcluida[]> {
-  await exigirSessao();
+  const contexto = await exigirContextoTenant();
+  const prisma = contexto.prisma;
 
   try {
     const ordensExcluidas = await prisma.$queryRaw<Array<{
@@ -1512,7 +1543,12 @@ export async function listarOrdensServicoExcluidas(): Promise<DadosOrdemServicoE
 
 export async function gerarPedidoVendaPorOS(osId: string) {
   // C1: exige sessao valida antes de gerar pedido/venda.
-  await exigirSessao();
+  const contexto = await exigirContextoTenant();
+  const prisma = contexto.prisma;
+
+  if (contexto.tenantSlug !== "principal") {
+    throw new Error("Envio de OS para PDV ainda nao esta liberado para este tenant.");
+  }
 
   if (!osId) {
     throw new Error("ID da ordem de servico nao informado.");

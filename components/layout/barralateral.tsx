@@ -151,6 +151,15 @@ export function BarraLateral() {
       ],
     },
     { label: "Estoque", path: "/estoque", iconKey: "Estoque" },
+    {
+      label: "Ordens de Servico",
+      path: "/os",
+      iconKey: "OS",
+      subItems: [
+        { label: "Kanban", path: "/os" },
+        { label: "Garantias", path: "/os/garantias" },
+      ],
+    },
     { label: "Configuracoes", path: "/configuracoes", iconKey: "Configuracoes" },
   ];
   const itensNavegacaoVisiveis =

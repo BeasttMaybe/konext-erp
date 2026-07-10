@@ -2,8 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import type { TipoPeca } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
-import { exigirSessao } from "@/lib/auth/sessao";
+import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 
@@ -225,7 +224,9 @@ async function sincronizarTotaisFinanceirosOS(
 
 export async function adicionarItemOS(osId: string, data: DadosAdicionarItemOS) {
   // C1: exige sessao valida antes de inserir item na OS.
-  const usuario = await exigirSessao();
+  const contexto = await exigirContextoTenant();
+  const prisma = contexto.prisma;
+  const usuario = contexto.usuarioOperacional;
 
   if (!osId) {
     throw new Error("ID da ordem de servico nao informado.");
@@ -360,7 +361,9 @@ export async function adicionarItemOS(osId: string, data: DadosAdicionarItemOS) 
 
 export async function atualizarItemOS(input: EntradaAtualizarItemOS): Promise<ResultadoAcaoItemOS> {
   try {
-    const usuario = await exigirSessao();
+    const contexto = await exigirContextoTenant();
+    const prisma = contexto.prisma;
+    const usuario = contexto.usuarioOperacional;
 
     const itemId = String(input.itemId ?? "").trim();
     const osId = String(input.osId ?? "").trim();
@@ -477,7 +480,9 @@ export async function atualizarItemOS(input: EntradaAtualizarItemOS): Promise<Re
 
 export async function removerItemOS(input: EntradaRemoverItemOS): Promise<ResultadoAcaoItemOS> {
   try {
-    const usuario = await exigirSessao();
+    const contexto = await exigirContextoTenant();
+    const prisma = contexto.prisma;
+    const usuario = contexto.usuarioOperacional;
 
     const itemId = String(input.itemId ?? "").trim();
     const osId = String(input.osId ?? "").trim();

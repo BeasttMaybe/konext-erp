@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { prisma } from "@/lib/prisma";
 import { obterConfiguracoes } from "@/app/actions/configuracoes";
+import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { BotaoImprimirPagina } from "@/components/os/botao-imprimir-pagina";
 import { montarResumoEmpresaDocumentos } from "@/lib/configuracoes-documentos";
 
@@ -64,6 +64,8 @@ function extrairPontosDesenho(valor: string | null | undefined): number[] {
 
 export default async function PaginaImpressaoOS({ params }: PropsPaginaImpressaoOS) {
   const { id } = await params;
+  const contexto = await exigirContextoTenant();
+  const prisma = contexto.prisma;
   const prismaAny = prisma as typeof prisma & {
     ordemServico?: OrdemServicoImpressaoDelegate;
     OrdemServico?: OrdemServicoImpressaoDelegate;

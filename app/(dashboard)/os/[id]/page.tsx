@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft, Printer } from "lucide-react";
-import { prisma } from "@/lib/prisma";
+import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -117,6 +117,9 @@ function extrairNumeroOsDoSlug(entrada: string): number | null {
 
 export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) {
   const { id } = await params;
+  const contexto = await exigirContextoTenant();
+  const prisma = contexto.prisma;
+  const permitirIntegracaoPdv = contexto.tenantSlug === "principal";
   const prismaAny = prisma as typeof prisma & {
     ordemServico?: OrdemServicoDetalheDelegate;
     OrdemServico?: OrdemServicoDetalheDelegate;
@@ -290,9 +293,9 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
               possuiItens={possuiItens}
               mostrarTextoBloqueio
             />
-            <BotaoCopiarLinkRastreio osId={idOs} />
-            {podeGerarPedidoVenda && <BotaoGerarPedidoVenda osId={idOs} />}
-            {podeEnviarAoPdv && !possuiItens && (
+            {permitirIntegracaoPdv && <BotaoCopiarLinkRastreio osId={idOs} />}
+            {permitirIntegracaoPdv && podeGerarPedidoVenda && <BotaoGerarPedidoVenda osId={idOs} />}
+            {permitirIntegracaoPdv && podeEnviarAoPdv && !possuiItens && (
               <div className="relative flex items-center">
                 <BotaoGerarPedidoVenda
                   osId={idOs}

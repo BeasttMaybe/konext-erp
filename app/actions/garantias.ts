@@ -2,8 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { Prisma, type ResultadoRetornoGarantia } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
-import { exigirSessao } from "@/lib/auth/sessao";
+import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 import {
@@ -371,7 +370,7 @@ type RegrasGarantiaAplicadas = {
   textoResponsabilidadeDados: string;
 };
 
-type ClientTx = Prisma.TransactionClient | typeof prisma;
+type ClientTx = Prisma.TransactionClient | Awaited<ReturnType<typeof exigirContextoTenant>>["prisma"];
 
 function obterRegrasGarantia(configuracao: ConfiguracaoTermo | null | undefined): RegrasGarantiaAplicadas {
   const defaults = obterDefaultsConfiguracaoOsGarantias();
@@ -540,7 +539,7 @@ export async function garantirTermoGarantiaPorOS(
     }
 
     try {
-      const rows = await prisma.$queryRaw<Array<ConfiguracaoTermo>>`
+      const rows = await client.$queryRaw<Array<ConfiguracaoTermo>>`
         SELECT
           "nomeFantasia", "razaoSocial", "cnpj", "telefone",
           "logradouro", "numero", "bairro", "cidade", "estado",
@@ -646,7 +645,9 @@ export async function garantirTermoGarantiaPorOS(
 
 export async function gerarTermoGarantiaOS(input: GerarTermoGarantiaOSInput): Promise<ResultadoGerarGarantia> {
   try {
-    const usuario = await exigirSessao();
+    const contexto = await exigirContextoTenant();
+    const prisma = contexto.prisma;
+    const usuario = contexto.usuarioOperacional;
     const osId = normalizarTexto(input.osId);
 
     if (!osId) {
@@ -729,8 +730,8 @@ export async function gerarTermoGarantiaOS(input: GerarTermoGarantiaOSInput): Pr
 }
 
 export async function obterContextoGarantiaOS(osId: string): Promise<ContextoGarantiaOS | null> {
-  const usuario = await exigirSessao();
-  if (!usuario?.id) return null;
+  const contexto = await exigirContextoTenant();
+  const prisma = contexto.prisma;
 
   const idNormalizado = normalizarTexto(osId);
   if (!idNormalizado) return null;
@@ -767,8 +768,8 @@ export async function obterContextoGarantiaOS(osId: string): Promise<ContextoGar
 }
 
 export async function obterTermoGarantiaOS(osId: string): Promise<DadosTermoGarantia | null> {
-  const usuario = await exigirSessao();
-  if (!usuario?.id) return null;
+  const contexto = await exigirContextoTenant();
+  const prisma = contexto.prisma;
 
   const idNormalizado = normalizarTexto(osId);
   if (!idNormalizado) return null;
@@ -929,10 +930,8 @@ export async function obterTermoGarantiaOS(osId: string): Promise<DadosTermoGara
 }
 
 export async function listarGarantiasOS(filtros: FiltrosGarantiaInput = {}): Promise<ListagemGarantiasOS> {
-  const usuario = await exigirSessao();
-  if (!usuario?.id) {
-    return { sucesso: false, erro: "Sessao expirada ou invalida. Faca login novamente." };
-  }
+  const contexto = await exigirContextoTenant();
+  const prisma = contexto.prisma;
 
   try {
     const pagina = Math.max(1, Number(filtros.pagina ?? 1));
@@ -1139,7 +1138,8 @@ export async function listarGarantiasOS(filtros: FiltrosGarantiaInput = {}): Pro
 }
 
 export async function obterDashboardGarantiasOS(): Promise<DashboardGarantiasOS> {
-  await exigirSessao();
+  const contexto = await exigirContextoTenant();
+  const prisma = contexto.prisma;
 
   const hoje = inicioDoDia();
   const limite7 = fimDoDia(adicionarDias(hoje, 7));
@@ -1236,7 +1236,9 @@ export async function obterDashboardGarantiasOS(): Promise<DashboardGarantiasOS>
 
 export async function registrarRetornoGarantiaOS(input: RegistrarRetornoGarantiaInput): Promise<ResultadoAcao> {
   try {
-    const usuario = await exigirSessao();
+    const contexto = await exigirContextoTenant();
+    const prisma = contexto.prisma;
+    const usuario = contexto.usuarioOperacional;
 
     const termoGarantiaId = normalizarTexto(input.termoGarantiaId);
     const motivo = normalizarTexto(input.motivo);
@@ -1438,7 +1440,9 @@ export async function registrarRetornoGarantiaOS(input: RegistrarRetornoGarantia
 
 export async function finalizarRetornoGarantiaOS(input: FinalizarRetornoGarantiaInput): Promise<ResultadoAcao> {
   try {
-    const usuario = await exigirSessao();
+    const contexto = await exigirContextoTenant();
+    const prisma = contexto.prisma;
+    const usuario = contexto.usuarioOperacional;
 
     const retornoGarantiaId = normalizarTexto(input.retornoGarantiaId);
     const analiseTecnica = normalizarTexto(input.analiseTecnica);
@@ -1622,7 +1626,8 @@ export async function obterHistoricoConsertosCliente(input: {
   termoGarantiaId?: string;
   osId?: string;
 }): Promise<HistoricoConsertoCliente[]> {
-  await exigirSessao();
+  const contexto = await exigirContextoTenant();
+  const prisma = contexto.prisma;
 
   const osIdNormalizado = normalizarTexto(input.osId);
   const termoIdNormalizado = normalizarTexto(input.termoGarantiaId);

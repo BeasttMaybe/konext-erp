@@ -3,6 +3,7 @@ export const ROTAS_TENANT_MIGRADO = [
   "/configuracoes",
   "/crm",
   "/estoque",
+  "/os",
   "/propostas",
 ] as const;
 
