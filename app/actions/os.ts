@@ -329,8 +329,7 @@ function archivedAtUnsupported(error: unknown): boolean {
 }
 
 export async function buscarClientesOS(termoBusca: string): Promise<ClienteBuscaOS[]> {
-  const contexto = await exigirContextoTenant();
-  const prisma = contexto.prisma;
+  const { prisma } = await exigirContextoTenant();
   const termo = termoBusca.trim();
 
   if (termo.length < 2) {
@@ -1543,12 +1542,7 @@ export async function listarOrdensServicoExcluidas(): Promise<DadosOrdemServicoE
 
 export async function gerarPedidoVendaPorOS(osId: string) {
   // C1: exige sessao valida antes de gerar pedido/venda.
-  const contexto = await exigirContextoTenant();
-  const prisma = contexto.prisma;
-
-  if (contexto.tenantSlug !== "principal") {
-    throw new Error("Envio de OS para PDV ainda nao esta liberado para este tenant.");
-  }
+  const { prisma } = await exigirContextoTenant();
 
   if (!osId) {
     throw new Error("ID da ordem de servico nao informado.");

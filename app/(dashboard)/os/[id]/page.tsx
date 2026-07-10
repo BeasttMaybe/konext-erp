@@ -119,7 +119,6 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
   const { id } = await params;
   const contexto = await exigirContextoTenant();
   const prisma = contexto.prisma;
-  const permitirIntegracaoPdv = contexto.tenantSlug === "principal";
   const prismaAny = prisma as typeof prisma & {
     ordemServico?: OrdemServicoDetalheDelegate;
     OrdemServico?: OrdemServicoDetalheDelegate;
@@ -293,9 +292,9 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
               possuiItens={possuiItens}
               mostrarTextoBloqueio
             />
-            {permitirIntegracaoPdv && <BotaoCopiarLinkRastreio osId={idOs} />}
-            {permitirIntegracaoPdv && podeGerarPedidoVenda && <BotaoGerarPedidoVenda osId={idOs} />}
-            {permitirIntegracaoPdv && podeEnviarAoPdv && !possuiItens && (
+            <BotaoCopiarLinkRastreio osId={idOs} />
+            {podeGerarPedidoVenda && <BotaoGerarPedidoVenda osId={idOs} />}
+            {podeEnviarAoPdv && !possuiItens && (
               <div className="relative flex items-center">
                 <BotaoGerarPedidoVenda
                   osId={idOs}

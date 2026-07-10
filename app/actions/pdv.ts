@@ -2,8 +2,7 @@
 
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
-import { exigirSessao } from "@/lib/auth/sessao";
+import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import {
   mensagemIndicaRuntimeLegadoConfiguracao,
   obterDefaultsConfiguracaoOsGarantias,
@@ -70,6 +69,7 @@ export interface PagamentoPdvInput extends EntradaPagamentoPdv {}
 export type ConfiguracaoPagamentosPDV = ConfiguracaoPdvPagamentos;
 
 type ConfiguracaoPdvRaw = Partial<ConfiguracaoPdvPagamentos>;
+type PrismaTenant = Awaited<ReturnType<typeof exigirContextoTenant>>["prisma"];
 
 function obterParametrosCalculoPdv(configuracao: ConfiguracaoPdvPagamentos) {
   return {
@@ -162,7 +162,7 @@ function validarPagamentosConformeConfiguracao(
   }
 }
 
-async function obterConfiguracaoPagamentosInterna(): Promise<ConfiguracaoPdvPagamentos> {
+async function obterConfiguracaoPagamentosInterna(prisma: PrismaTenant): Promise<ConfiguracaoPdvPagamentos> {
   const defaults = obterDefaultsConfiguracaoPdv();
   const prismaAny = prisma as typeof prisma & {
     configuracao?: { findFirst?: (args: unknown) => Promise<Record<string, unknown> | null> };
@@ -251,7 +251,8 @@ async function obterConfiguracaoPagamentosInterna(): Promise<ConfiguracaoPdvPaga
 }
 
 export async function obterConfiguracaoPagamentosPDV(): Promise<ConfiguracaoPagamentosPDV> {
-  return obterConfiguracaoPagamentosInterna();
+  const { prisma } = await exigirContextoTenant();
+  return obterConfiguracaoPagamentosInterna(prisma);
 }
 
 const paraCentavos = (valor: number) => Math.round((valor + Number.EPSILON) * 100);
@@ -334,7 +335,7 @@ async function createSalesHistoryMirror(
   });
 }
 
-type ClientePrismaAny = typeof prisma & {
+type ClientePrismaAny = Prisma.TransactionClient & Record<string, unknown> & {
   venda?: { create?: (args: unknown) => Promise<unknown> };
   Venda?: { create?: (args: unknown) => Promise<unknown> };
   itemVenda?: { create?: (args: unknown) => Promise<unknown> };
@@ -725,6 +726,8 @@ async function obterCaixaSessionAberta(tx: TransacaoPdv): Promise<{ id: string }
 }
 
 export async function listarClientesPDV(): Promise<ClientePDV[]> {
+  const { prisma } = await exigirContextoTenant();
+
   const clientes = await prisma.cliente.findMany({
     where: {
       papel: "CLIENTE",
@@ -744,6 +747,8 @@ export async function listarClientesPDV(): Promise<ClientePDV[]> {
 }
 
 export async function listarProdutosPDV(): Promise<ProdutoPDVBanco[]> {
+  const { prisma } = await exigirContextoTenant();
+
   const produtos = await prisma.produto.findMany({
     where: {
       ativo: true,
@@ -777,14 +782,16 @@ export async function processarVenda(
   clienteId?: string
 ) {
   // C1: somente operadores autenticados podem registrar vendas.
-  const sessionUser = await exigirSessao();
+  const contexto = await exigirContextoTenant();
+  const prisma = contexto.prisma;
+  const sessionUser = contexto.usuarioOperacional;
 
   if (carrinho.length === 0) {
     throw new Error("Carrinho vazio para processamento da venda.");
   }
 
   const totalCentavos = paraCentavos(total);
-  const configuracaoPdv = await obterConfiguracaoPagamentosInterna();
+  const configuracaoPdv = await obterConfiguracaoPagamentosInterna(prisma);
   const pagamentosProcessados = normalizarPagamentosEntrada(pagamentos, configuracaoPdv);
   validarTotalPagamentos(pagamentosProcessados, totalCentavos);
   const formaPagamentoPrincipal = obterFormaPrincipal(pagamentosProcessados);
@@ -1035,6 +1042,8 @@ export async function processarVenda(
 }
 
 export async function obterPedidoOSParaPDV(osId: string): Promise<PedidoOSPDV> {
+  const { prisma } = await exigirContextoTenant();
+
   if (!osId) {
     throw new Error("ID da OS nao informado para envio ao PDV.");
   }
@@ -1192,7 +1201,9 @@ export async function processarVendaComOSNoPDV(
   pagamentos: PagamentoPdvInput[]
 ) {
   // C1: somente operadores autenticados podem faturar OS no PDV.
-  const sessionUser = await exigirSessao();
+  const contexto = await exigirContextoTenant();
+  const prisma = contexto.prisma;
+  const sessionUser = contexto.usuarioOperacional;
 
   const pedido = await obterPedidoOSParaPDV(osId);
   const totalProdutosCentavos = carrinhoProdutos.reduce((acc, item) => {
@@ -1200,7 +1211,7 @@ export async function processarVendaComOSNoPDV(
   }, 0);
   const totalOSCentavos = paraCentavos(pedido.valor);
   const totalVendaCentavos = totalOSCentavos + totalProdutosCentavos;
-  const configuracaoPdv = await obterConfiguracaoPagamentosInterna();
+  const configuracaoPdv = await obterConfiguracaoPagamentosInterna(prisma);
   const pagamentosProcessados = normalizarPagamentosEntrada(pagamentos, configuracaoPdv);
   validarTotalPagamentos(pagamentosProcessados, totalVendaCentavos);
   const formaPagamentoPrincipal = obterFormaPrincipal(pagamentosProcessados);

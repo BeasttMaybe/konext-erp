@@ -3,8 +3,7 @@
 import { FormaPagamento, Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
-import { exigirSessao } from "@/lib/auth/sessao";
+import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 
 const pedidoVendaItemSchema = z.object({
   produtoId: z.string().optional(),
@@ -94,7 +93,7 @@ export async function createPedidoVenda(
   data: PedidoVendaSchemaType
 ): Promise<CreatePedidoVendaResult> {
   try {
-    await exigirSessao();
+    const { prisma } = await exigirContextoTenant();
     const validatedData = pedidoVendaActionSchema.parse(data);
     const paymentMethod = mapOrderPaymentMethod(validatedData.formaPagamento);
 
@@ -174,7 +173,7 @@ export async function createPedidoVenda(
 
 export async function aprovarPedido(pedidoId: string): Promise<ApprovePedidoVendaResult> {
   try {
-    await exigirSessao();
+    const { prisma } = await exigirContextoTenant();
 
     if (!pedidoId.trim()) {
       return { success: false, message: "Pedido de venda inválido." };
@@ -327,7 +326,7 @@ export async function aprovarPedido(pedidoId: string): Promise<ApprovePedidoVend
 
 export async function rejeitarPedido(pedidoId: string): Promise<ApprovePedidoVendaResult> {
   try {
-    await exigirSessao();
+    const { prisma } = await exigirContextoTenant();
 
     if (!pedidoId.trim()) {
       return { success: false, message: "Pedido de venda inválido." };
@@ -393,7 +392,7 @@ export async function rejeitarPedido(pedidoId: string): Promise<ApprovePedidoVen
 
 export async function cancelarPedido(pedidoId: string): Promise<ApprovePedidoVendaResult> {
   try {
-    await exigirSessao();
+    const { prisma } = await exigirContextoTenant();
 
     if (!pedidoId.trim()) {
       return { success: false, message: "Pedido de venda inválido." };

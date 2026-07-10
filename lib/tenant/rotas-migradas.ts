@@ -4,7 +4,10 @@ export const ROTAS_TENANT_MIGRADO = [
   "/crm",
   "/estoque",
   "/os",
+  "/pdv",
   "/propostas",
+  "/recibo",
+  "/vendas",
 ] as const;
 
 export function rotaPermitidaParaTenantMigrado(pathname: string): boolean {

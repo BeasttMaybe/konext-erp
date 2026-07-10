@@ -150,6 +150,17 @@ export function BarraLateral() {
         { label: "Propostas", path: "/crm/propostas" },
       ],
     },
+    { label: "PDV", path: "/pdv", iconKey: "PDV" },
+    {
+      label: "Vendas",
+      path: "/vendas",
+      iconKey: "Vendas",
+      subItems: [
+        { label: "Hub Central", path: "/vendas" },
+        { label: "Novo Pedido", path: "/vendas/pedidos/novo" },
+        { label: "Historico", path: "/vendas/historico" },
+      ],
+    },
     { label: "Estoque", path: "/estoque", iconKey: "Estoque" },
     {
       label: "Ordens de Servico",

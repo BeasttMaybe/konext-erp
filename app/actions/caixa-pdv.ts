@@ -1,9 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
 import { randomUUID } from "node:crypto";
-import { exigirSessao } from "@/lib/auth/sessao";
+import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 
 type CaixaDelegate = {
   findFirst?: (args: unknown) => Promise<{ id?: string; valorAbertura?: number } | null>;
@@ -177,6 +176,7 @@ async function obterResumoCaixaAbertoAtualInterno(client: CaixaClient): Promise<
 }
 
 export async function verificarStatusCaixa(): Promise<boolean> {
+  const { prisma } = await exigirContextoTenant();
   const prismaAny = prisma as CaixaClient;
   const caixaDelegate = obterCaixaDelegate(prismaAny);
 
@@ -202,7 +202,7 @@ export async function verificarStatusCaixa(): Promise<boolean> {
 
 export async function abrirNovaCaixaSession(valorAbertura: number) {
   // C1: exige sessao valida antes de abrir o caixa.
-  await exigirSessao();
+  const { prisma } = await exigirContextoTenant();
 
   const valorNumerico = Number(valorAbertura);
 
@@ -266,13 +266,14 @@ export async function abrirNovaCaixaSession(valorAbertura: number) {
 }
 
 export async function obterResumoCaixaAbertoAtual(): Promise<ResumoCaixaAbertoAtual> {
+  const { prisma } = await exigirContextoTenant();
   const prismaAny = prisma as CaixaClient;
   return obterResumoCaixaAbertoAtualInterno(prismaAny);
 }
 
 export async function fecharCaixaSessionAtual(valorFechamento?: number | null) {
   // C1: exige sessao valida antes de fechar o caixa.
-  await exigirSessao();
+  const { prisma } = await exigirContextoTenant();
 
   const valorInformado = Number(valorFechamento);
 

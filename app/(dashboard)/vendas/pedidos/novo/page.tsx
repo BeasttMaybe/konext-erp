@@ -1,5 +1,5 @@
 import { NewSalesOrderWizard } from "@/components/vendas/new-sales-order-wizard";
-import { prisma } from "@/lib/prisma";
+import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 
 interface PageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -19,6 +19,7 @@ export const metadata = {
 };
 
 export default async function NewSalesOrderPage({ searchParams }: PageProps) {
+  const { prisma } = await exigirContextoTenant();
   const params = await searchParams;
   const proposalId = getSingleParam(params, "propostaId")?.trim();
 

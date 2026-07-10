@@ -1,7 +1,7 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 
 type OrdemServicoCustoItem = { custoPeca?: number | null };
 type OrdemServicoCustoRow = { itens?: OrdemServicoCustoItem[] };
@@ -66,6 +66,8 @@ const paraCentavos = (valor: number) => Math.round((valor + Number.EPSILON) * 10
 const paraMoeda = (centavos: number) => centavos / 100;
 
 export async function obterResumoCaixaDiario(): Promise<ResumoCaixaDiario> {
+  const { prisma } = await exigirContextoTenant();
+
   const inicioHoje = new Date();
   inicioHoje.setHours(0, 0, 0, 0);
 
@@ -310,6 +312,7 @@ export async function obterHistoricoFechamentos(
   page: number = 1,
   limit: number = 15
 ): Promise<{ data: ItemHistoricoFechamento[]; total: number; page: number; totalPages: number }> {
+  const { prisma } = await exigirContextoTenant();
   const offset = (page - 1) * limit;
 
   // Total de sessões fechadas (para calcular totalPages)
@@ -384,6 +387,8 @@ export interface ResumoDataEspecifica {
 export async function obterResumoDataEspecifica(
   data: Date
 ): Promise<ResumoDataEspecifica> {
+  const { prisma } = await exigirContextoTenant();
+
   const inicioData = new Date(data.getFullYear(), data.getMonth(), data.getDate(), 0, 0, 0, 0);
   const fimData = new Date(data.getFullYear(), data.getMonth(), data.getDate(), 23, 59, 59, 999);
 

@@ -26,9 +26,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { prisma } from "@/lib/prisma";
+import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 
 const ITEMS_PER_PAGE = 10;
+type PrismaTenant = Awaited<ReturnType<typeof exigirContextoTenant>>["prisma"];
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("pt-BR", {
@@ -126,6 +127,7 @@ type PedidoHistoricoSeguro = Omit<PedidoHistoricoComPagamentos, "venda"> & {
 };
 
 async function carregarPedidosHistorico(
+  prisma: PrismaTenant,
   where: Prisma.PedidoVendaWhereInput,
   skip: number,
   take: number
@@ -235,7 +237,7 @@ async function carregarPedidosHistorico(
   }
 }
 
-async function syncLegacyPdvSalesIntoOrderHistory() {
+async function syncLegacyPdvSalesIntoOrderHistory(prisma: PrismaTenant) {
   const mirroredSaleIds = await prisma.pedidoVenda.findMany({
     where: {
       vendaId: {
@@ -341,7 +343,8 @@ export const metadata = {
 };
 
 export default async function SalesHistoryPage({ searchParams }: PageProps) {
-  await syncLegacyPdvSalesIntoOrderHistory();
+  const { prisma } = await exigirContextoTenant();
+  await syncLegacyPdvSalesIntoOrderHistory(prisma);
 
   const params = await searchParams;
 
@@ -378,7 +381,7 @@ export default async function SalesHistoryPage({ searchParams }: PageProps) {
   const currentPage = Math.min(page, totalPages);
   const skip = (currentPage - 1) * ITEMS_PER_PAGE;
 
-  const orders = await carregarPedidosHistorico(where, skip, ITEMS_PER_PAGE);
+  const orders = await carregarPedidosHistorico(prisma, where, skip, ITEMS_PER_PAGE);
 
   const buildHistoryHref = (nextPage: number) => {
     const query = new URLSearchParams();

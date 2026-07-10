@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { obterConfiguracoes } from "@/app/actions/configuracoes";
-import { prisma } from "@/lib/prisma";
+import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { ImpressaoAutomaticaRecibo } from "@/components/pdv/impressao-automatica-recibo";
 import { montarResumoEmpresaDocumentos } from "@/lib/configuracoes-documentos";
 
@@ -70,6 +70,7 @@ const formatarFormaPagamento = (formaPagamento: string) => {
 };
 
 export default async function ReciboPage({ params, searchParams }: PropsReciboPage) {
+  const { prisma } = await exigirContextoTenant();
   const { id } = await params;
   const filtros = searchParams ? await searchParams : undefined;
   const autoPrint = filtros?.autoprint === "1";
