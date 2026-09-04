@@ -1,4 +1,21 @@
+import "dotenv/config";
 import { execSync } from "node:child_process";
+
+function mascararConnectionString(connectionString) {
+  try {
+    const url = new URL(connectionString);
+    return `postgresql://${url.username}:***@${url.hostname}${url.pathname}`;
+  } catch {
+    return "(DATABASE_URL ausente ou invalida)";
+  }
+}
+
+function imprimirAlvoMigracao() {
+  const ambiente = String(process.env.AMBIENTE ?? "NAO DECLARADO").toUpperCase();
+  const alvo = mascararConnectionString(process.env.DATABASE_URL ?? "");
+  console.log(`[migrate] AMBIENTE: ${ambiente}`);
+  console.log(`[migrate] Alvo da migracao: ${alvo}`);
+}
 
 const MAX_TENTATIVAS = Number(process.env.PRISMA_MIGRATE_RETRY_MAX ?? 5);
 const ATRASO_BASE_MS = Number(process.env.PRISMA_MIGRATE_RETRY_DELAY_MS ?? 12000);
@@ -19,6 +36,8 @@ function ehErroDeAdvisoryLock(saida) {
 }
 
 async function executar() {
+  imprimirAlvoMigracao();
+
   for (let tentativa = 1; tentativa <= MAX_TENTATIVAS; tentativa += 1) {
     console.log(`[migrate] Tentativa ${tentativa}/${MAX_TENTATIVAS}...`);
     try {

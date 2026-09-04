@@ -1,14 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft, Printer } from "lucide-react";
+import { ChevronLeft } from "lucide-react";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
+import { obterConfiguracoes } from "@/app/actions/configuracoes";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SecaoItensOS } from "@/components/os/secao-itens-os";
 import { BotaoGerarPedidoVenda } from "@/components/os/botao-gerar-pedido-venda";
 import { BotaoCopiarLinkRastreio } from "@/components/os/botao-copiar-link-rastreio";
 import { AcaoGarantiaOS } from "@/components/os/garantias/acao-garantia-os";
+import { MenuImprimirOS } from "@/components/os/menu-imprimir-os";
 
 type PropsPaginaDetalheOS = {
   params: Promise<{
@@ -217,6 +218,8 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
     notFound();
   }
 
+  const config = await obterConfiguracoes();
+
   const itensDoBanco = (osBanco?.itens ?? []).map((item) => ({
     id: String(item.id),
     descricao: String(item.descricao ?? ""),
@@ -279,12 +282,7 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
               Ordem de Servico #{numeroOsExibicao}
             </h1>
             <Badge className={`border ${classeStatus}`}>{labelStatus}</Badge>
-            <Button asChild variant="outline" size="sm" className="h-9">
-              <Link href={`/os/${idOs}/imprimir`} target="_blank">
-                <Printer className="h-4 w-4 mr-2" />
-                Imprimir OS
-              </Link>
-            </Button>
+            <MenuImprimirOS osId={idOs} modeloPadrao={config.modeloImpressaoOSPadrao} />
             <AcaoGarantiaOS
               osId={idOs}
               statusOS={statusAtual}

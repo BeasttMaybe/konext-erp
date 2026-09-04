@@ -1,13 +1,9 @@
-"use client";
-
 import { ConteudoPrincipal } from "@/components/layout/conteudo-principal";
 import { Rodape } from "@/components/layout/rodape";
-import { BarraLateral } from "@/components/layout/barralateral";
 import { Cabecalho } from "@/components/layout/cabecalho";
 
 /**
- * Layout do Dashboard - Envolve a sidebar, cabeçalho e rodapé
- * Todos os próximos menus já vêm com a sidebar dinâmica correta
+ * Layout do Dashboard: cabeçalho único com a navegação, conteúdo e rodapé.
  */
 export default function LayoutDashboard({
   children,
@@ -16,13 +12,9 @@ export default function LayoutDashboard({
 }) {
   return (
     <div className="min-h-screen flex flex-col bg-transparent">
-      <BarraLateral />
       <Cabecalho />
 
-      {/* Conteúdo Principal com Sidebar Dinâmica */}
-      <ConteudoPrincipal>
-        {children}
-      </ConteudoPrincipal>
+      <ConteudoPrincipal>{children}</ConteudoPrincipal>
 
       <Rodape />
     </div>

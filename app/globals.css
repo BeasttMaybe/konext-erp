@@ -26,6 +26,33 @@
     --input: 240 5.9% 90%;
     --ring: 240 10% 3.9%;
     --radius: 0.5rem;
+
+    /* Duas famílias, de propósito: marca de gráfico precisa de saturação,
+       texto precisa de contraste. O mesmo hex não faz os dois. */
+
+    /* Marcas: barras, linhas e arcos. */
+    --receita: #2a78d6;
+    --despesa: #e34948;
+    --lucro: #1baf7a;
+
+    /* Grau de texto: valores, células e deltas. */
+    --t-azul: #1a5fb4;
+    --t-verde: #0a7d55;
+    --t-vermelho: #bd2f2b;
+
+    /* Rampa ordinal da fila de OS: matiz única, luminosidade monotônica */
+    --fila-os-1: #86b6ef;
+    --fila-os-2: #5598e7;
+    --fila-os-3: #2a78d6;
+    --fila-os-4: #184f95;
+
+    /* Tokens de status: sempre acompanhados de ícone e palavra */
+    --status-critico: #bd2f2b;
+    --status-atencao: #9a6400;
+    --status-ok: #0a7d55;
+
+    /* Acento do item ativo na navegação do cabeçalho */
+    --acento-navegacao: #1d63c0;
   }
 
   html.dark {
@@ -48,6 +75,46 @@
     --border: 240 3.7% 15.9%;
     --input: 240 3.7% 15.9%;
     --ring: 240 4.9% 83.9%;
+
+    --receita: #3987e5;
+    --despesa: #e66767;
+    --lucro: #199e70;
+
+    --t-azul: #6bb0f5;
+    --t-verde: #3fd399;
+    --t-vermelho: #f5877f;
+
+    /* Rampa ordinal: mesma nos dois temas, por decisão do mockup. */
+    --fila-os-1: #86b6ef;
+    --fila-os-2: #5598e7;
+    --fila-os-3: #2a78d6;
+    --fila-os-4: #184f95;
+
+    --status-critico: #f5877f;
+    --status-atencao: #e0a021;
+    --status-ok: #3fd399;
+
+    --acento-navegacao: #3987e5;
+  }
+
+  /*
+   * O tema deste app é resolvido no cliente por classe (`html.dark`), inclusive o modo
+   * "system" — o provedor já converte a preferência do SO em classe. Por isso NÃO existe
+   * aqui um bloco `@media (prefers-color-scheme: dark)`: ele reaplicaria o escuro mesmo
+   * quando o usuário escolhe claro explicitamente com o SO no escuro.
+   * O seletor por atributo fica declarado para compatibilidade futura.
+   */
+  :root[data-theme="dark"] {
+    --receita: #3987e5;
+    --despesa: #e66767;
+    --lucro: #199e70;
+    --t-azul: #6bb0f5;
+    --t-verde: #3fd399;
+    --t-vermelho: #f5877f;
+    --status-critico: #f5877f;
+    --status-atencao: #e0a021;
+    --status-ok: #3fd399;
+    --acento-navegacao: #3987e5;
   }
 
   body {
@@ -117,6 +184,35 @@ html.dark ::-webkit-scrollbar-thumb {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+
+/*
+ * Barra de rolagem das colunas do Kanban: visível (região rolável sem barra é armadilha
+ * de usabilidade), discreta e legível nos dois temas.
+ */
+.rolagem-coluna {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.35) transparent;
+}
+
+.rolagem-coluna::-webkit-scrollbar {
+  width: 10px;
+}
+
+.rolagem-coluna::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.rolagem-coluna::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.35);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: 999px;
+}
+
+.rolagem-coluna::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.55);
+  background-clip: content-box;
 }
 
 /* Remove setas de campos numéricos em todo o projeto */

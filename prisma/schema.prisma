@@ -56,6 +56,11 @@ enum RoleUsuario {
   TECNICO
 }
 
+enum ModeloImpressaoOS {
+  A4
+  TERMICA_80MM
+}
+
 model Configuracao {
   id                        String   @id @default(uuid())
   razaoSocial               String   @default("")
@@ -73,6 +78,9 @@ model Configuracao {
   logoUrl                   String?
   chavePix                  String?
   mensagemCupom             String?
+  modeloImpressaoOSPadrao   ModeloImpressaoOS @default(A4)
+  imprimirLogoTermica       Boolean           @default(true)
+  mensagemRodapeImpressaoOS String?
   habilitarMargemAutomatica Boolean  @default(true)
   permitirVendaSemEstoque   Boolean  @default(false)
   permitirPagamentoMisto    Boolean  @default(true)

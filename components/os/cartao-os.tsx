@@ -1,6 +1,6 @@
 "use client";
 
-import { OrdemServico } from "@/types/os";
+import { OrdemServico, StatusOS } from "@/types/os";
 import { mapStatusColor, mapStatusLabel } from "@/dados/mock-os";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -12,6 +12,8 @@ interface CartaoOSProps {
   onClick?: () => void;
   isDragging?: boolean;
   statusChipClass?: string;
+  /** Status da coluna onde o card está. O chip some quando apenas repetiria a coluna. */
+  statusDaColuna?: StatusOS;
   onMoverAnterior?: () => void;
   onMoverProxima?: () => void;
   onFinalizar?: () => void;
@@ -26,6 +28,7 @@ export function CartaoOS({
   onClick,
   isDragging = false,
   statusChipClass,
+  statusDaColuna,
   onMoverAnterior,
   onMoverProxima,
   onFinalizar,
@@ -66,9 +69,13 @@ export function CartaoOS({
               {os.numeroOS}
             </h3>
           </div>
-          <Badge className={`${statusChipClass ?? mapStatusColor[os.status]} whitespace-nowrap text-xs font-medium`}>
-            {mapStatusLabel[os.status]}
-          </Badge>
+          {/* Repetir o status da própria coluna não informa nada. Num retorno de
+              garantia dentro de outra coluna, informa. */}
+          {statusDaColuna !== os.status ? (
+            <Badge className={`${statusChipClass ?? mapStatusColor[os.status]} whitespace-nowrap text-xs font-medium`}>
+              {mapStatusLabel[os.status]}
+            </Badge>
+          ) : null}
         </div>
 
         {/* Client */}

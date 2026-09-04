@@ -1,10 +1,18 @@
 "use client";
 
-import { useMemo, useOptimistic, useState, useTransition, type CSSProperties } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useOptimistic,
+  useRef,
+  useState,
+  useTransition,
+  type CSSProperties,
+} from "react";
 import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
 import { OrdemServico, StatusOS } from "@/types/os";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,6 +24,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { CartaoOS } from "./cartao-os";
+import { ListaColunaKanban } from "./lista-coluna-kanban";
 
 interface TabuleiroKanbanProps {
   ordensServico: OrdemServico[];
@@ -345,7 +354,19 @@ export function TabuleiroKanban({
   };
 
   const finalizarOS = async (os: OrdemServico) => {
+    if (!onFinalizarOS) {
+      return;
+    }
+
     const snapshotAnterior = ordensEstado;
+
+    const success = await onFinalizarOS(os);
+    if (!success) {
+      startTransition(() => {
+        setOrdensEstado({ tipo: "SUBSTITUIR", ordens: snapshotAnterior });
+      });
+      return;
+    }
 
     startTransition(() => {
       setOrdensEstado({
@@ -353,17 +374,6 @@ export function TabuleiroKanban({
         ordens: snapshotAnterior.filter((item) => item.id !== os.id),
       });
     });
-
-    if (!onFinalizarOS) {
-      return;
-    }
-
-    const success = await onFinalizarOS(os);
-    if (!success) {
-      startTransition(() => {
-        setOrdensEstado({ tipo: "SUBSTITUIR", ordens: snapshotAnterior });
-      });
-    }
   };
 
   const aoFinalizarDrag = async (resultado: DropResult) => {
@@ -424,10 +434,34 @@ export function TabuleiroKanban({
     );
   };
 
+  // O board ocupa o que sobra da viewport, medido do layout real: sem numero magico,
+  // e correto em qualquer largura ou altura de janela.
+  const boardRef = useRef<HTMLDivElement>(null);
+  const [alturaBoard, setAlturaBoard] = useState<number | null>(null);
+
+  const medirAltura = useCallback(() => {
+    const elemento = boardRef.current;
+    if (!elemento) return;
+
+    const topo = elemento.getBoundingClientRect().top;
+    const FOLGA = 16;
+    setAlturaBoard(Math.max(420, window.innerHeight - topo - FOLGA));
+  }, []);
+
+  useEffect(() => {
+    medirAltura();
+    window.addEventListener("resize", medirAltura);
+    return () => window.removeEventListener("resize", medirAltura);
+  }, [medirAltura]);
+
   return (
     <>
       <DragDropContext onDragEnd={aoFinalizarDrag}>
-        <div className="flex gap-4 overflow-x-auto pb-4">
+        <div
+          ref={boardRef}
+          className="flex min-h-[420px] gap-4 overflow-x-auto pb-4"
+          style={alturaBoard === null ? undefined : { height: alturaBoard }}
+        >
         {STATUS_SEQUENCIA.map((status) => {
           const ordensFiltradas = ordensPorStatus[status];
           const configuracao = configuracaoStatus[status];
@@ -436,13 +470,13 @@ export function TabuleiroKanban({
             <Droppable key={status} droppableId={status}>
               {(dropProvided, dropSnapshot) => (
                 <div
-                  className={`flex-1 flex flex-col min-w-[320px] rounded-2xl border bg-gradient-to-b shadow-sm transition-all ${configuracao.classe} ${configuracao.borda} ${
+                  className={`flex h-full min-h-0 w-[320px] shrink-0 flex-col overflow-hidden rounded-2xl border bg-gradient-to-b shadow-sm transition-all ${configuracao.classe} ${configuracao.borda} ${
                     dropSnapshot.isDraggingOver
                       ? "ring-2 ring-primary/30 shadow-lg"
                       : ""
                   }`}
                 >
-                  <div className="px-4 py-4 border-b border-border/60">
+                  <div className="shrink-0 border-b border-border/60 px-4 py-4">
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <h3 className="font-bold text-foreground text-sm">{configuracao.titulo}</h3>
@@ -456,65 +490,61 @@ export function TabuleiroKanban({
                     </div>
                   </div>
 
-                  <ScrollArea className="flex-1">
-                    <div
-                      ref={dropProvided.innerRef}
-                      {...dropProvided.droppableProps}
-                      className={`p-4 space-y-3 min-h-[220px] transition-colors ${dropSnapshot.isDraggingOver ? "bg-primary/5" : ""}`}
-                    >
-                      {ordensFiltradas.length === 0 ? (
-                        <div className="flex min-h-40 items-center justify-center rounded-xl border border-dashed border-border/70 bg-background/60 px-4 text-center">
-                          <div className="space-y-2">
-                            <p className="text-sm font-medium text-foreground">Sem ordens de serviço</p>
-                            <p className="text-xs text-muted-foreground">Solte um card aqui para atualizar a etapa.</p>
-                          </div>
+                  <ListaColunaKanban
+                    ordens={ordensFiltradas}
+                    dropProvided={dropProvided}
+                    dropSnapshot={dropSnapshot}
+                    vazio={
+                      <div className="flex min-h-40 items-center justify-center rounded-xl border border-dashed border-border/70 bg-background/60 px-4 text-center">
+                        <div className="space-y-2">
+                          <p className="text-sm font-medium text-foreground">Sem ordens de serviço</p>
+                          <p className="text-xs text-muted-foreground">Solte um card aqui para atualizar a etapa.</p>
                         </div>
-                      ) : (
-                        ordensFiltradas.map((os, index) => {
-                          if (!isStatusKanban(os.status)) return null;
+                      </div>
+                    }
+                    renderizarCartao={(os, index) => {
+                      if (!isStatusKanban(os.status)) return null;
 
-                          const statusAnterior = encontrarStatusAnterior(os.status);
-                          const statusSeguinte = encontrarStatusSeguinte(os.status);
-                          const retornoJaFinalizado = Boolean(os.retornoGarantiaFinalizadoEm);
-                          const podeFinalizarRetorno =
-                            Boolean(os.ehRetornoGarantia) &&
-                            !retornoJaFinalizado &&
-                            os.status !== "ENTREGUE";
-                          const podeFinalizarOSNormal = os.status === "ENTREGUE";
-                          const podeFinalizar = podeFinalizarRetorno || podeFinalizarOSNormal;
-                          const textoBotaoFinalizar = podeFinalizarRetorno ? "Finalizar retorno" : "Finalizar OS";
+                      const statusAnterior = encontrarStatusAnterior(os.status);
+                      const statusSeguinte = encontrarStatusSeguinte(os.status);
+                      const retornoJaFinalizado = Boolean(os.retornoGarantiaFinalizadoEm);
+                      const podeFinalizarRetorno =
+                        Boolean(os.ehRetornoGarantia) &&
+                        !retornoJaFinalizado &&
+                        os.status !== "ENTREGUE";
+                      const podeArquivarEntregue = os.status === "ENTREGUE";
+                      const podeFinalizar = podeFinalizarRetorno || podeArquivarEntregue;
+                      const textoBotaoFinalizar = podeFinalizarRetorno ? "Finalizar retorno" : "Finalizar OS";
 
-                          return (
-                            <Draggable key={os.id} draggableId={os.id} index={index}>
-                              {(dragProvided, dragSnapshot) => (
-                                <div
-                                  ref={dragProvided.innerRef}
-                                  {...dragProvided.draggableProps}
-                                  {...dragProvided.dragHandleProps}
-                                  style={dragProvided.draggableProps.style as CSSProperties}
-                                >
-                                  <CartaoOS
-                                    os={os}
-                                    onClick={() => onCartaoClick?.(os)}
-                                    isDragging={dragSnapshot.isDragging}
-                                    statusChipClass={configuracao.chip}
-                                    onMoverAnterior={() => statusAnterior && moverPorBotao(os.id, statusAnterior)}
-                                    onMoverProxima={() => statusSeguinte && moverPorBotao(os.id, statusSeguinte)}
-                                    onFinalizar={() => finalizarOS(os)}
-                                    podeFinalizar={podeFinalizar}
-                                    textoBotaoFinalizar={textoBotaoFinalizar}
-                                    desabilitarMoverAnterior={!statusAnterior}
-                                    desabilitarMoverProxima={!statusSeguinte}
-                                  />
-                                </div>
-                              )}
-                            </Draggable>
-                          );
-                        })
-                      )}
-                      {dropProvided.placeholder}
-                    </div>
-                  </ScrollArea>
+                      return (
+                        <Draggable key={os.id} draggableId={os.id} index={index}>
+                          {(dragProvided, dragSnapshot) => (
+                            <div
+                              ref={dragProvided.innerRef}
+                              {...dragProvided.draggableProps}
+                              {...dragProvided.dragHandleProps}
+                              style={dragProvided.draggableProps.style as CSSProperties}
+                            >
+                              <CartaoOS
+                                os={os}
+                                onClick={() => onCartaoClick?.(os)}
+                                isDragging={dragSnapshot.isDragging}
+                                statusChipClass={configuracao.chip}
+                                statusDaColuna={status}
+                                onMoverAnterior={() => statusAnterior && moverPorBotao(os.id, statusAnterior)}
+                                onMoverProxima={() => statusSeguinte && moverPorBotao(os.id, statusSeguinte)}
+                                onFinalizar={() => finalizarOS(os)}
+                                podeFinalizar={podeFinalizar}
+                                textoBotaoFinalizar={textoBotaoFinalizar}
+                                desabilitarMoverAnterior={!statusAnterior}
+                                desabilitarMoverProxima={!statusSeguinte}
+                              />
+                            </div>
+                          )}
+                        </Draggable>
+                      );
+                    }}
+                  />
                 </div>
               )}
             </Droppable>

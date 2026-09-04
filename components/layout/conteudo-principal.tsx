@@ -1,28 +1,17 @@
-"use client";
-
 import { ReactNode } from "react";
-import { useSidebar } from "@/contextos/contexto-sidebar";
-import { cn } from "@/lib/utils";
 
 interface ConteudoPrincipalProps {
   children: ReactNode;
 }
 
 /**
- * Componente wrapper para o conteúdo principal
- * Ajusta o margin-left dinamicamente baseado no estado da sidebar
+ * Conteúdo principal: largura total, centralizado e sem deslocamento lateral.
+ * O cabeçalho é sticky e ocupa espaço no fluxo, então não há offset a compensar.
  */
 export function ConteudoPrincipal({ children }: ConteudoPrincipalProps) {
-  const { contraida } = useSidebar();
-
   return (
-    <main
-      className={cn(
-        "flex-1 mt-16 bg-transparent transition-all duration-300 ease-in-out",
-        contraida ? "ml-20" : "ml-64"
-      )}
-    >
-      {children}
+    <main className="flex-1 bg-transparent">
+      <div className="mx-auto w-full max-w-[1600px] px-4 sm:px-6">{children}</div>
     </main>
   );
 }

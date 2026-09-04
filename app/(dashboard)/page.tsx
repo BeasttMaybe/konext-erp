@@ -1,136 +1,93 @@
+import { obterConfiguracoes } from "@/app/actions/configuracoes";
 import {
-  Activity,
-  BadgeDollarSign,
-  CircleDollarSign,
-  HandCoins,
-  ShieldAlert,
-  Wallet,
-  Wrench,
-} from "lucide-react";
-import { obterDashboardExecutivoSeguro } from "@/app/actions/dashboard";
-import { CardExecutivo } from "@/components/dashboard/card-executivo";
-import { GraficoResultadoMensal } from "@/components/dashboard/grafico-resultado-mensal";
-import { FunilOrdensServico } from "@/components/dashboard/funil-ordens-servico";
-import { BlocoAtencaoHoje } from "@/components/dashboard/bloco-atencao-hoje";
-import { ResumoMetasDashboard } from "@/components/dashboard/resumo-metas-dashboard";
-import { ResumoGarantiasDashboard } from "@/components/dashboard/resumo-garantias-dashboard";
-import { UltimasMovimentacoes } from "@/components/dashboard/ultimas-movimentacoes";
+  obterDashboardExecutivoSeguro,
+  type PeriodoDashboard,
+} from "@/app/actions/dashboard";
+import { BandaKpis } from "@/components/dashboard/banda-kpis";
+import { BarraContexto } from "@/components/dashboard/barra-contexto";
+import { BlocoGarantia } from "@/components/dashboard/bloco-garantia";
+import { BlocoMetas } from "@/components/dashboard/bloco-metas";
+import { FaixaAcoes } from "@/components/dashboard/faixa-acoes";
+import { FilaOs } from "@/components/dashboard/fila-os";
+import { GraficoResultado } from "@/components/dashboard/grafico-resultado";
+import { GraficoSaldo } from "@/components/dashboard/grafico-saldo";
+import { ListaMovimentacoes } from "@/components/dashboard/lista-movimentacoes";
+import { MedidoresOrcamento } from "@/components/dashboard/medidores-orcamento";
+import { TabelaDre } from "@/components/dashboard/tabela-dre";
+import { TabelaParados } from "@/components/dashboard/tabela-parados";
 
 export const dynamic = "force-dynamic";
 
-const moedaBr = new Intl.NumberFormat("pt-BR", {
-  style: "currency",
-  currency: "BRL",
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
+function normalizarPeriodo(valor: string | string[] | undefined): PeriodoDashboard {
+  const bruto = Array.isArray(valor) ? valor[0] : valor;
 
-export default async function PaginaDashboard() {
-  const resultadoDashboard = await obterDashboardExecutivoSeguro();
+  if (bruto === "7d" || bruto === "30d" || bruto === "mes") {
+    return bruto;
+  }
+
+  return "hoje";
+}
+
+type PropsPaginaDashboard = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function PaginaDashboard({ searchParams }: PropsPaginaDashboard) {
+  const query = await searchParams;
+  const periodo = normalizarPeriodo(query.periodo);
+
+  const [resultadoDashboard, configuracoes] = await Promise.all([
+    obterDashboardExecutivoSeguro(periodo),
+    obterConfiguracoes(),
+  ]);
 
   if (!resultadoDashboard.sucesso) {
     return (
-      <div className="container mx-auto p-6">
-        <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-6">
-          <h1 className="text-xl font-semibold text-red-300">Falha ao carregar dashboard</h1>
-          <p className="mt-2 text-sm text-zinc-300">{resultadoDashboard.erro}</p>
+      <div className="py-4">
+        <div className="rounded-lg border border-border bg-card p-6">
+          <h1 className="text-base font-medium text-foreground">Falha ao carregar o dashboard</h1>
+          <p className="mt-2 text-sm text-muted-foreground">{resultadoDashboard.erro}</p>
         </div>
       </div>
     );
   }
 
   const dashboard = resultadoDashboard.dados;
+  const painel = dashboard.painel;
+  const metas = dashboard.metasResumo;
+  const mostrarMetas = Boolean(metas && metas.principais.length > 0);
 
   return (
-    <div className="container mx-auto p-6">
-      <div className="space-y-8">
-        <div>
-          <h1 className="text-3xl font-bold text-white">Centro de Comando Executivo</h1>
-          <p className="mt-1 text-sm text-zinc-400">
-            Resumo acionavel do negocio para decisao rapida sem duplicar os modulos internos.
-          </p>
-        </div>
+    <div className="space-y-2.5 py-3">
+      <BarraContexto empresa={configuracoes.nomeFantasia} periodo={dashboard.periodo} />
 
-        <section className="space-y-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-400">Visao executiva</h2>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <CardExecutivo
-              titulo="Faturamento do mes"
-              valor={moedaBr.format(dashboard.cardsPrincipais.faturamentoMes.valor)}
-              variacao={dashboard.cardsPrincipais.faturamentoMes.variacao}
-              destaque="verde"
-              icone={<BadgeDollarSign className="h-5 w-5" />}
-            />
-            <CardExecutivo
-              titulo="Lucro estimado"
-              valor={moedaBr.format(dashboard.cardsPrincipais.lucroEstimado.valor)}
-              variacao={dashboard.cardsPrincipais.lucroEstimado.variacao}
-              descricao="Receita menos custos e despesas do periodo"
-              destaque="azul"
-              icone={<CircleDollarSign className="h-5 w-5" />}
-            />
-            <CardExecutivo
-              titulo="A receber hoje/atrasado"
-              valor={moedaBr.format(dashboard.cardsPrincipais.receberHojeAtrasado.total)}
-              rodape={`Atrasado: ${moedaBr.format(dashboard.cardsPrincipais.receberHojeAtrasado.atrasado)}`}
-              destaque="ambar"
-              icone={<HandCoins className="h-5 w-5" />}
-            />
-            <CardExecutivo
-              titulo="A pagar hoje/atrasado"
-              valor={moedaBr.format(dashboard.cardsPrincipais.pagarHojeAtrasado.total)}
-              rodape={`Atrasado: ${moedaBr.format(dashboard.cardsPrincipais.pagarHojeAtrasado.atrasado)}`}
-              destaque="vermelho"
-              icone={<Wallet className="h-5 w-5" />}
-            />
-          </div>
-        </section>
+      <FaixaAcoes acoes={dashboard.acoes} />
 
-        <section className="space-y-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-400">Operacao OS</h2>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <CardExecutivo
-              titulo="OS abertas"
-              valor={String(dashboard.cardsOperacionais.osAbertas)}
-              destaque="azul"
-              icone={<Wrench className="h-5 w-5" />}
-            />
-            <CardExecutivo
-              titulo="OS concluidas no mes"
-              valor={String(dashboard.cardsOperacionais.osConcluidasMes)}
-              destaque="verde"
-              icone={<Activity className="h-5 w-5" />}
-            />
-            <CardExecutivo
-              titulo="Garantia/Retorno"
-              valor={String(dashboard.cardsOperacionais.garantiaRetorno)}
-              destaque="ambar"
-              icone={<ShieldAlert className="h-5 w-5" />}
-            />
-            <CardExecutivo
-              titulo="Ticket medio OS"
-              valor={moedaBr.format(dashboard.cardsOperacionais.ticketMedioOS)}
-              destaque="azul"
-              icone={<BadgeDollarSign className="h-5 w-5" />}
-            />
-          </div>
-        </section>
+      <BandaKpis painel={painel} />
 
-        <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-          <div className="xl:col-span-2">
-            <GraficoResultadoMensal dados={dashboard.graficoResultado6Meses} />
-          </div>
-          <div className="xl:col-span-1">
-            <FunilOrdensServico itens={dashboard.funilOS} />
-          </div>
-        </section>
+      <div className="grid grid-cols-1 gap-2.5 xl:grid-cols-[minmax(0,2.15fr)_minmax(0,1fr)]">
+        <GraficoResultado dados={[...painel.serieMensal]} />
+        <MedidoresOrcamento
+          receita={painel.orcamentoReceita}
+          despesa={painel.orcamentoDespesa}
+          custoPecas={painel.orcamentoCustoPecas}
+        />
+      </div>
 
-        <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          <BlocoAtencaoHoje alertas={dashboard.atencaoHoje} />
-          <UltimasMovimentacoes itens={dashboard.ultimasMovimentacoes} />
-          <ResumoMetasDashboard resumo={dashboard.metasResumo} />
-          <ResumoGarantiasDashboard resumo={dashboard.garantiasResumo} />
-        </section>
+      <div className="grid grid-cols-1 gap-2.5 xl:grid-cols-2">
+        <GraficoSaldo dados={painel.saldoAcumuladoPorMes} />
+        <TabelaDre dre={painel.dre} />
+      </div>
+
+      <div className="grid grid-cols-1 gap-2.5 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,1.35fr)_minmax(0,1fr)]">
+        <FilaOs fila={dashboard.operacao.fila} />
+        <TabelaParados parados={dashboard.operacao.parados} limite={5} />
+        <BlocoGarantia garantia={dashboard.operacao.garantia} />
+      </div>
+
+      <div className="grid grid-cols-1 gap-2.5 xl:grid-cols-2">
+        {mostrarMetas && metas ? <BlocoMetas resumo={metas} /> : <div />}
+        <ListaMovimentacoes itens={dashboard.ultimasMovimentacoes} />
       </div>
     </div>
   );

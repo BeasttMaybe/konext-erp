@@ -143,10 +143,12 @@ export function DashboardOS({
           });
 
       if (!resultado.sucesso) {
+        toast.error(resultado.erro);
         if (resultado.requerGarantia) {
           setRequerGarantiaFinalizacao(true);
+          return;
         }
-        toast.error(resultado.erro);
+        concluirSolicitacaoFinalizacao(false);
         return;
       }
 
@@ -226,10 +228,8 @@ export function DashboardOS({
     concluirSolicitacaoFinalizacao(false);
   };
 
-  const deveFinalizarRetornoGarantia =
-    Boolean(osParaFinalizar?.ehRetornoGarantia) &&
-    !osParaFinalizar?.retornoGarantiaFinalizadoEm &&
-    osParaFinalizar?.status !== "ENTREGUE";
+  const finalizacaoEhRetornoGarantia =
+    Boolean(osParaFinalizar?.ehRetornoGarantia) && osParaFinalizar?.status !== "ENTREGUE";
 
   const handleAbrirDetalhesOS = (os: OrdemServico) => {
     router.push(`/os/${os.id}`);
@@ -427,15 +427,13 @@ export function DashboardOS({
               </p>
             </div>
           ) : modoVisualizacao === "KANBAN" ? (
-            <div className="overflow-x-auto -mx-4 sm:-mx-6">
-              <div className="px-4 sm:px-6">
+            <div className="px-0">
                 <TabuleiroKanban
                   ordensServico={filteredActiveOrders}
                   onMoverOS={handleMoverOS}
                   onCartaoClick={handleAbrirDetalhesOS}
                   onFinalizarOS={handleFinalizarOS}
                 />
-              </div>
             </div>
           ) : modoVisualizacao === "LISTA_FINALIZADAS" && filteredArchivedOrders.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -566,7 +564,7 @@ export function DashboardOS({
         clienteIdInicial={clienteIdInicial ?? undefined}
       />
 
-      {deveFinalizarRetornoGarantia ? (
+      {finalizacaoEhRetornoGarantia ? (
         <ModalFinalizarRetornoGarantia
           key={`${osParaFinalizar?.id ?? "sem-os"}-${Boolean(osParaFinalizar)}-retorno`}
           aberta={Boolean(osParaFinalizar)}

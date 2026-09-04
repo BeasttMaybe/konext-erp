@@ -1010,7 +1010,7 @@ export async function obterMetaPorId(id: string): Promise<DetalhesMeta | null> {
     const usuario = { id: obterUsuarioOperacionalId(contexto) };
 
     const meta = await prisma.meta.findFirst({
-      where: { id, excluidaEm: null, criadoPorId: usuario.id },
+      where: { id, excluidaEm: null },
       select: {
         id: true,
         titulo: true,
@@ -1158,27 +1158,25 @@ export async function obterDashboardMetas(): Promise<DashboardMetasResult> {
           GROUP BY status
         `,
         prisma.meta.count({
-          where: { excluidaEm: null, criadoPorId: usuario.id, origemProgresso: "MANUAL" },
+          where: { excluidaEm: null, origemProgresso: "MANUAL" },
         }),
         prisma.meta.count({
-          where: { excluidaEm: null, criadoPorId: usuario.id, origemProgresso: "AUTOMATICA" },
+          where: { excluidaEm: null, origemProgresso: "AUTOMATICA" },
         }),
         prisma.meta.count({
           where: {
             excluidaEm: null,
-            criadoPorId: usuario.id,
             origemProgresso: "AUTOMATICA",
             erroSincronizacao: { not: null },
           },
         }),
         prisma.meta.aggregate({
-          where: { excluidaEm: null, criadoPorId: usuario.id, tipoValor: "DINHEIRO" },
+          where: { excluidaEm: null, tipoValor: "DINHEIRO" },
           _sum: { valorAlvo: true, valorAtual: true },
         }),
         prisma.meta.count({
           where: {
             excluidaEm: null,
-            criadoPorId: usuario.id,
             status: { in: ["EM_ANDAMENTO", "ATENCAO"] },
             dataPrazo: { gte: agora, lte: em7dias },
           },
@@ -1225,7 +1223,7 @@ export async function atualizarMeta(input: AtualizarMetaInput): Promise<Resultad
     }
 
     const metaExistente = await prisma.meta.findFirst({
-      where: { id: input.id, excluidaEm: null, criadoPorId: usuario.id },
+      where: { id: input.id, excluidaEm: null },
       select: { id: true, titulo: true, dataPrazo: true },
     });
 
@@ -1336,7 +1334,7 @@ export async function atualizarProgressoMeta(input: AtualizarProgressoInput): Pr
     }
 
     const meta = await prisma.meta.findFirst({
-      where: { id: input.id, excluidaEm: null, criadoPorId: usuario.id },
+      where: { id: input.id, excluidaEm: null },
       select: { id: true, valorAtual: true, status: true, origemProgresso: true },
     });
 
@@ -1415,7 +1413,7 @@ export async function alterarStatusMeta(input: AlterarStatusInput): Promise<Resu
     }
 
     const meta = await prisma.meta.findFirst({
-      where: { id: input.id, excluidaEm: null, criadoPorId: usuario.id },
+      where: { id: input.id, excluidaEm: null },
       select: { id: true, status: true },
     });
 
@@ -1511,7 +1509,7 @@ export async function adicionarItemChecklistMeta(input: ItemChecklistInput): Pro
     }
 
     const meta = await prisma.meta.findFirst({
-      where: { id: input.metaId, excluidaEm: null, criadoPorId: usuario.id },
+      where: { id: input.metaId, excluidaEm: null },
       select: { id: true, _count: { select: { itensChecklist: true } } },
     });
 
@@ -1587,7 +1585,7 @@ export async function alternarItemChecklistMeta(itemId: string): Promise<Resulta
       },
     });
 
-    if (!item || item.meta.excluidaEm || item.meta.criadoPorId !== usuario.id) {
+    if (!item || item.meta.excluidaEm) {
       return { sucesso: false, erro: "Item não encontrado." };
     }
 
@@ -1665,7 +1663,7 @@ export async function removerItemChecklistMeta(itemId: string): Promise<Resultad
       },
     });
 
-    if (!item || item.meta.excluidaEm || item.meta.criadoPorId !== usuario.id) {
+    if (!item || item.meta.excluidaEm) {
       return { sucesso: false, erro: "Item não encontrado." };
     }
 
@@ -1728,7 +1726,7 @@ export async function adicionarHistoricoMeta(metaId: string, observacao: string)
     }
 
     const meta = await prisma.meta.findFirst({
-      where: { id: metaId, excluidaEm: null, criadoPorId: usuario.id },
+      where: { id: metaId, excluidaEm: null },
       select: { id: true },
     });
 
@@ -1765,7 +1763,6 @@ export async function calcularValorAtualMetaAutomatica(metaId: string): Promise<
       where: {
         id: metaId,
         excluidaEm: null,
-        criadoPorId: usuario.id,
       },
       select: {
         id: true,
@@ -1803,7 +1800,6 @@ export async function sincronizarMetaAutomatica(metaId: string): Promise<Resulta
       where: {
         id: metaId,
         excluidaEm: null,
-        criadoPorId: usuario.id,
       },
       select: {
         id: true,
@@ -1920,7 +1916,6 @@ export async function sincronizarTodasMetasAutomaticas(): Promise<ResultadoAcao>
     const metasAutomaticas = await prisma.meta.findMany({
       where: {
         excluidaEm: null,
-        criadoPorId: usuario.id,
         origemProgresso: "AUTOMATICA",
       },
       select: { id: true },
@@ -1971,7 +1966,7 @@ export async function excluirMeta(id: string): Promise<ResultadoAcao> {
     const usuario = { id: obterUsuarioOperacionalId(contexto) };
 
     const meta = await prisma.meta.findFirst({
-      where: { id, excluidaEm: null, criadoPorId: usuario.id },
+      where: { id, excluidaEm: null },
       select: { id: true, titulo: true },
     });
 

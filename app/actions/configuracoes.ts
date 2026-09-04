@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { Prisma } from "@prisma/client";
+import type { ModeloImpressaoOS, Prisma } from "@prisma/client";
 import { z } from "zod";
 import { consultarCnpjReceitaCliente } from "@/app/actions/crm";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
@@ -38,6 +38,9 @@ type ConfiguracaoRegistro = {
   endereco?: string | null;
   chavePix?: string | null;
   mensagemCupom?: string | null;
+  modeloImpressaoOSPadrao?: ModeloImpressaoOS | null;
+  imprimirLogoTermica?: boolean | null;
+  mensagemRodapeImpressaoOS?: string | null;
   habilitarMargemAutomatica?: boolean | null;
   permitirVendaSemEstoque?: boolean | null;
   permitirPagamentoMisto?: boolean | null;
@@ -136,6 +139,9 @@ export type DadosConfiguracoes = {
   endereco: string;
   chavePix: string;
   mensagemCupom: string;
+  modeloImpressaoOSPadrao: ModeloImpressaoOS;
+  imprimirLogoTermica: boolean;
+  mensagemRodapeImpressaoOS: string;
   habilitarMargemAutomatica: boolean;
   permitirVendaSemEstoque: boolean;
   permitirPagamentoMisto: boolean;
@@ -240,6 +246,9 @@ const schemaDadosConfiguracoes = z.object({
   endereco: z.string().trim().max(255, "Endereço completo excede o limite de 255 caracteres."),
   chavePix: z.string().trim().max(160, "Chave PIX excede o limite de 160 caracteres."),
   mensagemCupom: z.string().trim().max(1000, "Mensagem do cupom excede o limite de 1000 caracteres."),
+  modeloImpressaoOSPadrao: z.enum(["A4", "TERMICA_80MM"]),
+  imprimirLogoTermica: z.boolean(),
+  mensagemRodapeImpressaoOS: z.string().trim().max(300, "Mensagem de rodapé excede o limite de 300 caracteres."),
   habilitarMargemAutomatica: z.boolean(),
   permitirVendaSemEstoque: z.boolean(),
   permitirPagamentoMisto: z.boolean(),
@@ -363,6 +372,9 @@ function obterConfiguracoesPadrao(): DadosConfiguracoes {
     endereco: "",
     chavePix: "",
     mensagemCupom: "",
+    modeloImpressaoOSPadrao: "A4",
+    imprimirLogoTermica: true,
+    mensagemRodapeImpressaoOS: "",
     habilitarMargemAutomatica: true,
     permitirVendaSemEstoque: false,
     permitirPagamentoMisto: defaultsPdv.permitirPagamentoMisto,
@@ -537,7 +549,7 @@ function normalizarConfiguracoesEntrada(data: DadosConfiguracoes): DadosConfigur
   };
 }
 
-export async function obterConfiguracoes() {
+export async function obterConfiguracoes(): Promise<{ id: string } & DadosConfiguracoes> {
   const contextoTenant = await exigirContextoTenant();
   const prismaTenant = contextoTenant.prisma;
   const configuracaoDelegate = obterDelegateConfiguracao(prismaTenant);
@@ -629,6 +641,12 @@ export async function obterConfiguracoes() {
     endereco: configuracao?.endereco ? String(configuracao.endereco) : "",
     chavePix: configuracao?.chavePix ? String(configuracao.chavePix) : "",
     mensagemCupom: configuracao?.mensagemCupom ? String(configuracao.mensagemCupom) : "",
+    modeloImpressaoOSPadrao: configuracao?.modeloImpressaoOSPadrao === "TERMICA_80MM" ? "TERMICA_80MM" : "A4",
+    imprimirLogoTermica:
+      typeof configuracao?.imprimirLogoTermica === "boolean" ? Boolean(configuracao.imprimirLogoTermica) : true,
+    mensagemRodapeImpressaoOS: configuracao?.mensagemRodapeImpressaoOS
+      ? String(configuracao.mensagemRodapeImpressaoOS)
+      : "",
     habilitarMargemAutomatica:
       typeof configuracao?.habilitarMargemAutomatica === "boolean"
         ? Boolean(configuracao.habilitarMargemAutomatica)
@@ -942,6 +960,9 @@ export async function salvarConfiguracoes(data: DadosConfiguracoes) {
         endereco: "",
         chavePix: null,
         mensagemCupom: null,
+        modeloImpressaoOSPadrao: "A4",
+        imprimirLogoTermica: true,
+        mensagemRodapeImpressaoOS: null,
         habilitarMargemAutomatica: true,
         permitirVendaSemEstoque: false,
         permitirPagamentoMisto: true,
@@ -996,6 +1017,9 @@ export async function salvarConfiguracoes(data: DadosConfiguracoes) {
     endereco: dadosNormalizados.endereco,
     chavePix: dadosNormalizados.chavePix || null,
     mensagemCupom: dadosNormalizados.mensagemCupom || null,
+    modeloImpressaoOSPadrao: dadosNormalizados.modeloImpressaoOSPadrao,
+    imprimirLogoTermica: dadosNormalizados.imprimirLogoTermica,
+    mensagemRodapeImpressaoOS: dadosNormalizados.mensagemRodapeImpressaoOS || null,
     habilitarMargemAutomatica: dadosNormalizados.habilitarMargemAutomatica,
     permitirVendaSemEstoque: dadosNormalizados.permitirVendaSemEstoque,
     logoUrl: dadosNormalizados.logoUrl || null,

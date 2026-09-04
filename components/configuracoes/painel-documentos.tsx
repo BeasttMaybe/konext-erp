@@ -1,12 +1,15 @@
 "use client";
 
 import type { DadosConfiguracoes } from "@/app/actions/configuracoes";
-import type { UseFormRegister } from "react-hook-form";
+import type { Control, UseFormRegister } from "react-hook-form";
+import { Controller } from "react-hook-form";
 import { ArrowDownToLine } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { CAMPOS_DOCUMENTOS_PLANEJADOS } from "@/lib/configuracoes-documentos";
 import { PreviewIdentidadeEmpresa } from "./preview-identidade-empresa";
@@ -23,7 +26,7 @@ const itensDocumentos = [
     titulo: "Ordem de Serviço Impressa",
     descricao: "Usa identidade da empresa, cliente, equipamento e dados seguros de contato.",
     status: "Em uso",
-    aviso: "Fallbacks seguros já cobrem configuração incompleta da empresa.",
+    aviso: "Suporta folha A4 e cupom térmico 80 mm, com modelo padrão definido nesta seção.",
   },
   {
     titulo: "Termo de Garantia",
@@ -41,11 +44,12 @@ const itensDocumentos = [
 
 type PainelDocumentosProps = {
   register: UseFormRegister<DadosConfiguracoes>;
+  control: Control<DadosConfiguracoes>;
   configuracaoAtual: DadosConfiguracoes;
   salvando: boolean;
 };
 
-export function PainelDocumentos({ register, configuracaoAtual, salvando }: PainelDocumentosProps) {
+export function PainelDocumentos({ register, control, configuracaoAtual, salvando }: PainelDocumentosProps) {
   return (
     <SecaoConfiguracoes
       titulo="Documentos"
@@ -85,6 +89,82 @@ export function PainelDocumentos({ register, configuracaoAtual, salvando }: Pain
             </Card>
           ))}
         </div>
+
+        <Card className="border-border bg-background">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Impressão de Ordem de Serviço</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Escolha o modelo padrão usado ao imprimir uma OS e personalize o cupom térmico.
+              </p>
+            </div>
+            <Badge variant="secondary">Persistência ativa</Badge>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Modelo padrão de impressão da OS</Label>
+            <Controller
+              name="modeloImpressaoOSPadrao"
+              control={control}
+              render={({ field }) => (
+                <RadioGroup
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  disabled={salvando}
+                  className="grid gap-2 sm:grid-cols-2"
+                >
+                  <div className="flex items-center gap-2 rounded-lg border border-border p-3">
+                    <RadioGroupItem value="A4" id="modeloImpressaoOSPadrao-a4" />
+                    <Label htmlFor="modeloImpressaoOSPadrao-a4" className="cursor-pointer font-normal">
+                      Folha A4
+                    </Label>
+                  </div>
+                  <div className="flex items-center gap-2 rounded-lg border border-border p-3">
+                    <RadioGroupItem value="TERMICA_80MM" id="modeloImpressaoOSPadrao-termica" />
+                    <Label htmlFor="modeloImpressaoOSPadrao-termica" className="cursor-pointer font-normal">
+                      Impressora térmica 80 mm
+                    </Label>
+                  </div>
+                </RadioGroup>
+              )}
+            />
+          </div>
+
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
+            <div>
+              <Label htmlFor="imprimirLogoTermica" className="cursor-pointer">
+                Imprimir logo no cupom térmico
+              </Label>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Desative para economizar espaço e vida útil da impressora térmica.
+              </p>
+            </div>
+            <Controller
+              name="imprimirLogoTermica"
+              control={control}
+              render={({ field }) => (
+                <Switch
+                  id="imprimirLogoTermica"
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                  disabled={salvando}
+                />
+              )}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="mensagemRodapeImpressaoOS">Mensagem de rodapé da impressão</Label>
+            <Textarea
+              id="mensagemRodapeImpressaoOS"
+              rows={3}
+              maxLength={300}
+              placeholder="Ex.: Garantia sujeita aos termos entregues junto ao equipamento."
+              disabled={salvando}
+              {...register("mensagemRodapeImpressaoOS")}
+            />
+          </div>
+        </Card>
 
         <Card className="border-border bg-background">
           <div className="flex items-center justify-between gap-3">

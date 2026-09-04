@@ -40,7 +40,6 @@ export const CAMPOS_DOCUMENTOS_PLANEJADOS = [
   "Mensagem padrão do termo de garantia",
   "Rodapé padrão dos documentos",
   "Cabeçalho padrão dos documentos",
-  "Modelo de impressão padrão",
 ] as const;
 
 function limparTexto(valor: string | null | undefined): string {

@@ -5,6 +5,9 @@ CREATE SCHEMA IF NOT EXISTS "public";
 CREATE TYPE "RoleUsuario" AS ENUM ('ADMIN', 'OPERADOR', 'TECNICO');
 
 -- CreateEnum
+CREATE TYPE "ModeloImpressaoOS" AS ENUM ('A4', 'TERMICA_80MM');
+
+-- CreateEnum
 CREATE TYPE "TipoPessoa" AS ENUM ('FISICA', 'JURIDICA');
 
 -- CreateEnum
@@ -137,6 +140,9 @@ CREATE TABLE "Configuracao" (
     "logoUrl" TEXT,
     "chavePix" TEXT,
     "mensagemCupom" TEXT,
+    "modeloImpressaoOSPadrao" "ModeloImpressaoOS" NOT NULL DEFAULT 'A4',
+    "imprimirLogoTermica" BOOLEAN NOT NULL DEFAULT true,
+    "mensagemRodapeImpressaoOS" TEXT,
     "habilitarMargemAutomatica" BOOLEAN NOT NULL DEFAULT true,
     "permitirVendaSemEstoque" BOOLEAN NOT NULL DEFAULT false,
     "permitirPagamentoMisto" BOOLEAN NOT NULL DEFAULT true,

@@ -1,7 +1,7 @@
 "use server";
 
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
-import { obterReceitaMensalPadrao } from "@/lib/dashboard/regras-financeiras";
+import { obterReceitaMensalPadrao, obterReceitaTotalPadrao } from "@/lib/dashboard/regras-financeiras";
 import { Prisma } from "@prisma/client";
 
 export type TipoVariacao = "percentual" | "sem_base" | "sem_variacao";
@@ -17,7 +17,121 @@ export type ValorComVariacao = {
   variacao: VariacaoPercentual;
 };
 
+export type PeriodoDashboard = "hoje" | "7d" | "30d" | "mes";
+
+export type BlocoCaixa = {
+  entrou: number;
+  saiu: number;
+  receberAtrasado: number;
+  pagarAtrasado: number;
+};
+
+export type AcaoDashboard = {
+  chave: string;
+  texto: string;
+  valor: number | null;
+  href: string;
+  severidade: "CRITICO" | "ATENCAO";
+};
+
+export type LinhaFilaOS = {
+  status: string;
+  label: string;
+  quantidade: number;
+  href: string;
+};
+
+export type OsParada = {
+  id: string;
+  numeroOs: number;
+  cliente: string;
+  aparelho: string;
+  status: string;
+  diasParado: number;
+};
+
+export type OperacaoDashboard = {
+  fila: LinhaFilaOS[];
+  parados: {
+    diasLimite: number;
+    quantidade: number;
+    lista: OsParada[];
+  };
+  prontasAguardandoRetirada: {
+    quantidade: number;
+    valor: number;
+    diasLimite: number;
+    quantidadeAcimaLimite: number;
+  };
+  valorEmAberto: number;
+  tempoMedioReparoDias: number | null;
+  ticketMedioOS: number | null;
+  garantia: {
+    ativas: number;
+    vencem7Dias: number;
+    janelaDias: number;
+    entreguesJanela: number;
+    retornosJanela: number;
+    taxaRetorno: number | null;
+  };
+};
+
+/** Para qual lado a variação é boa. Nunca inferido do sinal. */
+export type DirecaoBoaKpi = "cima" | "baixo";
+
+export type ComparativoKpi = {
+  valor: number | null;
+  anterior: number | null;
+  variacaoPercentual: number | null;
+  direcaoBoa: DirecaoBoaKpi;
+};
+
+export type MedidorMeta = {
+  titulo: string;
+  atual: number;
+  alvo: number;
+  percentual: number;
+};
+
+export type DemonstracaoResultados = {
+  receitaBruta: number;
+  /** Peças aplicadas em OS (ItemOS.custoPeca). */
+  custoPecas: number;
+  /** Mercadorias vendidas no PDV (ItemVenda.custoUnitario × quantidade). */
+  custoMercadorias: number;
+  lucroBruto: number;
+  despesasOperacionais: number;
+  despesasPorTipo: readonly { tipo: string; rotulo: string; valor: number }[];
+  lucroLiquido: number;
+};
+
+export type PainelFinanceiro = {
+  kpis: {
+    faturamento: ComparativoKpi;
+    despesas: ComparativoKpi;
+    lucroLiquido: ComparativoKpi;
+    saldoPeriodo: ComparativoKpi;
+    aReceber: ComparativoKpi;
+    aPagar: ComparativoKpi;
+    valorEmAbertoOS: ComparativoKpi;
+    ticketMedio: ComparativoKpi;
+  };
+  margemLiquidaPercentual: number | null;
+  margemLiquidaAlvo: number | null;
+  orcamentoReceita: MedidorMeta | null;
+  orcamentoDespesa: MedidorMeta | null;
+  orcamentoCustoPecas: MedidorMeta | null;
+  serieMensal: readonly { mes: string; receita: number; despesas: number; lucro: number }[];
+  saldoAcumuladoPorMes: readonly { mes: string; saldo: number }[];
+  dre: DemonstracaoResultados;
+};
+
 export type DashboardExecutivo = {
+  periodo: PeriodoDashboard;
+  painel: PainelFinanceiro;
+  caixa: BlocoCaixa;
+  acoes: AcaoDashboard[];
+  operacao: OperacaoDashboard;
   cardsPrincipais: {
     faturamentoMes: ValorComVariacao;
     lucroEstimado: ValorComVariacao;
@@ -212,7 +326,7 @@ function calcularVariacaoPercentual(valorAtual: number, valorAnterior: number): 
   if (valorAnterior === 0 && valorAtual === 0) {
     return {
       tipo: "sem_variacao",
-      texto: "Sem variacao",
+      texto: "Sem variação",
     };
   }
 
@@ -220,7 +334,26 @@ function calcularVariacaoPercentual(valorAtual: number, valorAnterior: number): 
   return {
     tipo: "percentual",
     valor: variacao,
-    texto: `vs. mes anterior`,
+    texto: "vs. mês anterior",
+  };
+}
+
+/**
+ * Comparação com o período anterior. Sem base (zero, nula ou métrica indefinida)
+ * a variação fica nula e a tela mostra "—" — nunca "−100,0%".
+ */
+function montarComparativo(
+  valor: number | null,
+  anterior: number | null,
+  direcaoBoa: DirecaoBoaKpi
+): ComparativoKpi {
+  const temBase = valor !== null && anterior !== null && anterior !== 0;
+
+  return {
+    valor,
+    anterior,
+    variacaoPercentual: temBase ? ((valor - anterior) / Math.abs(anterior)) * 100 : null,
+    direcaoBoa,
   };
 }
 
@@ -463,11 +596,388 @@ async function obterTicketMedioOSMes(
   }
 }
 
+type LinhaTicketPeriodo = {
+  total: number | null;
+  quantidade: number | null;
+};
+
+type LinhaTempoMedio = {
+  media: number | null;
+  quantidade: number | null;
+};
+
+type LinhaProntasRetirada = {
+  quantidade: number | null;
+  valor: number | null;
+  acimaLimite: number | null;
+};
+
+type LinhaValorAberto = {
+  total: number | null;
+};
+
+const DIAS_LIMITE_PARADO = 7;
+const DIAS_LIMITE_RETIRADA = 2;
+const JANELA_TAXA_RETORNO_DIAS = 90;
+
+const ROTULO_STATUS_OS: Record<string, string> = {
+  AGUARDANDO_ORCAMENTO: "Aguardando orçamento",
+  AGUARDANDO_APROVACAO: "Aguardando aprovação",
+  APROVADO: "Aprovado",
+  AGUARDANDO_PECA: "Aguardando peça",
+  EM_MANUTENCAO: "Em manutenção",
+  GARANTIA_RETORNO: "Garantia / retorno",
+  PRONTO: "Pronto",
+  ENTREGUE: "Entregue",
+};
+
+// Ordem da fila: do primeiro contato até o aparelho pronto na prateleira.
+const SEQUENCIA_FILA_OS = [
+  "AGUARDANDO_ORCAMENTO",
+  "AGUARDANDO_APROVACAO",
+  "APROVADO",
+  "AGUARDANDO_PECA",
+  "EM_MANUTENCAO",
+  "GARANTIA_RETORNO",
+  "PRONTO",
+] as const;
+
+const PADRAO_UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+
+// O PDV grava descricoes como "Venda PDV <uuid> - PIX". Nenhum id chega à tela.
+function limparIdentificadores(texto: string | null | undefined): string {
+  return String(texto ?? "")
+    .replace(PADRAO_UUID, "")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+-\s*$/g, "")
+    .replace(/^\s*-\s+/g, "")
+    .trim();
+}
+
+function rotularStatusOS(status: string): string {
+  return ROTULO_STATUS_OS[status] ?? status.replaceAll("_", " ").toLowerCase();
+}
+
+function diferencaEmDias(inicio: Date, fim: Date): number {
+  return Math.max(0, Math.floor((fim.getTime() - inicio.getTime()) / (24 * 60 * 60 * 1000)));
+}
+
+function resolverIntervaloPeriodo(periodo: PeriodoDashboard, agora: Date): { inicio: Date; fim: Date } {
+  const fim = fimDoDia(agora);
+
+  if (periodo === "mes") {
+    return { inicio: inicioDoMes(agora), fim };
+  }
+
+  const diasParaTras = periodo === "7d" ? 6 : periodo === "30d" ? 29 : 0;
+  const inicio = inicioDoDia(new Date(agora.getTime() - diasParaTras * 24 * 60 * 60 * 1000));
+
+  return { inicio, fim };
+}
+
+async function obterTicketMedioEntreguesPeriodo(
+  prismaClient: PrismaDashboardClient,
+  inicio: Date,
+  fim: Date
+): Promise<number | null> {
+  const linhas = await prismaClient.$queryRaw<LinhaTicketPeriodo[]>`
+    SELECT COALESCE(SUM(base.total_os), 0)::double precision AS total,
+           COUNT(*)::int AS quantidade
+    FROM (
+      SELECT os.id,
+             COALESCE(SUM(i."valorCobrado"), 0)::double precision AS total_os
+      FROM "OrdemServico" os
+      LEFT JOIN "ItemOS" i ON i."osId" = os.id
+      WHERE os."excluidaEm" IS NULL
+        AND os."ehRetornoGarantia" = false
+        AND os."status"::text = 'ENTREGUE'
+        AND os."atualizadoEm" >= ${inicio}
+        AND os."atualizadoEm" <= ${fim}
+      GROUP BY os.id
+    ) base
+  `;
+
+  const quantidade = Number(linhas[0]?.quantidade ?? 0);
+
+  if (quantidade <= 0) {
+    return null;
+  }
+
+  return Number(linhas[0]?.total ?? 0) / quantidade;
+}
+
+async function obterTempoMedioReparoDias(
+  prismaClient: PrismaDashboardClient,
+  inicio: Date
+): Promise<number | null> {
+  const linhas = await prismaClient.$queryRaw<LinhaTempoMedio[]>`
+    SELECT AVG(EXTRACT(EPOCH FROM (os."atualizadoEm" - os."criadoEm")) / 86400.0)::double precision AS media,
+           COUNT(*)::int AS quantidade
+    FROM "OrdemServico" os
+    WHERE os."excluidaEm" IS NULL
+      AND os."status"::text = 'PRONTO'
+      AND os."atualizadoEm" >= ${inicio}
+  `;
+
+  if (Number(linhas[0]?.quantidade ?? 0) <= 0) {
+    return null;
+  }
+
+  return Number(linhas[0]?.media ?? 0);
+}
+
+async function obterProntasAguardandoRetirada(
+  prismaClient: PrismaDashboardClient,
+  limiteRetirada: Date
+): Promise<{ quantidade: number; valor: number; acimaLimite: number }> {
+  const linhas = await prismaClient.$queryRaw<LinhaProntasRetirada[]>`
+    SELECT COUNT(*)::int AS quantidade,
+           COALESCE(SUM(base.valor), 0)::double precision AS valor,
+           COUNT(*) FILTER (WHERE base."atualizadoEm" < ${limiteRetirada})::int AS "acimaLimite"
+    FROM (
+      SELECT os.id,
+             os."atualizadoEm",
+             COALESCE(SUM(i."valorCobrado"), 0)::double precision AS valor
+      FROM "OrdemServico" os
+      LEFT JOIN "ItemOS" i ON i."osId" = os.id
+      WHERE os."excluidaEm" IS NULL
+        AND os."archivedAt" IS NULL
+        AND os."status"::text = 'PRONTO'
+      GROUP BY os.id, os."atualizadoEm"
+    ) base
+  `;
+
+  return {
+    quantidade: Number(linhas[0]?.quantidade ?? 0),
+    valor: Number(linhas[0]?.valor ?? 0),
+    acimaLimite: Number(linhas[0]?.acimaLimite ?? 0),
+  };
+}
+
+async function obterValorEmAbertoOS(prismaClient: PrismaDashboardClient): Promise<number> {
+  const linhas = await prismaClient.$queryRaw<LinhaValorAberto[]>`
+    SELECT COALESCE(SUM(i."valorCobrado"), 0)::double precision AS total
+    FROM "OrdemServico" os
+    LEFT JOIN "ItemOS" i ON i."osId" = os.id
+    WHERE os."excluidaEm" IS NULL
+      AND os."archivedAt" IS NULL
+      AND os."status"::text <> 'ENTREGUE'
+  `;
+
+  return Number(linhas[0]?.total ?? 0);
+}
+
+type LinhaDespesasPeriodo = {
+  operacionais: number | null;
+  custoPecas: number | null;
+  custoPdv: number | null;
+};
+
+type LinhaFluxoPeriodo = {
+  entrou: number | null;
+  saiu: number | null;
+};
+
+type LinhaTotalSimples = {
+  total: number | null;
+};
+
+type LinhaFluxoMes = {
+  mes: Date;
+  entrou: number | null;
+  saiu: number | null;
+};
+
+type LinhaDespesaTipo = {
+  tipo: string | null;
+  total: number | null;
+};
+
+const ROTULO_TIPO_DESPESA: Record<string, string> = {
+  UNICA: "Única",
+  PARCELADA: "Parcelada",
+  FIXA_MENSAL: "Fixa mensal",
+};
+
+async function obterDespesasPeriodo(
+  prismaClient: PrismaDashboardClient,
+  inicio: Date,
+  fim: Date
+): Promise<{ operacionais: number; custoPecas: number; custoPdv: number }> {
+  const linhas = await prismaClient.$queryRaw<LinhaDespesasPeriodo[]>`
+    SELECT
+      (
+        SELECT COALESCE(SUM(pd."valor"), 0)::double precision
+        FROM "ParcelaDespesa" pd
+        INNER JOIN "Despesa" d ON d.id = pd."despesaId"
+        LEFT JOIN "Cliente" c ON c.id = d."clienteId"
+        WHERE (
+            (pd."status"::text = 'PAGO' AND pd."dataPagamento" >= ${inicio} AND pd."dataPagamento" <= ${fim})
+            OR (pd."status"::text = 'PENDENTE' AND pd."dataVencimento" >= ${inicio} AND pd."dataVencimento" <= ${fim})
+          )
+          AND (c.id IS NULL OR c."papel"::text = 'FORNECEDOR')
+      ) AS "operacionais",
+      (
+        SELECT COALESCE(SUM(i."custoPeca"), 0)::double precision
+        FROM "OrdemServico" os
+        INNER JOIN "ItemOS" i ON i."osId" = os.id
+        WHERE os."excluidaEm" IS NULL
+          AND os."status"::text IN ('PRONTO', 'ENTREGUE')
+          AND os."atualizadoEm" >= ${inicio}
+          AND os."atualizadoEm" <= ${fim}
+      ) AS "custoPecas",
+      (
+        SELECT COALESCE(SUM(iv."custoUnitario" * iv."quantidade"), 0)::double precision
+        FROM "ItemVenda" iv
+        INNER JOIN "Venda" v ON v.id = iv."vendaId"
+        WHERE v."criadoEm" >= ${inicio} AND v."criadoEm" <= ${fim}
+      ) AS "custoPdv"
+  `;
+
+  return {
+    operacionais: Number(linhas[0]?.operacionais ?? 0),
+    custoPecas: Number(linhas[0]?.custoPecas ?? 0),
+    custoPdv: Number(linhas[0]?.custoPdv ?? 0),
+  };
+}
+
+async function obterFluxoCaixaPeriodo(
+  prismaClient: PrismaDashboardClient,
+  inicio: Date,
+  fim: Date
+): Promise<{ entrou: number; saiu: number }> {
+  const linhas = await prismaClient.$queryRaw<LinhaFluxoPeriodo[]>`
+    SELECT
+      (
+        SELECT COALESCE(SUM(cr."valor"), 0)::double precision
+        FROM "ContaReceber" cr
+        WHERE cr."status"::text = 'RECEBIDO'
+          AND cr."dataRecebimento" >= ${inicio}
+          AND cr."dataRecebimento" <= ${fim}
+      ) AS "entrou",
+      (
+        SELECT COALESCE(SUM(pd."valor"), 0)::double precision
+        FROM "ParcelaDespesa" pd
+        WHERE pd."status"::text = 'PAGO'
+          AND pd."dataPagamento" >= ${inicio}
+          AND pd."dataPagamento" <= ${fim}
+      ) AS "saiu"
+  `;
+
+  return {
+    entrou: Number(linhas[0]?.entrou ?? 0),
+    saiu: Number(linhas[0]?.saiu ?? 0),
+  };
+}
+
+/** Saldo em aberto a receber na data de corte (o que ainda nao tinha sido recebido ate ali). */
+async function obterSaldoAbertoReceber(
+  prismaClient: PrismaDashboardClient,
+  corte: Date
+): Promise<number> {
+  const linhas = await prismaClient.$queryRaw<LinhaTotalSimples[]>`
+    SELECT COALESCE(SUM(cr."valor"), 0)::double precision AS total
+    FROM "ContaReceber" cr
+    WHERE cr."criadoEm" <= ${corte}
+      AND (cr."dataRecebimento" IS NULL OR cr."dataRecebimento" > ${corte})
+  `;
+
+  return Number(linhas[0]?.total ?? 0);
+}
+
+async function obterSaldoAbertoPagar(
+  prismaClient: PrismaDashboardClient,
+  corte: Date
+): Promise<number> {
+  const linhas = await prismaClient.$queryRaw<LinhaTotalSimples[]>`
+    SELECT COALESCE(SUM(pd."valor"), 0)::double precision AS total
+    FROM "ParcelaDespesa" pd
+    WHERE pd."criadoEm" <= ${corte}
+      AND (pd."dataPagamento" IS NULL OR pd."dataPagamento" > ${corte})
+  `;
+
+  return Number(linhas[0]?.total ?? 0);
+}
+
+async function obterFluxoCaixaPorMes(
+  prismaClient: PrismaDashboardClient,
+  inicio: Date,
+  fim: Date
+): Promise<Map<string, { entrou: number; saiu: number }>> {
+  const linhas = await prismaClient.$queryRaw<LinhaFluxoMes[]>`
+    SELECT base.mes AS mes,
+           COALESCE(SUM(base.entrou), 0)::double precision AS entrou,
+           COALESCE(SUM(base.saiu), 0)::double precision AS saiu
+    FROM (
+      SELECT DATE_TRUNC('month', cr."dataRecebimento") AS mes,
+             cr."valor"::double precision AS entrou,
+             0::double precision AS saiu
+      FROM "ContaReceber" cr
+      WHERE cr."status"::text = 'RECEBIDO'
+        AND cr."dataRecebimento" >= ${inicio}
+        AND cr."dataRecebimento" <= ${fim}
+
+      UNION ALL
+
+      SELECT DATE_TRUNC('month', pd."dataPagamento") AS mes,
+             0::double precision AS entrou,
+             pd."valor"::double precision AS saiu
+      FROM "ParcelaDespesa" pd
+      WHERE pd."status"::text = 'PAGO'
+        AND pd."dataPagamento" >= ${inicio}
+        AND pd."dataPagamento" <= ${fim}
+    ) base
+    GROUP BY base.mes
+  `;
+
+  const mapa = new Map<string, { entrou: number; saiu: number }>();
+
+  for (const linha of linhas) {
+    mapa.set(chaveMes(new Date(linha.mes)), {
+      entrou: Number(linha.entrou ?? 0),
+      saiu: Number(linha.saiu ?? 0),
+    });
+  }
+
+  return mapa;
+}
+
+async function obterDespesasPorTipoPeriodo(
+  prismaClient: PrismaDashboardClient,
+  inicio: Date,
+  fim: Date
+): Promise<Array<{ tipo: string; rotulo: string; valor: number }>> {
+  const linhas = await prismaClient.$queryRaw<LinhaDespesaTipo[]>`
+    SELECT d."tipo"::text AS tipo,
+           COALESCE(SUM(pd."valor"), 0)::double precision AS total
+    FROM "ParcelaDespesa" pd
+    INNER JOIN "Despesa" d ON d.id = pd."despesaId"
+    LEFT JOIN "Cliente" c ON c.id = d."clienteId"
+    WHERE (
+        (pd."status"::text = 'PAGO' AND pd."dataPagamento" >= ${inicio} AND pd."dataPagamento" <= ${fim})
+        OR (pd."status"::text = 'PENDENTE' AND pd."dataVencimento" >= ${inicio} AND pd."dataVencimento" <= ${fim})
+      )
+      AND (c.id IS NULL OR c."papel"::text = 'FORNECEDOR')
+    GROUP BY d."tipo"
+    ORDER BY 2 DESC
+  `;
+
+  return linhas.map((linha) => {
+    const tipo = String(linha.tipo ?? "OUTRA");
+
+    return {
+      tipo,
+      rotulo: ROTULO_TIPO_DESPESA[tipo] ?? tipo,
+      valor: Number(linha.total ?? 0),
+    };
+  });
+}
+
 function mapearStatusMovimentacao(status: string): string {
   const statusUpper = status.toUpperCase();
 
   if (["PAGO", "RECEBIDO", "ENTREGUE", "PRONTO", "CONCLUIDA", "CONCLUIDO"].includes(statusUpper)) {
-    return "Concluido";
+    return "Concluído";
   }
 
   if (["ATENCAO", "ATRASADA", "ATRASADO", "PENDENTE"].includes(statusUpper)) {
@@ -501,15 +1011,23 @@ function calcularProgressoMeta(parametros: {
   return Math.max(0, Math.min(100, Math.round((parametros.valorAtual / parametros.valorAlvo) * 100)));
 }
 
-export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
+export async function obterDashboardExecutivo(
+  periodo: PeriodoDashboard = "hoje"
+): Promise<DashboardExecutivo> {
   const contexto = await exigirContextoTenant();
   const prisma = contexto.prisma;
-  const usuarioOperacionalId = String(contexto.usuarioOperacional.id ?? "").trim() || null;
   await validarConectividadeBanco(prisma);
 
   const agora = new Date();
   const inicioHoje = inicioDoDia(agora);
   const fimHoje = fimDoDia(agora);
+  const intervaloPeriodo = resolverIntervaloPeriodo(periodo, agora);
+  const limiteParado = new Date(inicioHoje.getTime() - DIAS_LIMITE_PARADO * 24 * 60 * 60 * 1000);
+  const limiteRetirada = new Date(inicioHoje.getTime() - DIAS_LIMITE_RETIRADA * 24 * 60 * 60 * 1000);
+  const inicioJanelaRetorno = inicioDoDia(
+    new Date(agora.getTime() - JANELA_TAXA_RETORNO_DIAS * 24 * 60 * 60 * 1000)
+  );
+  const inicio30Dias = inicioDoDia(new Date(agora.getTime() - 30 * 24 * 60 * 60 * 1000));
   const inicioMesAtual = inicioDoMes(agora);
   const fimMesAtual = fimDoMes(agora);
 
@@ -517,6 +1035,7 @@ export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
   const inicioMesAnterior = inicioDoMes(dataMesAnterior);
 
   const inicioJanela6Meses = adicionarMeses(inicioMesAtual, -5);
+  const inicioJanela12Meses = adicionarMeses(inicioMesAtual, -11);
 
   const [
     receitaMensalPadrao,
@@ -562,22 +1081,22 @@ export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
   ] = await Promise.all([
     executarComFallback(
       "cards.grafico.receitaMensalPadrao",
-      () => obterReceitaMensalPadrao(inicioJanela6Meses, fimMesAtual, prisma),
+      () => obterReceitaMensalPadrao(inicioJanela12Meses, fimMesAtual, prisma),
       []
     ),
     executarComFallback(
       "cards.grafico.custosPdvMesMap",
-      () => obterCustosPdvPorMes(prisma, inicioJanela6Meses, fimMesAtual),
+      () => obterCustosPdvPorMes(prisma, inicioJanela12Meses, fimMesAtual),
       new Map<string, number>()
     ),
     executarComFallback(
       "cards.grafico.custosOSMesMap",
-      () => obterCustosOSPorMes(prisma, inicioJanela6Meses, fimMesAtual),
+      () => obterCustosOSPorMes(prisma, inicioJanela12Meses, fimMesAtual),
       new Map<string, number>()
     ),
     executarComFallback(
       "cards.grafico.despesasFinanceirasMesMap",
-      () => obterDespesasFinanceirasPorMes(prisma, inicioJanela6Meses, fimMesAtual),
+      () => obterDespesasFinanceirasPorMes(prisma, inicioJanela12Meses, fimMesAtual),
       new Map<string, number>()
     ),
     prisma.contaReceber.aggregate({
@@ -704,7 +1223,7 @@ export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
       "atencao.metasAtrasadas",
       () =>
         prisma.meta.count({
-          where: { criadoPorId: usuarioOperacionalId, excluidaEm: null, status: "ATRASADA" },
+          where: { excluidaEm: null, status: "ATRASADA" },
         }),
       0
     ),
@@ -712,7 +1231,7 @@ export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
       "atencao.metasEmAtencao",
       () =>
         prisma.meta.count({
-          where: { criadoPorId: usuarioOperacionalId, excluidaEm: null, status: "ATENCAO" },
+          where: { excluidaEm: null, status: "ATENCAO" },
         }),
       0
     ),
@@ -738,7 +1257,6 @@ export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
     ),
     executarComFallback("metas.principais", () => prisma.meta.findMany({
       where: {
-        criadoPorId: usuarioOperacionalId,
         excluidaEm: null,
         status: { in: ["EM_ANDAMENTO", "ATENCAO", "ATRASADA"] },
       },
@@ -758,17 +1276,17 @@ export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
     }), []),
     executarComFallback(
       "metas.totalEmAndamento",
-      () => prisma.meta.count({ where: { criadoPorId: usuarioOperacionalId, excluidaEm: null, status: "EM_ANDAMENTO" } }),
+      () => prisma.meta.count({ where: { excluidaEm: null, status: "EM_ANDAMENTO" } }),
       0
     ),
     executarComFallback(
       "metas.totalEmAtencao",
-      () => prisma.meta.count({ where: { criadoPorId: usuarioOperacionalId, excluidaEm: null, status: "ATENCAO" } }),
+      () => prisma.meta.count({ where: { excluidaEm: null, status: "ATENCAO" } }),
       0
     ),
     executarComFallback(
       "metas.totalAtrasadas",
-      () => prisma.meta.count({ where: { criadoPorId: usuarioOperacionalId, excluidaEm: null, status: "ATRASADA" } }),
+      () => prisma.meta.count({ where: { excluidaEm: null, status: "ATRASADA" } }),
       0
     ),
     executarComFallback("garantias.ativas", () => prisma.termoGarantiaOS.count({
@@ -859,7 +1377,6 @@ export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
       orderBy: { criadoEm: "desc" },
       where: {
         meta: {
-          criadoPorId: usuarioOperacionalId,
           excluidaEm: null,
         },
       },
@@ -878,6 +1395,239 @@ export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
     }), []),
   ]);
 
+  const [
+    entrouPeriodo,
+    saiuPeriodo,
+    filaPorStatus,
+    osParadasLista,
+    osParadasTotal,
+    prontasRetirada,
+    valorEmAberto,
+    tempoMedioReparoDias,
+    ticketMedioPeriodo,
+    entreguesJanelaRetorno,
+    retornosJanelaRetorno,
+  ] = await Promise.all([
+    executarComFallback(
+      "caixa.entrouPeriodo",
+      () =>
+        prisma.contaReceber.aggregate({
+          where: {
+            status: "RECEBIDO",
+            dataRecebimento: { gte: intervaloPeriodo.inicio, lte: intervaloPeriodo.fim },
+          },
+          _sum: { valor: true },
+        }),
+      { _sum: { valor: null } }
+    ),
+    executarComFallback(
+      "caixa.saiuPeriodo",
+      () =>
+        prisma.parcelaDespesa.aggregate({
+          where: {
+            status: "PAGO",
+            dataPagamento: { gte: intervaloPeriodo.inicio, lte: intervaloPeriodo.fim },
+          },
+          _sum: { valor: true },
+        }),
+      { _sum: { valor: null } }
+    ),
+    executarComFallback(
+      "operacao.filaPorStatus",
+      () =>
+        prisma.ordemServico.groupBy({
+          by: ["status"],
+          where: {
+            excluidaEm: null,
+            archivedAt: null,
+            status: { not: "ENTREGUE" },
+          },
+          _count: { _all: true },
+        }),
+      []
+    ),
+    executarComFallback(
+      "operacao.osParadasLista",
+      () =>
+        prisma.ordemServico.findMany({
+          where: {
+            excluidaEm: null,
+            archivedAt: null,
+            status: { not: "ENTREGUE" },
+            atualizadoEm: { lt: limiteParado },
+          },
+          select: {
+            id: true,
+            numeroOs: true,
+            equipamento: true,
+            status: true,
+            atualizadoEm: true,
+            cliente: { select: { nomeRazaoSocial: true } },
+          },
+          orderBy: { atualizadoEm: "asc" },
+          take: 8,
+        }),
+      []
+    ),
+    executarComFallback(
+      "operacao.osParadasTotal",
+      () =>
+        prisma.ordemServico.count({
+          where: {
+            excluidaEm: null,
+            archivedAt: null,
+            status: { not: "ENTREGUE" },
+            atualizadoEm: { lt: limiteParado },
+          },
+        }),
+      0
+    ),
+    executarComFallback(
+      "operacao.prontasAguardandoRetirada",
+      () => obterProntasAguardandoRetirada(prisma, limiteRetirada),
+      { quantidade: 0, valor: 0, acimaLimite: 0 }
+    ),
+    executarComFallback("operacao.valorEmAberto", () => obterValorEmAbertoOS(prisma), 0),
+    executarComFallback(
+      "operacao.tempoMedioReparoDias",
+      () => obterTempoMedioReparoDias(prisma, inicio30Dias),
+      null
+    ),
+    executarComFallback(
+      "operacao.ticketMedioOS",
+      () => obterTicketMedioEntreguesPeriodo(prisma, intervaloPeriodo.inicio, intervaloPeriodo.fim),
+      null
+    ),
+    executarComFallback(
+      "garantias.entreguesJanela",
+      () =>
+        prisma.ordemServico.count({
+          where: {
+            excluidaEm: null,
+            status: "ENTREGUE",
+            atualizadoEm: { gte: inicioJanelaRetorno },
+          },
+        }),
+      0
+    ),
+    executarComFallback(
+      "garantias.retornosJanela",
+      () => prisma.retornoGarantiaOS.count({ where: { criadoEm: { gte: inicioJanelaRetorno } } }),
+      0
+    ),
+  ]);
+
+  const duracaoPeriodo = intervaloPeriodo.fim.getTime() - intervaloPeriodo.inicio.getTime();
+  const intervaloAnterior = {
+    inicio: new Date(intervaloPeriodo.inicio.getTime() - duracaoPeriodo - 1),
+    fim: new Date(intervaloPeriodo.inicio.getTime() - 1),
+  };
+
+  const [
+    receitaPeriodo,
+    receitaPeriodoAnterior,
+    despesasPeriodo,
+    despesasPeriodoAnterior,
+    fluxoPeriodo,
+    fluxoPeriodoAnterior,
+    receberEmAberto,
+    receberEmAbertoAnterior,
+    pagarEmAberto,
+    pagarEmAbertoAnterior,
+    ticketMedioAnterior,
+    fluxoPorMes,
+    despesasPorTipo,
+    metasAtivas,
+  ] = await Promise.all([
+    executarComFallback(
+      "painel.receitaPeriodo",
+      () => obterReceitaTotalPadrao(intervaloPeriodo.inicio, intervaloPeriodo.fim, prisma),
+      0
+    ),
+    executarComFallback(
+      "painel.receitaPeriodoAnterior",
+      () => obterReceitaTotalPadrao(intervaloAnterior.inicio, intervaloAnterior.fim, prisma),
+      0
+    ),
+    executarComFallback(
+      "painel.despesasPeriodo",
+      () => obterDespesasPeriodo(prisma, intervaloPeriodo.inicio, intervaloPeriodo.fim),
+      { operacionais: 0, custoPecas: 0, custoPdv: 0 }
+    ),
+    executarComFallback(
+      "painel.despesasPeriodoAnterior",
+      () => obterDespesasPeriodo(prisma, intervaloAnterior.inicio, intervaloAnterior.fim),
+      { operacionais: 0, custoPecas: 0, custoPdv: 0 }
+    ),
+    executarComFallback(
+      "painel.fluxoPeriodo",
+      () => obterFluxoCaixaPeriodo(prisma, intervaloPeriodo.inicio, intervaloPeriodo.fim),
+      { entrou: 0, saiu: 0 }
+    ),
+    executarComFallback(
+      "painel.fluxoPeriodoAnterior",
+      () => obterFluxoCaixaPeriodo(prisma, intervaloAnterior.inicio, intervaloAnterior.fim),
+      { entrou: 0, saiu: 0 }
+    ),
+    executarComFallback(
+      "painel.receberEmAberto",
+      () => obterSaldoAbertoReceber(prisma, intervaloPeriodo.fim),
+      0
+    ),
+    executarComFallback(
+      "painel.receberEmAbertoAnterior",
+      () => obterSaldoAbertoReceber(prisma, intervaloAnterior.fim),
+      0
+    ),
+    executarComFallback(
+      "painel.pagarEmAberto",
+      () => obterSaldoAbertoPagar(prisma, intervaloPeriodo.fim),
+      0
+    ),
+    executarComFallback(
+      "painel.pagarEmAbertoAnterior",
+      () => obterSaldoAbertoPagar(prisma, intervaloAnterior.fim),
+      0
+    ),
+    executarComFallback(
+      "painel.ticketMedioAnterior",
+      () => obterTicketMedioEntreguesPeriodo(prisma, intervaloAnterior.inicio, intervaloAnterior.fim),
+      null
+    ),
+    executarComFallback(
+      "painel.fluxoPorMes",
+      () => obterFluxoCaixaPorMes(prisma, inicioJanela12Meses, fimMesAtual),
+      new Map<string, { entrou: number; saiu: number }>()
+    ),
+    executarComFallback(
+      "painel.despesasPorTipo",
+      () => obterDespesasPorTipoPeriodo(prisma, intervaloPeriodo.inicio, intervaloPeriodo.fim),
+      []
+    ),
+    executarComFallback(
+      "painel.metasAtivas",
+      () =>
+        prisma.meta.findMany({
+          where: {
+            excluidaEm: null,
+            status: { in: ["EM_ANDAMENTO", "ATENCAO", "ATRASADA"] },
+            valorAlvo: { not: null },
+          },
+          select: {
+            id: true,
+            titulo: true,
+            categoria: true,
+            tipoValor: true,
+            direcao: true,
+            metricaAutomatica: true,
+            valorAlvo: true,
+          },
+          orderBy: { prioridade: "desc" },
+        }),
+      []
+    ),
+  ]);
+
   const receitaPorMes = new Map<string, number>();
   for (const linha of receitaMensalPadrao) {
     receitaPorMes.set(chaveMes(new Date(linha.mes)), Number(linha.valor ?? 0));
@@ -885,6 +1635,133 @@ export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
   const despesasPorMes = somarMapasMes(despesasFinanceirasMesMap, custosPdvMesMap, custosOSMesMap);
 
   const graficoResultado6Meses = mapearSerieMes(inicioJanela6Meses, receitaPorMes, despesasPorMes);
+
+  // Série de até 12 meses. Meses iniciais sem nenhum dado são descartados em vez de virar zero.
+  const serieMensalCompleta = Array.from({ length: 12 }).map((_, indice) => {
+    const dataMes = adicionarMeses(inicioJanela12Meses, indice);
+    const chave = chaveMes(dataMes);
+    const receita = receitaPorMes.get(chave) ?? 0;
+    const despesas = despesasPorMes.get(chave) ?? 0;
+
+    return { chave, mes: formatarMesPtBr(dataMes), receita, despesas, lucro: receita - despesas };
+  });
+
+  const primeiroMesComDado = serieMensalCompleta.findIndex(
+    (linha) => linha.receita !== 0 || linha.despesas !== 0
+  );
+  const serieMensal = (primeiroMesComDado < 0 ? serieMensalCompleta : serieMensalCompleta.slice(primeiroMesComDado)).map(
+    ({ mes, receita, despesas, lucro }) => ({ mes, receita, despesas, lucro })
+  );
+
+  let saldoCorrente = 0;
+  const saldoAcumuladoPorMes = (primeiroMesComDado < 0
+    ? serieMensalCompleta
+    : serieMensalCompleta.slice(primeiroMesComDado)
+  ).map((linha) => {
+    const fluxo = fluxoPorMes.get(linha.chave) ?? { entrou: 0, saiu: 0 };
+    saldoCorrente += fluxo.entrou - fluxo.saiu;
+
+    return { mes: linha.mes, saldo: saldoCorrente };
+  });
+
+  const despesasTotaisPeriodo =
+    despesasPeriodo.operacionais + despesasPeriodo.custoPecas + despesasPeriodo.custoPdv;
+  const despesasTotaisAnterior =
+    despesasPeriodoAnterior.operacionais +
+    despesasPeriodoAnterior.custoPecas +
+    despesasPeriodoAnterior.custoPdv;
+
+  const lucroLiquidoPeriodo = receitaPeriodo - despesasTotaisPeriodo;
+  const lucroLiquidoAnterior = receitaPeriodoAnterior - despesasTotaisAnterior;
+
+  const custoPecasTotal = despesasPeriodo.custoPecas + despesasPeriodo.custoPdv;
+  const lucroBruto = receitaPeriodo - custoPecasTotal;
+
+  const margemLiquidaPercentual =
+    receitaPeriodo > 0 ? (lucroLiquidoPeriodo / receitaPeriodo) * 100 : null;
+
+  const metasDisponiveis = metasAtivas.filter((meta) => typeof meta.valorAlvo === "number");
+
+  const metaMargem = metasDisponiveis.find(
+    (meta) => meta.tipoValor === "PERCENTUAL" && meta.categoria === "FINANCEIRA"
+  );
+
+  const metaReceita = metasDisponiveis.find(
+    (meta) =>
+      meta.tipoValor === "DINHEIRO" &&
+      (meta.metricaAutomatica === "RECEBIMENTOS_FINANCEIRO" ||
+        meta.metricaAutomatica === "FATURAMENTO_OS" ||
+        meta.metricaAutomatica === "FATURAMENTO_PDV" ||
+        (meta.categoria === "FINANCEIRA" && meta.direcao === "MAIOR_MELHOR"))
+  );
+
+  const metaDespesa = metasDisponiveis.find(
+    (meta) =>
+      meta.id !== metaReceita?.id &&
+      meta.tipoValor === "DINHEIRO" &&
+      (meta.metricaAutomatica === "DESPESAS_FINANCEIRO" ||
+        (meta.categoria === "FINANCEIRA" && meta.direcao === "MENOR_MELHOR"))
+  );
+
+  // Não existe métrica de "custo de peças" em MetricaAutomaticaMeta; o vínculo possível
+  // sem tocar no schema é uma meta de ESTOQUE em dinheiro. Sem ela, o medidor fica vazio.
+  const metaCustoPecas = metasDisponiveis.find(
+    (meta) =>
+      meta.id !== metaReceita?.id &&
+      meta.id !== metaDespesa?.id &&
+      meta.tipoValor === "DINHEIRO" &&
+      meta.categoria === "ESTOQUE"
+  );
+
+  const montarMedidor = (
+    meta: { titulo: string; valorAlvo: number | null } | undefined,
+    atual: number
+  ): MedidorMeta | null => {
+    if (!meta || typeof meta.valorAlvo !== "number" || meta.valorAlvo <= 0) {
+      return null;
+    }
+
+    return {
+      titulo: meta.titulo,
+      atual,
+      alvo: meta.valorAlvo,
+      percentual: (atual / meta.valorAlvo) * 100,
+    };
+  };
+
+  const painel: PainelFinanceiro = {
+    kpis: {
+      faturamento: montarComparativo(receitaPeriodo, receitaPeriodoAnterior, "cima"),
+      despesas: montarComparativo(despesasTotaisPeriodo, despesasTotaisAnterior, "baixo"),
+      lucroLiquido: montarComparativo(lucroLiquidoPeriodo, lucroLiquidoAnterior, "cima"),
+      saldoPeriodo: montarComparativo(
+        fluxoPeriodo.entrou - fluxoPeriodo.saiu,
+        fluxoPeriodoAnterior.entrou - fluxoPeriodoAnterior.saiu,
+        "cima"
+      ),
+      aReceber: montarComparativo(receberEmAberto, receberEmAbertoAnterior, "cima"),
+      aPagar: montarComparativo(pagarEmAberto, pagarEmAbertoAnterior, "baixo"),
+      // Sem histórico de status da OS, não existe base anterior honesta para este saldo.
+      valorEmAbertoOS: montarComparativo(valorEmAberto, null, "cima"),
+      ticketMedio: montarComparativo(ticketMedioPeriodo, ticketMedioAnterior, "cima"),
+    },
+    margemLiquidaPercentual,
+    margemLiquidaAlvo: typeof metaMargem?.valorAlvo === "number" ? metaMargem.valorAlvo : null,
+    orcamentoReceita: montarMedidor(metaReceita, receitaPeriodo),
+    orcamentoDespesa: montarMedidor(metaDespesa, despesasTotaisPeriodo),
+    orcamentoCustoPecas: montarMedidor(metaCustoPecas, custoPecasTotal),
+    serieMensal,
+    saldoAcumuladoPorMes,
+    dre: {
+      receitaBruta: receitaPeriodo,
+      custoPecas: despesasPeriodo.custoPecas,
+      custoMercadorias: despesasPeriodo.custoPdv,
+      lucroBruto,
+      despesasOperacionais: despesasPeriodo.operacionais,
+      despesasPorTipo,
+      lucroLiquido: lucroLiquidoPeriodo,
+    },
+  };
   const mesAtualKey = chaveMes(inicioMesAtual);
   const mesAnteriorKey = chaveMes(inicioMesAnterior);
 
@@ -920,8 +1797,8 @@ export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
   if (osSemAtualizacao > 0) {
     atencaoHoje.push({
       tipo: "OPERACAO_OS",
-      titulo: "OS sem atualizacao recente",
-      descricao: `${osSemAtualizacao} ordem(ns) aberta(s) sem atualizacao ha mais de 7 dias.`,
+      titulo: "OS sem atualização recente",
+      descricao: `${osSemAtualizacao} ordem(ns) aberta(s) sem atualização há mais de 7 dias.`,
       href: "/os",
       criticidade: "ATENCAO",
     });
@@ -941,7 +1818,7 @@ export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
     atencaoHoje.push({
       tipo: "GARANTIAS",
       titulo: "Retornos de garantia em andamento",
-      descricao: `${retornosEmAndamento} retorno(s) aguardando finalizacao.`,
+      descricao: `${retornosEmAndamento} retorno(s) aguardando finalização.`,
       href: "/os/garantias",
       criticidade: "INFO",
     });
@@ -951,7 +1828,7 @@ export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
     atencaoHoje.push({
       tipo: "METAS",
       titulo: "Metas em risco",
-      descricao: `${metasAtrasadas} atrasada(s) e ${metasEmAtencao} em atencao.`,
+      descricao: `${metasAtrasadas} atrasada(s) e ${metasEmAtencao} em atenção.`,
       href: "/metas",
       criticidade: metasAtrasadas > 0 ? "CRITICO" : "ATENCAO",
     });
@@ -963,28 +1840,150 @@ export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
     atencaoHoje.push({
       tipo: "ESTOQUE",
       titulo: "Estoque baixo",
-      descricao: `${estoqueBaixo} produto(s) no limite minimo.`,
+      descricao: `${estoqueBaixo} produto(s) no limite mínimo.`,
       href: "/estoque",
       criticidade: "ATENCAO",
     });
   }
 
+  const receberAtrasadoQuantidade = Number(contasReceberAtrasadas._count.id ?? 0);
+  const receberAtrasadoValor = Number(contasReceberAtrasadas._sum.valor ?? 0);
+  const pagarAtrasadoQuantidade = Number(contasPagarAtrasadas._count.id ?? 0);
+  const pagarAtrasadoValor = Number(contasPagarAtrasadas._sum.valor ?? 0);
+
+  const caixa: BlocoCaixa = {
+    entrou: Number(entrouPeriodo._sum.valor ?? 0),
+    saiu: Number(saiuPeriodo._sum.valor ?? 0),
+    receberAtrasado: receberAtrasadoValor,
+    pagarAtrasado: pagarAtrasadoValor,
+  };
+
+  const acoes: AcaoDashboard[] = [];
+
+  if (pagarAtrasadoQuantidade > 0) {
+    acoes.push({
+      chave: "pagar-vencidas",
+      texto:
+        pagarAtrasadoQuantidade === 1
+          ? "1 parcela vencida"
+          : `${pagarAtrasadoQuantidade} parcelas vencidas`,
+      valor: pagarAtrasadoValor,
+      href: "/financeiro/pagar",
+      severidade: "CRITICO",
+    });
+  }
+
+  if (receberAtrasadoQuantidade > 0) {
+    acoes.push({
+      chave: "receber-atrasados",
+      texto:
+        receberAtrasadoQuantidade === 1
+          ? "1 recebimento em atraso"
+          : `${receberAtrasadoQuantidade} recebimentos em atraso`,
+      valor: receberAtrasadoValor,
+      href: "/financeiro/receber",
+      severidade: "ATENCAO",
+    });
+  }
+
+  if (osParadasTotal > 0) {
+    acoes.push({
+      chave: "os-paradas",
+      texto: `${osParadasTotal} OS sem atualização há mais de ${DIAS_LIMITE_PARADO} dias`,
+      valor: null,
+      href: "/os",
+      severidade: "ATENCAO",
+    });
+  }
+
+  if (prontasRetirada.acimaLimite > 0) {
+    acoes.push({
+      chave: "prontas-retirada",
+      texto:
+        prontasRetirada.acimaLimite === 1
+          ? `1 aparelho pronto aguardando retirada há mais de ${DIAS_LIMITE_RETIRADA} dias`
+          : `${prontasRetirada.acimaLimite} aparelhos prontos aguardando retirada há mais de ${DIAS_LIMITE_RETIRADA} dias`,
+      valor: null,
+      href: "/os",
+      severidade: "ATENCAO",
+    });
+  }
+
+  const pesoSeveridade: Record<AcaoDashboard["severidade"], number> = {
+    CRITICO: 0,
+    ATENCAO: 1,
+  };
+
+  acoes.sort((a, b) => {
+    const diferencaSeveridade = pesoSeveridade[a.severidade] - pesoSeveridade[b.severidade];
+    if (diferencaSeveridade !== 0) return diferencaSeveridade;
+    return (b.valor ?? 0) - (a.valor ?? 0);
+  });
+
+  const contagemFila = new Map<string, number>();
+  for (const linha of filaPorStatus) {
+    contagemFila.set(String(linha.status), Number(linha._count._all ?? 0));
+  }
+
+  const operacao: OperacaoDashboard = {
+    fila: SEQUENCIA_FILA_OS.map((status) => ({
+      status,
+      label: rotularStatusOS(status),
+      quantidade: contagemFila.get(status) ?? 0,
+      href: `/os?modo=kanban&status=${status}`,
+    })),
+    parados: {
+      diasLimite: DIAS_LIMITE_PARADO,
+      quantidade: osParadasTotal,
+      lista: osParadasLista.map((os) => ({
+        id: os.id,
+        numeroOs: os.numeroOs,
+        cliente: os.cliente?.nomeRazaoSocial ?? "Cliente não informado",
+        aparelho: os.equipamento,
+        status: rotularStatusOS(String(os.status)),
+        diasParado: diferencaEmDias(os.atualizadoEm, agora),
+      })),
+    },
+    prontasAguardandoRetirada: {
+      quantidade: prontasRetirada.quantidade,
+      valor: prontasRetirada.valor,
+      diasLimite: DIAS_LIMITE_RETIRADA,
+      quantidadeAcimaLimite: prontasRetirada.acimaLimite,
+    },
+    valorEmAberto,
+    tempoMedioReparoDias,
+    ticketMedioOS: ticketMedioPeriodo,
+    garantia: {
+      ativas: garantiasAtivas,
+      vencem7Dias: garantiasVencem7Dias,
+      janelaDias: JANELA_TAXA_RETORNO_DIAS,
+      entreguesJanela: entreguesJanelaRetorno,
+      retornosJanela: retornosJanelaRetorno,
+      taxaRetorno:
+        entreguesJanelaRetorno > 0
+          ? (retornosJanelaRetorno / entreguesJanelaRetorno) * 100
+          : null,
+    },
+  };
+
   const movimentacoes: MovimentacaoInterna[] = [
     ...vendasRecentes.map((venda) => ({
       id: `VENDA-${venda.id}`,
       tipo: "Venda",
-      titulo: "Venda PDV concluida",
-      subtitulo: venda.cliente?.nomeRazaoSocial ?? "Cliente nao informado",
+      titulo: venda.cliente?.nomeRazaoSocial ?? "Venda no PDV",
+      subtitulo: venda.cliente ? "Venda no PDV" : undefined,
       valor: Number(venda.valorTotal ?? 0),
       data: venda.criadoEm,
-      status: "Concluido",
+      status: "Concluído",
       href: "/pdv",
     })),
     ...recebimentosRecentes.map((conta) => ({
       id: `RECEBER-${conta.id}`,
       tipo: "Financeiro",
-      titulo: conta.descricao || "Recebimento registrado",
-      subtitulo: conta.cliente?.nomeRazaoSocial ?? undefined,
+      titulo:
+        conta.cliente?.nomeRazaoSocial ??
+        (limparIdentificadores(conta.descricao) || "Recebimento registrado"),
+      subtitulo: conta.cliente ? limparIdentificadores(conta.descricao) || undefined : undefined,
       valor: Number(conta.valor ?? 0),
       data: conta.dataRecebimento ?? inicioHoje,
       status: "Recebido",
@@ -993,8 +1992,8 @@ export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
     ...pagamentosRecentes.map((parcela) => ({
       id: `PAGAR-${parcela.id}`,
       tipo: "Financeiro",
-      titulo: parcela.despesa.descricao || "Pagamento de despesa",
-      subtitulo: parcela.despesa.fornecedor,
+      titulo: limparIdentificadores(parcela.despesa.descricao) || "Pagamento de despesa",
+      subtitulo: parcela.despesa.fornecedor ?? undefined,
       valor: Number(parcela.valor ?? 0) * -1,
       data: parcela.dataPagamento ?? inicioHoje,
       status: "Pago",
@@ -1003,8 +2002,8 @@ export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
     ...osRecentes.map((os) => ({
       id: `OS-${os.id}`,
       tipo: "OS",
-      titulo: `OS #${os.numeroOs} - ${os.equipamento}`,
-      subtitulo: os.ehRetornoGarantia ? "Retorno de garantia" : "Operacao regular",
+      titulo: `OS #${os.numeroOs} — ${os.equipamento}`,
+      subtitulo: os.ehRetornoGarantia ? "Retorno de garantia" : undefined,
       data: os.atualizadoEm,
       status: mapearStatusMovimentacao(String(os.status)),
       href: "/os",
@@ -1012,17 +2011,19 @@ export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
     ...retornosRecentes.map((retorno) => ({
       id: `RETORNO-${retorno.id}`,
       tipo: "Garantia",
-      titulo: `Retorno ${retorno.finalizadoEm ? "finalizado" : "registrado"}`,
-      subtitulo: retorno.motivo,
+      titulo: retorno.osRetorno?.numeroOs
+        ? `Retorno de garantia — OS #${retorno.osRetorno.numeroOs}`
+        : "Retorno de garantia",
+      subtitulo: limparIdentificadores(retorno.motivo) || undefined,
       data: retorno.finalizadoEm ?? retorno.criadoEm,
-      status: retorno.finalizadoEm ? "Concluido" : "Em garantia",
+      status: retorno.finalizadoEm ? "Concluído" : "Em garantia",
       href: "/os/garantias",
     })),
     ...historicosMetasRecentes.map((historico) => ({
       id: `META-${historico.id}`,
       tipo: "Meta",
       titulo: historico.meta.titulo,
-      subtitulo: historico.descricao,
+      subtitulo: limparIdentificadores(historico.descricao) || undefined,
       data: historico.criadoEm,
       status: mapearStatusMovimentacao(historico.meta.status),
       href: "/metas",
@@ -1056,12 +2057,12 @@ export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
   const funilOS: DashboardExecutivo["funilOS"] = [
     {
       status: "AGUARDANDO_ORCAMENTO",
-      label: "Aguardando orcamento",
+      label: "Aguardando orçamento",
       quantidade: aguardandoOrcamento,
     },
     {
       status: "AGUARDANDO_APROVACAO",
-      label: "Aguardando aprovacao",
+      label: "Aguardando aprovação",
       quantidade: aguardandoAprovacao,
     },
     {
@@ -1071,7 +2072,7 @@ export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
     },
     {
       status: "EM_EXECUCAO",
-      label: "Em execucao",
+      label: "Em execução",
       quantidade: emExecucao,
     },
     {
@@ -1081,12 +2082,17 @@ export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
     },
     {
       status: "ENTREGUES_MES",
-      label: "Entregues no mes",
+      label: "Entregues no mês",
       quantidade: entreguesNoMes,
     },
   ];
 
   return {
+    periodo,
+    painel,
+    caixa,
+    acoes,
+    operacao,
     cardsPrincipais: {
       faturamentoMes: {
         valor: faturamentoMesAtual,
@@ -1143,9 +2149,11 @@ export async function obterDashboardExecutivo(): Promise<DashboardExecutivo> {
   };
 }
 
-export async function obterDashboardExecutivoSeguro(): Promise<ResultadoDashboardExecutivo> {
+export async function obterDashboardExecutivoSeguro(
+  periodo: PeriodoDashboard = "hoje"
+): Promise<ResultadoDashboardExecutivo> {
   try {
-    const dados = await obterDashboardExecutivo();
+    const dados = await obterDashboardExecutivo(periodo);
     return {
       sucesso: true,
       dados,
@@ -1160,7 +2168,7 @@ export async function obterDashboardExecutivoSeguro(): Promise<ResultadoDashboar
 
       return {
         sucesso: false,
-        erro: "Nao foi possivel carregar os indicadores do dashboard.",
+        erro: "Não foi possível carregar os indicadores do dashboard.",
       };
     }
 

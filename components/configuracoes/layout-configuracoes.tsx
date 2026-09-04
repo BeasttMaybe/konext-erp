@@ -170,6 +170,7 @@ export function LayoutConfiguracoes({ defaultValues }: PropsLayoutConfiguracoes)
         return (
           <PainelDocumentos
             register={register}
+            control={control}
             configuracaoAtual={configuracaoAtual}
             salvando={salvando}
           />
