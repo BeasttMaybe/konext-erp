@@ -12,6 +12,7 @@ import {
   obterDefaultsConfiguracaoOsGarantias,
 } from "@/lib/configuracoes-os-garantias";
 import type { OrdemServico, OrdemServicoExcluida, TipoPecaOrcamento } from "@/types/os";
+import { STATUS_OS_SEQUENCIA } from "@/lib/dominio/os/maquina-estados";
 
 type PrismaTenant = Awaited<ReturnType<typeof exigirContextoTenant>>["prisma"];
 
@@ -209,16 +210,8 @@ type ContaReceberCreateDelegate = {
   create?: (args: unknown) => Promise<unknown>;
 };
 
-const statusValidos: StatusOS[] = [
-  "AGUARDANDO_ORCAMENTO",
-  "AGUARDANDO_APROVACAO",
-  "APROVADO",
-  "AGUARDANDO_PECA",
-  "EM_MANUTENCAO",
-  "GARANTIA_RETORNO",
-  "PRONTO",
-  "ENTREGUE",
-];
+// Lista de status vem do dominio (fonte unica de verdade).
+const statusValidos: readonly StatusOS[] = STATUS_OS_SEQUENCIA;
 
 const MENSAGEM_MOVER_ENTREGUE_SEM_GARANTIA = "Para mover a OS para Entregue, gere o termo de garantia primeiro.";
 const MENSAGEM_MOVER_ENTREGUE_SEM_DIAGNOSTICO = "Informe o diagnóstico técnico antes de finalizar a OS.";

@@ -2,15 +2,10 @@
  * Tipos e Interfaces para Ordem de Serviço (OS)
  */
 
-export type StatusOS =
-  | "AGUARDANDO_ORCAMENTO"
-  | "AGUARDANDO_APROVACAO"
-  | "APROVADO"
-  | "AGUARDANDO_PECA"
-  | "EM_MANUTENCAO"
-  | "GARANTIA_RETORNO"
-  | "PRONTO"
-  | "ENTREGUE";
+// StatusOS vive em lib/dominio/os/maquina-estados.ts (fonte unica de verdade).
+import type { StatusOS } from "@/lib/dominio/os/maquina-estados";
+
+export type { StatusOS };
 
 export type TipoPecaOrcamento =
   | "TELA"

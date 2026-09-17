@@ -12,6 +12,13 @@ import {
 } from "react";
 import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
 import { OrdemServico, StatusOS } from "@/types/os";
+import {
+  CLASSES_STATUS_OS,
+  DESCRICOES_STATUS_OS,
+  ROTULOS_STATUS_OS,
+  STATUS_OS_SEQUENCIA,
+  ehStatusOS,
+} from "@/lib/dominio/os/maquina-estados";
 import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
@@ -59,90 +66,30 @@ type ConfirmacaoEntregaSemItens = {
   statusDestino: StatusOS;
 };
 
-const STATUS_SEQUENCIA = [
-  "AGUARDANDO_ORCAMENTO",
-  "AGUARDANDO_APROVACAO",
-  "APROVADO",
-  "AGUARDANDO_PECA",
-  "EM_MANUTENCAO",
-  "GARANTIA_RETORNO",
-  "PRONTO",
-  "ENTREGUE",
-] as const;
+// Sequencia, rotulos e cores vem do dominio (fonte unica).
+const STATUS_SEQUENCIA = STATUS_OS_SEQUENCIA;
 
-type StatusKanban = (typeof STATUS_SEQUENCIA)[number];
+type StatusKanban = StatusOS;
 
 function isStatusKanban(status: StatusOS): status is StatusKanban {
-  return (STATUS_SEQUENCIA as readonly string[]).includes(status);
+  return ehStatusOS(status);
 }
 
 const configuracaoStatus: Record<
   StatusKanban,
-  {
-    titulo: string;
-    descricao: string;
-    classe: string;
-    borda: string;
-    chip: string;
-  }
-> = {
-  AGUARDANDO_ORCAMENTO: {
-    titulo: "Aguardando Orçamento",
-    descricao: "Entrada inicial e diagnóstico.",
-    classe: "from-sky-50 via-white to-white dark:from-sky-950/40 dark:via-slate-900 dark:to-slate-900",
-    borda: "border-sky-200/80 dark:border-sky-900/60",
-    chip: "bg-sky-100 text-sky-700 dark:bg-sky-950/50 dark:text-sky-300",
-  },
-  AGUARDANDO_APROVACAO: {
-    titulo: "Aguardando Aprovação",
-    descricao: "Proposta enviada ao cliente.",
-    classe: "from-cyan-50 via-white to-white dark:from-cyan-950/40 dark:via-slate-900 dark:to-slate-900",
-    borda: "border-cyan-200/80 dark:border-cyan-900/60",
-    chip: "bg-cyan-100 text-cyan-700 dark:bg-cyan-950/50 dark:text-cyan-300",
-  },
-  APROVADO: {
-    titulo: "Aprovado",
-    descricao: "OS pronta para execução.",
-    classe: "from-amber-50 via-white to-white dark:from-amber-950/40 dark:via-slate-900 dark:to-slate-900",
-    borda: "border-amber-200/80 dark:border-amber-900/60",
-    chip: "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300",
-  },
-  AGUARDANDO_PECA: {
-    titulo: "Aguardando Peça",
-    descricao: "Dependência de fornecedor.",
-    classe: "from-orange-50 via-white to-white dark:from-orange-950/40 dark:via-slate-900 dark:to-slate-900",
-    borda: "border-orange-200/80 dark:border-orange-900/60",
-    chip: "bg-orange-100 text-orange-700 dark:bg-orange-950/50 dark:text-orange-300",
-  },
-  EM_MANUTENCAO: {
-    titulo: "Em Manutenção",
-    descricao: "Trabalho técnico em andamento.",
-    classe: "from-violet-50 via-white to-white dark:from-violet-950/40 dark:via-slate-900 dark:to-slate-900",
-    borda: "border-violet-200/80 dark:border-violet-900/60",
-    chip: "bg-violet-100 text-violet-700 dark:bg-violet-950/50 dark:text-violet-300",
-  },
-  GARANTIA_RETORNO: {
-    titulo: "Garantia / Retorno",
-    descricao: "Atendimento de retorno em garantia.",
-    classe: "from-indigo-50 via-white to-white dark:from-indigo-950/40 dark:via-slate-900 dark:to-slate-900",
-    borda: "border-indigo-200/80 dark:border-indigo-900/60",
-    chip: "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300",
-  },
-  PRONTO: {
-    titulo: "Pronto",
-    descricao: "Aguardando retirada.",
-    classe: "from-emerald-50 via-white to-white dark:from-emerald-950/40 dark:via-slate-900 dark:to-slate-900",
-    borda: "border-emerald-200/80 dark:border-emerald-900/60",
-    chip: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300",
-  },
-  ENTREGUE: {
-    titulo: "Entregue",
-    descricao: "Fluxo concluído com sucesso.",
-    classe: "from-rose-50 via-white to-white dark:from-rose-950/40 dark:via-slate-900 dark:to-slate-900",
-    borda: "border-rose-200/80 dark:border-rose-900/60",
-    chip: "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300",
-  },
-};
+  { titulo: string; descricao: string; classe: string; borda: string; chip: string }
+> = Object.fromEntries(
+  STATUS_OS_SEQUENCIA.map((status) => [
+    status,
+    {
+      titulo: ROTULOS_STATUS_OS[status],
+      descricao: DESCRICOES_STATUS_OS[status],
+      classe: CLASSES_STATUS_OS[status].coluna,
+      borda: CLASSES_STATUS_OS[status].borda,
+      chip: CLASSES_STATUS_OS[status].chip,
+    },
+  ])
+) as Record<StatusKanban, { titulo: string; descricao: string; classe: string; borda: string; chip: string }>;
 
 function classificarOrdens(ordens: OrdemServico[]) {
   const agrupadas = STATUS_SEQUENCIA.reduce<Record<StatusKanban, OrdemServico[]>>((acc, status) => {

@@ -1,26 +1,20 @@
 /**
- * Mapeamentos de Status para Ordem de Serviço
- * Utilizados em: cartao-os.tsx, coluna-kanban.tsx
+ * SHIM DE COMPATIBILIDADE.
+ *
+ * Os mapas de rotulo e cor de status vivem agora em
+ * `lib/dominio/os/maquina-estados.ts`, fonte unica de verdade do ciclo de vida
+ * da OS. Este arquivo so re-exporta para nao quebrar os importadores atuais:
+ *   - components/os/cartao-os.tsx
+ *   - components/os/coluna-kanban.tsx  (componente morto, ver AUDIT_REPORT 17.2)
+ *
+ * O nome "mock-os" tambem e enganoso: nunca houve dado mockado aqui (F-67).
+ * Nao adicione nada novo neste arquivo.
  */
 
-export const mapStatusLabel: Record<string, string> = {
-  AGUARDANDO_ORCAMENTO: "Aguardando Orçamento",
-  AGUARDANDO_APROVACAO: "Aguardando Aprovação",
-  APROVADO: "Aprovado",
-  AGUARDANDO_PECA: "Aguardando Peça",
-  EM_MANUTENCAO: "Em Manutenção",
-  GARANTIA_RETORNO: "Garantia / Retorno",
-  PRONTO: "Pronto",
-  ENTREGUE: "Entregue",
-};
+import { CLASSES_STATUS_OS, ROTULOS_STATUS_OS } from "@/lib/dominio/os/maquina-estados";
 
-export const mapStatusColor: Record<string, string> = {
-  AGUARDANDO_ORCAMENTO: "bg-slate-200 text-slate-800",
-  AGUARDANDO_APROVACAO: "bg-yellow-200 text-yellow-800",
-  APROVADO: "bg-blue-200 text-blue-800",
-  AGUARDANDO_PECA: "bg-orange-200 text-orange-800",
-  EM_MANUTENCAO: "bg-purple-200 text-purple-800",
-  GARANTIA_RETORNO: "bg-indigo-200 text-indigo-800",
-  PRONTO: "bg-green-200 text-green-800",
-  ENTREGUE: "bg-emerald-200 text-emerald-800",
-};
+export const mapStatusLabel: Record<string, string> = ROTULOS_STATUS_OS;
+
+export const mapStatusColor: Record<string, string> = Object.fromEntries(
+  Object.entries(CLASSES_STATUS_OS).map(([status, classes]) => [status, classes.chip])
+);
