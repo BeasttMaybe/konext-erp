@@ -13,6 +13,8 @@
     "db:backup": "node scripts/backup/backup-bancos.mjs",
     "db:diagnostico": "node scripts/diagnostico/diagnosticar-tenants.mjs",
     "db:migrar": "node scripts/migracao/migrar-tenants.mjs",
+    "db:relatorio-os": "node scripts/reparo/relatorio-os-inconsistentes.mjs",
+    "db:reparar-os": "node scripts/reparo/aplicar-reparo-os.mjs",
     "db:migrate:deploy:manual": "node scripts/migrate-deploy-com-retry.mjs",
     "verificar:ambiente": "node scripts/verificar-ambiente.mjs",
     "seed:demo": "node scripts/seed-demo-tenant.mjs",
