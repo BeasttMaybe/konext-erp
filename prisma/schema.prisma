@@ -304,6 +304,7 @@ model OrdemServico {
   @@index([excluidaPorId])
   @@index([ehRetornoGarantia])
   @@index([osOrigemGarantiaId])
+  @@index([retornoGarantiaId])
 }
 
 model TermoGarantiaOS {
