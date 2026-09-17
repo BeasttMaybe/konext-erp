@@ -8,6 +8,7 @@
     "build:local": "prisma generate && npm run prisma:central:generate && next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "vitest run",
     "postinstall": "prisma generate && prisma generate --config prisma.central.config.ts",
     "db:backup": "node scripts/backup/backup-bancos.mjs",
     "db:diagnostico": "node scripts/diagnostico/diagnosticar-tenants.mjs",
@@ -83,6 +84,7 @@
     "eslint-config-next": "16.2.7",
     "prisma": "^7.8.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.7"
   }
 }
