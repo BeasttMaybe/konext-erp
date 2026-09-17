@@ -48,6 +48,7 @@ const PERMISSOES_USUARIO: readonly Permissao[] = [
   "propostas.editar",
   "metas.ver",
   "financeiro.ver",
+  "vendas.criar",
 ];
 
 describe("ehPapelEmpresa / rotularPapel", () => {

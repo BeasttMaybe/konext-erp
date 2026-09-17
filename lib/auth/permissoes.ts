@@ -63,7 +63,8 @@ export const CATALOGO_PERMISSOES = [
   "metas.ver",
   "metas.editar",
   "metas.excluir",
-  // Vendas (aprovacao de pedidos)
+  // Vendas
+  "vendas.criar",
   "vendas.aprovar",
   "vendas.cancelar",
   // Configuracoes e auditoria
@@ -99,6 +100,7 @@ const PERMISSOES_USUARIO: readonly Permissao[] = [
   "propostas.editar",
   "metas.ver",
   "financeiro.ver",
+  "vendas.criar",
 ];
 
 /**

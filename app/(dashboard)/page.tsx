@@ -1,8 +1,12 @@
 import { obterConfiguracoes } from "@/app/actions/configuracoes";
 import {
   obterDashboardExecutivoSeguro,
+  obterPainelOperacionalHomeSeguro,
   type PeriodoDashboard,
 } from "@/app/actions/dashboard";
+import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
+import { temPermissao } from "@/lib/auth/permissoes";
+import { selecionarSecoesDashboardHome } from "@/lib/dominio/dashboard/selecao-secoes-home";
 import { BandaKpis } from "@/components/dashboard/banda-kpis";
 import { BarraContexto } from "@/components/dashboard/barra-contexto";
 import { BlocoGarantia } from "@/components/dashboard/bloco-garantia";
@@ -35,6 +39,54 @@ type PropsPaginaDashboard = {
 export default async function PaginaDashboard({ searchParams }: PropsPaginaDashboard) {
   const query = await searchParams;
   const periodo = normalizarPeriodo(query.periodo);
+
+  // C3: sem dashboard.financeiro, a home nunca busca dado financeiro — nem
+  // renderiza AcessoNegado. Mostra só as secoes operacionais que o papel ja
+  // pode ver em outras telas (OS, garantia, metas).
+  const contexto = await exigirContextoTenant();
+  const secoes = selecionarSecoesDashboardHome({
+    temDashboardFinanceiro: temPermissao(contexto, "dashboard.financeiro"),
+    temMetasVer: temPermissao(contexto, "metas.ver"),
+  });
+
+  if (!secoes.financeiro) {
+    const [resultadoOperacional, configuracoes] = await Promise.all([
+      obterPainelOperacionalHomeSeguro(periodo),
+      obterConfiguracoes(),
+    ]);
+
+    if (!resultadoOperacional.sucesso) {
+      return (
+        <div className="py-4">
+          <div className="rounded-lg border border-border bg-card p-6">
+            <h1 className="text-base font-medium text-foreground">Falha ao carregar o painel</h1>
+            <p className="mt-2 text-sm text-muted-foreground">{resultadoOperacional.erro}</p>
+          </div>
+        </div>
+      );
+    }
+
+    const painel = resultadoOperacional.dados;
+    const mostrarMetas = Boolean(painel.metasResumo && painel.metasResumo.principais.length > 0);
+
+    return (
+      <div className="space-y-2.5 py-3">
+        <BarraContexto empresa={configuracoes.nomeFantasia} periodo={painel.periodo} />
+
+        <div className="grid grid-cols-1 gap-2.5 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,1.35fr)_minmax(0,1fr)]">
+          <FilaOs fila={painel.operacao.fila} />
+          <TabelaParados parados={painel.operacao.parados} limite={5} />
+          <BlocoGarantia garantia={painel.operacao.garantia} />
+        </div>
+
+        {mostrarMetas && painel.metasResumo ? (
+          <div className="grid grid-cols-1 gap-2.5 xl:grid-cols-2">
+            <BlocoMetas resumo={painel.metasResumo} />
+          </div>
+        ) : null}
+      </div>
+    );
+  }
 
   const [resultadoDashboard, configuracoes] = await Promise.all([
     obterDashboardExecutivoSeguro(periodo),

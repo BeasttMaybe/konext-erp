@@ -64,7 +64,8 @@ export async function consultarCnpjReceitaCliente(
 ): Promise<ResultadoConsultaCnpjCliente> {
   // Sem isso, esta action era um proxy externo alcancavel sem sessao
   // (qualquer chamada POST ao endpoint do Server Action, autenticado ou nao).
-  await exigirContextoTenant();
+  const contextoTenant = await exigirContextoTenant();
+  exigirPermissao(contextoTenant, "crm.editar");
 
   const cnpjLimpo = String(cnpj ?? "").replace(/\D/g, "");
 

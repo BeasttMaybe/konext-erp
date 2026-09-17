@@ -95,7 +95,9 @@ export async function createPedidoVenda(
   data: PedidoVendaSchemaType
 ): Promise<CreatePedidoVendaResult> {
   try {
-    const { prisma } = await exigirContextoTenant();
+    const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "vendas.criar");
+    const { prisma } = contexto;
     const validatedData = pedidoVendaActionSchema.parse(data);
     const paymentMethod = mapOrderPaymentMethod(validatedData.formaPagamento);
 

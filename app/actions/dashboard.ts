@@ -1,7 +1,7 @@
 "use server";
 
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
-import { exigirPermissao } from "@/lib/auth/permissoes";
+import { exigirPermissao, temPermissao } from "@/lib/auth/permissoes";
 import { obterReceitaMensalPadrao, obterReceitaTotalPadrao } from "@/lib/dashboard/regras-financeiras";
 import { Prisma } from "@prisma/client";
 
@@ -202,6 +202,22 @@ export type DashboardExecutivo = {
 
 export type ResultadoDashboardExecutivo =
   | { sucesso: true; dados: DashboardExecutivo }
+  | { sucesso: false; erro: string };
+
+/**
+ * Recorte operacional da home para quem nao tem `dashboard.financeiro`
+ * (Fase 1B-FIX, Parte 1.3): fila de OS, paradas, retirada e garantia — o
+ * mesmo shape de `DashboardExecutivo["operacao"]`, sem nenhum dado
+ * financeiro (receita, despesas, DRE, orcamento, movimentacoes) na consulta.
+ */
+export type PainelOperacionalHome = {
+  periodo: PeriodoDashboard;
+  operacao: OperacaoDashboard;
+  metasResumo?: DashboardExecutivo["metasResumo"];
+};
+
+export type ResultadoPainelOperacionalHome =
+  | { sucesso: true; dados: PainelOperacionalHome }
   | { sucesso: false; erro: string };
 
 type LinhaMesValor = {
@@ -2188,6 +2204,278 @@ export async function obterDashboardExecutivoSeguro(
     return {
       sucesso: false,
       erro: "Nao foi possivel carregar os indicadores do dashboard.",
+    };
+  }
+}
+
+/**
+ * Painel operacional da home para quem NAO tem `dashboard.financeiro`
+ * (Fase 1B-FIX, Parte 1.3). Nao exige nenhuma permissao alem de sessao
+ * valida — e a contraparte operacional de `obterDashboardExecutivo`, que
+ * exige `dashboard.financeiro` e busca receita/despesas/DRE/orcamento
+ * junto. Aqui nenhuma dessas consultas financeiras roda: só o necessario
+ * para fila de OS, OS paradas, retirada e garantia. O bloco de metas so e
+ * buscado quando o usuario tem `metas.ver`.
+ */
+export async function obterPainelOperacionalHome(
+  periodo: PeriodoDashboard = "hoje"
+): Promise<PainelOperacionalHome> {
+  const contexto = await exigirContextoTenant();
+  const prisma = contexto.prisma;
+  await validarConectividadeBanco(prisma);
+
+  // Esta funcao so roda quando `selecionarSecoesDashboardHome` ja decidiu que
+  // a secao financeira esta fora (ver app/(dashboard)/page.tsx); aqui resta
+  // decidir so a secao de metas, que e independente da financeira.
+  const podeVerMetas = temPermissao(contexto, "metas.ver");
+
+  const agora = new Date();
+  const inicioHoje = inicioDoDia(agora);
+  const intervaloPeriodo = resolverIntervaloPeriodo(periodo, agora);
+  const limiteParado = new Date(inicioHoje.getTime() - DIAS_LIMITE_PARADO * 24 * 60 * 60 * 1000);
+  const limiteRetirada = new Date(inicioHoje.getTime() - DIAS_LIMITE_RETIRADA * 24 * 60 * 60 * 1000);
+  const inicioJanelaRetorno = inicioDoDia(
+    new Date(agora.getTime() - JANELA_TAXA_RETORNO_DIAS * 24 * 60 * 60 * 1000)
+  );
+  const inicio30Dias = inicioDoDia(new Date(agora.getTime() - 30 * 24 * 60 * 60 * 1000));
+
+  const [
+    filaPorStatus,
+    osParadasLista,
+    osParadasTotal,
+    prontasRetirada,
+    valorEmAberto,
+    tempoMedioReparoDias,
+    ticketMedioPeriodo,
+    entreguesJanelaRetorno,
+    retornosJanelaRetorno,
+    garantiasVencem7Dias,
+    garantiasAtivas,
+  ] = await Promise.all([
+    executarComFallback(
+      "home.operacao.filaPorStatus",
+      () =>
+        prisma.ordemServico.groupBy({
+          by: ["status"],
+          where: { excluidaEm: null, archivedAt: null, status: { not: "ENTREGUE" } },
+          _count: { _all: true },
+        }),
+      []
+    ),
+    executarComFallback(
+      "home.operacao.osParadasLista",
+      () =>
+        prisma.ordemServico.findMany({
+          where: {
+            excluidaEm: null,
+            archivedAt: null,
+            status: { not: "ENTREGUE" },
+            atualizadoEm: { lt: limiteParado },
+          },
+          select: {
+            id: true,
+            numeroOs: true,
+            equipamento: true,
+            status: true,
+            atualizadoEm: true,
+            cliente: { select: { nomeRazaoSocial: true } },
+          },
+          orderBy: { atualizadoEm: "asc" },
+          take: 8,
+        }),
+      []
+    ),
+    executarComFallback(
+      "home.operacao.osParadasTotal",
+      () =>
+        prisma.ordemServico.count({
+          where: {
+            excluidaEm: null,
+            archivedAt: null,
+            status: { not: "ENTREGUE" },
+            atualizadoEm: { lt: limiteParado },
+          },
+        }),
+      0
+    ),
+    executarComFallback(
+      "home.operacao.prontasAguardandoRetirada",
+      () => obterProntasAguardandoRetirada(prisma, limiteRetirada),
+      { quantidade: 0, valor: 0, acimaLimite: 0 }
+    ),
+    executarComFallback("home.operacao.valorEmAberto", () => obterValorEmAbertoOS(prisma), 0),
+    executarComFallback(
+      "home.operacao.tempoMedioReparoDias",
+      () => obterTempoMedioReparoDias(prisma, inicio30Dias),
+      null
+    ),
+    executarComFallback(
+      "home.operacao.ticketMedioOS",
+      () => obterTicketMedioEntreguesPeriodo(prisma, intervaloPeriodo.inicio, intervaloPeriodo.fim),
+      null
+    ),
+    executarComFallback(
+      "home.garantias.entreguesJanela",
+      () =>
+        prisma.ordemServico.count({
+          where: { excluidaEm: null, status: "ENTREGUE", atualizadoEm: { gte: inicioJanelaRetorno } },
+        }),
+      0
+    ),
+    executarComFallback(
+      "home.garantias.retornosJanela",
+      () => prisma.retornoGarantiaOS.count({ where: { criadoEm: { gte: inicioJanelaRetorno } } }),
+      0
+    ),
+    executarComFallback(
+      "home.garantias.vencem7Dias",
+      () =>
+        prisma.termoGarantiaOS.count({
+          where: {
+            canceladaEm: null,
+            os: { excluidaEm: null },
+            dataFimGarantia: {
+              gte: inicioHoje,
+              lte: fimDoDia(new Date(inicioHoje.getTime() + 7 * 24 * 60 * 60 * 1000)),
+            },
+          },
+        }),
+      0
+    ),
+    executarComFallback(
+      "home.garantias.ativas",
+      () =>
+        prisma.termoGarantiaOS.count({
+          where: { canceladaEm: null, os: { excluidaEm: null }, dataFimGarantia: { gte: inicioHoje } },
+        }),
+      0
+    ),
+  ]);
+
+  const contagemFila = new Map<string, number>();
+  for (const linha of filaPorStatus) {
+    contagemFila.set(String(linha.status), Number(linha._count._all ?? 0));
+  }
+
+  const operacao: OperacaoDashboard = {
+    fila: SEQUENCIA_FILA_OS.map((status) => ({
+      status,
+      label: rotularStatusOS(status),
+      quantidade: contagemFila.get(status) ?? 0,
+      href: `/os?modo=kanban&status=${status}`,
+    })),
+    parados: {
+      diasLimite: DIAS_LIMITE_PARADO,
+      quantidade: osParadasTotal,
+      lista: osParadasLista.map((os) => ({
+        id: os.id,
+        numeroOs: os.numeroOs,
+        cliente: os.cliente?.nomeRazaoSocial ?? "Cliente não informado",
+        aparelho: os.equipamento,
+        status: rotularStatusOS(String(os.status)),
+        diasParado: diferencaEmDias(os.atualizadoEm, agora),
+      })),
+    },
+    prontasAguardandoRetirada: {
+      quantidade: prontasRetirada.quantidade,
+      valor: prontasRetirada.valor,
+      diasLimite: DIAS_LIMITE_RETIRADA,
+      quantidadeAcimaLimite: prontasRetirada.acimaLimite,
+    },
+    valorEmAberto,
+    tempoMedioReparoDias,
+    ticketMedioOS: ticketMedioPeriodo,
+    garantia: {
+      ativas: garantiasAtivas,
+      vencem7Dias: garantiasVencem7Dias,
+      janelaDias: JANELA_TAXA_RETORNO_DIAS,
+      entreguesJanela: entreguesJanelaRetorno,
+      retornosJanela: retornosJanelaRetorno,
+      taxaRetorno:
+        entreguesJanelaRetorno > 0 ? (retornosJanelaRetorno / entreguesJanelaRetorno) * 100 : null,
+    },
+  };
+
+  let metasResumo: DashboardExecutivo["metasResumo"];
+
+  if (podeVerMetas) {
+    const [metasPrincipais, totalMetasEmAndamento, totalMetasAtencao, totalMetasAtrasadas] = await Promise.all([
+      executarComFallback(
+        "home.metas.principais",
+        () =>
+          prisma.meta.findMany({
+            where: { excluidaEm: null, status: { in: ["EM_ANDAMENTO", "ATENCAO", "ATRASADA"] } },
+            select: {
+              id: true,
+              titulo: true,
+              status: true,
+              tipoValor: true,
+              valorAtual: true,
+              valorAlvo: true,
+            },
+            orderBy: [{ prioridade: "desc" }, { dataPrazo: "asc" }],
+            take: 3,
+          }),
+        []
+      ),
+      executarComFallback(
+        "home.metas.totalEmAndamento",
+        () => prisma.meta.count({ where: { excluidaEm: null, status: "EM_ANDAMENTO" } }),
+        0
+      ),
+      executarComFallback(
+        "home.metas.totalEmAtencao",
+        () => prisma.meta.count({ where: { excluidaEm: null, status: "ATENCAO" } }),
+        0
+      ),
+      executarComFallback(
+        "home.metas.totalAtrasadas",
+        () => prisma.meta.count({ where: { excluidaEm: null, status: "ATRASADA" } }),
+        0
+      ),
+    ]);
+
+    metasResumo = {
+      emAndamento: totalMetasEmAndamento,
+      emAtencao: totalMetasAtencao,
+      atrasadas: totalMetasAtrasadas,
+      principais: metasPrincipais.map((meta) => ({
+        id: meta.id,
+        titulo: meta.titulo,
+        progresso: calcularProgressoMeta({
+          tipoValor: meta.tipoValor,
+          valorAtual: Number(meta.valorAtual ?? 0),
+          valorAlvo: meta.valorAlvo,
+        }),
+        status: mapearStatusMovimentacao(meta.status),
+      })),
+    };
+  }
+
+  return {
+    periodo,
+    operacao,
+    metasResumo,
+  };
+}
+
+export async function obterPainelOperacionalHomeSeguro(
+  periodo: PeriodoDashboard = "hoje"
+): Promise<ResultadoPainelOperacionalHome> {
+  try {
+    const dados = await obterPainelOperacionalHome(periodo);
+    return {
+      sucesso: true,
+      dados,
+    };
+  } catch (erro) {
+    console.error("[dashboard] falha ao montar painel operacional da home", {
+      message: erro instanceof Error ? erro.message : String(erro),
+    });
+
+    return {
+      sucesso: false,
+      erro: "Não foi possível carregar o painel operacional.",
     };
   }
 }

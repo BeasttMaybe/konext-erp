@@ -31,6 +31,7 @@ type ProdutoPropostaSugestao = {
 export async function listarClientesProposta(): Promise<ClientePropostaSugestao[]> {
   try {
     const contextoTenant = await exigirContextoTenant();
+    exigirPermissao(contextoTenant, "crm.ver");
     const prisma = contextoTenant.prisma;
 
     const clientes = await prisma.cliente.findMany({
@@ -56,6 +57,7 @@ export async function listarClientesProposta(): Promise<ClientePropostaSugestao[
 export async function listarProdutosProposta(): Promise<ProdutoPropostaSugestao[]> {
   try {
     const contextoTenant = await exigirContextoTenant();
+    exigirPermissao(contextoTenant, "crm.ver");
     const prisma = contextoTenant.prisma;
 
     const produtos = await prisma.produto.findMany({
