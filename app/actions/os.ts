@@ -16,7 +16,8 @@ import {
   obterDefaultsConfiguracaoOsGarantias,
 } from "@/lib/configuracoes-os-garantias";
 import type { OrdemServico, OrdemServicoExcluida, TipoPecaOrcamento } from "@/types/os";
-import { STATUS_OS_SEQUENCIA } from "@/lib/dominio/os/maquina-estados";
+import { STATUS_OS_SEQUENCIA, motivoTransicaoNegada } from "@/lib/dominio/os/maquina-estados";
+import { ErroPermissaoNegada, exigirPapel } from "@/lib/auth/exigir-papel";
 import {
   avaliarFinalizacao,
   resumirPendencias,
@@ -171,27 +172,6 @@ type ItemOSCreateManyDelegate = {
   createMany?: (args: unknown) => Promise<unknown>;
 };
 
-type OrdemServicoStatusDelegate = {
-  update?: (args: unknown) => Promise<unknown>;
-  findUnique?: (args: unknown) => Promise<{
-    id?: string;
-    numeroOs?: number | null;
-    status?: string | null;
-    archivedAt?: Date | null;
-    excluidaEm?: Date | null;
-    ehRetornoGarantia?: boolean | null;
-    observacoes?: string | null;
-    _count?: {
-      itens?: number | null;
-    };
-    termoGarantia?: { id?: string | null } | null;
-  } | null>;
-};
-
-type NotificacaoDelegate = {
-  create?: (args: unknown) => Promise<unknown>;
-};
-
 type OrdemServicoPedidoItem = {
   valorCobrado?: number | null;
 };
@@ -223,9 +203,6 @@ type ContaReceberCreateDelegate = {
 // Lista de status vem do dominio (fonte unica de verdade).
 const statusValidos: readonly StatusOS[] = STATUS_OS_SEQUENCIA;
 
-const MENSAGEM_MOVER_ENTREGUE_SEM_GARANTIA = "Para mover a OS para Entregue, gere o termo de garantia primeiro.";
-const MENSAGEM_MOVER_ENTREGUE_SEM_DIAGNOSTICO = "Informe o diagnóstico técnico antes de finalizar a OS.";
-const MENSAGEM_FINALIZAR_SEM_PAGAMENTO = "Esta OS ainda não possui confirmação de pagamento.";
 
 /**
  * Invalidacao de cache das telas afetadas por uma OS.
@@ -704,12 +681,26 @@ export async function criarOrdemServico(dados: DadosNovaOS) {
   return novaOS;
 }
 
+/**
+ * Mudanca generica de status.
+ *
+ * Duas transicoes NAO passam por aqui, de proposito:
+ *   - qualquer -> ENTREGUE ... `finalizarOrdemServico`
+ *   - ENTREGUE -> qualquer ... `reabrirOrdemServico`
+ *
+ * Esta funcao tambem NAO mexe mais em `archivedAt`. Antes da Fase 1A ela
+ * limpava `archivedAt` em toda transicao que nao fosse ENTREGUE e nunca o
+ * definia. Como o Kanban aceitava qualquer movimento, arrastar um cartao para
+ * fora e de volta para ENTREGUE deixava a OS entregue porem nao arquivada —
+ * invisivel na lista de finalizadas e presa no quadro (AUDIT_REPORT 16.2 e
+ * 16.7-e). `archivedAt` passa a ser escrito exclusivamente pela finalizacao e
+ * limpo exclusivamente pela reabertura.
+ */
 export async function atualizarStatusOrdemServico(
   osId: string,
   status: StatusOS
 ): Promise<ResultadoAtualizacaoStatusOrdemServico> {
   try {
-    // C1: exige sessao valida antes de alterar dados.
     const contexto = await exigirContextoTenant();
     const prisma = contexto.prisma;
     const usuario = contexto.usuarioOperacional;
@@ -730,48 +721,17 @@ export async function atualizarStatusOrdemServico(
       };
     }
 
-    const prismaAny = prisma as typeof prisma & {
-      ordemServico?: OrdemServicoStatusDelegate;
-      OrdemServico?: OrdemServicoStatusDelegate;
-      notificacao?: NotificacaoDelegate;
-      Notificacao?: NotificacaoDelegate;
-    };
-    const ordemServicoDelegate = prismaAny.ordemServico ?? prismaAny.OrdemServico;
-
-    if (!ordemServicoDelegate?.update) {
-      throw new Error("Delegate Prisma de OrdemServico nao disponivel.");
-    }
-
-    await prisma.$transaction(async (tx) => {
-      const txAny = tx as typeof tx & {
-        ordemServico?: OrdemServicoStatusDelegate;
-        OrdemServico?: OrdemServicoStatusDelegate;
-      };
-      const txOrdemServico = txAny.ordemServico ?? txAny.OrdemServico;
-
-      if (!txOrdemServico?.update || !txOrdemServico.findUnique) {
-        throw new Error("Delegate Prisma de OrdemServico nao disponivel na transacao.");
-      }
-
-      const antes = await txOrdemServico.findUnique({
+    const numeroOsParaNotificacao = await prisma.$transaction(async (tx) => {
+      const antes = await tx.ordemServico.findUnique({
         where: { id: osId },
         select: {
           id: true,
+          numeroOs: true,
           status: true,
           archivedAt: true,
           excluidaEm: true,
           ehRetornoGarantia: true,
           observacoes: true,
-          _count: {
-            select: {
-              itens: true,
-            },
-          },
-          termoGarantia: {
-            select: {
-              id: true,
-            },
-          },
         },
       });
 
@@ -783,109 +743,51 @@ export async function atualizarStatusOrdemServico(
         throw new ErroRegraNegocioOS("Nao e permitido alterar status de uma OS excluida.");
       }
 
-      const regrasOs = await obterRegrasOs(prisma);
+      const statusAtual = antes.status;
 
-      if (
-        status === "ENTREGUE" &&
-        regrasOs.exigirGarantiaAntesEntrega &&
-        !antes.ehRetornoGarantia &&
-        !antes.termoGarantia?.id
-      ) {
-        throw new ErroRegraNegocioOS(MENSAGEM_MOVER_ENTREGUE_SEM_GARANTIA);
+      // Maquina de estados: a unica autoridade sobre o que e alcancavel.
+      const motivoNegado = motivoTransicaoNegada(statusAtual, status, {
+        ehRetornoGarantia: Boolean(antes.ehRetornoGarantia),
+      });
+
+      if (motivoNegado !== null) {
+        throw new ErroRegraNegocioOS(motivoNegado);
       }
 
-      if (status === "ENTREGUE" && regrasOs.exigirDiagnosticoParaFinalizar && !String(antes.observacoes ?? "").trim()) {
-        throw new ErroRegraNegocioOS(MENSAGEM_MOVER_ENTREGUE_SEM_DIAGNOSTICO);
-      }
-
-      if (status === "ENTREGUE" && !regrasOs.permitirFinalizarSemPagamento) {
-        const possuiPagamento = await osPossuiPagamentoConfirmado(prisma, osId);
-        if (!possuiPagamento) {
-          throw new ErroRegraNegocioOS(MENSAGEM_FINALIZAR_SEM_PAGAMENTO);
-        }
-      }
-
-      try {
-        await txOrdemServico.update({
-          where: {
-            id: osId,
-          },
-          data: {
-            status,
-            ...(status !== "ENTREGUE" ? { archivedAt: null } : {}),
-          },
-        });
-      } catch (error) {
-        if (!archivedAtUnsupported(error) || status === "ENTREGUE") {
-          throw error;
-        }
-
-        await tx.$executeRaw`
-          UPDATE "OrdemServico"
-          SET status = ${status}::"StatusOS",
-              "archivedAt" = NULL,
-              "atualizadoEm" = NOW()
-          WHERE id = ${osId}
-        `;
-      }
+      await tx.ordemServico.update({
+        where: { id: osId },
+        data: { status },
+      });
 
       await registrarLogAuditoria(
         tx,
-        contextoAuditoriaDoUsuario(usuario, "app/actions/os.ts:atualizarStatusOrdemServico"),
+        contextoAuditoriaDoUsuario(
+          { id: normalizarIdUsuarioOperacional(usuario) },
+          "app/actions/os.ts:atualizarStatusOrdemServico"
+        ),
         {
           acao: ACOES_AUDITORIA.ATUALIZAR_STATUS,
           entidade: ENTIDADES_AUDITORIA.ORDEM_SERVICO,
           entidadeId: osId,
           dadosAntes: {
-            status: antes.status,
-            archivedAt: antes.archivedAt,
+            status: statusAtual,
+            archivedAt: antes.archivedAt ? antes.archivedAt.toISOString() : null,
           },
           dadosDepois: {
             status,
-            archivedAt: status === "ENTREGUE" ? antes.archivedAt : null,
+            // archivedAt intencionalmente inalterado por esta acao.
+            archivedAt: antes.archivedAt ? antes.archivedAt.toISOString() : null,
+            ...descreverAutoria(contexto),
           },
         }
       );
+
+      return Number(antes.numeroOs ?? 0);
     });
 
-    // Cria notificação para status relevantes — falha silenciosa para não bloquear a operação principal.
-    const statusComNotificacao: Record<string, { titulo: string; mensagem: (n: number) => string }> = {
-      APROVADO:         { titulo: "OS Aprovada",             mensagem: (n) => `A OS #${n} foi aprovada pelo cliente e pode seguir para a manutenção.` },
-      AGUARDANDO_PECA:  { titulo: "OS Aguardando Peça",      mensagem: (n) => `A OS #${n} está aguardando chegada de peça para prosseguir.` },
-      EM_MANUTENCAO:    { titulo: "OS em Manutenção",        mensagem: (n) => `A OS #${n} está em manutenção pelo técnico.` },
-      GARANTIA_RETORNO: { titulo: "OS em Garantia",          mensagem: (n) => `A OS #${n} entrou em fluxo de retorno de garantia.` },
-      PRONTO:           { titulo: "OS Pronta para Retirada", mensagem: (n) => `A OS #${n} foi concluída e está pronta para retirada pelo cliente.` },
-      ENTREGUE:         { titulo: "OS Entregue",             mensagem: (n) => `A OS #${n} foi entregue ao cliente com sucesso.` },
-    };
+    await notificarMudancaStatusOS(prisma, status, numeroOsParaNotificacao);
 
-    const config = statusComNotificacao[status];
-    if (config) {
-      try {
-        const os = await ordemServicoDelegate.findUnique({
-          where: { id: osId },
-          select: { numeroOs: true },
-        });
-        const numeroOs = os?.numeroOs ?? osId;
-
-        const notifDelegate = prismaAny.notificacao ?? prismaAny.Notificacao;
-        if (notifDelegate?.create) {
-          await notifDelegate.create({
-            data: {
-              titulo: config.titulo,
-              mensagem: config.mensagem(Number(numeroOs)),
-            },
-          });
-        }
-      } catch {
-        // Notificação opcional — não bloqueia a atualização de status em caso de falha.
-      }
-    }
-
-    revalidatePath("/os");
-    revalidatePath(`/os/${osId}`);
-    revalidatePath("/os/garantias");
-    revalidatePath("/dashboard");
-    revalidatePath("/");
+    revalidarOrdemServico(osId);
 
     return {
       sucesso: true,
@@ -909,6 +811,213 @@ export async function atualizarStatusOrdemServico(
     };
   }
 }
+
+const STATUS_NOTIFICAVEIS: Readonly<Record<string, { titulo: string; mensagem: (n: number) => string }>> = {
+  APROVADO: {
+    titulo: "OS Aprovada",
+    mensagem: (n) => `A OS #${n} foi aprovada pelo cliente e pode seguir para a manutenção.`,
+  },
+  AGUARDANDO_PECA: {
+    titulo: "OS Aguardando Peça",
+    mensagem: (n) => `A OS #${n} está aguardando chegada de peça para prosseguir.`,
+  },
+  EM_MANUTENCAO: {
+    titulo: "OS em Manutenção",
+    mensagem: (n) => `A OS #${n} está em manutenção pelo técnico.`,
+  },
+  GARANTIA_RETORNO: {
+    titulo: "OS em Garantia",
+    mensagem: (n) => `A OS #${n} entrou em fluxo de retorno de garantia.`,
+  },
+  PRONTO: {
+    titulo: "OS Pronta para Retirada",
+    mensagem: (n) => `A OS #${n} foi concluída e está pronta para retirada pelo cliente.`,
+  },
+  ENTREGUE: {
+    titulo: "OS Entregue",
+    mensagem: (n) => `A OS #${n} foi entregue ao cliente com sucesso.`,
+  },
+};
+
+/**
+ * Notificacao best-effort, FORA da transacao de negocio: ela nunca deve
+ * derrubar uma mudanca de status valida. A falha e registrada com console.error
+ * em vez de engolida em silencio.
+ */
+async function notificarMudancaStatusOS(
+  prisma: PrismaTenant,
+  status: StatusOS,
+  numeroOs: number
+): Promise<void> {
+  const configuracao = STATUS_NOTIFICAVEIS[status];
+
+  if (!configuracao) {
+    return;
+  }
+
+  try {
+    await prisma.notificacao.create({
+      data: {
+        titulo: configuracao.titulo,
+        mensagem: configuracao.mensagem(numeroOs),
+      },
+    });
+  } catch (erro) {
+    console.error("[os] falha ao criar notificacao de mudanca de status", {
+      status,
+      numeroOs,
+      erro: erro instanceof Error ? erro.message : String(erro),
+    });
+  }
+}
+
+export type EntradaReaberturaOrdemServico = {
+  osId: string;
+  motivo: string;
+  statusDestino: StatusOS;
+};
+
+export type ResultadoReaberturaOrdemServico =
+  | { sucesso: true; mensagem: string; osId: string; status: StatusOS }
+  | { sucesso: false; erro: string };
+
+/** Destinos validos ao reabrir uma OS entregue. */
+export const STATUS_DESTINO_REABERTURA: readonly StatusOS[] = [
+  "PRONTO",
+  "AGUARDANDO_PECA",
+  "EM_MANUTENCAO",
+];
+
+const MOTIVO_REABERTURA_MINIMO = 10;
+
+/**
+ * Reabre uma OS ENTREGUE.
+ *
+ * E a unica saida do estado ENTREGUE, e a unica coisa no sistema que limpa
+ * `archivedAt`. Exige motivo e perfil ADMIN ou GESTOR: desfazer uma entrega tem
+ * efeito financeiro e contratual (a garantia ja foi emitida com data de inicio).
+ * O termo de garantia e deliberadamente preservado — reabrir para retrabalho
+ * nao deve reiniciar nem invalidar a garantia do cliente.
+ */
+export async function reabrirOrdemServico(
+  input: EntradaReaberturaOrdemServico
+): Promise<ResultadoReaberturaOrdemServico> {
+  try {
+    const contexto = await exigirContextoTenant();
+    const prisma = contexto.prisma;
+    const usuario = contexto.usuarioOperacional;
+
+    exigirPapel(contexto, ["ADMIN", "GESTOR"]);
+
+    const osId = String(input?.osId ?? "").trim();
+    const motivo = String(input?.motivo ?? "").trim();
+    const statusDestino = input?.statusDestino;
+
+    if (!osId) {
+      return { sucesso: false, erro: "ID da ordem de servico nao informado." };
+    }
+
+    if (motivo.length < MOTIVO_REABERTURA_MINIMO) {
+      return {
+        sucesso: false,
+        erro: `Descreva o motivo da reabertura com pelo menos ${MOTIVO_REABERTURA_MINIMO} caracteres.`,
+      };
+    }
+
+    if (motivo.length > 500) {
+      return { sucesso: false, erro: "O motivo da reabertura excede 500 caracteres." };
+    }
+
+    if (!STATUS_DESTINO_REABERTURA.includes(statusDestino)) {
+      return {
+        sucesso: false,
+        erro: 'Ao reabrir, escolha "Pronto", "Aguardando Peça" ou "Em Manutenção".',
+      };
+    }
+
+    await prisma.$transaction(async (tx) => {
+      const antes = await tx.ordemServico.findUnique({
+        where: { id: osId },
+        select: {
+          id: true,
+          status: true,
+          archivedAt: true,
+          excluidaEm: true,
+          ehRetornoGarantia: true,
+          termoGarantia: { select: { id: true } },
+        },
+      });
+
+      if (!antes?.id) {
+        throw new ErroRegraNegocioOS("Ordem de servico nao encontrada.");
+      }
+
+      if (antes.excluidaEm) {
+        throw new ErroRegraNegocioOS("Nao e permitido reabrir uma OS excluida.");
+      }
+
+      if (antes.status !== "ENTREGUE") {
+        throw new ErroRegraNegocioOS(
+          "Só é possível reabrir uma OS que já foi entregue. Para mover esta OS, use a mudança de status normal."
+        );
+      }
+
+      await tx.ordemServico.update({
+        where: { id: osId },
+        data: {
+          status: statusDestino,
+          archivedAt: null,
+        },
+      });
+
+      await registrarLogAuditoria(
+        tx,
+        contextoAuditoriaDoUsuario(
+          { id: normalizarIdUsuarioOperacional(usuario) },
+          "app/actions/os.ts:reabrirOrdemServico"
+        ),
+        {
+          acao: ACOES_AUDITORIA.ATUALIZAR_STATUS,
+          entidade: ENTIDADES_AUDITORIA.ORDEM_SERVICO,
+          entidadeId: osId,
+          motivo,
+          dadosAntes: {
+            status: antes.status,
+            archivedAt: antes.archivedAt ? antes.archivedAt.toISOString() : null,
+          },
+          dadosDepois: {
+            status: statusDestino,
+            archivedAt: null,
+            reabertura: true,
+            // O termo de garantia continua valido e com as datas originais.
+            termoGarantiaPreservadoId: antes.termoGarantia?.id ?? null,
+            papelDoAutor: String(usuario.role ?? ""),
+            ...descreverAutoria(contexto),
+          },
+        }
+      );
+    });
+
+    revalidarOrdemServico(osId);
+
+    return {
+      sucesso: true,
+      mensagem: "OS reaberta com sucesso.",
+      osId,
+      status: statusDestino,
+    };
+  } catch (error) {
+    if (error instanceof ErroPermissaoNegada || error instanceof ErroRegraNegocioOS) {
+      return { sucesso: false, erro: error.message };
+    }
+
+    return {
+      sucesso: false,
+      erro: error instanceof Error ? error.message : "Nao foi possivel reabrir a OS.",
+    };
+  }
+}
+
 
 export type FinalizarOrdemServicoInput = {
   osId: string;
