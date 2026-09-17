@@ -17,6 +17,7 @@ import {
   DESCRICOES_STATUS_OS,
   ROTULOS_STATUS_OS,
   STATUS_OS_SEQUENCIA,
+  destinosPermitidos,
   ehStatusOS,
 } from "@/lib/dominio/os/maquina-estados";
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +39,10 @@ interface TabuleiroKanbanProps {
   onCartaoClick?: (os: OrdemServico) => void;
   onMoverOS?: (osId: string, novoStatus: StatusOS) => Promise<boolean>;
   onFinalizarOS?: (os: OrdemServico) => Promise<boolean>;
+  /** Abre o fluxo de entrega. Recebe a OS e devolve true quando concluiu. */
+  onEntregarOS?: (os: OrdemServico) => Promise<boolean>;
+  /** Abre o fluxo de reabertura. Só é passado para ADMIN/GESTOR. */
+  onReabrirOS?: (os: OrdemServico) => Promise<boolean>;
 }
 
 type AcaoOtimistaOS =
@@ -116,16 +121,6 @@ function classificarOrdens(ordens: OrdemServico[]) {
 
 function ordenarPorStatus(agrupadas: Record<StatusKanban, OrdemServico[]>) {
   return STATUS_SEQUENCIA.flatMap((status) => agrupadas[status]);
-}
-
-function encontrarStatusAnterior(status: StatusKanban): StatusKanban | null {
-  const indice = STATUS_SEQUENCIA.indexOf(status);
-  return indice > 0 ? STATUS_SEQUENCIA[indice - 1] : null;
-}
-
-function encontrarStatusSeguinte(status: StatusKanban): StatusKanban | null {
-  const indice = STATUS_SEQUENCIA.indexOf(status);
-  return indice >= 0 && indice < STATUS_SEQUENCIA.length - 1 ? STATUS_SEQUENCIA[indice + 1] : null;
 }
 
 function normalizarIndice(indice: number, tamanhoLista: number) {
@@ -211,8 +206,12 @@ export function TabuleiroKanban({
   onCartaoClick,
   onMoverOS,
   onFinalizarOS,
+  onEntregarOS,
+  onReabrirOS,
 }: TabuleiroKanbanProps) {
   const [, startTransition] = useTransition();
+  // Guarda a OS em arraste para bloquear colunas invalidas em tempo real.
+  const [osEmArraste, setOsEmArraste] = useState<OrdemServico | null>(null);
   const [confirmacaoEntregaSemItens, setConfirmacaoEntregaSemItens] =
     useState<ConfirmacaoEntregaSemItens | null>(null);
 
@@ -232,6 +231,31 @@ export function TabuleiroKanban({
 
   const osSemItens = (os: OrdemServico): boolean => {
     return (os.itensOrcamento?.length ?? 0) === 0;
+  };
+
+  /**
+   * Colunas validas para a OS que esta sendo arrastada agora.
+   * ENTREGUE entra na lista porque a entrega e permitida pela UI — ela apenas
+   * nao passa pela mudanca generica de status, e sim pelo dialogo de
+   * finalizacao (ver aoFinalizarDrag).
+   */
+  const destinosDoArraste = useMemo<ReadonlySet<StatusOS> | null>(() => {
+    if (!osEmArraste || !isStatusKanban(osEmArraste.status)) return null;
+
+    const contexto = { ehRetornoGarantia: Boolean(osEmArraste.ehRetornoGarantia) };
+    const permitidos = new Set<StatusOS>(destinosPermitidos(osEmArraste.status, contexto));
+
+    if (osEmArraste.status !== "ENTREGUE") {
+      permitidos.add("ENTREGUE");
+    }
+
+    return permitidos;
+  }, [osEmArraste]);
+
+  const colunaBloqueada = (status: StatusKanban): boolean => {
+    if (!destinosDoArraste) return false;
+    if (osEmArraste && osEmArraste.status === status) return false;
+    return !destinosDoArraste.has(status);
   };
 
   const persistirMovimento = async (
@@ -324,6 +348,8 @@ export function TabuleiroKanban({
   };
 
   const aoFinalizarDrag = async (resultado: DropResult) => {
+    setOsEmArraste(null);
+
     const { destination, source, draggableId } = resultado;
     if (!destination) return;
     if (destination.droppableId === source.droppableId && destination.index === source.index) return;
@@ -340,14 +366,26 @@ export function TabuleiroKanban({
       return;
     }
 
-    if (preVisualizacao.statusDestino === "ENTREGUE" && osSemItens(preVisualizacao.osMovida)) {
-      setConfirmacaoEntregaSemItens({
-        snapshotAnterior,
-        movimento,
-        osId: preVisualizacao.osMovida.id,
-        statusOrigem: preVisualizacao.statusOrigem,
-        statusDestino: preVisualizacao.statusDestino,
+    // Soltar em ENTREGUE NAO muda status: abre o dialogo de finalizacao, que
+    // emite a garantia e arquiva na mesma transacao. Antes da Fase 1A este drop
+    // chamava a mudanca generica de status e produzia OS entregue porem nao
+    // arquivada (AUDIT_REPORT 16.7-e).
+    if (preVisualizacao.statusDestino === "ENTREGUE") {
+      const osAlvo = snapshotAnterior.find((item) => item.id === preVisualizacao.osMovida?.id);
+      if (!osAlvo || !onEntregarOS) return;
+
+      startTransition(() => {
+        setOrdensEstado({ tipo: "REORGANIZAR", movimento });
       });
+
+      const entregue = await onEntregarOS(osAlvo);
+
+      if (!entregue) {
+        startTransition(() => {
+          setOrdensEstado({ tipo: "SUBSTITUIR", ordens: snapshotAnterior });
+        });
+      }
+
       return;
     }
 
@@ -361,6 +399,11 @@ export function TabuleiroKanban({
       preVisualizacao.statusDestino,
       snapshotAnterior
     );
+  };
+
+  const aoIniciarDrag = (inicio: { draggableId: string }) => {
+    const os = ordensEstado.find((item) => item.id === inicio.draggableId) ?? null;
+    setOsEmArraste(os);
   };
 
   const confirmarEntregaSemItens = async () => {
@@ -403,7 +446,7 @@ export function TabuleiroKanban({
 
   return (
     <>
-      <DragDropContext onDragEnd={aoFinalizarDrag}>
+      <DragDropContext onDragStart={aoIniciarDrag} onDragEnd={aoFinalizarDrag}>
         <div
           ref={boardRef}
           className="flex min-h-[420px] gap-4 overflow-x-auto pb-4"
@@ -414,14 +457,12 @@ export function TabuleiroKanban({
           const configuracao = configuracaoStatus[status];
 
           return (
-            <Droppable key={status} droppableId={status}>
+            <Droppable key={status} droppableId={status} isDropDisabled={colunaBloqueada(status)}>
               {(dropProvided, dropSnapshot) => (
                 <div
                   className={`flex h-full min-h-0 w-[320px] shrink-0 flex-col overflow-hidden rounded-2xl border bg-gradient-to-b shadow-sm transition-all ${configuracao.classe} ${configuracao.borda} ${
-                    dropSnapshot.isDraggingOver
-                      ? "ring-2 ring-primary/30 shadow-lg"
-                      : ""
-                  }`}
+                    dropSnapshot.isDraggingOver ? "ring-2 ring-primary/30 shadow-lg" : ""
+                  } ${colunaBloqueada(status) ? "opacity-40 saturate-50" : ""}`}
                 >
                   <div className="shrink-0 border-b border-border/60 px-4 py-4">
                     <div className="flex items-center justify-between gap-3">
@@ -433,7 +474,11 @@ export function TabuleiroKanban({
                     </div>
                     <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
                       <span>{ordensFiltradas.length === 1 ? "1 OS" : `${ordensFiltradas.length} OS`}</span>
-                      <span>Arraste para esta etapa</span>
+                      <span>
+                        {colunaBloqueada(status)
+                          ? "Etapa indisponível para esta OS"
+                          : "Arraste para esta etapa"}
+                      </span>
                     </div>
                   </div>
 
@@ -452,19 +497,36 @@ export function TabuleiroKanban({
                     renderizarCartao={(os, index) => {
                       if (!isStatusKanban(os.status)) return null;
 
-                      const statusAnterior = encontrarStatusAnterior(os.status);
-                      const statusSeguinte = encontrarStatusSeguinte(os.status);
+                      const contextoOS = { ehRetornoGarantia: Boolean(os.ehRetornoGarantia) };
+                      const permitidos = destinosPermitidos(os.status, contextoOS);
+
+                      // Os botoes de avancar/voltar seguem a maquina de estados,
+                      // nao a ordem crua do quadro. Antes eles passavam por
+                      // GARANTIA_RETORNO em toda OS normal a caminho de PRONTO
+                      // (AUDIT_REPORT 16.7-d).
+                      const indiceAtual = STATUS_SEQUENCIA.indexOf(os.status);
+                      const statusAnterior =
+                        [...permitidos].reverse().find((item) => STATUS_SEQUENCIA.indexOf(item) < indiceAtual) ??
+                        null;
+                      const statusSeguinte =
+                        permitidos.find((item) => STATUS_SEQUENCIA.indexOf(item) > indiceAtual) ?? null;
+
                       const retornoJaFinalizado = Boolean(os.retornoGarantiaFinalizadoEm);
+                      const ehEntregue = os.status === "ENTREGUE";
                       const podeFinalizarRetorno =
-                        Boolean(os.ehRetornoGarantia) &&
-                        !retornoJaFinalizado &&
-                        os.status !== "ENTREGUE";
-                      const podeArquivarEntregue = os.status === "ENTREGUE";
-                      const podeFinalizar = podeFinalizarRetorno || podeArquivarEntregue;
-                      const textoBotaoFinalizar = podeFinalizarRetorno ? "Finalizar retorno" : "Finalizar OS";
+                        Boolean(os.ehRetornoGarantia) && !retornoJaFinalizado && !ehEntregue;
+                      // A entrega sai pelo dialogo de finalizacao; o botao do
+                      // cartao so trata o fluxo de retorno de garantia.
+                      const podeFinalizar = podeFinalizarRetorno;
+                      const textoBotaoFinalizar = "Finalizar retorno";
 
                       return (
-                        <Draggable key={os.id} draggableId={os.id} index={index}>
+                        <Draggable
+                          key={os.id}
+                          draggableId={os.id}
+                          index={index}
+                          isDragDisabled={ehEntregue}
+                        >
                           {(dragProvided, dragSnapshot) => (
                             <div
                               ref={dragProvided.innerRef}
@@ -478,13 +540,27 @@ export function TabuleiroKanban({
                                 isDragging={dragSnapshot.isDragging}
                                 statusChipClass={configuracao.chip}
                                 statusDaColuna={status}
-                                onMoverAnterior={() => statusAnterior && moverPorBotao(os.id, statusAnterior)}
-                                onMoverProxima={() => statusSeguinte && moverPorBotao(os.id, statusSeguinte)}
-                                onFinalizar={() => finalizarOS(os)}
+                                onMoverAnterior={
+                                  ehEntregue || !statusAnterior
+                                    ? undefined
+                                    : () => moverPorBotao(os.id, statusAnterior)
+                                }
+                                onMoverProxima={
+                                  ehEntregue || !statusSeguinte
+                                    ? undefined
+                                    : () => moverPorBotao(os.id, statusSeguinte)
+                                }
+                                onFinalizar={podeFinalizar ? () => finalizarOS(os) : undefined}
                                 podeFinalizar={podeFinalizar}
                                 textoBotaoFinalizar={textoBotaoFinalizar}
-                                desabilitarMoverAnterior={!statusAnterior}
-                                desabilitarMoverProxima={!statusSeguinte}
+                                desabilitarMoverAnterior={ehEntregue || !statusAnterior}
+                                desabilitarMoverProxima={ehEntregue || !statusSeguinte}
+                                onEntregar={
+                                  ehEntregue || !onEntregarOS ? undefined : () => void onEntregarOS(os)
+                                }
+                                onReabrir={
+                                  ehEntregue && onReabrirOS ? () => void onReabrirOS(os) : undefined
+                                }
                               />
                             </div>
                           )}

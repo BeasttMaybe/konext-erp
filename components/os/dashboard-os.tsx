@@ -17,6 +17,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { TabuleiroKanban } from "@/components/os/tabuleiro-kanban";
+import { ModalReabrirOS, type ConfirmacaoReaberturaPayload } from "@/components/os/modal-reabrir-os";
+import type { PendenciaFinalizacao } from "@/lib/dominio/os/regras-finalizacao";
 import { ModalNovaOS } from "@/components/os/modal-nova-os";
 import { ModalFinalizarOS, type ConfirmacaoFinalizacaoPayload } from "@/components/os/modal-finalizar-os";
 import {
@@ -25,10 +27,10 @@ import {
 } from "@/components/os/modal-finalizar-retorno-garantia";
 import { OrdemServico, OrdemServicoExcluida, StatusOS } from "@/types/os";
 import {
-  archiveDeliveredOrderService,
   criarOrdemServico,
   excluirOrdemServico,
-  gerarGarantiaEFinalizarOS,
+  finalizarOrdemServico,
+  reabrirOrdemServico,
   atualizarStatusOrdemServico,
 } from "@/app/actions/os";
 import { finalizarRetornoGarantiaOS } from "@/app/actions/garantias";
@@ -44,6 +46,11 @@ interface DashboardOSProps {
   /** Quando fornecido, abre o modal de nova OS automaticamente e pré-seleciona o cliente. */
   clienteIdInicial?: string | null;
   modoInicial?: "KANBAN" | "LISTA_FINALIZADAS" | "LISTA_EXCLUIDAS";
+  /** Papel do vinculo do usuario na empresa (ADMIN/GESTOR/USUARIO). */
+  papelUsuario?: string;
+  prazoGarantiaPadraoDias?: number;
+  prazoMinimoGarantiaDias?: number;
+  prazoMaximoGarantiaDias?: number;
 }
 
 type DadosNovaOS = Parameters<typeof criarOrdemServico>[0];
@@ -54,6 +61,10 @@ export function DashboardOS({
   deletedOrderServices,
   clienteIdInicial,
   modoInicial = "KANBAN",
+  papelUsuario = "",
+  prazoGarantiaPadraoDias = 90,
+  prazoMinimoGarantiaDias = 1,
+  prazoMaximoGarantiaDias = 365,
 }: DashboardOSProps) {
   const router = useRouter();
   const [modalAberta, setModalAberta] = useState(Boolean(clienteIdInicial));
@@ -65,7 +76,14 @@ export function DashboardOS({
   const [osParaFinalizar, setOsParaFinalizar] = useState<OrdemServico | null>(null);
   const [osFinalizandoId, setOsFinalizandoId] = useState<string | null>(null);
   const [requerGarantiaFinalizacao, setRequerGarantiaFinalizacao] = useState(false);
+  const [pendenciasFinalizacao, setPendenciasFinalizacao] = useState<PendenciaFinalizacao[]>([]);
+  const [osParaReabrir, setOsParaReabrir] = useState<OrdemServico | null>(null);
+  const [osReabrindoId, setOsReabrindoId] = useState<string | null>(null);
   const resolverFinalizacaoRef = useRef<((sucesso: boolean) => void) | null>(null);
+  const resolverReaberturaRef = useRef<((sucesso: boolean) => void) | null>(null);
+
+  // Reabrir desfaz uma entrega: restrito a ADMIN/GESTOR, igual a action.
+  const podeReabrirOS = papelUsuario === "ADMIN" || papelUsuario === "GESTOR";
 
   const filteredActiveOrders = activeOrderServices.filter((os) =>
     os.numeroOS.toLowerCase().includes(buscaTexto.toLowerCase()) ||
@@ -122,7 +140,77 @@ export function DashboardOS({
     resolverFinalizacaoRef.current?.(sucesso);
     resolverFinalizacaoRef.current = null;
     setRequerGarantiaFinalizacao(false);
+    setPendenciasFinalizacao([]);
     setOsParaFinalizar(null);
+  };
+
+  /**
+   * Entrega de OS: abre o dialogo de finalizacao e aguarda a decisao.
+   * O Kanban usa o retorno para reverter o movimento otimista quando o operador
+   * cancela ou quando o servidor devolve pendencias.
+   */
+  const handleEntregarOS = async (orderService: OrdemServico): Promise<boolean> => {
+    if (resolverFinalizacaoRef.current) {
+      toast.error("Ja existe uma finalizacao em andamento.");
+      return false;
+    }
+
+    setOsParaFinalizar(orderService);
+    setRequerGarantiaFinalizacao(!orderService.ehRetornoGarantia);
+    setPendenciasFinalizacao([]);
+
+    return await new Promise<boolean>((resolve) => {
+      resolverFinalizacaoRef.current = resolve;
+    });
+  };
+
+  const handleReabrirOS = async (orderService: OrdemServico): Promise<boolean> => {
+    if (resolverReaberturaRef.current) {
+      return false;
+    }
+
+    setOsParaReabrir(orderService);
+
+    return await new Promise<boolean>((resolve) => {
+      resolverReaberturaRef.current = resolve;
+    });
+  };
+
+  const concluirSolicitacaoReabertura = (sucesso: boolean) => {
+    resolverReaberturaRef.current?.(sucesso);
+    resolverReaberturaRef.current = null;
+    setOsParaReabrir(null);
+  };
+
+  const confirmarReaberturaOS = async (payload: ConfirmacaoReaberturaPayload) => {
+    if (!osParaReabrir || osReabrindoId) {
+      return;
+    }
+
+    try {
+      setOsReabrindoId(osParaReabrir.id);
+
+      const resultado = await reabrirOrdemServico({
+        osId: osParaReabrir.id,
+        motivo: payload.motivo,
+        statusDestino: payload.statusDestino,
+      });
+
+      if (!resultado.sucesso) {
+        toast.error(resultado.erro);
+        concluirSolicitacaoReabertura(false);
+        return;
+      }
+
+      toast.success(`OS ${osParaReabrir.numeroOS} reaberta.`);
+      router.refresh();
+      concluirSolicitacaoReabertura(true);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Nao foi possivel reabrir a OS.");
+      concluirSolicitacaoReabertura(false);
+    } finally {
+      setOsReabrindoId(null);
+    }
   };
 
   const confirmarFinalizacaoOS = async (payload?: ConfirmacaoFinalizacaoPayload) => {
@@ -133,22 +221,16 @@ export function DashboardOS({
     try {
       setOsFinalizandoId(osParaFinalizar.id);
 
-      const resultado = requerGarantiaFinalizacao
-        ? await gerarGarantiaEFinalizarOS({
-            osId: osParaFinalizar.id,
-            prazoGarantiaDias: Number(payload?.prazoGarantiaDias ?? 0),
-          })
-        : await archiveDeliveredOrderService({
-            osId: osParaFinalizar.id,
-          });
+      const resultado = await finalizarOrdemServico({
+        osId: osParaFinalizar.id,
+        prazoGarantiaDias: payload?.prazoGarantiaDias ?? null,
+      });
 
       if (!resultado.sucesso) {
         toast.error(resultado.erro);
-        if (resultado.requerGarantia) {
-          setRequerGarantiaFinalizacao(true);
-          return;
-        }
-        concluirSolicitacaoFinalizacao(false);
+        // Mantem o dialogo aberto mostrando a lista completa de bloqueios em vez
+        // de fechar com um toast solto (AUDIT_REPORT 16.7-f).
+        setPendenciasFinalizacao(resultado.pendencias ?? []);
         return;
       }
 
@@ -433,6 +515,8 @@ export function DashboardOS({
                   onMoverOS={handleMoverOS}
                   onCartaoClick={handleAbrirDetalhesOS}
                   onFinalizarOS={handleFinalizarOS}
+                  onEntregarOS={handleEntregarOS}
+                  onReabrirOS={podeReabrirOS ? handleReabrirOS : undefined}
                 />
             </div>
           ) : modoVisualizacao === "LISTA_FINALIZADAS" && filteredArchivedOrders.length === 0 ? (
@@ -588,10 +672,27 @@ export function DashboardOS({
           }}
           os={osParaFinalizar}
           processando={Boolean(osFinalizandoId)}
-          requerGarantia={requerGarantiaFinalizacao}
+          exigePrazoGarantia={requerGarantiaFinalizacao}
+          prazoPadraoDias={prazoGarantiaPadraoDias}
+          prazoMinimoDias={prazoMinimoGarantiaDias}
+          prazoMaximoDias={prazoMaximoGarantiaDias}
+          pendencias={pendenciasFinalizacao}
           onConfirmar={confirmarFinalizacaoOS}
         />
       )}
+
+      <ModalReabrirOS
+        key={osParaReabrir?.id ?? "sem-os-reabrir"}
+        aberta={Boolean(osParaReabrir)}
+        onAbrirMudar={(aberta) => {
+          if (!aberta && !osReabrindoId) {
+            concluirSolicitacaoReabertura(false);
+          }
+        }}
+        os={osParaReabrir}
+        processando={Boolean(osReabrindoId)}
+        onConfirmar={confirmarReaberturaOS}
+      />
 
       <AlertDialog
         open={Boolean(osParaExcluir)}

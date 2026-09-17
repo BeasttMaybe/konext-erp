@@ -881,8 +881,10 @@ export type ResultadoReaberturaOrdemServico =
   | { sucesso: true; mensagem: string; osId: string; status: StatusOS }
   | { sucesso: false; erro: string };
 
-/** Destinos validos ao reabrir uma OS entregue. */
-export const STATUS_DESTINO_REABERTURA: readonly StatusOS[] = [
+// Destinos validos ao reabrir uma OS entregue.
+// Nao exportado: arquivo "use server" so pode exportar funcoes async.
+// A mesma lista aparece em components/os/modal-reabrir-os.tsx.
+const STATUS_DESTINO_REABERTURA: readonly StatusOS[] = [
   "PRONTO",
   "AGUARDANDO_PECA",
   "EM_MANUTENCAO",

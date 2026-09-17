@@ -4,7 +4,16 @@ import { OrdemServico, StatusOS } from "@/types/os";
 import { mapStatusColor, mapStatusLabel } from "@/dados/mock-os";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Smartphone, DollarSign, Clock, ArrowLeft, ArrowRight, GripVertical } from "lucide-react";
+import {
+  Smartphone,
+  DollarSign,
+  Clock,
+  ArrowLeft,
+  ArrowRight,
+  GripVertical,
+  PackageCheck,
+  RotateCcw,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface CartaoOSProps {
@@ -21,6 +30,10 @@ interface CartaoOSProps {
   textoBotaoFinalizar?: string;
   desabilitarMoverAnterior?: boolean;
   desabilitarMoverProxima?: boolean;
+  /** Abre o dialogo de entrega (finalizacao). Ausente em OS ja entregue. */
+  onEntregar?: () => void;
+  /** Abre o dialogo de reabertura. Presente so em OS entregue e para ADMIN/GESTOR. */
+  onReabrir?: () => void;
 }
 
 export function CartaoOS({
@@ -36,6 +49,8 @@ export function CartaoOS({
   textoBotaoFinalizar = "Finalizar OS",
   desabilitarMoverAnterior = false,
   desabilitarMoverProxima = false,
+  onEntregar,
+  onReabrir,
 }: CartaoOSProps) {
   const formatarMoeda = (valor: number) => {
     return new Intl.NumberFormat("pt-BR", {
@@ -178,6 +193,37 @@ export function CartaoOS({
             {!podeFinalizar && <ArrowRight className="ml-2 h-4 w-4" />}
           </Button>
         </div>
+
+        {onEntregar ? (
+          <Button
+            type="button"
+            size="sm"
+            className="w-full"
+            onClick={(event) => {
+              event.stopPropagation();
+              onEntregar();
+            }}
+          >
+            <PackageCheck className="mr-2 h-4 w-4" />
+            Entregar e finalizar
+          </Button>
+        ) : null}
+
+        {onReabrir ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="w-full"
+            onClick={(event) => {
+              event.stopPropagation();
+              onReabrir();
+            }}
+          >
+            <RotateCcw className="mr-2 h-4 w-4" />
+            Reabrir OS
+          </Button>
+        ) : null}
       </div>
     </Card>
   );

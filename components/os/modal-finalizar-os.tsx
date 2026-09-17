@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { AlertTriangle } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -11,6 +12,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import type { PendenciaFinalizacao } from "@/lib/dominio/os/regras-finalizacao";
 import type { OrdemServico } from "@/types/os";
 
 export type ConfirmacaoFinalizacaoPayload = {
@@ -22,105 +26,121 @@ type ModalFinalizarOSProps = {
   onAbrirMudar: (aberta: boolean) => void;
   os: OrdemServico | null;
   processando: boolean;
-  requerGarantia: boolean;
+  /** OS de retorno de garantia nao emite termo novo. */
+  exigePrazoGarantia: boolean;
+  prazoPadraoDias: number;
+  prazoMinimoDias: number;
+  prazoMaximoDias: number;
+  /** Bloqueios devolvidos pelo servidor na ultima tentativa. */
+  pendencias: readonly PendenciaFinalizacao[];
   onConfirmar: (payload?: ConfirmacaoFinalizacaoPayload) => Promise<void>;
 };
-
-function validarPrazoGarantiaDias(valor: string): string | null {
-  const texto = valor.trim();
-  if (!texto) return "Informe o prazo de garantia em dias.";
-
-  const numero = Number(texto);
-  if (!Number.isInteger(numero) || numero < 1 || numero > 365) {
-    return "Informe um prazo de garantia valido entre 1 e 365 dias.";
-  }
-
-  return null;
-}
 
 export function ModalFinalizarOS({
   aberta,
   onAbrirMudar,
   os,
   processando,
-  requerGarantia,
+  exigePrazoGarantia,
+  prazoPadraoDias,
+  prazoMinimoDias,
+  prazoMaximoDias,
+  pendencias,
   onConfirmar,
 }: ModalFinalizarOSProps) {
-  const [prazoGarantiaDias, setPrazoGarantiaDias] = useState("90");
-  const erroPrazo = useMemo(() => validarPrazoGarantiaDias(prazoGarantiaDias), [prazoGarantiaDias]);
+  const [prazoGarantiaDias, setPrazoGarantiaDias] = useState(String(prazoPadraoDias));
 
-  const confirmar = async () => {
-    if (requerGarantia) {
-      if (erroPrazo) return;
-      await onConfirmar({
-        prazoGarantiaDias: Number(prazoGarantiaDias),
-      });
-      return;
+  // A faixa vem das configuracoes da empresa. Antes o modal usava 1..365 fixo
+  // enquanto o servidor aplicava outra faixa, entao um valor aceito aqui podia
+  // ser recusado depois (AUDIT_REPORT 16.3-5).
+  const erroPrazo = useMemo(() => {
+    if (!exigePrazoGarantia) return null;
+
+    const texto = prazoGarantiaDias.trim();
+    if (!texto) return "Informe o prazo de garantia em dias.";
+
+    const numero = Number(texto);
+    if (!Number.isInteger(numero) || numero < prazoMinimoDias || numero > prazoMaximoDias) {
+      return `Informe um prazo entre ${prazoMinimoDias} e ${prazoMaximoDias} dias.`;
     }
 
-    await onConfirmar();
+    return null;
+  }, [exigePrazoGarantia, prazoGarantiaDias, prazoMinimoDias, prazoMaximoDias]);
+
+  const confirmar = async () => {
+    if (erroPrazo) return;
+
+    await onConfirmar(
+      exigePrazoGarantia ? { prazoGarantiaDias: Number(prazoGarantiaDias) } : undefined
+    );
   };
 
+  const bloqueada = pendencias.length > 0;
+
   return (
-    <AlertDialog
-      open={aberta}
-      onOpenChange={(novoEstado) => {
-        if (processando) return;
-        onAbrirMudar(novoEstado);
-      }}
-    >
+    <AlertDialog open={aberta} onOpenChange={onAbrirMudar}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>
-            {requerGarantia ? "Finalizar ordem de servico" : "Finalizar e arquivar OS?"}
+            {bloqueada ? "Não é possível finalizar esta OS" : "Finalizar e entregar OS"}
           </AlertDialogTitle>
           <AlertDialogDescription>
-            {requerGarantia
-              ? `Para finalizar a ${os?.numeroOS ?? "OS selecionada"}, informe o prazo de garantia e gere o termo de garantia.`
-              : "Esta OS sairá do Kanban principal, mas continuará disponível no histórico e nos registros do sistema."}
+            {bloqueada
+              ? `Resolva as pendências abaixo para entregar a OS ${os?.numeroOS ?? ""}.`
+              : `A OS ${os?.numeroOS ?? ""} será marcada como entregue e arquivada. ${
+                  exigePrazoGarantia
+                    ? "O termo de garantia é emitido agora, com início na data de hoje."
+                    : "OS de retorno de garantia não emite termo novo."
+                }`}
           </AlertDialogDescription>
         </AlertDialogHeader>
 
-        {requerGarantia ? (
+        {bloqueada ? (
+          <ul className="space-y-2 rounded-md border border-amber-300/60 bg-amber-50 p-3 text-sm dark:border-amber-900/50 dark:bg-amber-950/30">
+            {pendencias.map((pendencia) => (
+              <li key={pendencia.codigo} className="flex items-start gap-2">
+                <AlertTriangle
+                  className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400"
+                  aria-hidden
+                />
+                <span className="text-amber-900 dark:text-amber-200">{pendencia.mensagem}</span>
+              </li>
+            ))}
+          </ul>
+        ) : exigePrazoGarantia ? (
           <div className="space-y-2">
-            <label htmlFor="prazo-garantia-finalizacao" className="text-sm font-medium text-slate-700 dark:text-slate-200">
-              Prazo de garantia (dias)
-            </label>
-            <input
+            <Label htmlFor="prazo-garantia-finalizacao">Prazo de garantia (dias)</Label>
+            <Input
               id="prazo-garantia-finalizacao"
-              type="number"
-              min={1}
-              max={365}
-              step={1}
               inputMode="numeric"
               value={prazoGarantiaDias}
-              onChange={(event) => setPrazoGarantiaDias(event.target.value)}
+              onChange={(evento) => setPrazoGarantiaDias(evento.target.value)}
               disabled={processando}
-              className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-70 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
             />
+            <p className="text-xs text-muted-foreground">
+              Entre {prazoMinimoDias} e {prazoMaximoDias} dias, conforme as configurações da empresa.
+            </p>
             {erroPrazo ? (
               <p className="text-xs text-red-600 dark:text-red-400">{erroPrazo}</p>
-            ) : (
-              <p className="text-xs text-slate-500 dark:text-slate-400">Use um prazo de 1 a 365 dias.</p>
-            )}
+            ) : null}
           </div>
         ) : null}
 
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={processando}>Cancelar</AlertDialogCancel>
-          <AlertDialogAction
-            disabled={processando || (requerGarantia && Boolean(erroPrazo))}
-            onClick={(event) => {
-              event.preventDefault();
-              void confirmar();
-            }}
-          >
-            {processando
-              ? "Finalizando..."
-              : requerGarantia
-                ? "Gerar garantia e finalizar"
-                : "Finalizar OS"}
-          </AlertDialogAction>
+          <AlertDialogCancel disabled={processando}>
+            {bloqueada ? "Fechar" : "Cancelar"}
+          </AlertDialogCancel>
+          {bloqueada ? null : (
+            <AlertDialogAction
+              onClick={(evento) => {
+                evento.preventDefault();
+                void confirmar();
+              }}
+              disabled={processando || Boolean(erroPrazo)}
+            >
+              {processando ? "Finalizando..." : "Finalizar e entregar"}
+            </AlertDialogAction>
+          )}
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
