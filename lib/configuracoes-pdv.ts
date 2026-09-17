@@ -2,6 +2,7 @@ export type ConfiguracaoPdvPagamentos = {
   permitirPagamentoMisto: boolean;
   permitirDescontoPDV: boolean;
   descontoMaximoPDVPercentual: number;
+  permitirVendaSemEstoque: boolean;
   permitirVendaFiado: boolean;
   habilitarPix: boolean;
   habilitarDinheiro: boolean;
@@ -32,6 +33,7 @@ export function obterDefaultsConfiguracaoPdv(): ConfiguracaoPdvPagamentos {
     permitirPagamentoMisto: true,
     permitirDescontoPDV: true,
     descontoMaximoPDVPercentual: 0,
+    permitirVendaSemEstoque: false,
     permitirVendaFiado: false,
     habilitarPix: true,
     habilitarDinheiro: true,
@@ -89,6 +91,10 @@ export function normalizarConfiguracaoPdv(
       parcial?.descontoMaximoPDVPercentual,
       defaults.descontoMaximoPDVPercentual
     ),
+    permitirVendaSemEstoque:
+      typeof parcial?.permitirVendaSemEstoque === "boolean"
+        ? Boolean(parcial.permitirVendaSemEstoque)
+        : defaults.permitirVendaSemEstoque,
     permitirVendaFiado:
       typeof parcial?.permitirVendaFiado === "boolean"
         ? Boolean(parcial.permitirVendaFiado)

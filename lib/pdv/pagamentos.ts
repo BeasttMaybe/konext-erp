@@ -119,8 +119,17 @@ export const CONFIG_PAGAMENTOS_PDV: ConfigPagamentoPdv[] = [
 
 const mapaConfiguracao = new Map(CONFIG_PAGAMENTOS_PDV.map((item) => [item.formaPagamento, item]));
 
-const paraCentavos = (valor: number) => Math.round((valor + Number.EPSILON) * 100);
-const paraMoeda = (centavos: number) => centavos / 100;
+export const paraCentavos = (valor: number) => Math.round((valor + Number.EPSILON) * 100);
+export const paraMoeda = (centavos: number) => centavos / 100;
+
+/**
+ * Trecho fixo usado em toda mensagem de erro do PDV causada por dados
+ * desatualizados no carrinho do cliente (preco mudou, produto foi
+ * desativado, soma dos pagamentos nao bate mais, etc.). O cliente
+ * (pdv/page.tsx) reconhece este texto para mostrar um aviso especifico e
+ * recarregar o catalogo, em vez do toast de erro generico.
+ */
+export const MENSAGEM_ATUALIZAR_CARRINHO_PDV = "Atualize o carrinho e tente novamente.";
 
 export function obterConfigPagamento(formaPagamento: FormaPagamentoPdv): ConfigPagamentoPdv {
   const config = mapaConfiguracao.get(formaPagamento);

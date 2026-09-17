@@ -74,6 +74,8 @@ import {
   processarVenda,
   type ClientePDV,
   type ConfiguracaoPagamentosPDV,
+  type ItemCarrinhoPdvInput,
+  type DescontoPdvInput,
 } from "@/app/actions/pdv";
 import { obterResumoCaixaDiario, type ResumoCaixaDiario } from "@/app/actions/caixa";
 import { META_DIARIA_REAIS } from "@/types/fechamento-caixa";
@@ -397,18 +399,40 @@ function PDVPageConteudo() {
     setModalPagamentoAberto(true);
   };
 
+  // O servidor nunca confia no preco/total do navegador (F-04/F-33): so
+  // aceita id do produto + quantidade, e recalcula tudo a partir do banco.
+  // O que o carrinho local guarda como "preco editado" ou "desconto" vira
+  // apenas um PEDIDO de desconto, validado contra o limite configurado.
+  const construirItensParaServidor = (): ItemCarrinhoPdvInput[] =>
+    itens.map((item) => ({ produtoId: item.id, quantidade: item.quantidade }));
+
+  const construirDescontoParaServidor = (): DescontoPdvInput | null => {
+    const subtotalCatalogo = itens.reduce((acumulado, item) => {
+      const precoDeCatalogo = produtosCatalogo.find((produto) => produto.id === item.id)?.preco ?? item.preco;
+      return acumulado + precoDeCatalogo * item.quantidade;
+    }, 0);
+
+    // Diferenca entre o preco de catalogo e o total que o operador pretende
+    // cobrar (preco editado no carrinho + campo "Desconto"). Uma edicao para
+    // CIMA nunca vira cobranca extra — o servidor sempre usa o preco real.
+    const descontoReais = Math.max(0, subtotalCatalogo - resumo.total);
+    return descontoReais > 0.001 ? { tipo: "VALOR", valor: descontoReais } : null;
+  };
+
   const aoConfirmarPagamento = async (dados: DadosPagamento) => {
     try {
       const orderServiceSale = Boolean(pedidoOS);
       const orderServiceNumber = pedidoOS?.numeroOs;
+      const itensParaServidor = construirItensParaServidor();
+      const descontoParaServidor = construirDescontoParaServidor();
       const venda = pedidoOS
-        ? await processarVendaComOSNoPDV(pedidoOS.osId, itens, dados.pagamentos)
-        : await processarVenda(
-            itens,
-            resumo.total,
-            dados.pagamentos,
-            clienteSelecionadoId || undefined
-          );
+        ? await processarVendaComOSNoPDV(pedidoOS.osId, itensParaServidor, dados.pagamentos, {
+            desconto: descontoParaServidor,
+          })
+        : await processarVenda(itensParaServidor, dados.pagamentos, {
+            clienteId: clienteSelecionadoId || undefined,
+            desconto: descontoParaServidor,
+          });
 
       // Venda salva com sucesso — limpa automaticamente o PDV antes de retornar
       limparCarrinho();           // reseta itens, desconto e tipoDesconto
@@ -428,6 +452,19 @@ function PDVPageConteudo() {
         erro instanceof Error
           ? erro.message
           : "Não foi possível processar a venda. Tente novamente.";
+
+      // O servidor recalculou o total (preco pode ter mudado, produto pode
+      // ter sido desativado) e ele não bate mais com o que o carrinho local
+      // mostrava. Atualiza o catálogo em segundo plano para a próxima
+      // tentativa já refletir os preços reais — a mensagem pt-BR do servidor
+      // já orienta o operador a revisar o carrinho.
+      if (mensagem.includes("Atualize o carrinho")) {
+        listarProdutosPDV()
+          .then((lista) => setProdutosCatalogo(lista))
+          .catch(() => {
+            // Falha ao atualizar o catálogo em segundo plano — não impede o operador de recarregar a página.
+          });
+      }
 
       return {
         sucesso: false,

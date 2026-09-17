@@ -3,7 +3,7 @@
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
-import { temPermissao } from "@/lib/auth/permissoes";
+import { exigirPermissao, temPermissao } from "@/lib/auth/permissoes";
 import {
   mensagemIndicaRuntimeLegadoConfiguracao,
   obterDefaultsConfiguracaoOsGarantias,
@@ -16,10 +16,20 @@ import {
 import {
   calcularPagamentoPdv,
   ehPagamentoPrazo,
+  paraCentavos,
+  paraMoeda,
+  MENSAGEM_ATUALIZAR_CARRINHO_PDV,
   type EntradaPagamentoPdv,
   type FormaPagamentoPdv,
   type ResultadoPagamentoPdv,
 } from "@/lib/pdv/pagamentos";
+import {
+  calcularVendaPdv,
+  type DescontoPdv,
+  type ItemEntradaCalculoVenda,
+} from "@/lib/dominio/pdv/calcular-venda";
+import { registrarLogAuditoria, contextoAuditoriaDoUsuario } from "@/lib/auditoria";
+import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 
 export interface ClientePDV {
   id: string;
@@ -35,13 +45,17 @@ export interface ProdutoPDVBanco {
   imagemUrl: string | null;
 }
 
-export interface CarrinhoItem {
-  id: string;
-  nome: string;
-  preco: number;
+/**
+ * Entrada real aceita do cliente para compor uma venda (F-04/F-33): apenas o
+ * id do produto e a quantidade. Preco, custo e subtotal SEMPRE vem do banco,
+ * nunca do navegador — ver `lib/dominio/pdv/calcular-venda.ts`.
+ */
+export interface ItemCarrinhoPdvInput {
+  produtoId: string;
   quantidade: number;
-  subtotal: number;
 }
+
+export type DescontoPdvInput = DescontoPdv;
 
 export interface PedidoOSPDV {
   osId: string;
@@ -179,6 +193,7 @@ async function obterConfiguracaoPagamentosInterna(prisma: PrismaTenant): Promise
         permitirPagamentoMisto: true,
         permitirDescontoPDV: true,
         descontoMaximoPDVPercentual: true,
+        permitirVendaSemEstoque: true,
         permitirVendaFiado: true,
         habilitarPix: true,
         habilitarDinheiro: true,
@@ -217,6 +232,7 @@ async function obterConfiguracaoPagamentosInterna(prisma: PrismaTenant): Promise
           "permitirPagamentoMisto",
           "permitirDescontoPDV",
           "descontoMaximoPDVPercentual",
+          "permitirVendaSemEstoque",
           "permitirVendaFiado",
           "habilitarPix",
           "habilitarDinheiro",
@@ -256,9 +272,6 @@ export async function obterConfiguracaoPagamentosPDV(): Promise<ConfiguracaoPaga
   const { prisma } = await exigirContextoTenant();
   return obterConfiguracaoPagamentosInterna(prisma);
 }
-
-const paraCentavos = (valor: number) => Math.round((valor + Number.EPSILON) * 100);
-const paraMoeda = (centavos: number) => centavos / 100;
 
 function normalizeMonetaryValue(value: unknown): number {
   const numericValue = typeof value === "number" ? value : Number(value ?? 0);
@@ -682,7 +695,9 @@ function validarTotalPagamentos(
   }, 0);
 
   if (totalPagamentosCentavos !== totalVendaCentavos) {
-    throw new Error("A soma dos pagamentos deve ser igual ao total da venda.");
+    throw new Error(
+      `A soma dos pagamentos não confere com o total calculado pelo servidor. ${MENSAGEM_ATUALIZAR_CARRINHO_PDV}`
+    );
   }
 }
 
@@ -777,62 +792,225 @@ export async function listarProdutosPDV(): Promise<ProdutoPDVBanco[]> {
   }));
 }
 
+type ProdutoVendaCarregado = {
+  id: string;
+  nome: string;
+  precoVenda: number;
+  custo: number;
+  ativo: boolean;
+};
+
+/**
+ * Carrega do banco (dentro da transacao) os produtos pedidos pelo cliente,
+ * rejeitando ids inexistentes ou inativos. Preco e custo daqui em diante
+ * SEMPRE vem deste mapa — nunca do payload do cliente (F-04/F-33).
+ */
+async function carregarProdutosParaVenda(
+  tx: Prisma.TransactionClient,
+  itens: ItemCarrinhoPdvInput[]
+): Promise<Map<string, ProdutoVendaCarregado>> {
+  const idsProdutos = Array.from(new Set(itens.map((item) => item.produtoId)));
+
+  const produtos = await tx.produto.findMany({
+    where: {
+      id: {
+        in: idsProdutos,
+      },
+    },
+    select: {
+      id: true,
+      nome: true,
+      precoVenda: true,
+      custo: true,
+      ativo: true,
+    },
+  });
+
+  const mapa = new Map(produtos.map((produto) => [produto.id, produto]));
+
+  for (const id of idsProdutos) {
+    const produto = mapa.get(id);
+    if (!produto) {
+      throw new Error(
+        `Um dos produtos do carrinho não foi encontrado. ${MENSAGEM_ATUALIZAR_CARRINHO_PDV}`
+      );
+    }
+    if (!produto.ativo) {
+      throw new Error(`O produto "${produto.nome}" está inativo e não pode ser vendido.`);
+    }
+  }
+
+  return mapa;
+}
+
+function montarItensCalculoVenda(
+  itens: ItemCarrinhoPdvInput[],
+  produtos: Map<string, ProdutoVendaCarregado>
+): ItemEntradaCalculoVenda[] {
+  return itens.map((item) => {
+    const produto = produtos.get(item.produtoId);
+    if (!produto) {
+      throw new Error(
+        `Um dos produtos do carrinho não foi encontrado. ${MENSAGEM_ATUALIZAR_CARRINHO_PDV}`
+      );
+    }
+
+    return {
+      produto: {
+        id: produto.id,
+        nome: produto.nome,
+        precoVenda: produto.precoVenda,
+        custo: produto.custo,
+      },
+      quantidade: item.quantidade,
+    };
+  });
+}
+
+type ResultadoBaixaEstoqueItem = {
+  produtoId: string;
+  nome: string;
+  quantidadeEstoqueResultante: number;
+  ficouNegativo: boolean;
+};
+
+/**
+ * Da baixa no estoque de cada item e cria a notificacao de "Estoque Baixo"
+ * quando aplicavel — tudo dentro da MESMA transacao da venda (antes rodava
+ * em um setImmediate desacoplado, fora de qualquer transacao, e podia
+ * silenciosamente nao gravar nada — AUDIT_REPORT F-19).
+ *
+ * Com `permitirVendaSemEstoque` desligado (padrao), a baixa e condicional e
+ * atomica via updateMany: se o estoque acabou entre a leitura do preco e
+ * este passo, a venda falha com estoque insuficiente. Com a flag ligada, a
+ * baixa e incondicional (o estoque pode ficar negativo) e cada produto que
+ * ficou negativo e devolvido para entrar na trilha de auditoria da venda.
+ */
+async function baixarEstoqueVenda(
+  tx: Prisma.TransactionClient,
+  itens: Array<{ produtoId: string; nome: string; quantidade: number }>,
+  permitirVendaSemEstoque: boolean
+): Promise<ResultadoBaixaEstoqueItem[]> {
+  const resultados: ResultadoBaixaEstoqueItem[] = [];
+
+  for (const item of itens) {
+    let produtoAtualizado: { nome: string; quantidadeEstoque: number; estoqueMinimo: number };
+
+    if (!permitirVendaSemEstoque) {
+      const atualizacao = await tx.produto.updateMany({
+        where: {
+          id: item.produtoId,
+          quantidadeEstoque: {
+            gte: item.quantidade,
+          },
+        },
+        data: {
+          quantidadeEstoque: {
+            decrement: item.quantidade,
+          },
+        },
+      });
+
+      if (atualizacao.count === 0) {
+        throw new Error(`Estoque insuficiente para o produto ${item.nome}.`);
+      }
+
+      produtoAtualizado = await tx.produto.findUniqueOrThrow({
+        where: { id: item.produtoId },
+        select: { nome: true, quantidadeEstoque: true, estoqueMinimo: true },
+      });
+    } else {
+      produtoAtualizado = await tx.produto.update({
+        where: { id: item.produtoId },
+        data: {
+          quantidadeEstoque: {
+            decrement: item.quantidade,
+          },
+        },
+        select: { nome: true, quantidadeEstoque: true, estoqueMinimo: true },
+      });
+    }
+
+    resultados.push({
+      produtoId: item.produtoId,
+      nome: produtoAtualizado.nome,
+      quantidadeEstoqueResultante: produtoAtualizado.quantidadeEstoque,
+      ficouNegativo: produtoAtualizado.quantidadeEstoque < 0,
+    });
+
+    if (produtoAtualizado.quantidadeEstoque <= produtoAtualizado.estoqueMinimo) {
+      const notificacaoExistente = await tx.notificacao.findFirst({
+        where: {
+          lida: false,
+          titulo: "Estoque Baixo",
+          mensagem: { contains: produtoAtualizado.nome },
+        },
+      });
+
+      if (!notificacaoExistente) {
+        await tx.notificacao.create({
+          data: {
+            titulo: "Estoque Baixo",
+            mensagem: `Atenção: O estoque do item "${produtoAtualizado.nome}" está baixo (Restam: ${produtoAtualizado.quantidadeEstoque} unidades).`,
+          },
+        });
+      }
+    }
+  }
+
+  return resultados;
+}
+
 export async function processarVenda(
-  carrinho: CarrinhoItem[],
-  total: number,
+  itens: ItemCarrinhoPdvInput[],
   pagamentos: PagamentoPdvInput[],
-  clienteId?: string
+  opcoes?: {
+    clienteId?: string;
+    desconto?: DescontoPdvInput | null;
+  }
 ) {
   // C1: somente operadores autenticados podem registrar vendas.
   const contexto = await exigirContextoTenant();
   const prisma = contexto.prisma;
   const sessionUser = contexto.usuarioOperacional;
+  const clienteId = opcoes?.clienteId;
+  const desconto = opcoes?.desconto ?? null;
 
-  if (carrinho.length === 0) {
+  if (itens.length === 0) {
     throw new Error("Carrinho vazio para processamento da venda.");
   }
 
-  const totalCentavos = paraCentavos(total);
   const configuracaoPdv = await obterConfiguracaoPagamentosInterna(prisma);
-  const pagamentosProcessados = normalizarPagamentosEntrada(pagamentos, configuracaoPdv);
-  validarTotalPagamentos(pagamentosProcessados, totalCentavos);
-  const formaPagamentoPrincipal = obterFormaPrincipal(pagamentosProcessados);
-  const formaPagamentoBanco = mapearFormaPagamento(formaPagamentoPrincipal);
 
   try {
     const venda = await prisma.$transaction(async (tx) => {
       const txAny = tx as unknown as ClientePrismaAny;
       const prismaAny = prisma as unknown as ClientePrismaAny;
       const caixaAberto = await obterCaixaSessionAberta(tx);
-      const idsProdutos = Array.from(new Set(carrinho.map((item) => item.id)));
 
-      const produtosComCusto = await tx.produto.findMany({
-        where: {
-          id: {
-            in: idsProdutos,
-          },
-        },
-        select: {
-          id: true,
-          custo: true,
-        },
+      // C2: preco, custo e ativo vem SEMPRE do banco, nunca do payload do
+      // cliente — este e o nucleo da correcao F-04/F-33.
+      const produtos = await carregarProdutosParaVenda(tx, itens);
+      const itensCalculo = montarItensCalculoVenda(itens, produtos);
+      const resultadoCalculo = calcularVendaPdv(itensCalculo, desconto, {
+        permitirDescontoPDV: configuracaoPdv.permitirDescontoPDV,
+        descontoMaximoPDVPercentual: configuracaoPdv.descontoMaximoPDVPercentual,
       });
 
-      const mapaCustoPorProduto = new Map(
-        produtosComCusto.map((produto) => [produto.id, produto.custo])
-      );
+      if (resultadoCalculo.descontoAcimaDoLimite) {
+        exigirPermissao(contexto, "pdv.aplicar_desconto_acima_limite");
+      }
+
+      const pagamentosProcessados = normalizarPagamentosEntrada(pagamentos, configuracaoPdv);
+      validarTotalPagamentos(pagamentosProcessados, resultadoCalculo.totalCentavos);
+      const formaPagamentoPrincipal = obterFormaPrincipal(pagamentosProcessados);
+      const formaPagamentoBanco = mapearFormaPagamento(formaPagamentoPrincipal);
 
       const vendaDelegate = obterDelegateComFallback(
         txAny,
         prismaAny,
         ["venda", "Venda"],
         "venda"
-      );
-      const itemVendaDelegate = obterDelegateComFallback(
-        txAny,
-        prismaAny,
-        ["itemVenda", "ItemVenda"],
-        "itemVenda"
       );
       const vendaPagamentoDelegate = obterDelegateComFallbackOpcional(
         txAny,
@@ -850,8 +1028,8 @@ export async function processarVenda(
               },
             }
           : {}),
-        valorTotal: paraMoeda(totalCentavos),
-        desconto: 0,
+        valorTotal: paraMoeda(resultadoCalculo.totalCentavos),
+        desconto: paraMoeda(resultadoCalculo.descontoCentavos),
       };
 
       const novaVenda = await criarVendaComFallbackFormaPagamento(
@@ -868,95 +1046,28 @@ export async function processarVenda(
 
       await vincularVendaAoCaixa(tx, vendaId, caixaAberto.id);
 
-      for (const item of carrinho) {
-        const precoUnitarioCentavos = paraCentavos(item.preco);
-        const custoUnitario = mapaCustoPorProduto.get(item.id);
-
-        if (typeof custoUnitario !== "number") {
-          throw new Error(`Produto ${item.nome} nao encontrado para composicao de custo.`);
-        }
-
-        const custoUnitarioCentavos = paraCentavos(custoUnitario);
-        const subtotalCentavos = precoUnitarioCentavos * item.quantidade;
-
-        await itemVendaDelegate.create({
-          data: {
-            venda: {
-              connect: {
-                id: vendaId,
-              },
-            },
-            produto: {
-              connect: {
-                id: item.id,
-              },
-            },
-            quantidade: item.quantidade,
-            custoUnitario: paraMoeda(custoUnitarioCentavos),
-            precoUnitario: paraMoeda(precoUnitarioCentavos),
-            subtotal: paraMoeda(subtotalCentavos),
-          },
-        });
-      }
-
-      for (const item of carrinho) {
-        const resultadoAtualizacao = await tx.produto.updateMany({
-          where: {
-            id: item.id,
-            quantidadeEstoque: {
-              gte: item.quantidade,
-            },
-          },
-          data: {
-            quantidadeEstoque: {
-              decrement: item.quantidade,
-            },
-          },
-        });
-
-        if (resultadoAtualizacao.count === 0) {
-          throw new Error(`Estoque insuficiente para o produto ${item.nome}.`);
-        }
-      }
-
-      // Verifica estoque baixo após decrementar e cria notificações de forma assíncrona e silenciosa.
-      setImmediate(async () => {
-        try {
-          const prismaAny2 = prisma as typeof prisma & Record<string, unknown>;
-          const produtoDelegate = prismaAny2.produto ?? prismaAny2.Produto;
-          const notifDelegate = prismaAny2.notificacao ?? prismaAny2.Notificacao;
-          if (!produtoDelegate?.findUnique || !notifDelegate?.create) return;
-
-          for (const item of carrinho) {
-            const produto = await produtoDelegate.findUnique({
-              where: { id: item.id },
-              select: { nome: true, quantidadeEstoque: true, estoqueMinimo: true },
-            });
-            if (!produto) continue;
-
-            const limite = produto.estoqueMinimo ?? 3;
-            if (produto.quantidadeEstoque <= limite) {
-              const notifExistente = await notifDelegate.findFirst({
-                where: {
-                  lida: false,
-                  titulo: "Estoque Baixo",
-                  mensagem: { contains: produto.nome },
-                },
-              });
-              if (!notifExistente) {
-                await notifDelegate.create({
-                  data: {
-                    titulo: "Estoque Baixo",
-                    mensagem: `Atenção: O estoque do item "${produto.nome}" está baixo (Restam: ${produto.quantidadeEstoque} unidades).`,
-                  },
-                });
-              }
-            }
-          }
-        } catch {
-          // Notificação de estoque é opcional — falha silenciosa para não impactar a venda.
-        }
+      await tx.itemVenda.createMany({
+        data: resultadoCalculo.itens.map((item) => ({
+          vendaId,
+          produtoId: item.produtoId,
+          descricao: item.nome,
+          quantidade: item.quantidade,
+          custoUnitario: paraMoeda(item.custoUnitarioCentavos),
+          precoUnitario: paraMoeda(item.precoUnitarioCentavos),
+          subtotal: paraMoeda(item.subtotalLiquidoCentavos),
+        })),
       });
+
+      const baixaEstoque = await baixarEstoqueVenda(
+        tx,
+        resultadoCalculo.itens.map((item) => ({
+          produtoId: item.produtoId,
+          nome: item.nome,
+          quantidade: item.quantidade,
+        })),
+        configuracaoPdv.permitirVendaSemEstoque
+      );
+
       const contaReceberDelegate = obterDelegateComFallback(
         txAny,
         prismaAny,
@@ -1013,16 +1124,36 @@ export async function processarVenda(
         vendaId,
         clienteId,
         vendedor: sessionUser.nome,
-        total: paraMoeda(totalCentavos),
+        total: paraMoeda(resultadoCalculo.totalCentavos),
         formaPagamento: formaPagamentoBanco,
-        items: carrinho.map((item) => ({
-          produtoId: item.id,
+        items: resultadoCalculo.itens.map((item) => ({
+          produtoId: item.produtoId,
           nome: item.nome,
           quantidade: item.quantidade,
-          precoUnitario: item.preco,
-          subtotal: item.preco * item.quantidade,
+          precoUnitario: paraMoeda(item.precoUnitarioCentavos),
+          subtotal: paraMoeda(item.subtotalLiquidoCentavos),
         })),
       });
+
+      await registrarLogAuditoria(
+        tx,
+        contextoAuditoriaDoUsuario(sessionUser, "app/actions/pdv.ts:processarVenda"),
+        {
+          acao: ACOES_AUDITORIA.CRIAR,
+          entidade: ENTIDADES_AUDITORIA.VENDA,
+          entidadeId: vendaId,
+          dadosDepois: {
+            totalCentavos: resultadoCalculo.totalCentavos,
+            descontoCentavos: resultadoCalculo.descontoCentavos,
+            clienteId: clienteId ?? null,
+            itens: resultadoCalculo.itens.map((item) => ({
+              produtoId: item.produtoId,
+              quantidade: item.quantidade,
+            })),
+            estoqueNegativo: baixaEstoque.filter((item) => item.ficouNegativo),
+          },
+        }
+      );
 
       return { id: vendaId };
     });
@@ -1224,28 +1355,24 @@ export async function processarVendaOSNoPDV(osId: string, pagamentos: PagamentoP
 
 export async function processarVendaComOSNoPDV(
   osId: string,
-  carrinhoProdutos: CarrinhoItem[],
-  pagamentos: PagamentoPdvInput[]
+  itensProdutos: ItemCarrinhoPdvInput[],
+  pagamentos: PagamentoPdvInput[],
+  opcoes?: {
+    desconto?: DescontoPdvInput | null;
+  }
 ) {
   // C1: somente operadores autenticados podem faturar OS no PDV.
   const contexto = await exigirContextoTenant();
   const prisma = contexto.prisma;
   const sessionUser = contexto.usuarioOperacional;
+  const desconto = opcoes?.desconto ?? null;
 
   // Interno, nao a versao exportada: a venda precisa do custo REAL de cada
   // item para gravar custoUnitario, mesmo quando quem vende nao tem
   // os.ver_custos.
   const pedido = await obterPedidoOSParaPDVInterno(osId);
-  const totalProdutosCentavos = carrinhoProdutos.reduce((acc, item) => {
-    return acc + paraCentavos(item.preco) * item.quantidade;
-  }, 0);
   const totalOSCentavos = paraCentavos(pedido.valor);
-  const totalVendaCentavos = totalOSCentavos + totalProdutosCentavos;
   const configuracaoPdv = await obterConfiguracaoPagamentosInterna(prisma);
-  const pagamentosProcessados = normalizarPagamentosEntrada(pagamentos, configuracaoPdv);
-  validarTotalPagamentos(pagamentosProcessados, totalVendaCentavos);
-  const formaPagamentoPrincipal = obterFormaPrincipal(pagamentosProcessados);
-  const formaPagamentoBanco = mapearFormaPagamento(formaPagamentoPrincipal);
 
   try {
     const resultado = await prisma.$transaction(async (tx) => {
@@ -1260,20 +1387,39 @@ export async function processarVendaComOSNoPDV(
         ["contaReceber", "ContaReceber"],
         "contaReceber"
       );
-      const itemVendaDelegate = obterDelegateComFallback(
-        txAny,
-        prismaAny,
-        ["itemVenda", "ItemVenda"],
-        "itemVenda"
-      );
       const vendaPagamentoDelegate = obterDelegateComFallbackOpcional(
         txAny,
         prismaAny,
         ["vendaPagamento", "VendaPagamento"]
       );
-      const ordemServicoDelegate = (txAny.ordemServico ?? txAny.OrdemServico) as
-        | { update?: (args: unknown) => Promise<unknown> }
-        | undefined;
+
+      // C2: preco, custo e ativo dos produtos extras vem SEMPRE do banco,
+      // nunca do payload do cliente (F-04/F-33). Os itens da propria OS ja
+      // vem confiaveis de `obterPedidoOSParaPDVInterno`.
+      const resultadoProdutos =
+        itensProdutos.length > 0
+          ? calcularVendaPdv(
+              montarItensCalculoVenda(itensProdutos, await carregarProdutosParaVenda(tx, itensProdutos)),
+              desconto,
+              {
+                permitirDescontoPDV: configuracaoPdv.permitirDescontoPDV,
+                descontoMaximoPDVPercentual: configuracaoPdv.descontoMaximoPDVPercentual,
+              }
+            )
+          : null;
+
+      if (resultadoProdutos?.descontoAcimaDoLimite) {
+        exigirPermissao(contexto, "pdv.aplicar_desconto_acima_limite");
+      }
+
+      const totalProdutosCentavos = resultadoProdutos?.totalCentavos ?? 0;
+      const descontoProdutosCentavos = resultadoProdutos?.descontoCentavos ?? 0;
+      const totalVendaCentavos = totalOSCentavos + totalProdutosCentavos;
+
+      const pagamentosProcessados = normalizarPagamentosEntrada(pagamentos, configuracaoPdv);
+      validarTotalPagamentos(pagamentosProcessados, totalVendaCentavos);
+      const formaPagamentoPrincipal = obterFormaPrincipal(pagamentosProcessados);
+      const formaPagamentoBanco = mapearFormaPagamento(formaPagamentoPrincipal);
 
       const contaExistente = await tx.contaReceber.findFirst({
         where: {
@@ -1299,7 +1445,7 @@ export async function processarVendaComOSNoPDV(
             },
           },
           valorTotal: paraMoeda(totalVendaCentavos),
-          desconto: 0,
+          desconto: paraMoeda(descontoProdutosCentavos),
         },
         formaPagamentoBanco
       );
@@ -1312,96 +1458,40 @@ export async function processarVendaComOSNoPDV(
 
       await vincularVendaAoCaixa(tx, vendaId, caixaAberto.id);
 
-      for (const item of pedido.items) {
-        const unitPriceInCents = paraCentavos(item.unitPrice);
-        // `pedido` vem de obterPedidoOSParaPDVInterno: unitCost aqui e sempre
-        // o custo real (nunca null); o `?? 0` e so blindagem de tipo.
-        const unitCostInCents = paraCentavos(item.unitCost ?? 0);
-        const subtotalInCents = paraCentavos(item.totalPrice);
-
-        await itemVendaDelegate.create({
-          data: {
-            venda: {
-              connect: {
-                id: vendaId,
-              },
-            },
+      await tx.itemVenda.createMany({
+        data: [
+          ...pedido.items.map((item) => ({
+            vendaId,
+            produtoId: null as string | null,
             descricao: item.description,
             quantidade: item.quantity,
-            custoUnitario: paraMoeda(unitCostInCents),
-            precoUnitario: paraMoeda(unitPriceInCents),
-            subtotal: paraMoeda(subtotalInCents),
-          },
-        });
-      }
+            // `pedido` vem de obterPedidoOSParaPDVInterno: unitCost aqui e
+            // sempre o custo real (nunca null); o `?? 0` e so blindagem de tipo.
+            custoUnitario: paraMoeda(paraCentavos(item.unitCost ?? 0)),
+            precoUnitario: paraMoeda(paraCentavos(item.unitPrice)),
+            subtotal: paraMoeda(paraCentavos(item.totalPrice)),
+          })),
+          ...(resultadoProdutos?.itens ?? []).map((item) => ({
+            vendaId,
+            produtoId: item.produtoId as string | null,
+            descricao: item.nome,
+            quantidade: item.quantidade,
+            custoUnitario: paraMoeda(item.custoUnitarioCentavos),
+            precoUnitario: paraMoeda(item.precoUnitarioCentavos),
+            subtotal: paraMoeda(item.subtotalLiquidoCentavos),
+          })),
+        ],
+      });
 
-      if (carrinhoProdutos.length > 0) {
-        const productIds = Array.from(new Set(carrinhoProdutos.map((item) => item.id)));
-        const productsWithCost = await tx.produto.findMany({
-          where: {
-            id: {
-              in: productIds,
-            },
-          },
-          select: {
-            id: true,
-            custo: true,
-          },
-        });
-
-        const costByProductId = new Map(productsWithCost.map((product) => [product.id, product.custo]));
-
-        for (const item of carrinhoProdutos) {
-          const unitCost = costByProductId.get(item.id);
-          if (typeof unitCost !== "number") {
-            throw new Error(`Produto ${item.nome} nao encontrado para composicao de custo.`);
-          }
-
-          const unitPriceInCents = paraCentavos(item.preco);
-          const unitCostInCents = paraCentavos(unitCost);
-          const subtotalInCents = unitPriceInCents * item.quantidade;
-
-          await itemVendaDelegate.create({
-            data: {
-              venda: {
-                connect: {
-                  id: vendaId,
-                },
-              },
-              produto: {
-                connect: {
-                  id: item.id,
-                },
-              },
-              descricao: item.nome,
-              quantidade: item.quantidade,
-              custoUnitario: paraMoeda(unitCostInCents),
-              precoUnitario: paraMoeda(unitPriceInCents),
-              subtotal: paraMoeda(subtotalInCents),
-            },
-          });
-        }
-
-        for (const item of carrinhoProdutos) {
-          const updateResult = await tx.produto.updateMany({
-            where: {
-              id: item.id,
-              quantidadeEstoque: {
-                gte: item.quantidade,
-              },
-            },
-            data: {
-              quantidadeEstoque: {
-                decrement: item.quantidade,
-              },
-            },
-          });
-
-          if (updateResult.count === 0) {
-            throw new Error(`Estoque insuficiente para o produto ${item.nome}.`);
-          }
-        }
-      }
+      const baixaEstoque = await baixarEstoqueVenda(
+        tx,
+        (resultadoProdutos?.itens ?? []).map((item) => ({
+          produtoId: item.produtoId,
+          nome: item.nome,
+          quantidade: item.quantidade,
+        })),
+        configuracaoPdv.permitirVendaSemEstoque
+      );
 
       for (const pagamento of pagamentosProcessados) {
         const formaPagamentoAtual = mapearFormaPagamento(pagamento.formaPagamento);
@@ -1469,15 +1559,36 @@ export async function processarVendaComOSNoPDV(
             precoUnitario: item.unitPrice,
             subtotal: item.totalPrice,
           })),
-          ...carrinhoProdutos.map((item) => ({
-            produtoId: item.id,
+          ...(resultadoProdutos?.itens ?? []).map((item) => ({
+            produtoId: item.produtoId,
             nome: item.nome,
             quantidade: item.quantidade,
-            precoUnitario: item.preco,
-            subtotal: item.preco * item.quantidade,
+            precoUnitario: paraMoeda(item.precoUnitarioCentavos),
+            subtotal: paraMoeda(item.subtotalLiquidoCentavos),
           })),
         ],
       });
+
+      await registrarLogAuditoria(
+        tx,
+        contextoAuditoriaDoUsuario(sessionUser, "app/actions/pdv.ts:processarVendaComOSNoPDV"),
+        {
+          acao: ACOES_AUDITORIA.CRIAR,
+          entidade: ENTIDADES_AUDITORIA.VENDA,
+          entidadeId: vendaId,
+          dadosDepois: {
+            osId: pedido.osId,
+            totalCentavos: totalVendaCentavos,
+            descontoCentavos: descontoProdutosCentavos,
+            clienteId: pedido.clienteId,
+            itensProdutos: (resultadoProdutos?.itens ?? []).map((item) => ({
+              produtoId: item.produtoId,
+              quantidade: item.quantidade,
+            })),
+            estoqueNegativo: baixaEstoque.filter((item) => item.ficouNegativo),
+          },
+        }
+      );
 
       return { vendaId };
     });
