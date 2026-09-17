@@ -706,6 +706,15 @@ function obterFormaPrincipal(pagamentos: ResultadoPagamentoPdv[]): FormaPagament
   return ordenados[0]?.formaPagamento ?? "DINHEIRO";
 }
 
+/** Recorte dos pagamentos para o payload de auditoria da venda (Fase 1B-FIX, Parte 2). */
+function mapearPagamentosParaAuditoria(pagamentos: ResultadoPagamentoPdv[]) {
+  return pagamentos.map((pagamento) => ({
+    formaPagamento: pagamento.formaPagamento,
+    valorBrutoCentavos: paraCentavos(pagamento.valorBruto),
+    parcelas: pagamento.parcelas,
+  }));
+}
+
 async function obterCaixaSessionAberta(tx: TransacaoPdv): Promise<{ id: string }> {
   const caixaDelegate = (tx?.caixaSession ?? tx?.CaixaSession) as
     | { findFirst?: (args: unknown) => Promise<{ id?: string | number } | null> }
@@ -1147,10 +1156,15 @@ export async function processarVenda(
             totalCentavos: resultadoCalculo.totalCentavos,
             descontoCentavos: resultadoCalculo.descontoCentavos,
             clienteId: clienteId ?? null,
+            caixaSessionId: caixaAberto.id,
             itens: resultadoCalculo.itens.map((item) => ({
               produtoId: item.produtoId,
               quantidade: item.quantidade,
+              precoUnitarioCentavos: item.precoUnitarioCentavos,
+              descontoCentavos: item.descontoCentavos,
+              subtotalCentavos: item.subtotalLiquidoCentavos,
             })),
+            pagamentos: mapearPagamentosParaAuditoria(pagamentosProcessados),
             estoqueNegativo: baixaEstoque.filter((item) => item.ficouNegativo),
           },
         }
@@ -1583,10 +1597,20 @@ export async function processarVendaComOSNoPDV(
             totalCentavos: totalVendaCentavos,
             descontoCentavos: descontoProdutosCentavos,
             clienteId: pedido.clienteId,
+            caixaSessionId: caixaAberto.id,
+            itensOS: pedido.items.map((item) => ({
+              descricao: item.description,
+              quantidade: item.quantity,
+              precoUnitarioCentavos: paraCentavos(item.unitPrice),
+            })),
             itensProdutos: (resultadoProdutos?.itens ?? []).map((item) => ({
               produtoId: item.produtoId,
               quantidade: item.quantidade,
+              precoUnitarioCentavos: item.precoUnitarioCentavos,
+              descontoCentavos: item.descontoCentavos,
+              subtotalCentavos: item.subtotalLiquidoCentavos,
             })),
+            pagamentos: mapearPagamentosParaAuditoria(pagamentosProcessados),
             estoqueNegativo: baixaEstoque.filter((item) => item.ficouNegativo),
           },
         }

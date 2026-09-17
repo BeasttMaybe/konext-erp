@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { randomUUID } from "node:crypto";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { exigirPermissao } from "@/lib/auth/permissoes";
+import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
+import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 
 type CaixaDelegate = {
   findFirst?: (args: unknown) => Promise<{ id?: string; valorAbertura?: number } | null>;
@@ -218,6 +220,7 @@ export async function abrirNovaCaixaSession(valorAbertura: number) {
   const novaSessao = await prisma.$transaction(async (tx) => {
     const txAny = tx as CaixaClient;
     const txCaixaDelegate = obterCaixaDelegate(txAny);
+    let resultado: { id: string; valorAbertura: number; dataAbertura: string };
 
     if (txCaixaDelegate?.findFirst && txCaixaDelegate?.create) {
       const caixaAberto = await txCaixaDelegate.findFirst({
@@ -245,20 +248,36 @@ export async function abrirNovaCaixaSession(valorAbertura: number) {
         },
       });
 
-      return {
+      resultado = {
         id: String(sessao.id),
         valorAbertura: Number(sessao.valorAbertura),
         dataAbertura: new Date(sessao.dataAbertura).toISOString(),
       };
+    } else {
+      const caixaAbertoSql = await buscarCaixaAbertoViaSql(txAny);
+
+      if (caixaAbertoSql?.id) {
+        throw new Error("Ja existe um caixa aberto. Feche o caixa atual antes de abrir um novo.");
+      }
+
+      resultado = await criarCaixaViaSql(txAny, valorNumerico);
     }
 
-    const caixaAbertoSql = await buscarCaixaAbertoViaSql(txAny);
+    await registrarLogAuditoria(
+      tx,
+      contextoAuditoriaDoUsuario(contexto.usuarioOperacional, "app/actions/caixa-pdv.ts:abrirNovaCaixaSession"),
+      {
+        acao: ACOES_AUDITORIA.ABRIR_CAIXA,
+        entidade: ENTIDADES_AUDITORIA.CAIXA_SESSION,
+        entidadeId: resultado.id,
+        dadosDepois: {
+          valorAberturaCentavos: Math.round(resultado.valorAbertura * 100),
+          dataAbertura: resultado.dataAbertura,
+        },
+      }
+    );
 
-    if (caixaAbertoSql?.id) {
-      throw new Error("Ja existe um caixa aberto. Feche o caixa atual antes de abrir um novo.");
-    }
-
-    return criarCaixaViaSql(txAny, valorNumerico);
+    return resultado;
   });
 
   revalidatePath("/pdv");
@@ -292,6 +311,7 @@ export async function fecharCaixaSessionAtual(valorFechamento?: number | null) {
     const valorFinal = Number.isFinite(valorInformado) && valorInformado >= 0
       ? valorInformado
       : resumoAtual.valorSugeridoFechamento;
+    let resultado: { id: string; valorFechamento: number; dataFechamento: string };
 
     if (txCaixaDelegate?.findFirst && txCaixaDelegate?.update) {
       const caixaFechado = await txCaixaDelegate.update({
@@ -310,14 +330,32 @@ export async function fecharCaixaSessionAtual(valorFechamento?: number | null) {
         },
       });
 
-      return {
+      resultado = {
         id: String(caixaFechado.id),
         valorFechamento: Number(caixaFechado.valorFechamento ?? valorFinal),
         dataFechamento: new Date(caixaFechado.dataFechamento ?? new Date()).toISOString(),
       };
+    } else {
+      resultado = await fecharCaixaViaSql(txAny, resumoAtual.caixaId, valorFinal);
     }
 
-    return fecharCaixaViaSql(txAny, resumoAtual.caixaId, valorFinal);
+    await registrarLogAuditoria(
+      tx,
+      contextoAuditoriaDoUsuario(contexto.usuarioOperacional, "app/actions/caixa-pdv.ts:fecharCaixaSessionAtual"),
+      {
+        acao: ACOES_AUDITORIA.FECHAR_CAIXA,
+        entidade: ENTIDADES_AUDITORIA.CAIXA_SESSION,
+        entidadeId: resultado.id,
+        dadosDepois: {
+          valorAberturaCentavos: Math.round(resumoAtual.valorAbertura * 100),
+          valorFechamentoCentavos: Math.round(resultado.valorFechamento * 100),
+          totalVendasSessaoCentavos: Math.round(resumoAtual.totalVendasSessao * 100),
+          dataFechamento: resultado.dataFechamento,
+        },
+      }
+    );
+
+    return resultado;
   });
 
   revalidatePath("/pdv");
