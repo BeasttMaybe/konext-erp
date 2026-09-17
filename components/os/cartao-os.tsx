@@ -84,13 +84,24 @@ export function CartaoOS({
               {os.numeroOS}
             </h3>
           </div>
-          {/* Repetir o status da própria coluna não informa nada. Num retorno de
-              garantia dentro de outra coluna, informa. */}
-          {statusDaColuna !== os.status ? (
-            <Badge className={`${statusChipClass ?? mapStatusColor[os.status]} whitespace-nowrap text-xs font-medium`}>
-              {mapStatusLabel[os.status]}
-            </Badge>
-          ) : null}
+          <div className="flex flex-wrap items-center justify-end gap-1">
+            {/* Repetir o status da própria coluna não informa nada. Num retorno de
+                garantia dentro de outra coluna, informa. */}
+            {statusDaColuna !== os.status ? (
+              <Badge className={`${statusChipClass ?? mapStatusColor[os.status]} whitespace-nowrap text-xs font-medium`}>
+                {mapStatusLabel[os.status]}
+              </Badge>
+            ) : null}
+            {os.entregueSemServico ? (
+              <Badge
+                variant="outline"
+                className="whitespace-nowrap border-amber-500 text-xs font-medium text-amber-700 dark:text-amber-300"
+                title={os.motivoSemServico}
+              >
+                Sem serviço
+              </Badge>
+            ) : null}
+          </div>
         </div>
 
         {/* Client */}

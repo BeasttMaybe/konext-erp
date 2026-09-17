@@ -21,6 +21,7 @@ import { ModalReabrirOS, type ConfirmacaoReaberturaPayload } from "@/components/
 import type { PendenciaFinalizacao } from "@/lib/dominio/os/regras-finalizacao";
 import { ModalNovaOS } from "@/components/os/modal-nova-os";
 import { ModalFinalizarOS, type ConfirmacaoFinalizacaoPayload } from "@/components/os/modal-finalizar-os";
+import { ModalEntregarSemServico } from "@/components/os/modal-entregar-sem-servico";
 import {
   ModalFinalizarRetornoGarantia,
   type FinalizacaoRetornoGarantiaPayload,
@@ -30,6 +31,7 @@ import {
   criarOrdemServico,
   excluirOrdemServico,
   finalizarOrdemServico,
+  finalizarSemServico,
   reabrirOrdemServico,
   atualizarStatusOrdemServico,
 } from "@/app/actions/os";
@@ -78,8 +80,12 @@ export function DashboardOS({
   const [pendenciasFinalizacao, setPendenciasFinalizacao] = useState<PendenciaFinalizacao[]>([]);
   const [osParaReabrir, setOsParaReabrir] = useState<OrdemServico | null>(null);
   const [osReabrindoId, setOsReabrindoId] = useState<string | null>(null);
+  const [osParaSemServico, setOsParaSemServico] = useState<OrdemServico | null>(null);
+  const [osSemServicoProcessandoId, setOsSemServicoProcessandoId] = useState<string | null>(null);
+  const [somenteSemServico, setSomenteSemServico] = useState(false);
   const resolverFinalizacaoRef = useRef<((sucesso: boolean) => void) | null>(null);
   const resolverReaberturaRef = useRef<((sucesso: boolean) => void) | null>(null);
+  const resolverSemServicoRef = useRef<((sucesso: boolean) => void) | null>(null);
 
   // Reabrir desfaz uma entrega: a mesma permissao "os.reabrir" checada no
   // servidor (por exigirPermissao). Ocultar o botao aqui e so cosmetico.
@@ -92,11 +98,13 @@ export function DashboardOS({
     os.equipamento.toLowerCase().includes(buscaTexto.toLowerCase())
   );
 
-  const filteredArchivedOrders = archivedOrderServices.filter((os) =>
-    os.numeroOS.toLowerCase().includes(buscaTexto.toLowerCase()) ||
-    os.nomeCliente.toLowerCase().includes(buscaTexto.toLowerCase()) ||
-    os.equipamento.toLowerCase().includes(buscaTexto.toLowerCase())
-  );
+  const filteredArchivedOrders = archivedOrderServices
+    .filter((os) =>
+      os.numeroOS.toLowerCase().includes(buscaTexto.toLowerCase()) ||
+      os.nomeCliente.toLowerCase().includes(buscaTexto.toLowerCase()) ||
+      os.equipamento.toLowerCase().includes(buscaTexto.toLowerCase())
+    )
+    .filter((os) => !somenteSemServico || os.entregueSemServico);
 
   const filteredDeletedOrders = deletedOrderServices.filter((os) =>
     os.numeroOS.toLowerCase().includes(buscaTexto.toLowerCase()) ||
@@ -145,15 +153,30 @@ export function DashboardOS({
     setOsParaFinalizar(null);
   };
 
+  const concluirSolicitacaoSemServico = (sucesso: boolean) => {
+    resolverSemServicoRef.current?.(sucesso);
+    resolverSemServicoRef.current = null;
+    setOsParaSemServico(null);
+  };
+
   /**
-   * Entrega de OS: abre o dialogo de finalizacao e aguarda a decisao.
-   * O Kanban usa o retorno para reverter o movimento otimista quando o operador
-   * cancela ou quando o servidor devolve pendencias.
+   * Entrega de OS: abre o dialogo certo e aguarda a decisao. OS sem nenhum
+   * item vai para o encerramento sem serviço (Parte 3); com item, para a
+   * finalizacao normal. O Kanban usa o retorno para reverter o movimento
+   * otimista quando o operador cancela ou quando o servidor devolve pendencias.
    */
   const handleEntregarOS = async (orderService: OrdemServico): Promise<boolean> => {
-    if (resolverFinalizacaoRef.current) {
+    if (resolverFinalizacaoRef.current || resolverSemServicoRef.current) {
       toast.error("Ja existe uma finalizacao em andamento.");
       return false;
+    }
+
+    if ((orderService.itensOrcamento?.length ?? 0) === 0) {
+      setOsParaSemServico(orderService);
+
+      return await new Promise<boolean>((resolve) => {
+        resolverSemServicoRef.current = resolve;
+      });
     }
 
     setOsParaFinalizar(orderService);
@@ -251,6 +274,44 @@ export function DashboardOS({
     } finally {
       setOsFinalizandoId(null);
     }
+  };
+
+  const confirmarSemServicoOS = async (motivo: string) => {
+    if (!osParaSemServico || osSemServicoProcessandoId) {
+      return;
+    }
+
+    try {
+      setOsSemServicoProcessandoId(osParaSemServico.id);
+
+      const resultado = await finalizarSemServico({ osId: osParaSemServico.id, motivo });
+
+      if (!resultado.sucesso) {
+        toast.error(resultado.erro);
+        concluirSolicitacaoSemServico(false);
+        return;
+      }
+
+      setModoVisualizacao("LISTA_FINALIZADAS");
+      toast.success(resultado.mensagem);
+      router.refresh();
+      concluirSolicitacaoSemServico(true);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Nao foi possivel encerrar a OS sem servico.";
+      toast.error(message);
+      concluirSolicitacaoSemServico(false);
+    } finally {
+      setOsSemServicoProcessandoId(null);
+    }
+  };
+
+  const cancelarSemServicoOS = () => {
+    if (osSemServicoProcessandoId) {
+      return;
+    }
+
+    concluirSolicitacaoSemServico(false);
   };
 
   const confirmarFinalizacaoRetornoOS = async (dados: FinalizacaoRetornoGarantiaPayload) => {
@@ -529,6 +590,15 @@ export function DashboardOS({
             </div>
           ) : modoVisualizacao === "LISTA_FINALIZADAS" ? (
             <div className="overflow-x-auto">
+              <label className="mb-3 flex w-fit items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                <input
+                  type="checkbox"
+                  checked={somenteSemServico}
+                  onChange={(evento) => setSomenteSemServico(evento.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 dark:border-slate-600"
+                />
+                Mostrar só entregues sem serviço
+              </label>
               <table className="w-full min-w-[840px] text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 dark:border-slate-700 text-left text-slate-500 dark:text-slate-400">
@@ -553,15 +623,26 @@ export function DashboardOS({
                       <td className="py-3 pr-3">{os.equipamento}</td>
                       <td className="py-3 pr-3">{formatarMoeda(os.totalOrcamento)}</td>
                       <td className="py-3 pr-3">
-                        <Badge
-                          className={
-                            os.status === "ENTREGUE"
-                              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300"
-                              : "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-                          }
-                        >
-                          Finalizada
-                        </Badge>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge
+                            className={
+                              os.status === "ENTREGUE"
+                                ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300"
+                                : "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                            }
+                          >
+                            Finalizada
+                          </Badge>
+                          {os.entregueSemServico && (
+                            <Badge
+                              variant="outline"
+                              className="border-amber-500 text-amber-700 dark:text-amber-300"
+                              title={os.motivoSemServico}
+                            >
+                              Entregue sem serviço
+                            </Badge>
+                          )}
+                        </div>
                       </td>
                       <td className="py-3 pr-3 text-slate-500 dark:text-slate-400">
                         {formatarDataHora(os.dataAtualizacao)}
@@ -685,6 +766,19 @@ export function DashboardOS({
           onConfirmar={confirmarFinalizacaoOS}
         />
       )}
+
+      <ModalEntregarSemServico
+        key={`${osParaSemServico?.id ?? "sem-os"}-sem-servico`}
+        aberta={Boolean(osParaSemServico)}
+        onAbrirMudar={(aberta) => {
+          if (!aberta) {
+            cancelarSemServicoOS();
+          }
+        }}
+        os={osParaSemServico}
+        processando={Boolean(osSemServicoProcessandoId)}
+        onConfirmar={confirmarSemServicoOS}
+      />
 
       <ModalReabrirOS
         key={osParaReabrir?.id ?? "sem-os-reabrir"}

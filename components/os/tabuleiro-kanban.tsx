@@ -21,16 +21,6 @@ import {
   ehStatusOS,
 } from "@/lib/dominio/os/maquina-estados";
 import { Badge } from "@/components/ui/badge";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { CartaoOS } from "./cartao-os";
 import { ListaColunaKanban } from "./lista-coluna-kanban";
 
@@ -58,18 +48,6 @@ type AcaoOtimistaOS =
       tipo: "SUBSTITUIR";
       ordens: OrdemServico[];
     };
-
-type ConfirmacaoEntregaSemItens = {
-  snapshotAnterior: OrdemServico[];
-  movimento: {
-    draggableId: string;
-    source: { droppableId: string; index: number };
-    destination: { droppableId: string; index: number };
-  };
-  osId: string;
-  statusOrigem: StatusOS;
-  statusDestino: StatusOS;
-};
 
 // Sequencia, rotulos e cores vem do dominio (fonte unica).
 const STATUS_SEQUENCIA = STATUS_OS_SEQUENCIA;
@@ -212,8 +190,6 @@ export function TabuleiroKanban({
   const [, startTransition] = useTransition();
   // Guarda a OS em arraste para bloquear colunas invalidas em tempo real.
   const [osEmArraste, setOsEmArraste] = useState<OrdemServico | null>(null);
-  const [confirmacaoEntregaSemItens, setConfirmacaoEntregaSemItens] =
-    useState<ConfirmacaoEntregaSemItens | null>(null);
 
   const [ordensEstado, setOrdensEstado] = useOptimistic(
     ordensServico,
@@ -228,10 +204,6 @@ export function TabuleiroKanban({
   );
 
   const ordensPorStatus = useMemo(() => classificarOrdens(ordensEstado), [ordensEstado]);
-
-  const osSemItens = (os: OrdemServico): boolean => {
-    return (os.itensOrcamento?.length ?? 0) === 0;
-  };
 
   /**
    * Colunas validas para a OS que esta sendo arrastada agora.
@@ -298,17 +270,6 @@ export function TabuleiroKanban({
 
     const preVisualizacao = aplicarMovimentoOS(snapshotAnterior, movimento);
     if (!preVisualizacao.osMovida || !preVisualizacao.statusOrigem || !preVisualizacao.statusDestino) {
-      return;
-    }
-
-    if (preVisualizacao.statusDestino === "ENTREGUE" && osSemItens(preVisualizacao.osMovida)) {
-      setConfirmacaoEntregaSemItens({
-        snapshotAnterior,
-        movimento,
-        osId: preVisualizacao.osMovida.id,
-        statusOrigem: preVisualizacao.statusOrigem,
-        statusDestino: preVisualizacao.statusDestino,
-      });
       return;
     }
 
@@ -406,24 +367,6 @@ export function TabuleiroKanban({
     setOsEmArraste(os);
   };
 
-  const confirmarEntregaSemItens = async () => {
-    if (!confirmacaoEntregaSemItens) return;
-
-    const pendente = confirmacaoEntregaSemItens;
-    setConfirmacaoEntregaSemItens(null);
-
-    startTransition(() => {
-      setOrdensEstado({ tipo: "REORGANIZAR", movimento: pendente.movimento });
-    });
-
-    await persistirMovimento(
-      pendente.osId,
-      pendente.statusOrigem,
-      pendente.statusDestino,
-      pendente.snapshotAnterior
-    );
-  };
-
   // O board ocupa o que sobra da viewport, medido do layout real: sem numero magico,
   // e correto em qualquer largura ou altura de janela.
   const boardRef = useRef<HTMLDivElement>(null);
@@ -445,7 +388,6 @@ export function TabuleiroKanban({
   }, [medirAltura]);
 
   return (
-    <>
       <DragDropContext onDragStart={aoIniciarDrag} onDragEnd={aoFinalizarDrag}>
         <div
           ref={boardRef}
@@ -575,29 +517,5 @@ export function TabuleiroKanban({
         })}
         </div>
       </DragDropContext>
-
-      <AlertDialog
-        open={Boolean(confirmacaoEntregaSemItens)}
-        onOpenChange={(aberto) => {
-          if (!aberto) {
-            setConfirmacaoEntregaSemItens(null);
-          }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Entregar OS sem peça/serviço?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta OS não possui nenhuma peça ou serviço cadastrado. Você ainda pode entregá-la,
-              mas ela ficará sem itens vinculados.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmarEntregaSemItens}>Entregar mesmo assim</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
   );
 }

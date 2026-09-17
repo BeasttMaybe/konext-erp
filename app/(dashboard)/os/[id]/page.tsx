@@ -7,6 +7,7 @@ import { obterConfiguracoes } from "@/app/actions/configuracoes";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { SecaoItensOS } from "@/components/os/secao-itens-os";
+import { AcaoEntregaOS } from "@/components/os/acao-entrega-os";
 import { BotaoGerarPedidoVenda } from "@/components/os/botao-gerar-pedido-venda";
 import { BotaoCopiarLinkRastreio } from "@/components/os/botao-copiar-link-rastreio";
 import { AcaoGarantiaOS } from "@/components/os/garantias/acao-garantia-os";
@@ -52,6 +53,9 @@ type OrdemServicoDetalhe = {
   acessoriosDeixados?: string | null;
   criadoEm?: Date | string | null;
   excluidaEm?: Date | string | null;
+  ehRetornoGarantia?: boolean | null;
+  entregueSemServico?: boolean | null;
+  motivoSemServico?: string | null;
   cliente?: { nomeRazaoSocial?: string | null } | null;
   itens?: Array<{
     id: string;
@@ -256,6 +260,9 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
   const idOs = String(osBanco.id);
   const possuiItens = itensNormalizados.length > 0;
   const possuiTermoGarantia = Boolean(osBanco.termoGarantia?.id);
+  const ehRetornoGarantia = Boolean(osBanco.ehRetornoGarantia);
+  const entregueSemServico = Boolean(osBanco.entregueSemServico);
+  const motivoSemServico = osBanco.motivoSemServico ? String(osBanco.motivoSemServico) : null;
   const transacaoPdvVinculada = (osBanco.transacoes ?? []).find((transacao) => {
     return transacao?.vendaId && String(transacao.origem) === "ORDEM_SERVICO";
   });
@@ -286,6 +293,15 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
               Ordem de Servico #{numeroOsExibicao}
             </h1>
             <Badge className={`border ${classeStatus}`}>{labelStatus}</Badge>
+            {entregueSemServico && (
+              <Badge
+                className="border-amber-500 text-amber-700 dark:text-amber-300"
+                variant="outline"
+                title={motivoSemServico ?? undefined}
+              >
+                Entregue sem serviço
+              </Badge>
+            )}
             <MenuImprimirOS osId={idOs} modeloPadrao={config.modeloImpressaoOSPadrao} />
             <AcaoGarantiaOS
               osId={idOs}
@@ -295,6 +311,17 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
               mostrarTextoBloqueio
             />
             <BotaoCopiarLinkRastreio osId={idOs} />
+            {statusAtual !== "ENTREGUE" && (
+              <AcaoEntregaOS
+                osId={idOs}
+                numeroOs={numeroOsExibicao}
+                ehRetornoGarantia={ehRetornoGarantia}
+                possuiItens={possuiItens}
+                prazoGarantiaPadraoDias={config.prazoGarantiaPadraoDias}
+                prazoMinimoGarantiaDias={config.prazoMinimoGarantiaDias}
+                prazoMaximoGarantiaDias={config.prazoMaximoGarantiaDias}
+              />
+            )}
             {podeGerarPedidoVenda && <BotaoGerarPedidoVenda osId={idOs} />}
             {podeEnviarAoPdv && !possuiItens && (
               <div className="relative flex items-center">
