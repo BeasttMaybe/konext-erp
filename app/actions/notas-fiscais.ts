@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { exigirPermissao } from "@/lib/auth/permissoes";
+import { mensagemDeErroConhecido } from "@/lib/erros";
 import type { StatusNotaFiscal } from "@prisma/client";
 
 export type ResultadoAcaoNotaFiscal =
@@ -166,6 +167,10 @@ export async function criarNotaFiscal(input: CriarNotaFiscalInput): Promise<Resu
 
     return { sucesso: true, mensagem: "Nota fiscal criada com sucesso." };
   } catch (erro) {
+    const mensagemConhecida = mensagemDeErroConhecido(erro);
+    if (mensagemConhecida !== null) {
+      return { sucesso: false, erro: mensagemConhecida };
+    }
     console.error("Erro ao criar nota fiscal:", erro);
     return { sucesso: false, erro: "Nao foi possivel criar a nota fiscal." };
   }
@@ -197,6 +202,10 @@ export async function atualizarNotaFiscal(input: AtualizarNotaFiscalInput): Prom
 
     return { sucesso: true, mensagem: "Nota fiscal atualizada com sucesso." };
   } catch (erro) {
+    const mensagemConhecida = mensagemDeErroConhecido(erro);
+    if (mensagemConhecida !== null) {
+      return { sucesso: false, erro: mensagemConhecida };
+    }
     console.error("Erro ao atualizar nota fiscal:", erro);
     return { sucesso: false, erro: "Nao foi possivel atualizar a nota fiscal." };
   }
@@ -221,6 +230,10 @@ export async function atualizarStatusNotaFiscal(
 
     return { sucesso: true, mensagem: "Status da nota fiscal atualizado." };
   } catch (erro) {
+    const mensagemConhecida = mensagemDeErroConhecido(erro);
+    if (mensagemConhecida !== null) {
+      return { sucesso: false, erro: mensagemConhecida };
+    }
     console.error("Erro ao atualizar status da nota fiscal:", erro);
     return { sucesso: false, erro: "Nao foi possivel atualizar o status da nota fiscal." };
   }

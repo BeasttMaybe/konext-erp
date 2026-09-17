@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { exigirPermissao } from "@/lib/auth/permissoes";
+import { mensagemDeErroConhecido } from "@/lib/erros";
 
 export interface ContaReceberFinanceiro {
   id: string;
@@ -89,11 +90,11 @@ export async function darBaixaConta(id: string): Promise<ResultadoBaixaConta> {
 
     return { sucesso: true, erro: null };
   } catch (erro) {
+    const mensagemConhecida = mensagemDeErroConhecido(erro);
+    if (mensagemConhecida !== null) {
+      return { sucesso: false, erro: mensagemConhecida };
+    }
     console.error("Erro ao dar baixa na conta:", erro);
-    const mensagem =
-      erro instanceof Error && erro.message.includes("Sessão")
-        ? erro.message
-        : "Não foi possível registrar o recebimento. Tente novamente.";
-    return { sucesso: false, erro: mensagem };
+    return { sucesso: false, erro: "Não foi possível registrar o recebimento. Tente novamente." };
   }
 }

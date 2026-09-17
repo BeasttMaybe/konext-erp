@@ -39,6 +39,7 @@ import { ModalNovoProduto } from "@/components/estoque/modal-novo-produto";
 import { PaginationControls } from "@/components/ui/pagination-controls";
 import { categoriasProduto, type FormProduto } from "@/lib/validations/estoque";
 import { useTemPermissao } from "@/contextos/contexto-permissoes";
+import { SemPermissaoAcao } from "@/components/ui/sem-permissao-acao";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -380,7 +381,9 @@ function ConteudoEstoque() {
                                   ) : null}
                                 </DropdownMenuContent>
                               </DropdownMenu>
-                            ) : null}
+                            ) : (
+                              <SemPermissaoAcao />
+                            )}
                           </TableCell>
                         </TableRow>
                       );

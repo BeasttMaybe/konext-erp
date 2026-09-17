@@ -21,6 +21,7 @@ import {
   type ContaReceberFinanceiro,
 } from "@/app/actions/financeiro-receber";
 import { SeletorClienteCRM } from "@/components/financeiro/seletor-cliente-crm";
+import { useTemPermissao } from "@/contextos/contexto-permissoes";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -161,6 +162,10 @@ export function ConteudoReceber({ contas }: ConteudoReceberProps) {
   // ── Estado dos modais ────────────────────────────────────────────────────
 
   // Modal: Dar Baixa
+  const podeLancar = useTemPermissao("financeiro.lancar");
+  const podeBaixar = useTemPermissao("financeiro.baixar");
+  const podeEditar = useTemPermissao("financeiro.editar");
+  const podeExcluir = useTemPermissao("financeiro.excluir");
   const [contaSelecionada, setContaSelecionada] = useState<ContaReceberFinanceiro | null>(null);
   const [observacaoBaixa, setObservacaoBaixa] = useState("");
   const [baixandoConta, setBaixandoConta] = useState(false);
@@ -188,7 +193,11 @@ export function ConteudoReceber({ contas }: ConteudoReceberProps) {
     if (!contaSelecionada) return;
     try {
       setBaixandoConta(true);
-      await darBaixaConta(contaSelecionada.id, observacaoBaixa);
+      const resultado = await darBaixaConta(contaSelecionada.id, observacaoBaixa);
+      if (!resultado.sucesso) {
+        toast.error(resultado.mensagem);
+        return;
+      }
       toast.success("Conta baixada com sucesso.");
       setContaSelecionada(null);
       setObservacaoBaixa("");
@@ -223,15 +232,19 @@ export function ConteudoReceber({ contas }: ConteudoReceberProps) {
     }
     try {
       setSalvandoEdicao(true);
-      await editarContaReceber(contaEditando.id, {
+      const resultado = await editarContaReceber(contaEditando.id, {
         dataVencimento: new Date(`${formEdicao.dataVencimento}T12:00:00`),
         valor: valorNumero,
       });
+      if (!resultado.sucesso) {
+        toast.error(resultado.mensagem);
+        return;
+      }
       toast.success("Conta atualizada com sucesso.");
       setContaEditando(null);
       router.refresh();
-    } catch (erro: unknown) {
-      toast.error(erro instanceof Error ? erro.message : "Não foi possível atualizar a conta.");
+    } catch {
+      toast.error("Não foi possível atualizar a conta.");
     } finally {
       setSalvandoEdicao(false);
     }
@@ -243,12 +256,16 @@ export function ConteudoReceber({ contas }: ConteudoReceberProps) {
     if (!contaParaExcluir) return;
     try {
       setExcluindo(true);
-      await excluirContaReceber(contaParaExcluir.id);
+      const resultado = await excluirContaReceber(contaParaExcluir.id);
+      if (!resultado.sucesso) {
+        toast.error(resultado.mensagem);
+        return;
+      }
       toast.success("Conta excluída com sucesso.");
       setContaParaExcluir(null);
       router.refresh();
-    } catch (erro: unknown) {
-      toast.error(erro instanceof Error ? erro.message : "Não foi possível excluir a conta.");
+    } catch {
+      toast.error("Não foi possível excluir a conta.");
     } finally {
       setExcluindo(false);
     }
@@ -281,7 +298,7 @@ export function ConteudoReceber({ contas }: ConteudoReceberProps) {
 
     try {
       setSalvandoConta(true);
-      await criarContaReceber({
+      const resultado = await criarContaReceber({
         descricao: formNovaConta.descricao,
         valorTotal: valorTotalNumero,
         clienteId: clienteSelecionado.id,
@@ -293,6 +310,10 @@ export function ConteudoReceber({ contas }: ConteudoReceberProps) {
         formaRecebimento: formNovaConta.formaRecebimento,
         observacaoLancamento: formNovaConta.observacaoLancamento,
       });
+      if (!resultado.sucesso) {
+        toast.error(resultado.mensagem);
+        return;
+      }
       toast.success("Conta a receber registrada com sucesso.");
       setDialogNovaContaAberto(false);
       router.refresh(); // Aciona novo render do Server Component com dados atualizados
@@ -310,10 +331,12 @@ export function ConteudoReceber({ contas }: ConteudoReceberProps) {
       {/* Cabeçalho da seção com botão de nova conta */}
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-foreground">Contas</h2>
-        <Button onClick={abrirNovaConta}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nova Conta
-        </Button>
+        {podeLancar && (
+          <Button onClick={abrirNovaConta}>
+            <Plus className="h-4 w-4 mr-2" />
+            Nova Conta
+          </Button>
+        )}
       </div>
 
       {/* Tabela de contas */}
@@ -380,7 +403,7 @@ export function ConteudoReceber({ contas }: ConteudoReceberProps) {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="min-w-44">
                         {/* Dar Baixa — só disponível para contas não pagas */}
-                        {statusExibicao !== "RECEBIDO" && (
+                        {statusExibicao !== "RECEBIDO" && podeBaixar && (
                           <DropdownMenuItem onClick={() => setContaSelecionada(conta)}>
                             <CheckCircle2 className="h-4 w-4 mr-2 text-emerald-500" />
                             Dar Baixa
@@ -388,14 +411,14 @@ export function ConteudoReceber({ contas }: ConteudoReceberProps) {
                         )}
 
                         {/* Editar — só disponível para contas não pagas */}
-                        {statusExibicao !== "RECEBIDO" && (
+                        {statusExibicao !== "RECEBIDO" && podeEditar && (
                           <DropdownMenuItem onClick={() => abrirEdicao(conta)}>
                             <Pencil className="h-4 w-4 mr-2 text-blue-500" />
                             Editar
                           </DropdownMenuItem>
                         )}
 
-                        {statusExibicao !== "RECEBIDO" && <DropdownMenuSeparator />}
+                        {statusExibicao !== "RECEBIDO" && (podeBaixar || podeEditar) && <DropdownMenuSeparator />}
 
                         {/* Detalhes — sempre disponível */}
                         <DropdownMenuItem onClick={() => setContaDetalhes(conta)}>
@@ -404,13 +427,15 @@ export function ConteudoReceber({ contas }: ConteudoReceberProps) {
                         </DropdownMenuItem>
 
                         {/* Excluir — bloqueia contas vinculadas a vendas no server action */}
-                        <DropdownMenuItem
-                          className="text-destructive focus:text-destructive"
-                          onClick={() => setContaParaExcluir(conta)}
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Excluir
-                        </DropdownMenuItem>
+                        {podeExcluir && (
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() => setContaParaExcluir(conta)}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Excluir
+                          </DropdownMenuItem>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>

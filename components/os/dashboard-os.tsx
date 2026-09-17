@@ -35,6 +35,7 @@ import {
 } from "@/app/actions/os";
 import { finalizarRetornoGarantiaOS } from "@/app/actions/garantias";
 import { useTemPermissao } from "@/contextos/contexto-permissoes";
+import { SemPermissaoAcao } from "@/components/ui/sem-permissao-acao";
 import { Search, Plus, AlertCircle, ListChecks, KanbanSquare, Trash2, ArchiveX } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -83,6 +84,7 @@ export function DashboardOS({
   // Reabrir desfaz uma entrega: a mesma permissao "os.reabrir" checada no
   // servidor (por exigirPermissao). Ocultar o botao aqui e so cosmetico.
   const podeReabrirOS = useTemPermissao("os.reabrir");
+  const podeExcluirOS = useTemPermissao("os.excluir");
 
   const filteredActiveOrders = activeOrderServices.filter((os) =>
     os.numeroOS.toLowerCase().includes(buscaTexto.toLowerCase()) ||
@@ -565,21 +567,25 @@ export function DashboardOS({
                         {formatarDataHora(os.dataAtualizacao)}
                       </td>
                       <td className="py-3 pr-0 text-right">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-8 border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-950/40"
-                          title="Excluir OS"
-                          aria-label="Excluir OS"
-                          disabled={Boolean(osExcluindoId)}
-                          onClick={(evento) => {
-                            evento.stopPropagation();
-                            setOsParaExcluir(os);
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        {podeExcluirOS ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-950/40"
+                            title="Excluir OS"
+                            aria-label="Excluir OS"
+                            disabled={Boolean(osExcluindoId)}
+                            onClick={(evento) => {
+                              evento.stopPropagation();
+                              setOsParaExcluir(os);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        ) : (
+                          <SemPermissaoAcao />
+                        )}
                       </td>
                     </tr>
                   ))}

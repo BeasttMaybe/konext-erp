@@ -71,6 +71,7 @@ import {
   listarClientesPaginado,
 } from "@/app/actions/crm";
 import type { FormCliente } from "@/lib/validations/crm";
+import { useTemPermissao } from "@/contextos/contexto-permissoes";
 
 const PAGE_SIZE = 20;
 
@@ -208,6 +209,7 @@ function ContactsPageContent() {
   const [editingClient, setEditingClient] = useState<ClientRecord | null>(null);
   const [profileClient, setProfileClient] = useState<ClientRecord | null>(null);
   const [clientToDelete, setClientToDelete] = useState<ClientRecord | null>(null);
+  const podeExcluirCliente = useTemPermissao("crm.excluir");
 
   const goToPage = useCallback(
     (page: number) => {
@@ -457,15 +459,19 @@ function ContactsPageContent() {
                         <SquarePen className="h-4 w-4 mr-2" />
                         Editar
                       </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onClick={() => setClientToDelete(client)}
-                        disabled={deletingClientId === client.id}
-                        className="text-destructive focus:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Excluir
-                      </DropdownMenuItem>
+                      {podeExcluirCliente ? (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => setClientToDelete(client)}
+                            disabled={deletingClientId === client.id}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Excluir
+                          </DropdownMenuItem>
+                        </>
+                      ) : null}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>

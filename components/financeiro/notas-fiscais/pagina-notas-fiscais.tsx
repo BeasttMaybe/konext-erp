@@ -9,6 +9,8 @@ import {
   type NotaFiscalLista,
 } from "@/app/actions/notas-fiscais";
 import type { StatusNotaFiscal } from "@prisma/client";
+import { useTemPermissao } from "@/contextos/contexto-permissoes";
+import { SemPermissaoAcao } from "@/components/ui/sem-permissao-acao";
 
 type Props = {
   notasIniciais: NotaFiscalLista[];
@@ -18,6 +20,8 @@ type Props = {
 const OPCOES_STATUS: StatusNotaFiscal[] = ["PENDENTE", "EMITIDA", "CANCELADA"];
 
 export function PaginaNotasFiscais({ notasIniciais, clientes }: Props) {
+  const podeLancar = useTemPermissao("financeiro.lancar");
+  const podeEditar = useTemPermissao("financeiro.editar");
   const [notas, setNotas] = useState<NotaFiscalLista[]>(notasIniciais);
   const [busca, setBusca] = useState("");
   const [status, setStatus] = useState<StatusNotaFiscal | "TODAS">("TODAS");
@@ -164,6 +168,7 @@ export function PaginaNotasFiscais({ notasIniciais, clientes }: Props) {
           </button>
         </div>
 
+        {(podeLancar || podeEditar) && (
         <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
             {idEdicao ? "Editar nota fiscal" : "Nova nota fiscal"}
@@ -233,6 +238,7 @@ export function PaginaNotasFiscais({ notasIniciais, clientes }: Props) {
             ) : null}
           </div>
         </div>
+        )}
       </div>
 
       {erro ? (
@@ -274,30 +280,34 @@ export function PaginaNotasFiscais({ notasIniciais, clientes }: Props) {
                   <td className="px-2 py-2">{nota.status}</td>
                   <td className="px-2 py-2">{new Date(nota.criadoEm).toLocaleDateString("pt-BR")}</td>
                   <td className="px-2 py-2">
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        onClick={() => preencherFormulario(nota)}
-                        className="rounded border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700"
-                      >
-                        Editar
-                      </button>
-                      {nota.status !== "EMITIDA" ? (
+                    {podeEditar ? (
+                      <div className="flex flex-wrap gap-2">
                         <button
-                          onClick={() => alterarStatus(nota.id, "EMITIDA")}
-                          className="rounded border border-emerald-700 px-2 py-1 text-xs text-emerald-700"
+                          onClick={() => preencherFormulario(nota)}
+                          className="rounded border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700"
                         >
-                          Emitir
+                          Editar
                         </button>
-                      ) : null}
-                      {nota.status !== "CANCELADA" ? (
-                        <button
-                          onClick={() => alterarStatus(nota.id, "CANCELADA")}
-                          className="rounded border border-red-700 px-2 py-1 text-xs text-red-700"
-                        >
-                          Cancelar
-                        </button>
-                      ) : null}
-                    </div>
+                        {nota.status !== "EMITIDA" ? (
+                          <button
+                            onClick={() => alterarStatus(nota.id, "EMITIDA")}
+                            className="rounded border border-emerald-700 px-2 py-1 text-xs text-emerald-700"
+                          >
+                            Emitir
+                          </button>
+                        ) : null}
+                        {nota.status !== "CANCELADA" ? (
+                          <button
+                            onClick={() => alterarStatus(nota.id, "CANCELADA")}
+                            className="rounded border border-red-700 px-2 py-1 text-xs text-red-700"
+                          >
+                            Cancelar
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <SemPermissaoAcao />
+                    )}
                   </td>
                 </tr>
               ))}

@@ -5,6 +5,17 @@ import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { exigirPermissao } from "@/lib/auth/permissoes";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
+import { paraMensagemSegura } from "@/lib/erros";
+
+/**
+ * Antes, criarContaReceber/darBaixaConta/editarContaReceber/excluirContaReceber
+ * so lancavam erro sem nenhum catch — a mensagem (inclusive a de
+ * ErroPermissao) dependia do Next nao a descartar ao cruzar a fronteira da
+ * action, o que nao e garantido. Agora cada uma delega para uma "*Interno"
+ * que continua lancando normalmente, mas a funcao publica captura e devolve
+ * a mensagem como dado (Fase 1B-UI, Parte 1).
+ */
+export type ResultadoAcaoContaReceber = { sucesso: true } | { sucesso: false; mensagem: string };
 
 function paraCentavos(valor: number) {
   return Math.round((valor + Number.EPSILON) * 100);
@@ -110,7 +121,18 @@ export interface CriarContaReceberInput {
   observacaoLancamento?: string;
 }
 
-export async function criarContaReceber(input: CriarContaReceberInput) {
+export async function criarContaReceber(
+  input: CriarContaReceberInput
+): Promise<ResultadoAcaoContaReceber> {
+  try {
+    await criarContaReceberInterno(input);
+    return { sucesso: true };
+  } catch (erro) {
+    return { sucesso: false, mensagem: paraMensagemSegura(erro) };
+  }
+}
+
+async function criarContaReceberInterno(input: CriarContaReceberInput): Promise<void> {
   const contexto = await exigirContextoTenant();
   exigirPermissao(contexto, "financeiro.lancar");
   const prisma = contexto.prisma;
@@ -175,7 +197,19 @@ export async function criarContaReceber(input: CriarContaReceberInput) {
   revalidatePath("/");
 }
 
-export async function darBaixaConta(id: string, observacaoPagamento?: string) {
+export async function darBaixaConta(
+  id: string,
+  observacaoPagamento?: string
+): Promise<ResultadoAcaoContaReceber> {
+  try {
+    await darBaixaContaInterno(id, observacaoPagamento);
+    return { sucesso: true };
+  } catch (erro) {
+    return { sucesso: false, mensagem: paraMensagemSegura(erro) };
+  }
+}
+
+async function darBaixaContaInterno(id: string, observacaoPagamento?: string): Promise<void> {
   // C1: exige sessao valida antes de registrar recebimento.
   const contexto = await exigirContextoTenant();
   exigirPermissao(contexto, "financeiro.baixar");
@@ -288,7 +322,16 @@ export interface EditarContaReceberInput {
 export async function editarContaReceber(
   id: string,
   input: EditarContaReceberInput
-): Promise<void> {
+): Promise<ResultadoAcaoContaReceber> {
+  try {
+    await editarContaReceberInterno(id, input);
+    return { sucesso: true };
+  } catch (erro) {
+    return { sucesso: false, mensagem: paraMensagemSegura(erro) };
+  }
+}
+
+async function editarContaReceberInterno(id: string, input: EditarContaReceberInput): Promise<void> {
   const contexto = await exigirContextoTenant();
   exigirPermissao(contexto, "financeiro.editar");
   const { prisma } = contexto;
@@ -323,7 +366,16 @@ export async function editarContaReceber(
  * Remove uma conta a receber do banco.
  * Contas vinculadas a vendas não podem ser excluídas manualmente.
  */
-export async function excluirContaReceber(id: string): Promise<void> {
+export async function excluirContaReceber(id: string): Promise<ResultadoAcaoContaReceber> {
+  try {
+    await excluirContaReceberInterno(id);
+    return { sucesso: true };
+  } catch (erro) {
+    return { sucesso: false, mensagem: paraMensagemSegura(erro) };
+  }
+}
+
+async function excluirContaReceberInterno(id: string): Promise<void> {
   const contexto = await exigirContextoTenant();
   exigirPermissao(contexto, "financeiro.excluir");
   const prisma = contexto.prisma;

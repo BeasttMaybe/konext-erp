@@ -6,6 +6,7 @@ import { ZodError } from "zod";
 import { formClienteSchema, type FormCliente } from "@/lib/validations/crm";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { exigirPermissao } from "@/lib/auth/permissoes";
+import { mensagemDeErroConhecido } from "@/lib/erros";
 
 type ResultadoCriarCliente =
   | {
@@ -255,8 +256,9 @@ export async function criarCliente(
       },
     };
   } catch (erro) {
-    if (erro instanceof Error && erro.message.includes("Sessão")) {
-      return { sucesso: false, mensagem: erro.message };
+    const mensagemConhecida = mensagemDeErroConhecido(erro);
+    if (mensagemConhecida !== null) {
+      return { sucesso: false, mensagem: mensagemConhecida };
     }
 
     if (erro instanceof ZodError) {
@@ -305,8 +307,9 @@ export async function excluirCliente(
       mensagem: "Cliente excluido com sucesso.",
     };
   } catch (erro) {
-    if (erro instanceof Error && erro.message.includes("Sessão")) {
-      return { sucesso: false, mensagem: erro.message };
+    const mensagemConhecida = mensagemDeErroConhecido(erro);
+    if (mensagemConhecida !== null) {
+      return { sucesso: false, mensagem: mensagemConhecida };
     }
 
     if (
@@ -411,8 +414,9 @@ export async function atualizarCliente(
       },
     };
   } catch (erro) {
-    if (erro instanceof Error && erro.message.includes("Sessão")) {
-      return { sucesso: false, mensagem: erro.message };
+    const mensagemConhecida = mensagemDeErroConhecido(erro);
+    if (mensagemConhecida !== null) {
+      return { sucesso: false, mensagem: mensagemConhecida };
     }
     if (erro instanceof ZodError) {
       return {

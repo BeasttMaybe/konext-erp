@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { exigirPermissao } from "@/lib/auth/permissoes";
+import { mensagemDeErroConhecido } from "@/lib/erros";
 import { obterIdUsuarioOperacionalOuNulo } from "@/lib/tenant/usuario-operacional";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
@@ -863,8 +864,9 @@ export async function criarMeta(input: CriarMetaInput): Promise<ResultadoAcaoCom
 
     return { sucesso: true, mensagem: "Meta criada com sucesso.", id: meta.id };
   } catch (erro) {
-    if (erro instanceof Error && /sess/i.test(erro.message)) {
-      return { sucesso: false, erro: erro.message };
+    const mensagemConhecida = mensagemDeErroConhecido(erro);
+    if (mensagemConhecida !== null) {
+      return { sucesso: false, erro: mensagemConhecida };
     }
     console.error("Erro ao criar meta:", erro);
     return { sucesso: false, erro: "Não foi possível criar a meta. Tente novamente." };
@@ -1309,8 +1311,9 @@ export async function atualizarMeta(input: AtualizarMetaInput): Promise<Resultad
 
     return { sucesso: true, mensagem: "Meta atualizada com sucesso." };
   } catch (erro) {
-    if (erro instanceof Error && /sess/i.test(erro.message)) {
-      return { sucesso: false, erro: erro.message };
+    const mensagemConhecida = mensagemDeErroConhecido(erro);
+    if (mensagemConhecida !== null) {
+      return { sucesso: false, erro: mensagemConhecida };
     }
     console.error("Erro ao atualizar meta:", erro);
     return { sucesso: false, erro: "Não foi possível atualizar a meta." };
@@ -1398,8 +1401,9 @@ export async function atualizarProgressoMeta(input: AtualizarProgressoInput): Pr
 
     return { sucesso: true, mensagem: "Progresso atualizado com sucesso." };
   } catch (erro) {
-    if (erro instanceof Error && /sess/i.test(erro.message)) {
-      return { sucesso: false, erro: erro.message };
+    const mensagemConhecida = mensagemDeErroConhecido(erro);
+    if (mensagemConhecida !== null) {
+      return { sucesso: false, erro: mensagemConhecida };
     }
     console.error("Erro ao atualizar progresso:", erro);
     return { sucesso: false, erro: "Não foi possível atualizar o progresso." };
@@ -1493,8 +1497,9 @@ export async function alterarStatusMeta(input: AlterarStatusInput): Promise<Resu
 
     return { sucesso: true, mensagem: "Status atualizado com sucesso." };
   } catch (erro) {
-    if (erro instanceof Error && /sess/i.test(erro.message)) {
-      return { sucesso: false, erro: erro.message };
+    const mensagemConhecida = mensagemDeErroConhecido(erro);
+    if (mensagemConhecida !== null) {
+      return { sucesso: false, erro: mensagemConhecida };
     }
     console.error("Erro ao alterar status:", erro);
     return { sucesso: false, erro: "Não foi possível alterar o status." };
@@ -1565,8 +1570,9 @@ export async function adicionarItemChecklistMeta(input: ItemChecklistInput): Pro
 
     return { sucesso: true, mensagem: "Item adicionado." };
   } catch (erro) {
-    if (erro instanceof Error && /sess/i.test(erro.message)) {
-      return { sucesso: false, erro: erro.message };
+    const mensagemConhecida = mensagemDeErroConhecido(erro);
+    if (mensagemConhecida !== null) {
+      return { sucesso: false, erro: mensagemConhecida };
     }
     console.error("Erro ao adicionar item:", erro);
     return { sucesso: false, erro: "Não foi possível adicionar o item." };
@@ -1645,8 +1651,9 @@ export async function alternarItemChecklistMeta(itemId: string): Promise<Resulta
 
     return { sucesso: true, mensagem: novoConcluido ? "Item concluído." : "Item desmarcado." };
   } catch (erro) {
-    if (erro instanceof Error && /sess/i.test(erro.message)) {
-      return { sucesso: false, erro: erro.message };
+    const mensagemConhecida = mensagemDeErroConhecido(erro);
+    if (mensagemConhecida !== null) {
+      return { sucesso: false, erro: mensagemConhecida };
     }
     console.error("Erro ao alternar item:", erro);
     return { sucesso: false, erro: "Não foi possível atualizar o item." };
@@ -1713,8 +1720,9 @@ export async function removerItemChecklistMeta(itemId: string): Promise<Resultad
 
     return { sucesso: true, mensagem: "Item removido." };
   } catch (erro) {
-    if (erro instanceof Error && /sess/i.test(erro.message)) {
-      return { sucesso: false, erro: erro.message };
+    const mensagemConhecida = mensagemDeErroConhecido(erro);
+    if (mensagemConhecida !== null) {
+      return { sucesso: false, erro: mensagemConhecida };
     }
     console.error("Erro ao remover item:", erro);
     return { sucesso: false, erro: "Não foi possível remover o item." };
@@ -1753,8 +1761,9 @@ export async function adicionarHistoricoMeta(metaId: string, observacao: string)
 
     return { sucesso: true, mensagem: "Observação registrada." };
   } catch (erro) {
-    if (erro instanceof Error && /sess/i.test(erro.message)) {
-      return { sucesso: false, erro: erro.message };
+    const mensagemConhecida = mensagemDeErroConhecido(erro);
+    if (mensagemConhecida !== null) {
+      return { sucesso: false, erro: mensagemConhecida };
     }
     console.error("Erro ao adicionar observação:", erro);
     return { sucesso: false, erro: "Não foi possível registrar a observação." };
@@ -1791,8 +1800,9 @@ export async function calcularValorAtualMetaAutomatica(metaId: string): Promise<
 
     return executarCalculoMetaAutomatica(prisma, meta);
   } catch (erro) {
-    if (erro instanceof Error && /sess/i.test(erro.message)) {
-      return { sucesso: false, erro: erro.message };
+    const mensagemConhecida = mensagemDeErroConhecido(erro);
+    if (mensagemConhecida !== null) {
+      return { sucesso: false, erro: mensagemConhecida };
     }
     console.error("Erro ao calcular meta automática:", erro);
     return { sucesso: false, erro: "Não foi possível calcular a meta automática." };
@@ -1907,8 +1917,9 @@ export async function sincronizarMetaAutomatica(metaId: string): Promise<Resulta
         : "Meta automática sincronizada. Não houve alteração no valor.",
     };
   } catch (erro) {
-    if (erro instanceof Error && /sess/i.test(erro.message)) {
-      return { sucesso: false, erro: erro.message };
+    const mensagemConhecida = mensagemDeErroConhecido(erro);
+    if (mensagemConhecida !== null) {
+      return { sucesso: false, erro: mensagemConhecida };
     }
     console.error("Erro ao sincronizar meta automática:", erro);
     return { sucesso: false, erro: "Não foi possível sincronizar a meta automática." };
@@ -1959,8 +1970,9 @@ export async function sincronizarTodasMetasAutomaticas(): Promise<ResultadoAcao>
 
     return { sucesso: true, mensagem: `Sincronização concluída: ${sucesso} meta(s) atualizada(s).` };
   } catch (erro) {
-    if (erro instanceof Error && /sess/i.test(erro.message)) {
-      return { sucesso: false, erro: erro.message };
+    const mensagemConhecida = mensagemDeErroConhecido(erro);
+    if (mensagemConhecida !== null) {
+      return { sucesso: false, erro: mensagemConhecida };
     }
     console.error("Erro ao sincronizar todas as metas automáticas:", erro);
     return { sucesso: false, erro: "Não foi possível sincronizar as metas automáticas." };
@@ -2016,8 +2028,9 @@ export async function excluirMeta(id: string): Promise<ResultadoAcao> {
 
     return { sucesso: true, mensagem: `Meta "${meta.titulo}" excluída.` };
   } catch (erro) {
-    if (erro instanceof Error && /sess/i.test(erro.message)) {
-      return { sucesso: false, erro: erro.message };
+    const mensagemConhecida = mensagemDeErroConhecido(erro);
+    if (mensagemConhecida !== null) {
+      return { sucesso: false, erro: mensagemConhecida };
     }
     console.error("Erro ao excluir meta:", erro);
     return { sucesso: false, erro: "Não foi possível excluir a meta." };

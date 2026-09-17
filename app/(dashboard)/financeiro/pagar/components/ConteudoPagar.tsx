@@ -13,6 +13,8 @@ import {
   type TipoDespesa,
 } from "@/app/actions/financeiro-pagar";
 import { SeletorClienteCRM } from "@/components/financeiro/seletor-cliente-crm";
+import { useTemPermissao } from "@/contextos/contexto-permissoes";
+import { SemPermissaoAcao } from "@/components/ui/sem-permissao-acao";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -131,6 +133,8 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
 
   // ── Estado dos modais ────────────────────────────────────────────────────
 
+  const podeLancar = useTemPermissao("financeiro.lancar");
+  const podeBaixar = useTemPermissao("financeiro.baixar");
   const [dialogNovaDespesaAberto, setDialogNovaDespesaAberto] = useState(false);
   const [salvandoDespesa, setSalvandoDespesa] = useState(false);
   const [clienteSelecionado, setClienteSelecionado] = useState<ClienteBuscaCRM | null>(null);
@@ -199,7 +203,7 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
 
     try {
       setSalvandoDespesa(true);
-      await criarDespesa({
+      const resultado = await criarDespesa({
         fornecedor: clienteSelecionado.nomeRazaoSocial,
         clienteId: clienteSelecionado.id,
         descricao: formDespesa.descricao,
@@ -208,6 +212,10 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
         qtdParcelas: qtdParcelasNumero,
         dataVencimento: new Date(`${formDespesa.dataVencimento}T12:00:00`),
       });
+      if (!resultado.sucesso) {
+        toast.error(resultado.mensagem);
+        return;
+      }
       toast.success("Despesa registrada com sucesso.");
       setDialogNovaDespesaAberto(false);
       router.refresh(); // Aciona novo render do Server Component com dados atualizados
@@ -237,7 +245,11 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
 
     try {
       setPagandoParcela(true);
-      await pagarParcela(parcelaSelecionada.id, valorPagoNumero);
+      const resultado = await pagarParcela(parcelaSelecionada.id, valorPagoNumero);
+      if (!resultado.sucesso) {
+        toast.error(resultado.mensagem);
+        return;
+      }
       toast.success("Parcela registrada como paga.");
       setDialogPagarAberto(false);
       setParcelaSelecionada(null);
@@ -256,10 +268,12 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
       {/* Cabeçalho da seção com botão de nova despesa */}
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-foreground">Parcelas</h2>
-        <Button onClick={abrirNovaDespesa}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nova Despesa
-        </Button>
+        {podeLancar && (
+          <Button onClick={abrirNovaDespesa}>
+            <Plus className="h-4 w-4 mr-2" />
+            Nova Despesa
+          </Button>
+        )}
       </div>
 
       {/* Tabela de parcelas */}
@@ -448,7 +462,9 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
                                 : "-"}
                             </TableCell>
                             <TableCell className="text-right">
-                              {status !== "PAGO" ? (
+                              {status === "PAGO" ? (
+                                <span className="text-sm text-muted-foreground">Concluída</span>
+                              ) : podeBaixar ? (
                                 <Button
                                   size="sm"
                                   variant="outline"
@@ -457,7 +473,7 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
                                   Pagar / Antecipar
                                 </Button>
                               ) : (
-                                <span className="text-sm text-muted-foreground">Concluída</span>
+                                <SemPermissaoAcao />
                               )}
                             </TableCell>
                           </TableRow>

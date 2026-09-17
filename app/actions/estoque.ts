@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { exigirPermissao, temPermissao } from "@/lib/auth/permissoes";
+import { mensagemDeErroConhecido } from "@/lib/erros";
 import { formProdutoSchema, type FormProduto } from "@/lib/validations/estoque";
 
 type ResultadoCriarProduto =
@@ -39,12 +40,9 @@ export async function criarProduto(data: FormProduto): Promise<ResultadoCriarPro
       mensagem: "Produto cadastrado com sucesso.",
     };
   } catch (erro) {
-    if (erro instanceof Error && erro.message.includes("Sessão")) {
-      return { sucesso: false, mensagem: erro.message };
-    }
-
-    if (erro instanceof Error && erro.name === "ErroPermissao") {
-      return { sucesso: false, mensagem: erro.message };
+    const mensagemConhecida = mensagemDeErroConhecido(erro);
+    if (mensagemConhecida !== null) {
+      return { sucesso: false, mensagem: mensagemConhecida };
     }
 
     if (
@@ -220,12 +218,9 @@ export async function atualizarProduto(
       mensagem: "Produto atualizado com sucesso.",
     };
   } catch (erro) {
-    if (erro instanceof Error && erro.message.includes("Sessão")) {
-      return { sucesso: false, mensagem: erro.message };
-    }
-
-    if (erro instanceof Error && erro.name === "ErroPermissao") {
-      return { sucesso: false, mensagem: erro.message };
+    const mensagemConhecida = mensagemDeErroConhecido(erro);
+    if (mensagemConhecida !== null) {
+      return { sucesso: false, mensagem: mensagemConhecida };
     }
 
     if (
@@ -277,12 +272,9 @@ export async function excluirProduto(
       mensagem: "Produto excluido com sucesso.",
     };
   } catch (erro) {
-    if (erro instanceof Error && erro.message.includes("Sessão")) {
-      return { sucesso: false, mensagem: erro.message };
-    }
-
-    if (erro instanceof Error && erro.name === "ErroPermissao") {
-      return { sucesso: false, mensagem: erro.message };
+    const mensagemConhecida = mensagemDeErroConhecido(erro);
+    if (mensagemConhecida !== null) {
+      return { sucesso: false, mensagem: mensagemConhecida };
     }
 
     if (

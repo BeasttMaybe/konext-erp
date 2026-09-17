@@ -5,6 +5,10 @@ import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { exigirPermissao } from "@/lib/auth/permissoes";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
+import { paraMensagemSegura } from "@/lib/erros";
+
+/** Ver o comentario equivalente em financeiro-receber.ts (Fase 1B-UI, Parte 1). */
+export type ResultadoAcaoDespesa = { sucesso: true } | { sucesso: false; mensagem: string };
 
 export type TipoDespesa = "UNICA" | "PARCELADA" | "FIXA_MENSAL";
 export type StatusParcelaDespesa = "PENDENTE" | "PAGO" | "ATRASADO";
@@ -183,7 +187,16 @@ function gerarParcelas(
   });
 }
 
-export async function criarDespesa(data: DadosCriarDespesa) {
+export async function criarDespesa(data: DadosCriarDespesa): Promise<ResultadoAcaoDespesa> {
+  try {
+    await criarDespesaInterno(data);
+    return { sucesso: true };
+  } catch (erro) {
+    return { sucesso: false, mensagem: paraMensagemSegura(erro) };
+  }
+}
+
+async function criarDespesaInterno(data: DadosCriarDespesa) {
   // C1: exige sessao valida antes de criar despesa.
   const contexto = await exigirContextoTenant();
   exigirPermissao(contexto, "financeiro.lancar");
@@ -420,7 +433,19 @@ export async function obterResumoPagar(filtros?: FiltrosPagar): Promise<ResumoPa
 
 // ── Pagar Parcela ────────────────────────────────────────────────────────────
 
-export async function pagarParcela(parcelaId: string, valorPago: number) {
+export async function pagarParcela(
+  parcelaId: string,
+  valorPago: number
+): Promise<ResultadoAcaoDespesa> {
+  try {
+    await pagarParcelaInterno(parcelaId, valorPago);
+    return { sucesso: true };
+  } catch (erro) {
+    return { sucesso: false, mensagem: paraMensagemSegura(erro) };
+  }
+}
+
+async function pagarParcelaInterno(parcelaId: string, valorPago: number): Promise<void> {
   // C1: exige sessao valida antes de pagar parcela.
   const contexto = await exigirContextoTenant();
   exigirPermissao(contexto, "financeiro.baixar");

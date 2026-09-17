@@ -63,6 +63,23 @@ function ehErroPrismaInterno(erro: unknown): boolean {
 }
 
 /**
+ * Se `erro` for um dos tipos conhecidos e seguros (`ErroNegocio`,
+ * `ErroPermissao`, `ErroSessao`), devolve a propria mensagem; caso
+ * contrario, `null`. Pensado para catches que ja tem tratamento especifico
+ * proprio (ex.: codigos de erro do Prisma) e só caem num fallback generico
+ * no final: chame isto como a PRIMEIRA checagem, antes desse tratamento
+ * proprio — sem isso, o catch engolia o motivo real de "sem permissao" e
+ * devolvia uma mensagem generica de "nao foi possivel", escondendo do
+ * usuario por que a acao foi negada (Fase 1B-UI, Parte 1).
+ */
+export function mensagemDeErroConhecido(erro: unknown): string | null {
+  if (erro instanceof ErroNegocio || erro instanceof ErroPermissao || erro instanceof ErroSessao) {
+    return erro.message;
+  }
+  return null;
+}
+
+/**
  * Traduz qualquer erro capturado em um catch de server action/component para
  * uma mensagem pt-BR segura de mostrar ao usuario. Chame como PRIMEIRA linha
  * do catch: erros de controle de fluxo do Next (`redirect`, `notFound`) sao
@@ -71,8 +88,9 @@ function ehErroPrismaInterno(erro: unknown): boolean {
 export function paraMensagemSegura(erro: unknown): string {
   unstable_rethrow(erro);
 
-  if (erro instanceof ErroNegocio || erro instanceof ErroPermissao || erro instanceof ErroSessao) {
-    return erro.message;
+  const mensagemConhecida = mensagemDeErroConhecido(erro);
+  if (mensagemConhecida !== null) {
+    return mensagemConhecida;
   }
 
   if (ehErroPrismaInterno(erro)) {

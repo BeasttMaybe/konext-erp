@@ -24,6 +24,8 @@ import { BarraProgressoMeta } from "@/components/metas/barra-progresso-meta";
 import { ChecklistMeta } from "@/components/metas/checklist-meta";
 import { HistoricoMeta } from "@/components/metas/historico-meta";
 import { ModalAtualizarProgresso } from "@/components/metas/modal-atualizar-progresso";
+import { useTemPermissao } from "@/contextos/contexto-permissoes";
+import { SemPermissaoAcao } from "@/components/ui/sem-permissao-acao";
 import {
   alterarStatusMeta,
   adicionarHistoricoMeta,
@@ -91,13 +93,18 @@ export function DetalheMetaCliente({ meta: metaInicial }: DetalheMetaClienteProp
   const [salvandoObs, setSalvandoObs] = useState(false);
   const [sincronizandoAutomatica, setSincronizandoAutomatica] = useState(false);
 
+  const temPermissaoEditarMeta = useTemPermissao("metas.editar");
+  const temPermissaoExcluirMeta = useTemPermissao("metas.excluir");
   const prazoInfo = meta.dataPrazo ? diasRestantes(meta.dataPrazo) : null;
-  const podeConcluir = meta.status !== "CONCLUIDA" && meta.status !== "CANCELADA";
-  const podePausar = meta.status === "EM_ANDAMENTO" || meta.status === "ATENCAO" || meta.status === "ATRASADA";
-  const podeReabrir = meta.status === "PAUSADA" || meta.status === "CONCLUIDA";
-  const podeCancelar = meta.status !== "CANCELADA";
+  const podeConcluir = temPermissaoEditarMeta && meta.status !== "CONCLUIDA" && meta.status !== "CANCELADA";
+  const podePausar =
+    temPermissaoEditarMeta &&
+    (meta.status === "EM_ANDAMENTO" || meta.status === "ATENCAO" || meta.status === "ATRASADA");
+  const podeReabrir = temPermissaoEditarMeta && (meta.status === "PAUSADA" || meta.status === "CONCLUIDA");
+  const podeCancelar = temPermissaoEditarMeta && meta.status !== "CANCELADA";
   const ehMetaAutomatica = meta.origemProgresso === "AUTOMATICA";
   const podeAtualizar =
+    temPermissaoEditarMeta &&
     !ehMetaAutomatica &&
     meta.status !== "CONCLUIDA" &&
     meta.status !== "CANCELADA" &&
@@ -208,14 +215,15 @@ export function DetalheMetaCliente({ meta: metaInicial }: DetalheMetaClienteProp
         </div>
 
         {/* Ações */}
-        <div className="flex flex-wrap gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {!temPermissaoEditarMeta && !temPermissaoExcluirMeta && <SemPermissaoAcao />}
           {podeAtualizar && (
             <Button size="sm" onClick={() => setModalProgressoAberto(true)} disabled={processando}>
               <TrendingUp className="h-4 w-4 mr-1" />
               Atualizar progresso
             </Button>
           )}
-          {ehMetaAutomatica && (
+          {ehMetaAutomatica && temPermissaoEditarMeta && (
             <Button
               size="sm"
               onClick={sincronizarAutomaticamente}
@@ -260,9 +268,11 @@ export function DetalheMetaCliente({ meta: metaInicial }: DetalheMetaClienteProp
               Cancelar
             </Button>
           )}
-          <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-600" onClick={handleExcluir} disabled={processando}>
-            <Trash2 className="h-4 w-4" />
-          </Button>
+          {temPermissaoExcluirMeta && (
+            <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-600" onClick={handleExcluir} disabled={processando}>
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       </div>
 

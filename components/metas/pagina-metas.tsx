@@ -17,6 +17,7 @@ import {
   type DashboardMetasResult,
   type FiltrosMetasInput,
 } from "@/app/actions/metas";
+import { useTemPermissao } from "@/contextos/contexto-permissoes";
 
 const dashboardVazio: DashboardMetasResult = {
   totalMetas: 0,
@@ -51,6 +52,7 @@ export function PaginaMetas() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [modalAberto, setModalAberto] = useState(false);
+  const podeEditarMetas = useTemPermissao("metas.editar");
   const [sincronizandoAutomaticas, setSincronizandoAutomaticas] = useState(false);
   const inicializado = useRef(false);
 
@@ -120,19 +122,21 @@ export function PaginaMetas() {
       {/* Barra de ações */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <FiltrosMetas filtros={filtros} onChange={aoAtualizarFiltros} />
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={atualizarMetasAutomaticas}
-            disabled={sincronizandoAutomaticas}
-          >
-            {sincronizandoAutomaticas ? "Sincronizando..." : "Atualizar metas automáticas"}
-          </Button>
-          <Button onClick={() => setModalAberto(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Nova meta
-          </Button>
-        </div>
+        {podeEditarMetas ? (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={atualizarMetasAutomaticas}
+              disabled={sincronizandoAutomaticas}
+            >
+              {sincronizandoAutomaticas ? "Sincronizando..." : "Atualizar metas automáticas"}
+            </Button>
+            <Button onClick={() => setModalAberto(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Nova meta
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       {/* Lista */}
@@ -158,10 +162,12 @@ export function PaginaMetas() {
           <p className="text-sm text-slate-400 mt-1 mb-6">
             Crie a primeira meta da empresa para começar a acompanhar os objetivos.
           </p>
-          <Button onClick={() => setModalAberto(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Nova meta
-          </Button>
+          {podeEditarMetas ? (
+            <Button onClick={() => setModalAberto(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Nova meta
+            </Button>
+          ) : null}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">

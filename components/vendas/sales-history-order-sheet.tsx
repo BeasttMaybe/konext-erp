@@ -4,6 +4,8 @@ import { useMemo, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Eye, Loader2, XCircle } from "lucide-react";
 import { aprovarPedido, cancelarPedido, rejeitarPedido } from "@/app/actions/vendas";
+import { useTemPermissao } from "@/contextos/contexto-permissoes";
+import { SemPermissaoAcao } from "@/components/ui/sem-permissao-acao";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -121,6 +123,8 @@ export function SalesHistoryOrderSheet({ trigger, order }: SalesHistoryOrderShee
   const [open, setOpen] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const podeAprovar = useTemPermissao("vendas.aprovar");
+  const podeCancelar = useTemPermissao("vendas.cancelar");
 
   const isPdvApprovedOrder = order.origem === "PDV" && order.status === "APROVADO";
   const isLocked = order.status === "REJEITADO" || order.status === "CANCELADO" || (order.status === "APROVADO" && order.origem !== "PDV");
@@ -331,38 +335,48 @@ export function SalesHistoryOrderSheet({ trigger, order }: SalesHistoryOrderShee
                 Pedido Bloqueado - {statusLabelMap[order.status]}
               </Button>
             ) : isPdvApprovedOrder ? (
-              <Button
-                type="button"
-                variant="destructive"
-                onClick={handleCancel}
-                disabled={isPending}
-                className="w-full"
-              >
-                {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
-                Cancelar Pedido
-              </Button>
-            ) : (
-              <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+              podeCancelar ? (
                 <Button
                   type="button"
                   variant="destructive"
-                  onClick={handleReject}
+                  onClick={handleCancel}
                   disabled={isPending}
-                  className="sm:min-w-40"
+                  className="w-full"
                 >
                   {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
-                  Rejeitar
+                  Cancelar Pedido
                 </Button>
-                <Button
-                  type="button"
-                  onClick={handleApprove}
-                  disabled={isPending || isMissingApprovalData}
-                  className="bg-emerald-500 text-slate-950 hover:bg-emerald-400 sm:min-w-40"
-                >
-                  {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                  Aprovar Venda
-                </Button>
+              ) : (
+                <SemPermissaoAcao />
+              )
+            ) : podeCancelar || podeAprovar ? (
+              <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+                {podeCancelar && (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={handleReject}
+                    disabled={isPending}
+                    className="sm:min-w-40"
+                  >
+                    {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
+                    Rejeitar
+                  </Button>
+                )}
+                {podeAprovar && (
+                  <Button
+                    type="button"
+                    onClick={handleApprove}
+                    disabled={isPending || isMissingApprovalData}
+                    className="bg-emerald-500 text-slate-950 hover:bg-emerald-400 sm:min-w-40"
+                  >
+                    {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                    Aprovar Venda
+                  </Button>
+                )}
               </div>
+            ) : (
+              <SemPermissaoAcao />
             )}
           </div>
         </div>
