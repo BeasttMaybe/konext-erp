@@ -971,6 +971,7 @@ export async function processarVenda(
 ) {
   // C1: somente operadores autenticados podem registrar vendas.
   const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "pdv.vender");
   const prisma = contexto.prisma;
   const sessionUser = contexto.usuarioOperacional;
   const clienteId = opcoes?.clienteId;
@@ -1363,6 +1364,7 @@ export async function processarVendaComOSNoPDV(
 ) {
   // C1: somente operadores autenticados podem faturar OS no PDV.
   const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "pdv.vender");
   const prisma = contexto.prisma;
   const sessionUser = contexto.usuarioOperacional;
   const desconto = opcoes?.desconto ?? null;
