@@ -1,0 +1,38 @@
+/**
+ * Fundacao do design system Konext (Fase 1B-FIX, Parte 4).
+ *
+ * Tokens prefixados `--kx-` para nao colidir com as variaveis shadcn/ui
+ * (`--background`, `--foreground`, etc.) ja usadas no resto do app. Usado
+ * por enquanto so em `app/(auth)/**` (login e recuperacao de senha); as
+ * demais telas continuam com o tema atual — nao restilizar aqui.
+ */
+:root {
+  --kx-fundo: #1b1d38;
+  --kx-painel: #2a2c50;
+  --kx-painel-borda: #353862;
+  --kx-campo-borda: #383b66;
+  --kx-superficie: #23254a;
+  --kx-cartao: #2e3158;
+  --kx-texto: #eef0fb;
+  --kx-texto-2: #c3c6e4;
+  --kx-legenda: #a7aace;
+  --kx-placeholder: #8e91b8;
+  --kx-primaria: #5a5fe0;
+  --kx-destaque: #8b91ff;
+  --kx-link: #a5aaff;
+  --kx-foco: #8b91ff;
+
+  --kx-orcamento: #fbbf24;
+  --kx-conserto: #60a5fa;
+  --kx-pronto: #34d399;
+  --kx-entregue: #8b91ff;
+
+  --kx-alerta-fundo: #4a3a22;
+  --kx-alerta-texto: #fde7c7;
+  --kx-alerta-icone: #fdba74;
+
+  --kx-erro-fundo: #4a2b35;
+  --kx-erro-texto: #fde2e2;
+  --kx-erro-icone: #fca5a5;
+  --kx-erro-borda: #b4556a;
+}

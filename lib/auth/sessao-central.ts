@@ -6,7 +6,10 @@ import { randomBytes, createHash } from "node:crypto";
 import { prismaCentral } from "@/lib/central/prisma-central";
 import { COOKIE_SESSAO_CENTRAL } from "@/lib/auth/cookies";
 
-const DURACAO_SESSAO_MS = 1000 * 60 * 60 * 24 * 7;
+/** "Manter conectado neste computador" marcado: sessao de 7 dias, cookie persistente. */
+const DURACAO_SESSAO_LONGA_MS = 1000 * 60 * 60 * 24 * 7;
+/** Checkbox desmarcado (padrao): sessao curta de 12h, cookie de sessao do navegador (sem maxAge). */
+const DURACAO_SESSAO_CURTA_MS = 1000 * 60 * 60 * 12;
 
 export type SessaoCentralResolvida = {
   id: string;
@@ -35,10 +38,13 @@ export async function criarSessaoCentral(params: {
   empresaId: string;
   tenantId: string;
   role: "ADMIN" | "GESTOR" | "USUARIO";
+  /** "Manter conectado neste computador" do formulario de login (Fase 1B-FIX, Parte 4.5). */
+  manterConectado: boolean;
 }): Promise<void> {
   const token = gerarTokenSessao();
   const tokenHash = gerarHashToken(token);
-  const expiraEm = new Date(Date.now() + DURACAO_SESSAO_MS);
+  const duracaoMs = params.manterConectado ? DURACAO_SESSAO_LONGA_MS : DURACAO_SESSAO_CURTA_MS;
+  const expiraEm = new Date(Date.now() + duracaoMs);
 
   await prismaCentral.sessaoCentral.create({
     data: {
@@ -57,7 +63,11 @@ export async function criarSessaoCentral(params: {
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
-    maxAge: Math.floor(DURACAO_SESSAO_MS / 1000),
+    // Sem "manter conectado", o cookie nao leva maxAge: dura so a sessao do
+    // navegador. O servidor tambem limita expiraEm a 12h, entao mesmo um
+    // navegador configurado para restaurar abas nao estende a sessao alem
+    // disso.
+    ...(params.manterConectado ? { maxAge: Math.floor(duracaoMs / 1000) } : {}),
   });
 }
 

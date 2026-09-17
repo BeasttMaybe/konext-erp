@@ -16,18 +16,35 @@ type LoginState = {
   erro: string | null;
 };
 
-const ERRO_CREDENCIAIS = "Credenciais inválidas.";
+const ERRO_CREDENCIAIS = "E-mail ou senha incorretos. Confira os dados e tente de novo.";
+
+/**
+ * Motivo interno da falha de login, só para o console.error do servidor —
+ * nunca chega ao cliente (Fase 1B-FIX, Parte 4.7). O cliente sempre recebe
+ * `ERRO_CREDENCIAIS`, a mesma mensagem generica para qualquer motivo, para
+ * nao revelar se o e-mail existe, se a empresa esta inativa, etc.
+ */
+type MotivoFalhaLogin =
+  | "usuario_inexistente"
+  | "senha_invalida"
+  | "sem_empresa_ativa"
+  | "multiplas_empresas"
+  | "tenant_indisponivel";
 
 type ResultadoLoginCentral =
   | { autenticado: true }
-  | { autenticado: false };
+  | { autenticado: false; motivo: MotivoFalhaLogin };
 
 /**
  * Fluxo unico de autenticacao para todos os usuarios:
  * e-mail + senha -> UsuarioCentral -> hash -> UsuarioEmpresa -> Empresa -> Tenant -> SessaoCentral.
  * Nao existe fallback para o banco operacional.
  */
-async function autenticarCentral(email: string, senha: string): Promise<ResultadoLoginCentral> {
+async function autenticarCentral(
+  email: string,
+  senha: string,
+  manterConectado: boolean
+): Promise<ResultadoLoginCentral> {
   const usuarioCentral = await prismaCentral.usuarioCentral.findUnique({
     where: { email },
     select: {
@@ -38,13 +55,13 @@ async function autenticarCentral(email: string, senha: string): Promise<Resultad
   });
 
   if (!usuarioCentral?.ativo || !usuarioCentral.senha) {
-    return { autenticado: false };
+    return { autenticado: false, motivo: "usuario_inexistente" };
   }
 
   const senhaConfere = await bcrypt.compare(senha, usuarioCentral.senha);
 
   if (!senhaConfere) {
-    return { autenticado: false };
+    return { autenticado: false, motivo: "senha_invalida" };
   }
 
   const vinculos = await prismaCentral.usuarioEmpresa.findMany({
@@ -66,8 +83,12 @@ async function autenticarCentral(email: string, senha: string): Promise<Resultad
 
   const vinculosAtivos = vinculos.filter((vinculo) => vinculo.empresa.status === "ATIVA");
 
-  if (vinculosAtivos.length !== 1) {
-    return { autenticado: false };
+  if (vinculosAtivos.length === 0) {
+    return { autenticado: false, motivo: "sem_empresa_ativa" };
+  }
+
+  if (vinculosAtivos.length > 1) {
+    return { autenticado: false, motivo: "multiplas_empresas" };
   }
 
   const vinculo = vinculosAtivos[0];
@@ -84,7 +105,7 @@ async function autenticarCentral(email: string, senha: string): Promise<Resultad
   });
 
   if (tenantsAtivos.length !== 1 || !tenantsAtivos[0].connectionRef) {
-    return { autenticado: false };
+    return { autenticado: false, motivo: "tenant_indisponivel" };
   }
 
   const tenant = tenantsAtivos[0];
@@ -94,6 +115,7 @@ async function autenticarCentral(email: string, senha: string): Promise<Resultad
     empresaId: vinculo.empresa.id,
     tenantId: tenant.id,
     role: vinculo.role,
+    manterConectado,
   });
 
   // Remove qualquer cookie legado residual: konext_session nao autentica mais.
@@ -109,15 +131,18 @@ export async function login(
 ): Promise<LoginState> {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const senha = String(formData.get("senha") ?? "");
+  const manterConectado = formData.get("manterConectado") === "on";
 
   if (!email || !senha) {
     return { erro: "Informe e-mail e senha." };
   }
 
-  const resultado = await autenticarCentral(email, senha);
+  const resultado = await autenticarCentral(email, senha, manterConectado);
 
   if (!resultado.autenticado) {
-    // Mensagem generica: nao revela existencia do e-mail.
+    // Log so com o motivo — nunca e-mail ou senha — para investigar sem
+    // guardar credencial nenhuma no log do servidor.
+    console.error("[auth] falha de login", { motivo: resultado.motivo });
     return { erro: ERRO_CREDENCIAIS };
   }
 

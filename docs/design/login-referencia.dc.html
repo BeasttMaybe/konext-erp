@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+  <style>
+    body { margin: 0; font-family: "Plus Jakarta Sans", "Segoe UI", system-ui, sans-serif; background: #1B1D38; color: #EEF0FB; }
+    a { color: #A5AAFF; text-decoration: none; } a:hover { color: #C7CAFF; }
+    .num { font-variant-numeric: tabular-nums; }
+    input::placeholder { color: #8E91B8; }
+    input:focus-visible, button:focus-visible, a:focus-visible { outline: 3px solid #8B91FF; outline-offset: 2px; }
+    .nav-ativo { position: relative; }
+    .nav-ativo::before { content: ""; position: absolute; right: 0; top: -20px; width: 20px; height: 20px; border-bottom-right-radius: 20px; box-shadow: 8px 8px 0 8px #1B1D38; }
+    .nav-ativo::after { content: ""; position: absolute; right: 0; bottom: -20px; width: 20px; height: 20px; border-top-right-radius: 20px; box-shadow: 8px -8px 0 8px #1B1D38; }
+  </style>
+</helmet>
+<div style="width: 1440px; height: 900px; display: flex; background: #1B1D38; overflow: hidden;">
+
+  <section aria-label="Apresentação" style="width: 700px; flex-shrink: 0; background: #2A2C50; border-radius: 0 40px 40px 0; padding: 48px 56px; box-sizing: border-box; display: flex; flex-direction: column; gap: 40px; position: relative; overflow: hidden;">
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <div style="width: 44px; height: 44px; border-radius: 12px; background: #5A5FE0; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 22px; color: #FFFFFF;">K</div>
+      <div style="display: flex; flex-direction: column;">
+        <span style="font-weight: 800; font-size: 22px; letter-spacing: -0.02em;">Konext</span>
+        <span style="font-size: 12px; color: #A7AACE;">Gestão para assistências técnicas</span>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 16px; margin-top: 24px;">
+      <h1 style="margin: 0; font-size: 44px; line-height: 1.12; font-weight: 800; letter-spacing: -0.03em;">Da entrada do aparelho<br>à entrega, sem perder<br>nenhuma OS de vista.</h1>
+      <p style="margin: 0; font-size: 17px; line-height: 1.55; color: #C3C6E4; max-width: 500px;">Ordens de serviço, garantias, balcão, estoque e financeiro no mesmo lugar.</p>
+    </div>
+
+    <div aria-hidden="true" style="margin-top: auto; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px;">
+      <div style="padding: 14px; border-radius: 20px; background: #23254A; border: 1px solid #353862; display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 8px;"><span style="width: 8px; height: 8px; border-radius: 50%; background: #FBBF24;"></span><span style="font-size: 13px; font-weight: 800;">Orçamento</span></div>
+        <div style="padding: 12px; border-radius: 14px; background: #2E3158; border: 1px solid #3A3D6A; display: flex; flex-direction: column; gap: 6px;">
+          <span style="font-size: 11px; font-weight: 800; color: #C7CAFF;">OS 0127</span>
+          <span style="font-size: 13px; font-weight: 700;">Notebook · não liga</span>
+          <span style="align-self: flex-start; padding: 2px 8px; border-radius: 999px; background: #4A3F24; color: #FCD34D; font-size: 10px; font-weight: 700;">Aguardando aprovação</span>
+        </div>
+      </div>
+      <div style="padding: 14px; border-radius: 20px; background: #23254A; border: 1px solid #353862; display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 8px;"><span style="width: 8px; height: 8px; border-radius: 50%; background: #60A5FA;"></span><span style="font-size: 13px; font-weight: 800;">Conserto</span></div>
+        <div style="padding: 12px; border-radius: 14px; background: #2E3158; border: 1px solid #3A3D6A; display: flex; flex-direction: column; gap: 6px;">
+          <span style="font-size: 11px; font-weight: 800; color: #C7CAFF;">OS 0131</span>
+          <span style="font-size: 13px; font-weight: 700;">Celular · troca de tela</span>
+          <span style="align-self: flex-start; padding: 2px 8px; border-radius: 999px; background: #4A3A22; color: #FDBA74; font-size: 10px; font-weight: 700;">Aguardando peça</span>
+        </div>
+      </div>
+      <div style="padding: 14px; border-radius: 20px; background: #23254A; border: 1px solid #353862; display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 8px;"><span style="width: 8px; height: 8px; border-radius: 50%; background: #34D399;"></span><span style="font-size: 13px; font-weight: 800;">Pronto</span></div>
+        <div style="padding: 12px; border-radius: 14px; background: #2E3158; border: 1px solid #3A3D6A; display: flex; flex-direction: column; gap: 6px;">
+          <span style="font-size: 11px; font-weight: 800; color: #C7CAFF;">OS 0129</span>
+          <span style="font-size: 13px; font-weight: 700;">Videogame · HDMI</span>
+          <span style="align-self: flex-start; padding: 2px 8px; border-radius: 999px; background: #1E4540; color: #6EE7B7; font-size: 10px; font-weight: 700;">Cliente avisado</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: flex; justify-content: space-between; font-size: 13px; color: #A7AACE;">
+      <span>© 2026 Konext</span>
+      <span>Dúvidas? <a href="#">Fale com o suporte</a></span>
+    </div>
+  </section>
+
+  <section aria-label="Entrar" style="flex-grow: 1; display: flex; align-items: center; justify-content: center; padding: 48px;">
+    <div style="width: 420px; display: flex; flex-direction: column; gap: 28px;">
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <span style="font-size: 14px; font-weight: 700; color: #A5AAFF;">Bem-vindo de volta</span>
+        <h2 style="margin: 0; font-size: 32px; font-weight: 800; letter-spacing: -0.02em;">Entrar na sua loja</h2>
+      </div>
+
+      <sc-if value="{{sessaoExpirada}}" hint-placeholder-val="{{ false }}">
+        <div role="status" style="display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-radius: 14px; background: #4A3A22; color: #FDE7C7; font-size: 14px; line-height: 1.45;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FDBA74" stroke-width="2" stroke-linecap="round" style="flex-shrink: 0;"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
+          <span>Sua sessão expirou por segurança. Entre novamente para continuar de onde parou.</span>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{erro}}" hint-placeholder-val="{{ false }}">
+        <div role="alert" style="display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-radius: 14px; background: #4A2B35; color: #FDE2E2; font-size: 14px; line-height: 1.45;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FCA5A5" stroke-width="2" stroke-linecap="round" style="flex-shrink: 0;"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16.5h.01"></path></svg>
+          <span>E-mail ou senha incorretos. Confira os dados e tente de novo.</span>
+        </div>
+      </sc-if>
+
+      <form onSubmit="{{enviar}}" style="display: flex; flex-direction: column; gap: 20px;">
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <label for="login-email" style="font-size: 14px; font-weight: 700;">E-mail</label>
+          <div style="height: 52px; border-radius: 14px; background: #2A2C50; border: 1px solid {{bordaCampo}}; display: flex; align-items: center; gap: 10px; padding: 0 16px; box-sizing: border-box;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A7AACE" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="m3 7 9 6 9-6"></path></svg>
+            <input id="login-email" type="email" autocomplete="username" placeholder="voce@sualoja.com.br" style="flex-grow: 1; height: 48px; background: transparent; border: none; outline: none; color: #EEF0FB; font: inherit; font-size: 15px;">
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; justify-content: space-between; align-items: baseline;">
+            <label for="login-senha" style="font-size: 14px; font-weight: 700;">Senha</label>
+            <a href="#" style="font-size: 13px; font-weight: 600;">Esqueci minha senha</a>
+          </div>
+          <div style="height: 52px; border-radius: 14px; background: #2A2C50; border: 1px solid {{bordaCampo}}; display: flex; align-items: center; gap: 10px; padding: 0 6px 0 16px; box-sizing: border-box;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A7AACE" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>
+            <input id="login-senha" type="{{tipoSenha}}" autocomplete="current-password" placeholder="Sua senha" style="flex-grow: 1; height: 48px; background: transparent; border: none; outline: none; color: #EEF0FB; font: inherit; font-size: 15px;">
+            <button type="button" onClick="{{alternarSenha}}" aria-label="{{rotuloOlho}}" aria-pressed="{{senhaVisivelTexto}}" style="width: 44px; height: 44px; border-radius: 10px; border: none; background: transparent; color: #C3C6E4; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+              <sc-if value="{{senhaVisivel}}" hint-placeholder-val="{{ false }}">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"></path><path d="M10.6 5.1A10 10 0 0 1 12 5c6 0 9.5 7 9.5 7a17 17 0 0 1-3 3.8"></path><path d="M6.6 6.6A17 17 0 0 0 2.5 12S6 19 12 19a9.6 9.6 0 0 0 5.4-1.6"></path><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"></path></svg>
+              </sc-if>
+              <sc-if value="{{senhaOculta}}" hint-placeholder-val="{{ true }}">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12S6 5 12 5s9.5 7 9.5 7-3.5 7-9.5 7S2.5 12 2.5 12z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              </sc-if>
+            </button>
+          </div>
+        </div>
+
+        <label style="display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 14px; color: #C3C6E4; cursor: pointer;">
+          <input type="checkbox" style="width: 20px; height: 20px; accent-color: #5A5FE0;">
+          Manter conectado neste computador
+        </label>
+
+        <button type="submit" disabled="{{enviando}}" style="height: 54px; border-radius: 14px; border: none; background: #5A5FE0; color: #FFFFFF; font: inherit; font-size: 16px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer; opacity: {{opacidadeBotao}};">
+          {{rotuloBotao}}
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="m13 6 6 6-6 6"></path></svg>
+        </button>
+      </form>
+
+      <p style="margin: 0; padding-top: 20px; border-top: 1px solid #353862; font-size: 13px; line-height: 1.5; color: #A7AACE;">Acesso restrito a usuários cadastrados pela loja. Precisa de acesso? Peça ao administrador da sua loja.</p>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"estado":{"editor":"enum","options":["normal","sessao-expirada","erro"],"default":"normal","section":"Estados"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { senhaVisivel: false, enviando: false };
+  }
+  renderVals() {
+    const estado = this.props.estado ?? 'normal';
+    const visivel = this.state.senhaVisivel;
+    const enviando = this.state.enviando;
+    return {
+      sessaoExpirada: estado === 'sessao-expirada',
+      erro: estado === 'erro',
+      bordaCampo: estado === 'erro' ? '#B4556A' : '#383B66',
+      senhaVisivel: visivel,
+      senhaOculta: !visivel,
+      senhaVisivelTexto: visivel ? 'true' : 'false',
+      tipoSenha: visivel ? 'text' : 'password',
+      rotuloOlho: visivel ? 'Ocultar senha' : 'Mostrar senha',
+      alternarSenha: () => this.setState({ senhaVisivel: !visivel }),
+      enviando,
+      rotuloBotao: enviando ? 'Entrando…' : 'Entrar',
+      opacidadeBotao: enviando ? '0.7' : '1',
+      enviar: (e) => {
+        e.preventDefault();
+        this.setState({ enviando: true });
+        setTimeout(() => this.setState({ enviando: false }), 1500);
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>

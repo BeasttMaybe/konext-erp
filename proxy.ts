@@ -9,6 +9,8 @@ import { COOKIE_SESSAO_CENTRAL, COOKIE_SESSAO_LEGADA } from "@/lib/auth/cookies"
 // acesso por token da Fase 1C ainda nao existe. Nao adicionar aqui sem
 // aquele mecanismo: isso abriria os dados da OS (cliente, aparelho, itens)
 // para qualquer um com o link, sem nenhum controle.
+// "/login" cobre também "/login/recuperar" (Fase 1B-FIX, Parte 4.6) pelo
+// match por prefixo em `rotaPublica` abaixo — sem entrada separada.
 const ROTAS_PUBLICAS = ["/login"] as const;
 
 function rotaPublica(pathname: string): boolean {

@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "./tokens-konext.css";
 
 /* Configuração do dark mode por classe (não por media query do sistema) */
 @custom-variant dark (&:where(.dark, .dark *));
