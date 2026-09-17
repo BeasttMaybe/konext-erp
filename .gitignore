@@ -45,3 +45,7 @@ next-env.d.ts
 
 # rascunhos entregues pelo assistente
 Claude outputs/
+
+# saidas locais da fase 0 (podem conter dados de producao)
+backups/
+docs/diagnostico/

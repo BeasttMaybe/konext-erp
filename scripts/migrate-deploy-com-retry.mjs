@@ -35,8 +35,37 @@ function ehErroDeAdvisoryLock(saida) {
   );
 }
 
+const CONFIRMACAO_EXIGIDA = "SIM";
+
+/**
+ * Trava manual. Este script aplica migrations de verdade e NAO faz mais parte do
+ * `npm run build` — so pode rodar por decisao explicita de um operador humano.
+ */
+function exigirConfirmacaoExplicita() {
+  const confirmacao = String(process.env.CONFIRMAR_MIGRACAO ?? "").trim().toUpperCase();
+
+  if (confirmacao === CONFIRMACAO_EXIGIDA) {
+    console.log("[migrate] Confirmacao recebida (CONFIRMAR_MIGRACAO=SIM).");
+    return;
+  }
+
+  console.error("");
+  console.error("[migrate] ABORTADO: migracao nao confirmada.");
+  console.error("[migrate] Este comando aplica migrations no banco acima e nao pode ser desfeito.");
+  console.error("[migrate] Confira o AMBIENTE e o host mascarado antes de prosseguir.");
+  console.error("[migrate] Faca um backup (`npm run db:backup`) antes de qualquer migracao.");
+  console.error("");
+  console.error("[migrate] Para executar de verdade, defina CONFIRMAR_MIGRACAO=SIM:");
+  console.error('[migrate]   PowerShell : $env:CONFIRMAR_MIGRACAO="SIM"; npm run db:migrate:deploy:manual');
+  console.error("[migrate]   bash       : CONFIRMAR_MIGRACAO=SIM npm run db:migrate:deploy:manual");
+  console.error("");
+  process.exit(1);
+}
+
 async function executar() {
+  // O alvo e impresso ANTES da trava, para o operador conferir host e AMBIENTE.
   imprimirAlvoMigracao();
+  exigirConfirmacaoExplicita();
 
   for (let tentativa = 1; tentativa <= MAX_TENTATIVAS; tentativa += 1) {
     console.log(`[migrate] Tentativa ${tentativa}/${MAX_TENTATIVAS}...`);

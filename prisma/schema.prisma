@@ -370,9 +370,6 @@ enum ResultadoRetornoGarantia {
   EM_ANALISE
 }
 
-// Apos salvar o schema, execute: npx prisma db push
-// Ou gere uma migration para persistir o novo papel de contato.
-
 model ItemOS {
   id           String       @id @default(uuid())
   osId         String
@@ -476,8 +473,6 @@ enum FormaPagamento {
   EMPENHO_PUBLICO
 }
 
-// Importante: apos alterar o enum de pagamento, execute `npx prisma db push`.
-
 enum OrigemReceita {
   VENDA_PDV
   ORDEM_SERVICO
@@ -531,8 +526,6 @@ enum StatusParcelaDespesa {
   ATRASADO
 }
 
-// Importante: apos alterar o modelo de despesas, execute `npx prisma db push`.
-
 // ==========================================
 // MÓDULO: NOTAS FISCAIS
 // ==========================================
@@ -554,8 +547,6 @@ enum StatusNotaFiscal {
   CANCELADA
   PENDENTE
 }
-
-// Apos salvar este schema, execute: npx prisma db push
 
 // ==========================================
 // MÓDULO: ESTOQUE E PRODUTOS

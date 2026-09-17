@@ -18,8 +18,16 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 ## Build
 
-- `npm run build:local` — gera os clients Prisma e compila com `next build`. Não toca em nenhum banco de dados. Use este para verificar tipos/build localmente, especialmente com um `.env` de teste ativo.
-- `npm run build` — pipeline de deploy: além do build, roda `prisma migrate deploy` (via `scripts/migrate-deploy-com-retry.mjs`) contra o banco apontado pelo `DATABASE_URL`/`AMBIENTE` ativos. É o que a Vercel executa. **Nunca rode `npm run build` localmente com o `.env` de produção ativo** — ele aplica migrations de verdade. O script imprime o host mascarado e o `AMBIENTE` alvo antes de migrar, para deixar claro o que está prestes a mudar.
+- `npm run build` — gera os dois clients Prisma (tenant e central) e compila com `next build`. **Não toca em nenhum banco de dados** e não exige nenhuma variável de conexão para rodar. É o que a Vercel executa.
+- `npm run build:local` — alias de `npm run build`, mantido por compatibilidade com scripts e documentação antigos.
+
+> Até a Fase 0, `npm run build` também rodava `prisma migrate deploy`. Migrations deixaram de fazer parte do build: elas agora só são aplicadas por decisão explícita de um operador.
+
+## Banco de dados
+
+- `npm run db:backup` — gera dumps (`pg_dump --format=custom`) do banco central e de cada tenant ativo em `backups/<AAAAMMDD-HHmm>/`, com `manifest.json`. Somente leitura. Ver `docs/operacao/backup-restore.md`.
+- `npm run db:diagnostico` — coleta somente-leitura de migrations, schema real, drift e censo de dados em `docs/diagnostico/`. Não grava nada nos bancos.
+- `npm run db:migrate:deploy:manual` — aplica migrations de verdade no banco apontado por `DATABASE_URL`. Imprime o host mascarado e o `AMBIENTE` alvo e **aborta** a menos que `CONFIRMAR_MIGRACAO=SIM` esteja definido. Faça backup antes.
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
