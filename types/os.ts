@@ -59,6 +59,9 @@ export interface OrdemServico {
   retornoGarantiaId?: string;
   retornoGarantiaFinalizadoEm?: string;
   observacoesInternas?: string;
+  /** OS ENTREGUE sem nenhum item/serviço vinculado — ver finalizarSemServico. */
+  entregueSemServico?: boolean;
+  motivoSemServico?: string;
   dataCriacao: string;
   dataAtualizacao: string;
 }

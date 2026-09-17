@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   avaliarFinalizacao,
   avaliarFinalizacaoSemServico,
+  contaComoFaturamento,
   resumirPendencias,
   type CodigoPendenciaFinalizacao,
   type EntradaAvaliacaoFinalizacao,
@@ -379,5 +380,15 @@ describe("avaliarFinalizacaoSemServico", () => {
     });
 
     expect(resultado.podeFinalizar).toBe(false);
+  });
+});
+
+describe("contaComoFaturamento", () => {
+  it("exclui OS entregue sem serviço vinculado de receita, meta e faturamento por técnico", () => {
+    expect(contaComoFaturamento({ entregueSemServico: true })).toBe(false);
+  });
+
+  it("inclui uma entrega normal", () => {
+    expect(contaComoFaturamento({ entregueSemServico: false })).toBe(true);
   });
 });

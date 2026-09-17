@@ -141,7 +141,7 @@ export async function obterReceitaTotalPadrao(
           LEFT JOIN "RetornoGarantiaOS" rg ON rg.id = os."retornoGarantiaId"
           WHERE v."criadoEm" >= ${inicio}
             AND v."criadoEm" <= ${fim}
-            AND (os.id IS NULL OR os."excluidaEm" IS NULL)
+            AND (os.id IS NULL OR (os."excluidaEm" IS NULL AND os."entregueSemServico" = false))
             AND (
               os.id IS NULL
               OR os."ehRetornoGarantia" = false
@@ -159,7 +159,7 @@ export async function obterReceitaTotalPadrao(
             AND cr."vendaId" IS NULL
             AND COALESCE(cr."dataRecebimento", cr."criadoEm") >= ${inicio}
             AND COALESCE(cr."dataRecebimento", cr."criadoEm") <= ${fim}
-            AND (os.id IS NULL OR os."excluidaEm" IS NULL)
+            AND (os.id IS NULL OR (os."excluidaEm" IS NULL AND os."entregueSemServico" = false))
             AND (
               os.id IS NULL
               OR os."ehRetornoGarantia" = false
@@ -181,7 +181,7 @@ export async function obterReceitaTotalPadrao(
         LEFT JOIN "OrdemServico" os ON os.id = cr."ordemServicoId"
         WHERE v."criadoEm" >= ${inicio}
           AND v."criadoEm" <= ${fim}
-          AND (os.id IS NULL OR os."excluidaEm" IS NULL)
+          AND (os.id IS NULL OR (os."excluidaEm" IS NULL AND os."entregueSemServico" = false))
 
         UNION ALL
 
@@ -192,7 +192,7 @@ export async function obterReceitaTotalPadrao(
           AND cr."vendaId" IS NULL
           AND COALESCE(cr."dataRecebimento", cr."criadoEm") >= ${inicio}
           AND COALESCE(cr."dataRecebimento", cr."criadoEm") <= ${fim}
-          AND (os.id IS NULL OR os."excluidaEm" IS NULL)
+          AND (os.id IS NULL OR (os."excluidaEm" IS NULL AND os."entregueSemServico" = false))
       ) base
     `;
 
@@ -227,7 +227,7 @@ export async function obterReceitaMensalPadrao(
             LEFT JOIN "RetornoGarantiaOS" rg ON rg.id = os."retornoGarantiaId"
             WHERE v."criadoEm" >= ${inicio}
               AND v."criadoEm" <= ${fim}
-              AND (os.id IS NULL OR os."excluidaEm" IS NULL)
+              AND (os.id IS NULL OR (os."excluidaEm" IS NULL AND os."entregueSemServico" = false))
               AND (
                 os.id IS NULL
                 OR os."ehRetornoGarantia" = false
@@ -246,7 +246,7 @@ export async function obterReceitaMensalPadrao(
               AND cr."vendaId" IS NULL
               AND COALESCE(cr."dataRecebimento", cr."criadoEm") >= ${inicio}
               AND COALESCE(cr."dataRecebimento", cr."criadoEm") <= ${fim}
-              AND (os.id IS NULL OR os."excluidaEm" IS NULL)
+              AND (os.id IS NULL OR (os."excluidaEm" IS NULL AND os."entregueSemServico" = false))
               AND (
                 os.id IS NULL
                 OR os."ehRetornoGarantia" = false
@@ -266,7 +266,7 @@ export async function obterReceitaMensalPadrao(
             LEFT JOIN "OrdemServico" os ON os.id = cr."ordemServicoId"
             WHERE v."criadoEm" >= ${inicio}
               AND v."criadoEm" <= ${fim}
-              AND (os.id IS NULL OR os."excluidaEm" IS NULL)
+              AND (os.id IS NULL OR (os."excluidaEm" IS NULL AND os."entregueSemServico" = false))
 
             UNION ALL
 
@@ -278,7 +278,7 @@ export async function obterReceitaMensalPadrao(
               AND cr."vendaId" IS NULL
               AND COALESCE(cr."dataRecebimento", cr."criadoEm") >= ${inicio}
               AND COALESCE(cr."dataRecebimento", cr."criadoEm") <= ${fim}
-              AND (os.id IS NULL OR os."excluidaEm" IS NULL)
+              AND (os.id IS NULL OR (os."excluidaEm" IS NULL AND os."entregueSemServico" = false))
           ) base
           GROUP BY DATE_TRUNC('month', base.mes)
           ORDER BY DATE_TRUNC('month', base.mes) ASC
@@ -323,7 +323,7 @@ export async function obterReceitaPorClientePadrao(
             LEFT JOIN "RetornoGarantiaOS" rg ON rg.id = os."retornoGarantiaId"
             WHERE v."criadoEm" >= ${inicio}
               AND v."criadoEm" <= ${fim}
-              AND (os.id IS NULL OR os."excluidaEm" IS NULL)
+              AND (os.id IS NULL OR (os."excluidaEm" IS NULL AND os."entregueSemServico" = false))
               AND (
                 os.id IS NULL
                 OR os."ehRetornoGarantia" = false
@@ -342,7 +342,7 @@ export async function obterReceitaPorClientePadrao(
               AND cr."vendaId" IS NULL
               AND COALESCE(cr."dataRecebimento", cr."criadoEm") >= ${inicio}
               AND COALESCE(cr."dataRecebimento", cr."criadoEm") <= ${fim}
-              AND (os.id IS NULL OR os."excluidaEm" IS NULL)
+              AND (os.id IS NULL OR (os."excluidaEm" IS NULL AND os."entregueSemServico" = false))
               AND (
                 os.id IS NULL
                 OR os."ehRetornoGarantia" = false
@@ -364,7 +364,7 @@ export async function obterReceitaPorClientePadrao(
             LEFT JOIN "OrdemServico" os ON os.id = cr."ordemServicoId"
             WHERE v."criadoEm" >= ${inicio}
               AND v."criadoEm" <= ${fim}
-              AND (os.id IS NULL OR os."excluidaEm" IS NULL)
+              AND (os.id IS NULL OR (os."excluidaEm" IS NULL AND os."entregueSemServico" = false))
 
             UNION ALL
 
@@ -376,7 +376,7 @@ export async function obterReceitaPorClientePadrao(
               AND cr."vendaId" IS NULL
               AND COALESCE(cr."dataRecebimento", cr."criadoEm") >= ${inicio}
               AND COALESCE(cr."dataRecebimento", cr."criadoEm") <= ${fim}
-              AND (os.id IS NULL OR os."excluidaEm" IS NULL)
+              AND (os.id IS NULL OR (os."excluidaEm" IS NULL AND os."entregueSemServico" = false))
           ) base
           GROUP BY base."clienteNome"
           ORDER BY total DESC

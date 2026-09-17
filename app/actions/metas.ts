@@ -570,6 +570,7 @@ async function executarCalculoMetaAutomatica(
         origem: "ORDEM_SERVICO",
         ordemServicoId: { not: null },
         status: { in: ["RECEBIDO", "PAGO"] },
+        ordemServico: { entregueSemServico: false },
       };
 
       const filtroPeriodo = montarFiltroPeriodoContaReceber(periodo);
@@ -589,6 +590,7 @@ async function executarCalculoMetaAutomatica(
       const filtroAtualizacao = montarFiltroData(periodo.inicio, periodo.fim);
       const where: Prisma.OrdemServicoWhereInput = {
         excluidaEm: null,
+        entregueSemServico: false,
         status: { in: config?.statusOS?.length ? config.statusOS : ["PRONTO", "ENTREGUE"] },
         ...(filtroAtualizacao ? { atualizadoEm: filtroAtualizacao } : {}),
       };
@@ -612,6 +614,7 @@ async function executarCalculoMetaAutomatica(
         origem: "ORDEM_SERVICO",
         ordemServicoId: { not: null },
         status: { in: ["RECEBIDO", "PAGO"] },
+        ordemServico: { entregueSemServico: false },
       };
 
       const filtroPeriodo = montarFiltroPeriodoContaReceber(periodo);

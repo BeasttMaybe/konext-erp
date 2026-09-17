@@ -483,6 +483,7 @@ async function obterReceitaOSPorMes(
         LEFT JOIN "ItemOS" i ON i."osId" = os.id
         LEFT JOIN "RetornoGarantiaOS" r ON r.id = os."retornoGarantiaId"
         WHERE os."excluidaEm" IS NULL
+          AND os."entregueSemServico" = false
           AND os."status"::text IN ('PRONTO', 'ENTREGUE')
           AND os."atualizadoEm" >= ${inicio}
           AND os."atualizadoEm" <= ${fim}
@@ -537,6 +538,7 @@ async function obterCustosOSPorMes(
       FROM "OrdemServico" os
       LEFT JOIN "ItemOS" i ON i."osId" = os.id
       WHERE os."excluidaEm" IS NULL
+        AND os."entregueSemServico" = false
         AND os."status"::text IN ('PRONTO', 'ENTREGUE')
         AND os."atualizadoEm" >= ${inicio}
         AND os."atualizadoEm" <= ${fim}
@@ -598,6 +600,7 @@ async function obterTicketMedioOSMes(
         FROM "OrdemServico" os
         LEFT JOIN "ItemOS" i ON i."osId" = os.id
         WHERE os."excluidaEm" IS NULL
+          AND os."entregueSemServico" = false
           AND os."ehRetornoGarantia" = false
           AND os."status"::text IN ('PRONTO', 'ENTREGUE')
           AND os."atualizadoEm" >= ${inicioMesAtual}
@@ -706,6 +709,7 @@ async function obterTicketMedioEntreguesPeriodo(
       FROM "OrdemServico" os
       LEFT JOIN "ItemOS" i ON i."osId" = os.id
       WHERE os."excluidaEm" IS NULL
+        AND os."entregueSemServico" = false
         AND os."ehRetornoGarantia" = false
         AND os."status"::text = 'ENTREGUE'
         AND os."atualizadoEm" >= ${inicio}
@@ -839,6 +843,7 @@ async function obterDespesasPeriodo(
         FROM "OrdemServico" os
         INNER JOIN "ItemOS" i ON i."osId" = os.id
         WHERE os."excluidaEm" IS NULL
+          AND os."entregueSemServico" = false
           AND os."status"::text IN ('PRONTO', 'ENTREGUE')
           AND os."atualizadoEm" >= ${inicio}
           AND os."atualizadoEm" <= ${fim}

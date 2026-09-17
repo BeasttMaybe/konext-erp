@@ -20,6 +20,7 @@ import { STATUS_OS_SEQUENCIA, motivoTransicaoNegada } from "@/lib/dominio/os/maq
 import { ErroPermissao, exigirPermissao, temPermissao } from "@/lib/auth/permissoes";
 import {
   avaliarFinalizacao,
+  avaliarFinalizacaoSemServico,
   resumirPendencias,
   type PendenciaFinalizacao,
   type RegrasConfiguracaoFinalizacao,
@@ -82,6 +83,8 @@ type RawOrdemServico = {
   retornoGarantia?: { finalizadoEm?: unknown } | null;
   observacoes?: unknown;
   archivedAt?: unknown;
+  entregueSemServico?: unknown;
+  motivoSemServico?: unknown;
   excluidaEm?: unknown;
   criadoEm?: unknown;
   atualizadoEm?: unknown;
@@ -155,6 +158,8 @@ function mapearOrdemServicoDashboard(order: RawOrdemServico, podeVerCustos: bool
       ? normalizarDataISO(order.retornoGarantia.finalizadoEm)
       : undefined,
     observacoesInternas: order.observacoes ? String(order.observacoes) : undefined,
+    entregueSemServico: Boolean(order.entregueSemServico),
+    motivoSemServico: order.motivoSemServico ? String(order.motivoSemServico) : undefined,
     dataCriacao: normalizarDataISO(order.criadoEm),
     dataAtualizacao: normalizarDataISO(order.atualizadoEm),
   };
@@ -1340,6 +1345,132 @@ export async function finalizarOrdemServico(
     termoGarantiaId: resultado.termoGarantiaId,
     garantiaGerada: resultado.garantiaGerada,
     ehResgate: avaliacao.ehResgate,
+  };
+}
+
+export type FinalizarSemServicoInput = {
+  osId: string;
+  motivo: string;
+};
+
+export type ResultadoFinalizarSemServico =
+  | {
+      sucesso: true;
+      mensagem: string;
+      osId: string;
+    }
+  | {
+      sucesso: false;
+      erro: string;
+    };
+
+/**
+ * Encerra uma OS sem peça/serviço vinculado (Fase 1C-2, Parte 3) — a OS nunca
+ * teve item lançado, entao `avaliarFinalizacao` sempre bloquearia (Parte 2
+ * tornou item obrigatorio na entrega normal). Nao gera termo de garantia nem
+ * exige pedido no PDV, e fica de fora do faturamento (ver
+ * lib/dashboard/regras-financeiras.ts e app/actions/metas.ts).
+ */
+export async function finalizarSemServico(
+  input: FinalizarSemServicoInput
+): Promise<ResultadoFinalizarSemServico> {
+  const contexto = await exigirContextoTenant();
+
+  try {
+    exigirPermissao(contexto, "os.finalizar");
+  } catch (erro) {
+    if (erro instanceof ErroPermissao) {
+      return { sucesso: false, erro: erro.message };
+    }
+    throw erro;
+  }
+
+  const prisma = contexto.prisma;
+  const usuario = contexto.usuarioOperacional;
+  const osId = String(input?.osId ?? "").trim();
+  const motivo = String(input?.motivo ?? "").trim();
+
+  if (!osId) {
+    return { sucesso: false, erro: "ID da ordem de servico nao informado." };
+  }
+
+  if (motivo.length < 10) {
+    return {
+      sucesso: false,
+      erro: "Informe o motivo do encerramento sem serviço (mínimo 10 caracteres).",
+    };
+  }
+
+  const ordemServico = await prisma.ordemServico.findUnique({
+    where: { id: osId },
+    select: {
+      id: true,
+      numeroOs: true,
+      status: true,
+      archivedAt: true,
+      excluidaEm: true,
+      _count: { select: { itens: true } },
+    },
+  });
+
+  if (!ordemServico) {
+    return { sucesso: false, erro: "Ordem de servico nao encontrada." };
+  }
+
+  const avaliacao = avaliarFinalizacaoSemServico({
+    status: ordemServico.status,
+    excluidaEm: ordemServico.excluidaEm,
+    quantidadeItens: Number(ordemServico._count?.itens ?? 0),
+  });
+
+  if (!avaliacao.podeFinalizar) {
+    return { sucesso: false, erro: avaliacao.erro };
+  }
+
+  const agora = new Date();
+
+  await prisma.$transaction(async (tx) => {
+    await tx.ordemServico.update({
+      where: { id: osId },
+      data: {
+        status: "ENTREGUE",
+        archivedAt: agora,
+        entregueSemServico: true,
+        motivoSemServico: motivo,
+      },
+    });
+
+    await registrarLogAuditoria(
+      tx,
+      contextoAuditoriaDoUsuario(
+        { id: normalizarIdUsuarioOperacional(usuario) },
+        "app/actions/os.ts:finalizarSemServico"
+      ),
+      {
+        acao: ACOES_AUDITORIA.FINALIZAR,
+        entidade: ENTIDADES_AUDITORIA.ORDEM_SERVICO,
+        entidadeId: osId,
+        dadosAntes: {
+          status: ordemServico.status,
+          archivedAt: ordemServico.archivedAt ? ordemServico.archivedAt.toISOString() : null,
+        },
+        dadosDepois: {
+          status: "ENTREGUE",
+          archivedAt: agora.toISOString(),
+          entregueSemServico: true,
+          ...descreverAutoria(contexto),
+        },
+        motivo,
+      }
+    );
+  });
+
+  revalidarOrdemServico(osId);
+
+  return {
+    sucesso: true,
+    mensagem: `OS ${ordemServico.numeroOs} encerrada sem serviço vinculado.`,
+    osId,
   };
 }
 

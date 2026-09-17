@@ -284,3 +284,19 @@ export function avaliarFinalizacaoSemServico(
 
   return { podeFinalizar: true };
 }
+
+/**
+ * Fonte unica de verdade de "esta OS conta como faturamento?" — uma OS
+ * entregue sem serviço vinculado (`finalizarSemServico`) é uma entrega
+ * vazia, sem venda por trás, e nunca deve somar em receita, meta ou
+ * faturamento por técnico. Toda consulta que soma ou conta OrdemServico para
+ * essas telas precisa refletir esta mesma regra — ver
+ * lib/dashboard/regras-financeiras.ts, app/actions/dashboard.ts
+ * (obterReceitaOSPorMes, obterCustosOSPorMes, obterTicketMedioOSMes,
+ * obterTicketMedioEntreguesPeriodo, obterDespesasPeriodo) e
+ * app/actions/metas.ts (FATURAMENTO_OS, TICKET_MEDIO_OS,
+ * QUANTIDADE_OS_FINALIZADAS).
+ */
+export function contaComoFaturamento(os: { entregueSemServico: boolean }): boolean {
+  return !os.entregueSemServico;
+}
