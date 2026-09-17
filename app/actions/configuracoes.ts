@@ -6,6 +6,7 @@ import { z } from "zod";
 import { consultarCnpjReceitaCliente } from "@/app/actions/crm";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { exigirPermissao } from "@/lib/auth/permissoes";
+import { paraMensagemSegura } from "@/lib/erros";
 import type { ContextoTenantServidor } from "@/types/tenant";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
@@ -1376,10 +1377,9 @@ export async function atualizarPerfil(
       id: String(usuarioAtualizado.id),
     };
   } catch (error) {
-    const mensagem = error instanceof Error ? error.message : "Nao foi possivel salvar os dados do perfil.";
     return {
       sucesso: false,
-      erro: mensagem,
+      erro: paraMensagemSegura(error),
     };
   }
 }
@@ -1446,10 +1446,9 @@ export async function atualizarLogoEmpresa(
       id: String(configuracaoAlvo.id),
     };
   } catch (error) {
-    const mensagem = error instanceof Error ? error.message : "Nao foi possivel salvar a logo da empresa.";
     return {
       sucesso: false,
-      erro: mensagem,
+      erro: paraMensagemSegura(error),
     };
   }
 }

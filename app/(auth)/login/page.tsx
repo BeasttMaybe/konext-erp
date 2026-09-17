@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { Suspense, useActionState } from "react";
+import { useSearchParams } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,6 +14,16 @@ const estadoInicial = {
 };
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginPageConteudo />
+    </Suspense>
+  );
+}
+
+function LoginPageConteudo() {
+  const searchParams = useSearchParams();
+  const sessaoExpirada = searchParams.get("expirada") === "1";
   const [estado, acaoLogin, carregandoLogin] = useActionState(login, estadoInicial);
 
   return (
@@ -25,6 +36,12 @@ export default function LoginPage() {
           <h1 className="text-2xl font-bold">Konext ERP</h1>
           <p className="text-sm text-slate-400">Acesse com suas credenciais para entrar no sistema.</p>
         </div>
+
+        {sessaoExpirada && (
+          <p className="rounded-md border border-amber-800 bg-amber-950/50 px-3 py-2 text-sm text-amber-300">
+            Sua sessão expirou. Faça login novamente.
+          </p>
+        )}
 
         <form action={acaoLogin} className="space-y-4">
           <div className="space-y-2">

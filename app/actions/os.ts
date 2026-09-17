@@ -24,6 +24,7 @@ import {
   type PendenciaFinalizacao,
   type RegrasConfiguracaoFinalizacao,
 } from "@/lib/dominio/os/regras-finalizacao";
+import { ErroNegocio, paraMensagemSegura } from "@/lib/erros";
 
 type PrismaTenant = Awaited<ReturnType<typeof exigirContextoTenant>>["prisma"];
 
@@ -219,13 +220,6 @@ function revalidarOrdemServico(osId: string): void {
   revalidatePath(`/os/${osId}/garantia`);
   revalidatePath("/os/garantias");
   revalidatePath("/financeiro");
-}
-
-class ErroRegraNegocioOS extends Error {
-  constructor(mensagem: string) {
-    super(mensagem);
-    this.name = "ErroRegraNegocioOS";
-  }
 }
 
 export type ResultadoAtualizacaoStatusOrdemServico =
@@ -745,11 +739,11 @@ export async function atualizarStatusOrdemServico(
       });
 
       if (!antes?.id) {
-        throw new ErroRegraNegocioOS("Ordem de servico nao encontrada.");
+        throw new ErroNegocio("Ordem de servico nao encontrada.");
       }
 
       if (antes.excluidaEm) {
-        throw new ErroRegraNegocioOS("Nao e permitido alterar status de uma OS excluida.");
+        throw new ErroNegocio("Nao e permitido alterar status de uma OS excluida.");
       }
 
       const statusAtual = antes.status;
@@ -760,7 +754,7 @@ export async function atualizarStatusOrdemServico(
       });
 
       if (motivoNegado !== null) {
-        throw new ErroRegraNegocioOS(motivoNegado);
+        throw new ErroNegocio(motivoNegado);
       }
 
       await tx.ordemServico.update({
@@ -805,18 +799,10 @@ export async function atualizarStatusOrdemServico(
       status,
     };
   } catch (error) {
-    if (error instanceof ErroRegraNegocioOS || error instanceof ErroPermissao) {
-      return {
-        sucesso: false,
-        erro: error.message,
-        bloqueioRegra: true,
-      };
-    }
-
     return {
       sucesso: false,
-      erro: error instanceof Error ? error.message : "Nao foi possivel atualizar o status da OS.",
-      bloqueioRegra: false,
+      erro: paraMensagemSegura(error),
+      bloqueioRegra: error instanceof ErroNegocio || error instanceof ErroPermissao,
     };
   }
 }
@@ -959,15 +945,15 @@ export async function reabrirOrdemServico(
       });
 
       if (!antes?.id) {
-        throw new ErroRegraNegocioOS("Ordem de servico nao encontrada.");
+        throw new ErroNegocio("Ordem de servico nao encontrada.");
       }
 
       if (antes.excluidaEm) {
-        throw new ErroRegraNegocioOS("Nao e permitido reabrir uma OS excluida.");
+        throw new ErroNegocio("Nao e permitido reabrir uma OS excluida.");
       }
 
       if (antes.status !== "ENTREGUE") {
-        throw new ErroRegraNegocioOS(
+        throw new ErroNegocio(
           "Só é possível reabrir uma OS que já foi entregue. Para mover esta OS, use a mudança de status normal."
         );
       }
@@ -1017,14 +1003,7 @@ export async function reabrirOrdemServico(
       status: statusDestino,
     };
   } catch (error) {
-    if (error instanceof ErroPermissao || error instanceof ErroRegraNegocioOS) {
-      return { sucesso: false, erro: error.message };
-    }
-
-    return {
-      sucesso: false,
-      erro: error instanceof Error ? error.message : "Nao foi possivel reabrir a OS.",
-    };
+    return { sucesso: false, erro: paraMensagemSegura(error) };
   }
 }
 

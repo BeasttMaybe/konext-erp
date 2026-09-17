@@ -1,6 +1,7 @@
 "use server";
 
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { randomBytes, createHash } from "node:crypto";
 import { prismaCentral } from "@/lib/central/prisma-central";
 import { COOKIE_SESSAO_CENTRAL } from "@/lib/auth/cookies";
@@ -166,13 +167,20 @@ export async function revogarSessaoCentralAtual(): Promise<void> {
 
 /**
  * Exige sessao central valida. Unico conceito de identidade autenticadora do sistema.
- * Lanca erro padronizado quando nao autenticado.
+ *
+ * Sem sessao valida, redireciona para o login em vez de lancar (F-20): antes
+ * a chamada lancava um Error puro que, sem `error.tsx`/tratamento, derrubava
+ * a pagina inteira na tela de erro generica do Next em vez de mandar o
+ * usuario para o login. O cookie invalido/expirado e sempre removido antes
+ * do redirecionamento.
  */
 export async function exigirSessaoCentral(): Promise<SessaoCentralResolvida> {
   const sessao = await obterSessaoCentral();
 
   if (!sessao) {
-    throw new Error("Sessão expirada ou inválida. Faça login novamente.");
+    const cookieStore = await cookies();
+    cookieStore.delete(COOKIE_SESSAO_CENTRAL);
+    redirect("/login?expirada=1");
   }
 
   return sessao;

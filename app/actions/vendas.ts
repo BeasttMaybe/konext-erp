@@ -1,10 +1,11 @@
 "use server";
 
-import { FormaPagamento, Prisma } from "@prisma/client";
+import { FormaPagamento } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { exigirPermissao } from "@/lib/auth/permissoes";
+import { paraMensagemSegura } from "@/lib/erros";
 
 const pedidoVendaItemSchema = z.object({
   produtoId: z.string().optional(),
@@ -145,10 +146,6 @@ export async function createPedidoVenda(
       orderId: createdOrder.id,
     };
   } catch (error) {
-    if (error instanceof Error && error.message.includes("Sessão")) {
-      return { success: false, message: error.message };
-    }
-
     if (error instanceof z.ZodError) {
       return {
         success: false,
@@ -156,18 +153,9 @@ export async function createPedidoVenda(
       };
     }
 
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      return {
-        success: false,
-        message: "Não foi possível salvar o pedido de venda no banco de dados.",
-      };
-    }
-
-    console.error("Erro ao criar pedido de venda:", error);
-
     return {
       success: false,
-      message: "Não foi possível criar o pedido de venda.",
+      message: paraMensagemSegura(error),
     };
   }
 }
@@ -300,29 +288,9 @@ export async function aprovarPedido(pedidoId: string): Promise<ApprovePedidoVend
       message: "Pedido aprovado com sucesso.",
     };
   } catch (error) {
-    if (error instanceof Error && error.message.includes("Sessão")) {
-      return { success: false, message: error.message };
-    }
-
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      return {
-        success: false,
-        message: "Não foi possível aprovar o pedido de venda no banco de dados.",
-      };
-    }
-
-    if (error instanceof Error) {
-      return {
-        success: false,
-        message: error.message,
-      };
-    }
-
-    console.error("Erro ao aprovar pedido de venda:", error);
-
     return {
       success: false,
-      message: "Não foi possível aprovar o pedido de venda.",
+      message: paraMensagemSegura(error),
     };
   }
 }
@@ -368,29 +336,9 @@ export async function rejeitarPedido(pedidoId: string): Promise<ApprovePedidoVen
       message: "Pedido rejeitado com sucesso.",
     };
   } catch (error) {
-    if (error instanceof Error && error.message.includes("Sessão")) {
-      return { success: false, message: error.message };
-    }
-
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      return {
-        success: false,
-        message: "Não foi possível rejeitar o pedido de venda no banco de dados.",
-      };
-    }
-
-    if (error instanceof Error) {
-      return {
-        success: false,
-        message: error.message,
-      };
-    }
-
-    console.error("Erro ao rejeitar pedido de venda:", error);
-
     return {
       success: false,
-      message: "Não foi possível rejeitar o pedido de venda.",
+      message: paraMensagemSegura(error),
     };
   }
 }
@@ -470,29 +418,9 @@ export async function cancelarPedido(pedidoId: string): Promise<ApprovePedidoVen
       message: "Pedido cancelado com sucesso.",
     };
   } catch (error) {
-    if (error instanceof Error && error.message.includes("Sessão")) {
-      return { success: false, message: error.message };
-    }
-
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      return {
-        success: false,
-        message: "Não foi possível cancelar o pedido de venda no banco de dados.",
-      };
-    }
-
-    if (error instanceof Error) {
-      return {
-        success: false,
-        message: error.message,
-      };
-    }
-
-    console.error("Erro ao cancelar pedido de venda:", error);
-
     return {
       success: false,
-      message: "Não foi possível cancelar o pedido de venda.",
+      message: paraMensagemSegura(error),
     };
   }
 }
