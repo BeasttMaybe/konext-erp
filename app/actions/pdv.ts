@@ -3,6 +3,7 @@
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
+import { temPermissao } from "@/lib/auth/permissoes";
 import {
   mensagemIndicaRuntimeLegadoConfiguracao,
   obterDefaultsConfiguracaoOsGarantias,
@@ -57,7 +58,8 @@ export interface OrderServicePdvItem {
   id: string;
   description: string;
   quantity: number;
-  unitCost: number;
+  /** null quando o usuário logado não tem a permissão os.ver_custos (F-41). */
+  unitCost: number | null;
   unitPrice: number;
   totalPrice: number;
 }
@@ -1041,7 +1043,13 @@ export async function processarVenda(
   }
 }
 
-export async function obterPedidoOSParaPDV(osId: string): Promise<PedidoOSPDV> {
+/**
+ * Nucleo de `obterPedidoOSParaPDV`, com o custo REAL de cada item (`unitCost`).
+ * Uso interno apenas: `processarVendaComOSNoPDV` precisa do valor verdadeiro
+ * para gravar `custoUnitario` em ItemVenda, independente de quem esta vendendo
+ * ter a permissao os.ver_custos.
+ */
+async function obterPedidoOSParaPDVInterno(osId: string): Promise<PedidoOSPDV> {
   const { prisma } = await exigirContextoTenant();
 
   if (!osId) {
@@ -1191,6 +1199,25 @@ export async function obterPedidoOSParaPDV(osId: string): Promise<PedidoOSPDV> {
   };
 }
 
+/**
+ * Versao exposta ao cliente: mesma leitura, mas `unitCost` só chega ao
+ * navegador com a permissão os.ver_custos (F-41). O core interno
+ * (`obterPedidoOSParaPDVInterno`) continua vendo o custo real para a venda.
+ */
+export async function obterPedidoOSParaPDV(osId: string): Promise<PedidoOSPDV> {
+  const contexto = await exigirContextoTenant();
+  const podeVerCustos = temPermissao(contexto, "os.ver_custos");
+  const pedido = await obterPedidoOSParaPDVInterno(osId);
+
+  return {
+    ...pedido,
+    items: pedido.items.map((item) => ({
+      ...item,
+      unitCost: podeVerCustos ? item.unitCost : null,
+    })),
+  };
+}
+
 export async function processarVendaOSNoPDV(osId: string, pagamentos: PagamentoPdvInput[]) {
   return processarVendaComOSNoPDV(osId, [], pagamentos);
 }
@@ -1205,7 +1232,10 @@ export async function processarVendaComOSNoPDV(
   const prisma = contexto.prisma;
   const sessionUser = contexto.usuarioOperacional;
 
-  const pedido = await obterPedidoOSParaPDV(osId);
+  // Interno, nao a versao exportada: a venda precisa do custo REAL de cada
+  // item para gravar custoUnitario, mesmo quando quem vende nao tem
+  // os.ver_custos.
+  const pedido = await obterPedidoOSParaPDVInterno(osId);
   const totalProdutosCentavos = carrinhoProdutos.reduce((acc, item) => {
     return acc + paraCentavos(item.preco) * item.quantidade;
   }, 0);
@@ -1284,7 +1314,9 @@ export async function processarVendaComOSNoPDV(
 
       for (const item of pedido.items) {
         const unitPriceInCents = paraCentavos(item.unitPrice);
-        const unitCostInCents = paraCentavos(item.unitCost);
+        // `pedido` vem de obterPedidoOSParaPDVInterno: unitCost aqui e sempre
+        // o custo real (nunca null); o `?? 0` e so blindagem de tipo.
+        const unitCostInCents = paraCentavos(item.unitCost ?? 0);
         const subtotalInCents = paraCentavos(item.totalPrice);
 
         await itemVendaDelegate.create({

@@ -49,7 +49,8 @@ type ItemOSTabela = {
   id: string;
   descricao: string;
   tipoPeca: TipoPeca;
-  custoPeca: number;
+  /** null quando o usuário logado não tem a permissão os.ver_custos. */
+  custoPeca: number | null;
   valorCobrado: number;
   criadoEm: string;
 };
@@ -159,6 +160,13 @@ export function SecaoItensOS({ osId, numeroOs, itens, desabilitarCadastro = fals
   };
 
   const abrirEdicao = (item: ItemOSTabela) => {
+    // Sem visibilidade de custo (os.ver_custos), editar sobrescreveria o custo
+    // real por um valor que o operador nao consegue ver nem conferir.
+    if (item.custoPeca === null) {
+      toast.error("Você não tem permissão para ver o custo desta peça, então não pode editá-la.");
+      return;
+    }
+
     setItemEmEdicao(item);
     setTipoPecaEdicao(item.tipoPeca);
     setDescricaoEdicao(item.descricao);
@@ -361,7 +369,9 @@ export function SecaoItensOS({ osId, numeroOs, itens, desabilitarCadastro = fals
               <TableRow key={item.id}>
                 <TableCell>{item.descricao}</TableCell>
                 <TableCell>{item.tipoPeca.replaceAll("_", " ")}</TableCell>
-                <TableCell className="text-right">{formatarMoeda(item.custoPeca)}</TableCell>
+                <TableCell className="text-right">
+                  {item.custoPeca === null ? "—" : formatarMoeda(item.custoPeca)}
+                </TableCell>
                 <TableCell className="text-right font-semibold">{formatarMoeda(item.valorCobrado)}</TableCell>
                 <TableCell className="text-right text-slate-500">
                   {new Date(item.criadoEm).toLocaleDateString("pt-BR")}

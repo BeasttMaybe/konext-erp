@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
+import { temPermissao } from "@/lib/auth/permissoes";
 import { obterConfiguracoes } from "@/app/actions/configuracoes";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -21,7 +22,8 @@ type ItemOSCarregado = {
   id: string;
   descricao: string;
   tipoPeca: "TELA" | "BATERIA" | "CONECTOR_CARGA" | "TAMPA_IPHONE" | "TAMPA_ANDROID" | "OUTROS";
-  custoPeca: number;
+  /** null quando o usuário logado não tem a permissão os.ver_custos (F-41). */
+  custoPeca: number | null;
   valorCobrado: number;
   criadoEm: string;
 };
@@ -119,6 +121,7 @@ function extrairNumeroOsDoSlug(entrada: string): number | null {
 export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) {
   const { id } = await params;
   const contexto = await exigirContextoTenant();
+  const podeVerCustos = temPermissao(contexto, "os.ver_custos");
   const prisma = contexto.prisma;
   const prismaAny = prisma as typeof prisma & {
     ordemServico?: OrdemServicoDetalheDelegate;
@@ -224,7 +227,8 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
     id: String(item.id),
     descricao: String(item.descricao ?? ""),
     tipoPeca: String(item.tipoPeca ?? "OUTROS") as ItemOSCarregado["tipoPeca"],
-    custoPeca: Number(item.custoPeca ?? 0),
+    // F-41: custo/margem só vai para o cliente com os.ver_custos.
+    custoPeca: podeVerCustos ? Number(item.custoPeca ?? 0) : null,
     valorCobrado: Number(item.valorCobrado ?? 0),
     criadoEm: new Date(item.criadoEm ?? osBanco?.criadoEm ?? new Date()).toISOString(),
   }));
