@@ -285,6 +285,8 @@ model OrdemServico {
   retornoGarantia RetornoGarantiaOS? @relation("RetornoGarantiaDaOS", fields: [retornoGarantiaId], references: [id])
   observacoes String?
   archivedAt  DateTime?
+  entregueSemServico Boolean @default(false)
+  motivoSemServico String?
   excluidaEm DateTime?
   excluidaPorId String?
   excluidaPor Usuario? @relation("OrdemServicoExcluidaPor", fields: [excluidaPorId], references: [id])
