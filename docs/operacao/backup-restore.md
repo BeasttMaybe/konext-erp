@@ -70,6 +70,8 @@ What it does:
 
 Exit code is non-zero if any database failed, so the backup is never silently partial.
 
+Pass `--tenant <slug>` to back up the central database plus a single tenant instead of every active one — this is what `npm run db:migrar` (see [`migrations.md`](./migrations.md)) calls before touching a given tenant.
+
 ### 2.1 Output layout
 
 ```

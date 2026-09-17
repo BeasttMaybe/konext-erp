@@ -12,6 +12,7 @@
     "postinstall": "prisma generate && prisma generate --config prisma.central.config.ts",
     "db:backup": "node scripts/backup/backup-bancos.mjs",
     "db:diagnostico": "node scripts/diagnostico/diagnosticar-tenants.mjs",
+    "db:migrar": "node scripts/migracao/migrar-tenants.mjs",
     "db:migrate:deploy:manual": "node scripts/migrate-deploy-com-retry.mjs",
     "verificar:ambiente": "node scripts/verificar-ambiente.mjs",
     "seed:demo": "node scripts/seed-demo-tenant.mjs",

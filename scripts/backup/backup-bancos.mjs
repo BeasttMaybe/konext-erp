@@ -187,6 +187,20 @@ async function gerarDump({ rotulo, slugArquivo, connectionString, pastaDestino, 
   };
 }
 
+function lerTenantFiltro() {
+  const indice = process.argv.indexOf("--tenant");
+  if (indice === -1) {
+    return null;
+  }
+
+  const valor = process.argv[indice + 1];
+  if (!valor || valor.startsWith("--")) {
+    throw new Error("--tenant exige um slug logo em seguida, ex.: --tenant principal");
+  }
+
+  return valor;
+}
+
 async function principal() {
   const centralDatabaseUrl = lerCentralDatabaseUrl();
 
@@ -194,6 +208,8 @@ async function principal() {
     imprimirAusenciaDeAmbiente();
     process.exit(1);
   }
+
+  const tenantFiltro = lerTenantFiltro();
 
   const pgDump = detectarPgDump();
 
@@ -212,6 +228,21 @@ async function principal() {
     console.error(`[erro] Nao foi possivel listar os tenants no banco central: ${erro instanceof Error ? erro.message : String(erro)}`);
     console.error("");
     process.exit(1);
+  }
+
+  if (tenantFiltro) {
+    const tenantEncontrado = descoberta.resolvidos.find((tenant) => tenant.slug === tenantFiltro);
+
+    if (!tenantEncontrado) {
+      console.error("");
+      console.error(`[erro] --tenant ${tenantFiltro}: nenhum tenant ATIVO resolvido com esse slug.`);
+      console.error(`[erro] Tenants ATIVOs resolvidos: ${descoberta.resolvidos.map((t) => t.slug).join(", ") || "(nenhum)"}`);
+      console.error("");
+      process.exit(1);
+    }
+
+    console.log(`[backup] Filtro --tenant ${tenantFiltro}: banco central + esse tenant apenas.`);
+    descoberta = { resolvidos: [tenantEncontrado], pulados: descoberta.pulados };
   }
 
   avisarTenantsPulados(descoberta.pulados);
