@@ -1040,7 +1040,8 @@ type OrdemServicoFinalizacao = {
   ehRetornoGarantia: boolean;
   observacoes: string | null;
   termoGarantia: { id: string } | null;
-  _count: { itens: number };
+  itens: Array<{ id: string; descricao: string; custoPeca: number; valorCobrado: number }>;
+  transacoes: Array<{ vendaId: string | null; origem: string }>;
 };
 
 /**
@@ -1052,7 +1053,6 @@ async function obterRegrasFinalizacao(prisma: PrismaTenant): Promise<RegrasConfi
   const regrasOs = await obterRegrasOs(prisma);
 
   let configuracao: {
-    exigirItemParaGarantia?: boolean | null;
     prazoGarantiaPadraoDias?: number | null;
     prazoMinimoGarantiaDias?: number | null;
     prazoMaximoGarantiaDias?: number | null;
@@ -1062,7 +1062,6 @@ async function obterRegrasFinalizacao(prisma: PrismaTenant): Promise<RegrasConfi
     configuracao = await prisma.configuracao.findFirst({
       orderBy: { criadoEm: "asc" },
       select: {
-        exigirItemParaGarantia: true,
         prazoGarantiaPadraoDias: true,
         prazoMinimoGarantiaDias: true,
         prazoMaximoGarantiaDias: true,
@@ -1078,10 +1077,6 @@ async function obterRegrasFinalizacao(prisma: PrismaTenant): Promise<RegrasConfi
     typeof valor === "number" && Number.isFinite(valor) ? valor : padrao;
 
   return {
-    exigirItemParaGarantia:
-      typeof configuracao?.exigirItemParaGarantia === "boolean"
-        ? configuracao.exigirItemParaGarantia
-        : defaults.exigirItemParaGarantia,
     exigirDiagnosticoParaFinalizar: regrasOs.exigirDiagnosticoParaFinalizar,
     permitirFinalizarSemPagamento: regrasOs.permitirFinalizarSemPagamento,
     prazoGarantiaPadraoDias: numeroOuPadrao(
@@ -1206,7 +1201,8 @@ export async function finalizarOrdemServico(
       ehRetornoGarantia: true,
       observacoes: true,
       termoGarantia: { select: { id: true } },
-      _count: { select: { itens: true } },
+      itens: { select: { id: true, descricao: true, custoPeca: true, valorCobrado: true } },
+      transacoes: { select: { vendaId: true, origem: true } },
     },
   })) as OrdemServicoFinalizacao | null;
 
@@ -1223,15 +1219,25 @@ export async function finalizarOrdemServico(
     ? true
     : await osPossuiPagamentoConfirmado(prisma, osId);
 
+  const possuiVendaVinculada = ordemServico.transacoes.some(
+    (transacao) => Boolean(transacao.vendaId) && transacao.origem === "ORDEM_SERVICO"
+  );
+
   const avaliacao = avaliarFinalizacao({
     status: ordemServico.status,
     ehRetornoGarantia: ordemServico.ehRetornoGarantia,
     excluidaEm: ordemServico.excluidaEm,
     archivedAt: ordemServico.archivedAt,
     possuiTermoGarantia: ordemServico.termoGarantia !== null,
-    quantidadeItens: Number(ordemServico._count?.itens ?? 0),
+    itens: ordemServico.itens.map((item) => ({
+      id: item.id,
+      descricao: item.descricao,
+      custo: item.custoPeca,
+      precoVenda: item.valorCobrado,
+    })),
     observacoes: ordemServico.observacoes,
     possuiPagamentoConfirmado,
+    possuiVendaVinculada,
     prazoGarantiaDiasInformado: input.prazoGarantiaDias ?? null,
     regras,
   });

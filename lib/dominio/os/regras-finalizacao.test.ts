@@ -2,14 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import {
   avaliarFinalizacao,
+  avaliarFinalizacaoSemServico,
   resumirPendencias,
   type CodigoPendenciaFinalizacao,
   type EntradaAvaliacaoFinalizacao,
+  type ItemParaAvaliacaoFinalizacao,
   type RegrasConfiguracaoFinalizacao,
 } from "./regras-finalizacao";
 
 const REGRAS_PADRAO: RegrasConfiguracaoFinalizacao = {
-  exigirItemParaGarantia: true,
   exigirDiagnosticoParaFinalizar: false,
   permitirFinalizarSemPagamento: true,
   prazoGarantiaPadraoDias: 90,
@@ -17,7 +18,14 @@ const REGRAS_PADRAO: RegrasConfiguracaoFinalizacao = {
   prazoMaximoGarantiaDias: 365,
 };
 
-/** OS normal em PRONTO, com item, pronta para finalizar sem pendencia. */
+const ITEM_VALIDO: ItemParaAvaliacaoFinalizacao = {
+  id: "item-1",
+  descricao: "Troca de tela",
+  custo: 120,
+  precoVenda: 250,
+};
+
+/** OS normal em PRONTO, com item valido e pedido no PDV, pronta para finalizar sem pendencia. */
 function entradaBase(
   sobrescritas: Partial<EntradaAvaliacaoFinalizacao> = {}
 ): EntradaAvaliacaoFinalizacao {
@@ -27,9 +35,10 @@ function entradaBase(
     excluidaEm: null,
     archivedAt: null,
     possuiTermoGarantia: false,
-    quantidadeItens: 1,
+    itens: [ITEM_VALIDO],
     observacoes: "Troca de tela concluída.",
     possuiPagamentoConfirmado: true,
+    possuiVendaVinculada: true,
     prazoGarantiaDiasInformado: null,
     regras: REGRAS_PADRAO,
     ...sobrescritas,
@@ -41,7 +50,7 @@ function codigos(entrada: EntradaAvaliacaoFinalizacao): CodigoPendenciaFinalizac
 }
 
 describe("caminho feliz", () => {
-  it("OS normal em PRONTO com item finaliza sem pendencia", () => {
+  it("OS normal em PRONTO com item, custo, preço e venda vinculada finaliza sem pendencia", () => {
     const resultado = avaliarFinalizacao(entradaBase());
 
     expect(resultado.podeFinalizar).toBe(true);
@@ -59,9 +68,13 @@ describe("caminho feliz", () => {
     expect(resultado.prazoGarantiaEfetivo).toBe(180);
   });
 
-  it("OS de retorno de garantia nao emite termo e dispensa itens", () => {
+  it("OS de retorno de garantia nao emite termo e dispensa itens, custo, preço e venda", () => {
     const resultado = avaliarFinalizacao(
-      entradaBase({ ehRetornoGarantia: true, quantidadeItens: 0 })
+      entradaBase({
+        ehRetornoGarantia: true,
+        itens: [],
+        possuiVendaVinculada: false,
+      })
     );
 
     expect(resultado.podeFinalizar).toBe(true);
@@ -83,19 +96,46 @@ describe("regra a regra", () => {
     }
   });
 
-  it("bloqueia OS sem item quando exigirItemParaGarantia", () => {
-    expect(codigos(entradaBase({ quantidadeItens: 0 }))).toContain("SEM_ITENS");
+  it("bloqueia OS normal sem nenhum item", () => {
+    expect(codigos(entradaBase({ itens: [] }))).toContain("SEM_ITENS");
   });
 
-  it("permite OS sem item quando a regra esta desligada", () => {
+  it("bloqueia item sem custo, item sem preço de venda, ou ambos — um por item", () => {
+    const semCusto: ItemParaAvaliacaoFinalizacao = { ...ITEM_VALIDO, id: "item-2", custo: 0 };
+    const semPreco: ItemParaAvaliacaoFinalizacao = { ...ITEM_VALIDO, id: "item-3", precoVenda: 0 };
+    const semNada: ItemParaAvaliacaoFinalizacao = { ...ITEM_VALIDO, id: "item-4", custo: 0, precoVenda: 0 };
+
+    const resultadoCusto = avaliarFinalizacao(entradaBase({ itens: [semCusto] }));
+    expect(resultadoCusto.pendencias).toContainEqual(
+      expect.objectContaining({ codigo: "ITEM_SEM_CUSTO", itemId: "item-2" })
+    );
+    expect(resultadoCusto.pendencias.map((p) => p.codigo)).not.toContain("ITEM_SEM_PRECO_VENDA");
+
+    const resultadoPreco = avaliarFinalizacao(entradaBase({ itens: [semPreco] }));
+    expect(resultadoPreco.pendencias).toContainEqual(
+      expect.objectContaining({ codigo: "ITEM_SEM_PRECO_VENDA", itemId: "item-3" })
+    );
+
+    const resultadoAmbos = avaliarFinalizacao(entradaBase({ itens: [semNada] }));
+    const codigosAmbos = resultadoAmbos.pendencias.map((p) => p.codigo);
+    expect(codigosAmbos).toContain("ITEM_SEM_CUSTO");
+    expect(codigosAmbos).toContain("ITEM_SEM_PRECO_VENDA");
+  });
+
+  it("valida cada item da lista, nao so o primeiro", () => {
     const resultado = avaliarFinalizacao(
       entradaBase({
-        quantidadeItens: 0,
-        regras: { ...REGRAS_PADRAO, exigirItemParaGarantia: false },
+        itens: [ITEM_VALIDO, { ...ITEM_VALIDO, id: "item-2", custo: 0 }],
       })
     );
 
-    expect(resultado.podeFinalizar).toBe(true);
+    expect(resultado.pendencias).toContainEqual(
+      expect.objectContaining({ codigo: "ITEM_SEM_CUSTO", itemId: "item-2" })
+    );
+  });
+
+  it("bloqueia OS normal sem pedido gerado no PDV", () => {
+    expect(codigos(entradaBase({ possuiVendaVinculada: false }))).toContain("SEM_VENDA_VINCULADA");
   });
 
   it("bloqueia diagnostico vazio quando exigirDiagnosticoParaFinalizar", () => {
@@ -142,7 +182,7 @@ describe("regra a regra", () => {
 
   it("nao valida prazo quando a OS nao emite termo", () => {
     expect(
-      codigos(entradaBase({ ehRetornoGarantia: true, prazoGarantiaDiasInformado: 9999 }))
+      codigos(entradaBase({ ehRetornoGarantia: true, itens: [], prazoGarantiaDiasInformado: 9999 }))
     ).not.toContain("PRAZO_GARANTIA_INVALIDO");
   });
 
@@ -158,7 +198,8 @@ describe("pendencias simultaneas", () => {
     const resultado = avaliarFinalizacao(
       entradaBase({
         status: "EM_MANUTENCAO",
-        quantidadeItens: 0,
+        itens: [],
+        possuiVendaVinculada: false,
         observacoes: "",
         possuiPagamentoConfirmado: false,
         prazoGarantiaDiasInformado: 9999,
@@ -177,6 +218,7 @@ describe("pendencias simultaneas", () => {
         "SEM_DIAGNOSTICO",
         "SEM_ITENS",
         "SEM_PAGAMENTO",
+        "SEM_VENDA_VINCULADA",
         "STATUS_INVALIDO",
       ].sort()
     );
@@ -184,7 +226,7 @@ describe("pendencias simultaneas", () => {
 
   it("toda pendencia traz mensagem acionavel em pt-BR", () => {
     const resultado = avaliarFinalizacao(
-      entradaBase({ status: "APROVADO", quantidadeItens: 0 })
+      entradaBase({ status: "APROVADO", itens: [] })
     );
 
     for (const pendencia of resultado.pendencias) {
@@ -262,7 +304,7 @@ describe("caso de resgate (OS ja ENTREGUE)", () => {
         status: "ENTREGUE",
         possuiTermoGarantia: false,
         archivedAt: null,
-        quantidadeItens: 0,
+        itens: [],
       })
     );
 
@@ -277,12 +319,65 @@ describe("resumirPendencias", () => {
   });
 
   it("devolve a mensagem unica quando ha so uma", () => {
-    const resultado = avaliarFinalizacao(entradaBase({ quantidadeItens: 0 }));
+    const resultado = avaliarFinalizacao(entradaBase({ itens: [] }));
     expect(resumirPendencias(resultado.pendencias)).toBe(resultado.pendencias[0].mensagem);
   });
 
   it("informa a quantidade quando ha varias", () => {
-    const resultado = avaliarFinalizacao(entradaBase({ status: "APROVADO", quantidadeItens: 0 }));
-    expect(resumirPendencias(resultado.pendencias)).toContain("2 pendências");
+    const resultado = avaliarFinalizacao(entradaBase({ status: "APROVADO", itens: [] }));
+    expect(resumirPendencias(resultado.pendencias)).toContain(`${resultado.pendencias.length} pendências`);
+  });
+});
+
+describe("avaliarFinalizacaoSemServico", () => {
+  it("permite OS PRONTO, nao excluida, sem nenhum item", () => {
+    const resultado = avaliarFinalizacaoSemServico({
+      status: "PRONTO",
+      excluidaEm: null,
+      quantidadeItens: 0,
+    });
+
+    expect(resultado.podeFinalizar).toBe(true);
+  });
+
+  it("recusa OS com item vinculado", () => {
+    const resultado = avaliarFinalizacaoSemServico({
+      status: "PRONTO",
+      excluidaEm: null,
+      quantidadeItens: 1,
+    });
+
+    expect(resultado.podeFinalizar).toBe(false);
+    expect(resultado.podeFinalizar ? "" : resultado.erro).toMatch(/finalização normal/);
+  });
+
+  it("recusa OS excluida logicamente", () => {
+    const resultado = avaliarFinalizacaoSemServico({
+      status: "PRONTO",
+      excluidaEm: new Date("2026-01-10T12:00:00Z"),
+      quantidadeItens: 0,
+    });
+
+    expect(resultado.podeFinalizar).toBe(false);
+  });
+
+  it("recusa OS ja entregue", () => {
+    const resultado = avaliarFinalizacaoSemServico({
+      status: "ENTREGUE",
+      excluidaEm: null,
+      quantidadeItens: 0,
+    });
+
+    expect(resultado.podeFinalizar).toBe(false);
+  });
+
+  it("recusa OS fora de PRONTO", () => {
+    const resultado = avaliarFinalizacaoSemServico({
+      status: "EM_MANUTENCAO",
+      excluidaEm: null,
+      quantidadeItens: 0,
+    });
+
+    expect(resultado.podeFinalizar).toBe(false);
   });
 });

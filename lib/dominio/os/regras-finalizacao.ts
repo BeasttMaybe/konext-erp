@@ -17,22 +17,36 @@ export type CodigoPendenciaFinalizacao =
   | "STATUS_INVALIDO"
   | "JA_FINALIZADA"
   | "SEM_ITENS"
+  | "ITEM_SEM_CUSTO"
+  | "ITEM_SEM_PRECO_VENDA"
   | "SEM_DIAGNOSTICO"
   | "SEM_PAGAMENTO"
+  | "SEM_VENDA_VINCULADA"
   | "PRAZO_GARANTIA_INVALIDO";
 
 export type PendenciaFinalizacao = {
   codigo: CodigoPendenciaFinalizacao;
   mensagem: string;
+  /**
+   * So presente nas pendencias por item (ITEM_SEM_CUSTO / ITEM_SEM_PRECO_VENDA)
+   * — a UI usa para o atalho "editar este item".
+   */
+  itemId?: string;
 };
 
 export type RegrasConfiguracaoFinalizacao = {
-  exigirItemParaGarantia: boolean;
   exigirDiagnosticoParaFinalizar: boolean;
   permitirFinalizarSemPagamento: boolean;
   prazoGarantiaPadraoDias: number;
   prazoMinimoGarantiaDias: number;
   prazoMaximoGarantiaDias: number;
+};
+
+export type ItemParaAvaliacaoFinalizacao = {
+  id: string;
+  descricao: string;
+  custo: number;
+  precoVenda: number;
 };
 
 export type EntradaAvaliacaoFinalizacao = {
@@ -41,9 +55,11 @@ export type EntradaAvaliacaoFinalizacao = {
   excluidaEm: Date | null;
   archivedAt: Date | null;
   possuiTermoGarantia: boolean;
-  quantidadeItens: number;
+  itens: readonly ItemParaAvaliacaoFinalizacao[];
   observacoes: string | null;
   possuiPagamentoConfirmado: boolean;
+  /** Existe um ContaReceber com venda vinculada (origem ORDEM_SERVICO) para esta OS — "pedido gerado no PDV". */
+  possuiVendaVinculada: boolean;
   /** Prazo informado pelo operador. Ausente => usa o padrao da configuracao. */
   prazoGarantiaDiasInformado?: number | null;
   regras: RegrasConfiguracaoFinalizacao;
@@ -64,7 +80,9 @@ export type ResultadoAvaliacaoFinalizacao = {
 
 /**
  * Uma OS de retorno de garantia nao emite termo novo: ela consome a garantia
- * da OS de origem. Tudo que depende de garantia e dispensado nesse caso.
+ * da OS de origem. As exigencias "comerciais" de uma entrega normal — item
+ * com custo e preco de venda, pedido gerado no PDV — tambem nao se aplicam a
+ * ela pelo mesmo motivo: o retorno nao e uma venda nova.
  */
 function emiteTermoDeGarantia(entrada: EntradaAvaliacaoFinalizacao): boolean {
   return !entrada.ehRetornoGarantia;
@@ -119,12 +137,46 @@ export function avaliarFinalizacao(
     });
   }
 
-  // --- 3. Itens -------------------------------------------------------------
-  if (emiteTermo && entrada.regras.exigirItemParaGarantia && entrada.quantidadeItens <= 0) {
-    pendencias.push({
-      codigo: "SEM_ITENS",
-      mensagem: "Adicione ao menos um item à OS para gerar a garantia.",
-    });
+  // --- 3. Itens, custo/preço de cada item e pedido no PDV --------------------
+  // Uma entrega NORMAL (nao retorno de garantia) exige: pelo menos um item;
+  // cada item com custo e preço de venda informados; e um pedido ja gerado no
+  // PDV para esta OS. Uma OS sem nenhum item so pode ser encerrada por
+  // finalizarSemServico — nao por aqui.
+  if (emiteTermo) {
+    if (entrada.itens.length === 0) {
+      pendencias.push({
+        codigo: "SEM_ITENS",
+        mensagem:
+          'Esta OS não tem nenhuma peça ou serviço vinculado. Para entregar mesmo assim, use "Encerrar sem serviço".',
+      });
+    } else {
+      for (const item of entrada.itens) {
+        const rotulo = item.descricao.trim() || "sem descrição";
+
+        if (!(item.custo > 0)) {
+          pendencias.push({
+            codigo: "ITEM_SEM_CUSTO",
+            mensagem: `Informe o custo da peça em "${rotulo}".`,
+            itemId: item.id,
+          });
+        }
+
+        if (!(item.precoVenda > 0)) {
+          pendencias.push({
+            codigo: "ITEM_SEM_PRECO_VENDA",
+            mensagem: `Informe o preço de venda da peça em "${rotulo}".`,
+            itemId: item.id,
+          });
+        }
+      }
+    }
+
+    if (!entrada.possuiVendaVinculada) {
+      pendencias.push({
+        codigo: "SEM_VENDA_VINCULADA",
+        mensagem: "Gere o pedido no PDV para esta OS antes de entregar.",
+      });
+    }
   }
 
   // --- 4. Diagnostico -------------------------------------------------------
@@ -188,4 +240,47 @@ export function resumirPendencias(pendencias: readonly PendenciaFinalizacao[]): 
   }
 
   return `A OS não pode ser finalizada: ${pendencias.length} pendências. ${pendencias[0].mensagem}`;
+}
+
+export type EntradaAvaliacaoSemServico = {
+  status: StatusOS;
+  excluidaEm: Date | null;
+  quantidadeItens: number;
+};
+
+export type ResultadoAvaliacaoSemServico =
+  | { podeFinalizar: true }
+  | { podeFinalizar: false; erro: string };
+
+/**
+ * Encerramento sem serviço vinculado: caminho dedicado para a OS que nunca
+ * teve peça ou serviço lançado (ex.: cliente desistiu, aparelho irreparável
+ * sem custo cobrado). Não gera termo de garantia nem exige pedido no PDV —
+ * é o oposto de `avaliarFinalizacao`, cuja exigência de itens torna esse
+ * caso impossível de finalizar pelo caminho normal.
+ */
+export function avaliarFinalizacaoSemServico(
+  entrada: EntradaAvaliacaoSemServico
+): ResultadoAvaliacaoSemServico {
+  if (entrada.excluidaEm !== null) {
+    return { podeFinalizar: false, erro: "Esta OS foi excluída e não pode ser finalizada." };
+  }
+
+  if (entrada.status === "ENTREGUE") {
+    return { podeFinalizar: false, erro: "Esta OS já está entregue." };
+  }
+
+  if (entrada.status !== "PRONTO") {
+    return { podeFinalizar: false, erro: 'Mova a OS para "Pronto" antes de encerrar sem serviço.' };
+  }
+
+  if (entrada.quantidadeItens > 0) {
+    return {
+      podeFinalizar: false,
+      erro:
+        'Esta OS tem peça ou serviço vinculado — use a finalização normal em vez de "Encerrar sem serviço".',
+    };
+  }
+
+  return { podeFinalizar: true };
 }
