@@ -15,6 +15,7 @@
     "db:migrate:deploy:manual": "node scripts/migrate-deploy-com-retry.mjs",
     "verificar:ambiente": "node scripts/verificar-ambiente.mjs",
     "seed:demo": "node scripts/seed-demo-tenant.mjs",
+    "dev:usuario-teste": "node scripts/dev/criar-usuario-teste.mjs",
     "migrate:dev": "prisma migrate dev",
     "prisma:central:generate": "prisma generate --config prisma.central.config.ts",
     "prisma:central:validate": "prisma validate --config prisma.central.config.ts",
