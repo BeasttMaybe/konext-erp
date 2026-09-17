@@ -20,6 +20,17 @@ export type ContextoAuditoria = {
   origem?: string | null;
 };
 
+export type OpcoesRegistroAuditoria = {
+  /**
+   * Marca a gravacao como best-effort: uma tabela LogAuditoria ausente nao
+   * derruba a operacao, mas a falha e registrada com console.error.
+   *
+   * Use APENAS fora de transacoes de negocio. Dentro de uma transacao a
+   * auditoria e parte do contrato: se ela falha, a escrita nao pode valer.
+   */
+  melhorEsforco?: boolean;
+};
+
 export type EntradaLogAuditoria = {
   acao: string;
   entidade: string;
@@ -109,7 +120,8 @@ function paraJsonSeguro(valor: unknown): ValorJsonAuditoria | undefined {
 export async function registrarLogAuditoria(
   client: ClienteAuditoria,
   contexto: ContextoAuditoria,
-  entrada: EntradaLogAuditoria
+  entrada: EntradaLogAuditoria,
+  opcoes?: OpcoesRegistroAuditoria
 ): Promise<{ id: string }> {
   const delegate = obterDelegateLogAuditoria(client);
 
@@ -132,8 +144,19 @@ export async function registrarLogAuditoria(
       id: String(registro.id),
     };
   } catch (erro) {
-    if (erroTabelaAuditoriaInexistente(erro)) {
-      console.warn("Tabela LogAuditoria ausente; registro de auditoria ignorado temporariamente.");
+    // Tolerancia SOMENTE quando quem chama declarou a gravacao como
+    // best-effort. Antes da Fase 1A qualquer falha de "tabela ausente" era
+    // engolida em silencio: a escrita de negocio confirmava e a trilha
+    // simplesmente nao existia, sem nenhum sinal (AUDIT_REPORT 16.7-b,
+    // caminho 7). Dentro de uma transacao isso e inaceitavel — a transacao
+    // precisa falhar junto.
+    if (opcoes?.melhorEsforco && erroTabelaAuditoriaInexistente(erro)) {
+      console.error("[auditoria] registro best-effort ignorado: tabela LogAuditoria ausente", {
+        acao: entrada.acao,
+        entidade: entrada.entidade,
+        entidadeId: entrada.entidadeId ?? null,
+        erro: erro instanceof Error ? erro.message : String(erro),
+      });
       return { id: "auditoria-indisponivel" };
     }
 

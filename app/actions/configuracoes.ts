@@ -1223,7 +1223,7 @@ export async function salvarConfiguracoes(data: DadosConfiguracoes) {
   revalidatePath("/financeiro");
   revalidatePath("/os");
   revalidatePath("/os/garantias");
-  revalidatePath("/dashboard");
+  revalidatePath("/");
   revalidatePath("/crm/propostas");
   revalidatePath("/vendas/historico");
   revalidatePath("/", "layout");

@@ -858,7 +858,6 @@ export async function criarMeta(input: CriarMetaInput): Promise<ResultadoAcaoCom
 
     revalidatePath("/metas");
     revalidatePath("/");
-    revalidatePath("/dashboard");
 
     return { sucesso: true, mensagem: "Meta criada com sucesso.", id: meta.id };
   } catch (erro) {
@@ -1301,7 +1300,6 @@ export async function atualizarMeta(input: AtualizarMetaInput): Promise<Resultad
     revalidatePath("/metas");
     revalidatePath(`/metas/${input.id}`);
     revalidatePath("/");
-    revalidatePath("/dashboard");
 
     return { sucesso: true, mensagem: "Meta atualizada com sucesso." };
   } catch (erro) {
@@ -1484,7 +1482,6 @@ export async function alterarStatusMeta(input: AlterarStatusInput): Promise<Resu
     revalidatePath("/metas");
     revalidatePath(`/metas/${input.id}`);
     revalidatePath("/");
-    revalidatePath("/dashboard");
 
     return { sucesso: true, mensagem: "Status atualizado com sucesso." };
   } catch (erro) {
@@ -1835,7 +1832,6 @@ export async function sincronizarMetaAutomatica(metaId: string): Promise<Resulta
       });
       revalidatePath("/metas");
       revalidatePath(`/metas/${metaId}`);
-      revalidatePath("/dashboard");
       revalidatePath("/");
       return { sucesso: false, erro: "Não foi possível sincronizar a meta automática." };
     }
@@ -1888,7 +1884,6 @@ export async function sincronizarMetaAutomatica(metaId: string): Promise<Resulta
 
     revalidatePath("/metas");
     revalidatePath(`/metas/${meta.id}`);
-    revalidatePath("/dashboard");
     revalidatePath("/");
 
     return {
@@ -1938,7 +1933,6 @@ export async function sincronizarTodasMetasAutomaticas(): Promise<ResultadoAcao>
     }
 
     revalidatePath("/metas");
-    revalidatePath("/dashboard");
     revalidatePath("/");
 
     if (falhas > 0) {
@@ -2003,7 +1997,6 @@ export async function excluirMeta(id: string): Promise<ResultadoAcao> {
 
     revalidatePath("/metas");
     revalidatePath("/");
-    revalidatePath("/dashboard");
 
     return { sucesso: true, mensagem: `Meta "${meta.titulo}" excluída.` };
   } catch (erro) {

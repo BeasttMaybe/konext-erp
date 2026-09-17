@@ -1450,9 +1450,35 @@ export async function registrarRetornoGarantiaOS(input: RegistrarRetornoGarantia
         data: { retornoGarantiaId: retorno.id },
       });
 
+      // Criacao da OS de retorno: evento proprio de ORDEM_SERVICO, para que a
+      // nova OS nasca com trilha e nao apenas como efeito colateral do retorno.
       await registrarLogAuditoria(
         tx,
-        contextoAuditoriaDoUsuario(usuario, "app/actions/garantias.ts:registrarRetornoGarantiaOS"),
+        contextoAuditoriaDoUsuario(
+          { id: normalizarIdUsuarioOperacional(usuario) },
+          "app/actions/garantias.ts:registrarRetornoGarantiaOS"
+        ),
+        {
+          acao: ACOES_AUDITORIA.CRIAR,
+          entidade: ENTIDADES_AUDITORIA.ORDEM_SERVICO,
+          entidadeId: osRetorno.id,
+          dadosDepois: {
+            status: "GARANTIA_RETORNO",
+            archivedAt: null,
+            ehRetornoGarantia: true,
+            osOrigemGarantiaId: termo.os.id,
+            retornoGarantiaId: retorno.id,
+            ...descreverAutoria(contexto),
+          },
+        }
+      );
+
+      await registrarLogAuditoria(
+        tx,
+        contextoAuditoriaDoUsuario(
+          { id: normalizarIdUsuarioOperacional(usuario) },
+          "app/actions/garantias.ts:registrarRetornoGarantiaOS"
+        ),
         {
           acao: ACOES_AUDITORIA.REGISTRAR_RETORNO_GARANTIA,
           entidade: ENTIDADES_AUDITORIA.RETORNO_GARANTIA_OS,
@@ -1616,12 +1642,42 @@ export async function finalizarRetornoGarantiaOS(input: FinalizarRetornoGarantia
       });
 
       if (!retorno.osRetorno.archivedAt && String(retorno.osRetorno.status) === "ENTREGUE") {
+        const arquivadoEm = new Date();
+
         await tx.ordemServico.update({
           where: { id: retorno.osRetorno.id },
           data: {
-            archivedAt: new Date(),
+            archivedAt: arquivadoEm,
           },
         });
+
+        // Escrita em OrdemServico exige trilha propria. Antes da Fase 1A este
+        // arquivamento so aparecia como evento de RETORNO_GARANTIA_OS, o que
+        // fazia `atualizadoEm` da OS avancar sem evento de ORDEM_SERVICO
+        // correspondente (AUDIT_REPORT 16.7-b, caminho 3).
+        await registrarLogAuditoria(
+          tx,
+          contextoAuditoriaDoUsuario(
+            { id: normalizarIdUsuarioOperacional(usuario) },
+            "app/actions/garantias.ts:finalizarRetornoGarantiaOS"
+          ),
+          {
+            acao: ACOES_AUDITORIA.FINALIZAR,
+            entidade: ENTIDADES_AUDITORIA.ORDEM_SERVICO,
+            entidadeId: retorno.osRetorno.id,
+            dadosAntes: {
+              status: String(retorno.osRetorno.status),
+              archivedAt: null,
+            },
+            dadosDepois: {
+              status: String(retorno.osRetorno.status),
+              archivedAt: arquivadoEm.toISOString(),
+              origemArquivamento: "FINALIZACAO_RETORNO_GARANTIA",
+              retornoGarantiaId: retorno.id,
+              ...descreverAutoria(contexto),
+            },
+          }
+        );
       }
 
       if (houveCobranca && valorAdicional > 0) {
