@@ -9,6 +9,7 @@ import { PrismaClient as PrismaOperacional } from "@prisma/client";
 import { PrismaClient as PrismaCentral } from "@prisma/client-central";
 import { PrismaNeon } from "@prisma/adapter-neon";
 import ws from "ws";
+import { CUSTO_HASH_SENHA } from "../lib/auth/senha.ts";
 
 if (typeof WebSocket === "undefined") {
   neonConfig.webSocketConstructor = ws;
@@ -172,7 +173,7 @@ async function criarOuAtualizarUsuarioCentral(prismaCentral, empresaId) {
   }
 
   const senhaAleatoria = crypto.randomBytes(48).toString("hex");
-  const senhaHash = await bcrypt.hash(senhaAleatoria, 12);
+  const senhaHash = await bcrypt.hash(senhaAleatoria, CUSTO_HASH_SENHA);
 
   const usuario = await prismaCentral.usuarioCentral.upsert({
     where: { email },

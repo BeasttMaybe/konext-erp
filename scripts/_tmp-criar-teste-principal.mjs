@@ -4,6 +4,7 @@ import { PrismaClient as PrismaCentral } from "@prisma/client-central";
 import { PrismaNeon } from "@prisma/adapter-neon";
 import { neonConfig } from "@neondatabase/serverless";
 import ws from "ws";
+import { CUSTO_HASH_SENHA } from "../lib/auth/senha.ts";
 
 if (typeof WebSocket === "undefined") {
   neonConfig.webSocketConstructor = ws;
@@ -86,7 +87,7 @@ async function executar() {
       return;
     }
 
-    const senhaHash = await bcrypt.hash(senhaTemporaria, 10);
+    const senhaHash = await bcrypt.hash(senhaTemporaria, CUSTO_HASH_SENHA);
     const usuario = await prismaCentral.usuarioCentral.upsert({
       where: { email: EMAIL },
       update: { nome: NOME, senha: senhaHash, ativo: true },

@@ -5,7 +5,12 @@ import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { prismaCentral } from "@/lib/central/prisma-central";
 import { COOKIE_SESSAO_LEGADA } from "@/lib/auth/cookies";
-import { criarSessaoCentral, revogarSessaoCentralAtual } from "@/lib/auth/sessao-central";
+import { criarSessaoCentral, exigirSessaoCentral, revogarSessaoCentralAtual } from "@/lib/auth/sessao-central";
+import { conferirSenha, gerarHashSenha, validarNovaSenha } from "@/lib/auth/senha";
+import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
+import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
+import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
+import { paraMensagemSegura } from "@/lib/erros";
 
 type LoginState = {
   erro: string | null;
@@ -36,13 +41,7 @@ async function autenticarCentral(email: string, senha: string): Promise<Resultad
     return { autenticado: false };
   }
 
-  let senhaConfere = await bcrypt.compare(senha, usuarioCentral.senha);
-
-  // Tolerancia para input acidental com espacos no inicio/fim.
-  const senhaNormalizada = senha.trim();
-  if (!senhaConfere && senhaNormalizada !== senha) {
-    senhaConfere = await bcrypt.compare(senhaNormalizada, usuarioCentral.senha);
-  }
+  const senhaConfere = await bcrypt.compare(senha, usuarioCentral.senha);
 
   if (!senhaConfere) {
     return { autenticado: false };
@@ -131,4 +130,84 @@ export async function logout() {
   // Limpeza do cookie legado mantida temporariamente por compatibilidade.
   cookieStore.delete(COOKIE_SESSAO_LEGADA);
   redirect("/login");
+}
+
+export type ResultadoAlterarSenha = { sucesso: true } | { sucesso: false; erro: string };
+
+/**
+ * Troca a senha do usuario logado (F-16 parcial). Opera no banco central —
+ * `UsuarioCentral.senha` e a unica senha de login do sistema. Ao trocar,
+ * revoga todas as OUTRAS sessoes ativas do usuario (mantem a sessao atual),
+ * para que um eventual acesso indevido com a senha antiga seja derrubado.
+ */
+export async function alterarMinhaSenha(dados: {
+  senhaAtual: string;
+  novaSenha: string;
+  confirmacao: string;
+}): Promise<ResultadoAlterarSenha> {
+  try {
+    const sessao = await exigirSessaoCentral();
+
+    if (dados.novaSenha !== dados.confirmacao) {
+      return { sucesso: false, erro: "A confirmação não confere com a nova senha." };
+    }
+
+    const validacao = validarNovaSenha(dados.novaSenha);
+    if (!validacao.valida) {
+      return { sucesso: false, erro: validacao.motivo };
+    }
+
+    const usuario = await prismaCentral.usuarioCentral.findUnique({
+      where: { id: sessao.usuarioCentralId },
+      select: { id: true, senha: true },
+    });
+
+    if (!usuario?.senha) {
+      return { sucesso: false, erro: "Não foi possível localizar seu usuário." };
+    }
+
+    const senhaAtualConfere = await conferirSenha(dados.senhaAtual, usuario.senha);
+    if (!senhaAtualConfere) {
+      return { sucesso: false, erro: "Senha atual incorreta." };
+    }
+
+    const novaSenhaIgualAtual = await conferirSenha(dados.novaSenha, usuario.senha);
+    if (novaSenhaIgualAtual) {
+      return { sucesso: false, erro: "A nova senha deve ser diferente da senha atual." };
+    }
+
+    const novoHash = await gerarHashSenha(dados.novaSenha);
+
+    await prismaCentral.usuarioCentral.update({
+      where: { id: usuario.id },
+      data: { senha: novoHash },
+    });
+
+    await prismaCentral.sessaoCentral.updateMany({
+      where: {
+        usuarioCentralId: usuario.id,
+        id: { not: sessao.id },
+        revogadaEm: null,
+      },
+      data: { revogadaEm: new Date() },
+    });
+
+    // Auditoria vive no banco do tenant (nao ha LogAuditoria no banco
+    // central nesta fase). Payload sem qualquer dado de senha.
+    const contextoTenant = await exigirContextoTenant();
+    await registrarLogAuditoria(
+      contextoTenant.prisma,
+      contextoAuditoriaDoUsuario(contextoTenant.usuarioOperacional, "app/actions/auth.ts:alterarMinhaSenha"),
+      {
+        acao: ACOES_AUDITORIA.ALTERAR_SENHA,
+        entidade: ENTIDADES_AUDITORIA.USUARIO_CENTRAL,
+        entidadeId: usuario.id,
+      },
+      { melhorEsforco: true }
+    );
+
+    return { sucesso: true };
+  } catch (error) {
+    return { sucesso: false, erro: paraMensagemSegura(error) };
+  }
 }
