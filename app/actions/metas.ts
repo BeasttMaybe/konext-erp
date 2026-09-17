@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
+import { obterIdUsuarioOperacionalOuNulo } from "@/lib/tenant/usuario-operacional";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 import { Prisma } from "@prisma/client";
@@ -172,10 +173,8 @@ type MetaCalculoAutomatico = {
 
 type PrismaMetasClient = Awaited<ReturnType<typeof exigirContextoTenant>>["prisma"];
 
-function obterUsuarioOperacionalId(contexto: Awaited<ReturnType<typeof exigirContextoTenant>>): string | null {
-  const idNormalizado = String(contexto.usuarioOperacional.id ?? "").trim();
-  return idNormalizado.length > 0 ? idNormalizado : null;
-}
+// Normalizacao compartilhada (lib/tenant/usuario-operacional.ts).
+const obterUsuarioOperacionalId = obterIdUsuarioOperacionalOuNulo;
 
 function contextoAuditoriaMetas(usuarioOperacionalId: string | null, origem: string) {
   return contextoAuditoriaDoUsuario(usuarioOperacionalId ? { id: usuarioOperacionalId } : null, origem);

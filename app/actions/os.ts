@@ -3,6 +3,10 @@
 import { revalidatePath } from "next/cache";
 import type { StatusOS, TipoPeca } from "@prisma/client";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
+import {
+  descreverAutoria,
+  normalizarIdUsuarioOperacional,
+} from "@/lib/tenant/usuario-operacional";
 // Importação de calcularPrecoVendaPeca removida — preços são definidos manualmente pelo operador.
 import { garantirTermoGarantiaPorOS } from "@/app/actions/garantias";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
@@ -1212,7 +1216,7 @@ export async function gerarGarantiaEFinalizarOS(
     if (!ordemServico.ehRetornoGarantia && !termoGarantiaId) {
       const garantia = await garantirTermoGarantiaPorOS(tx, {
         osId,
-        criadoPorId: String(usuario.id),
+        criadoPorId: normalizarIdUsuarioOperacional(usuario),
         prazoGarantiaDias: Number.isFinite(prazoGarantiaDias) ? prazoGarantiaDias : undefined,
       });
 
@@ -1410,7 +1414,7 @@ export async function excluirOrdemServico(input: EntradaExcluirOrdemServico): Pr
         },
         data: {
           excluidaEm: new Date(),
-          excluidaPorId: String(usuario.id),
+          excluidaPorId: normalizarIdUsuarioOperacional(usuario),
           motivoExclusao: motivoNormalizado,
           statusAnterior: String(osExistente.status ?? "AGUARDANDO_ORCAMENTO"),
           archivedAt: new Date(),
@@ -1434,6 +1438,7 @@ export async function excluirOrdemServico(input: EntradaExcluirOrdemServico): Pr
             status: osExistente.status,
             excluidaEm: new Date().toISOString(),
             archivedAt: new Date().toISOString(),
+            ...descreverAutoria(contexto),
           },
           motivo: motivoNormalizado,
         }

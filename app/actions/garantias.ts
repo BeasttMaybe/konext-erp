@@ -3,6 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { Prisma, type ResultadoRetornoGarantia } from "@prisma/client";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
+import {
+  descreverAutoria,
+  normalizarIdUsuarioOperacional,
+} from "@/lib/tenant/usuario-operacional";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 import {
@@ -431,7 +435,7 @@ function validarPrazoGarantiaConfigurado(
 
 export async function garantirTermoGarantiaPorOS(
   client: ClientTx,
-  input: { osId: string; criadoPorId?: string; prazoGarantiaDias?: number }
+  input: { osId: string; criadoPorId?: string | null; prazoGarantiaDias?: number }
 ): Promise<{
   termoGarantiaId: string;
   osId: string;
@@ -660,7 +664,7 @@ export async function gerarTermoGarantiaOS(input: GerarTermoGarantiaOSInput): Pr
     const termoGerado = await prisma.$transaction(async (tx) => {
       const resultado = await garantirTermoGarantiaPorOS(tx, {
         osId,
-        criadoPorId: String(usuario.id),
+        criadoPorId: normalizarIdUsuarioOperacional(usuario),
         prazoGarantiaDias,
       });
 
@@ -678,6 +682,7 @@ export async function gerarTermoGarantiaOS(input: GerarTermoGarantiaOSInput): Pr
             dataFimGarantia: resultado.dataFimGarantia.toISOString(),
             termoGarantiaId: resultado.termoGarantiaId,
             criadoNovo: resultado.criadoNovo,
+            ...descreverAutoria(contexto),
           },
         }
       );
@@ -1356,7 +1361,7 @@ export async function registrarRetornoGarantiaOS(input: RegistrarRetornoGarantia
           resultado: input.resultado,
           houveTroca: false,
           houveCobranca: false,
-          criadoPorId: String(usuario.id),
+          criadoPorId: normalizarIdUsuarioOperacional(usuario),
         },
         select: {
           id: true,
@@ -1388,6 +1393,7 @@ export async function registrarRetornoGarantiaOS(input: RegistrarRetornoGarantia
             descricao,
             analiseTecnica,
             resultado: input.resultado,
+            ...descreverAutoria(contexto),
           },
         }
       );
@@ -1530,7 +1536,7 @@ export async function finalizarRetornoGarantiaOS(input: FinalizarRetornoGarantia
           valorAdicional: houveCobranca && valorAdicional > 0 ? valorAdicional : null,
           observacoesTecnicas: observacoesTecnicas.length > 0 ? observacoesTecnicas : null,
           finalizadoEm: new Date(),
-          finalizadoPorId: String(usuario.id),
+          finalizadoPorId: normalizarIdUsuarioOperacional(usuario),
         },
       });
 
@@ -1579,6 +1585,7 @@ export async function finalizarRetornoGarantiaOS(input: FinalizarRetornoGarantia
             valorAdicional: houveCobranca ? valorAdicional : 0,
             observacoesTecnicas,
             osRetornoId: retorno.osRetorno.id,
+            ...descreverAutoria(contexto),
           },
         }
       );
