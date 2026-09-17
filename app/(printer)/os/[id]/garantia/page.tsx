@@ -25,15 +25,16 @@ export default async function PaginaGarantiaOS({ params }: PropsPaginaGarantia) 
     return (
       <div className="min-h-screen bg-slate-50 p-6">
         <div className="mx-auto max-w-2xl rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h1 className="text-xl font-semibold text-slate-900">Termo de garantia ainda nao gerado.</h1>
+          <h1 className="text-xl font-semibold text-slate-900">
+            Termo de garantia ainda não emitido
+          </h1>
           <p className="mt-2 text-sm text-slate-600">
-            A OS {contexto.numeroOS} ainda nao possui termo de garantia cadastrado.
+            A garantia da OS {contexto.numeroOS} passa a valer a partir da <strong>entrega</strong>.
+            O termo é emitido automaticamente quando a OS é finalizada — não há nada para imprimir
+            antes disso.
           </p>
 
-          <div className="mt-6 flex flex-wrap items-center gap-2">
-            <Button variant="outline" asChild>
-              <Link href={`/os/${contexto.osId}`}>Voltar para OS</Link>
-            </Button>
+          <div className="mt-4">
             <AcaoGarantiaOS
               osId={contexto.osId}
               statusOS={contexto.statusOS}
@@ -41,6 +42,12 @@ export default async function PaginaGarantiaOS({ params }: PropsPaginaGarantia) 
               possuiItens={contexto.possuiItens}
               mostrarTextoBloqueio
             />
+          </div>
+
+          <div className="mt-6 flex flex-wrap items-center gap-2">
+            <Button variant="outline" asChild>
+              <Link href={`/os/${contexto.osId}`}>Voltar para OS</Link>
+            </Button>
           </div>
         </div>
       </div>

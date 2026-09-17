@@ -8,7 +8,11 @@ import {
   normalizarIdUsuarioOperacional,
 } from "@/lib/tenant/usuario-operacional";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
-import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
+import {
+  contextoAuditoriaDoUsuario,
+  registrarLogAuditoria,
+  type ContextoAuditoria,
+} from "@/lib/auditoria";
 import {
   mensagemIndicaRuntimeLegadoConfiguracao,
   obterDefaultsConfiguracaoOsGarantias,
@@ -37,6 +41,21 @@ export type RegistrarRetornoGarantiaInput = {
   descricao: string;
   analiseTecnica?: string;
   resultado: ResultadoRetornoGarantia;
+};
+
+/**
+ * Previa calculada do termo de garantia, para OS ainda nao entregue.
+ * Nada aqui esta persistido: o termo real nasce na finalizacao.
+ */
+export type PreviaTermoGarantiaOS = {
+  osId: string;
+  numeroOS: string;
+  statusOS: string;
+  prazoPrevistoDias: number;
+  prazoMinimoDias: number;
+  prazoMaximoDias: number;
+  possuiItens: boolean;
+  exigeItemParaGarantia: boolean;
 };
 
 export type GerarTermoGarantiaOSInput = {
@@ -176,12 +195,9 @@ export type ContextoGarantiaOS = {
   possuiItens: boolean;
 };
 
-const STATUS_PERMITE_GARANTIA = "PRONTO";
-const MENSAGEM_ERRO_STATUS_GARANTIA = "A garantia so pode ser gerada quando a OS estiver como Pronto.";
 const MENSAGEM_ERRO_GARANTIA_SEM_ITENS = "Para gerar a garantia, cadastre pelo menos uma peca ou servico na OS.";
 const MENSAGEM_PRAZO_OBRIGATORIO = "Informe o prazo de garantia.";
 const MENSAGEM_PRAZO_INVALIDO = "Informe um prazo de garantia valido.";
-const MENSAGEM_ERRO_GERAR_GARANTIA = "Nao foi possivel gerar o termo de garantia. Tente novamente.";
 
 function normalizarTexto(valor: string | null | undefined): string {
   return String(valor ?? "").trim();
@@ -433,9 +449,91 @@ function validarPrazoGarantiaConfigurado(
   return prazoInteiro;
 }
 
+/**
+ * Leitura da Configuracao usada pelo termo de garantia, com o fallback de
+ * runtime legado. Extraida de garantirTermoGarantiaPorOS para ser reaproveitada
+ * pela previa (obterPreviaTermoGarantiaOS).
+ */
+async function lerConfiguracaoTermo(client: ClientTx): Promise<ConfiguracaoTermo | null> {
+let configuracao: ConfiguracaoTermo | null = null;
+
+try {
+  configuracao = await client.configuracao.findFirst({
+    orderBy: { criadoEm: "asc" },
+    select: {
+      nomeFantasia: true,
+      razaoSocial: true,
+      cnpj: true,
+      telefone: true,
+      logradouro: true,
+      numero: true,
+      bairro: true,
+      cidade: true,
+      estado: true,
+      prazoGarantiaPadraoDias: true,
+      prazoMinimoGarantiaDias: true,
+      prazoMaximoGarantiaDias: true,
+      exigirItemParaGarantia: true,
+      permitirGarantiaPersonalizada: true,
+      textoCoberturaGarantia: true,
+      textoExclusoesGarantia: true,
+      textoResponsabilidadeDados: true,
+    },
+  }) as ConfiguracaoTermo | null;
+} catch (erro) {
+  if (!mensagemIndicaRuntimeLegadoConfiguracao(erro)) {
+    throw erro;
+  }
+
+  try {
+    const rows = await client.$queryRaw<Array<ConfiguracaoTermo>>`
+      SELECT
+        "nomeFantasia", "razaoSocial", "cnpj", "telefone",
+        "logradouro", "numero", "bairro", "cidade", "estado",
+        "prazoGarantiaPadraoDias", "prazoMinimoGarantiaDias", "prazoMaximoGarantiaDias",
+        "exigirItemParaGarantia", "permitirGarantiaPersonalizada",
+        "textoCoberturaGarantia", "textoExclusoesGarantia", "textoResponsabilidadeDados"
+      FROM "Configuracao" ORDER BY "criadoEm" ASC LIMIT 1
+    `;
+    configuracao = rows[0] ?? null;
+  } catch {
+    configuracao = await client.configuracao.findFirst({
+      orderBy: { criadoEm: "asc" },
+      select: {
+        nomeFantasia: true,
+        razaoSocial: true,
+        cnpj: true,
+        telefone: true,
+        logradouro: true,
+        numero: true,
+        bairro: true,
+        cidade: true,
+        estado: true,
+      },
+    }) as ConfiguracaoTermo | null;
+  }
+}
+
+
+  return configuracao;
+}
+
 export async function garantirTermoGarantiaPorOS(
   client: ClientTx,
-  input: { osId: string; criadoPorId?: string | null; prazoGarantiaDias?: number }
+  input: {
+    osId: string;
+    criadoPorId?: string | null;
+    prazoGarantiaDias?: number;
+    /**
+     * Momento da ENTREGA. A garantia comeca a contar daqui.
+     * Antes da Fase 1A usava-se "os.atualizadoEm", ou seja, o ultimo arraste
+     * do cartao no Kanban — a garantia comecava antes de o cliente receber o
+     * aparelho (AUDIT_REPORT 16.7-a).
+     */
+    dataInicioGarantia: Date;
+    /** Contexto para a auditoria gravada na MESMA transacao. */
+    auditoria: { contexto: ContextoAuditoria; extras?: Record<string, unknown> };
+  }
 ): Promise<{
   termoGarantiaId: string;
   osId: string;
@@ -498,6 +596,48 @@ export async function garantirTermoGarantiaPorOS(
   }
 
   if (os.termoGarantia) {
+    // Termo emitido antes da entrega (fluxo legado) numa OS ainda nao entregue:
+    // reancorar as datas no momento da entrega, que e o que vale para o cliente.
+    const aindaNaoEntregue = String(os.status) !== "ENTREGUE";
+
+    if (aindaNaoEntregue) {
+      const novoInicio = new Date(input.dataInicioGarantia);
+      const prazoVigente = Number(os.termoGarantia.prazoGarantiaDias);
+      const novoFim = adicionarDias(novoInicio, prazoVigente);
+
+      await client.termoGarantiaOS.update({
+        where: { id: os.termoGarantia.id },
+        data: { dataInicioGarantia: novoInicio, dataFimGarantia: novoFim },
+      });
+
+      await registrarLogAuditoria(client, input.auditoria.contexto, {
+        acao: ACOES_AUDITORIA.GERAR_TERMO_GARANTIA,
+        entidade: ENTIDADES_AUDITORIA.TERMO_GARANTIA_OS,
+        entidadeId: os.termoGarantia.id,
+        dadosAntes: {
+          dataInicioGarantia: os.termoGarantia.dataInicioGarantia.toISOString(),
+          dataFimGarantia: os.termoGarantia.dataFimGarantia.toISOString(),
+        },
+        dadosDepois: {
+          osId: os.id,
+          prazoGarantiaDias: prazoVigente,
+          dataInicioGarantia: novoInicio.toISOString(),
+          dataFimGarantia: novoFim.toISOString(),
+          reancoradoNaEntrega: true,
+          ...(input.auditoria.extras ?? {}),
+        },
+      });
+
+      return {
+        termoGarantiaId: os.termoGarantia.id,
+        osId: os.id,
+        prazoGarantiaDias: prazoVigente,
+        dataInicioGarantia: novoInicio,
+        dataFimGarantia: novoFim,
+        criadoNovo: false,
+      };
+    }
+
     return {
       termoGarantiaId: os.termoGarantia.id,
       osId: os.id,
@@ -508,69 +648,13 @@ export async function garantirTermoGarantiaPorOS(
     };
   }
 
-  if (String(os.status) !== STATUS_PERMITE_GARANTIA) {
-    throw new Error(MENSAGEM_ERRO_STATUS_GARANTIA);
-  }
+  // O portao de status saiu daqui de proposito. O termo passa a ser emitido
+  // exclusivamente pela finalizacao (finalizarOrdemServico), que ja validou o
+  // ciclo de vida. Exigir PRONTO aqui criava uma armadilha fechada: uma OS ja
+  // ENTREGUE e sem termo nao podia ser finalizada por caminho nenhum
+  // (AUDIT_REPORT 16.3-1).
 
-  let configuracao: ConfiguracaoTermo | null = null;
-
-  try {
-    configuracao = await client.configuracao.findFirst({
-      orderBy: { criadoEm: "asc" },
-      select: {
-        nomeFantasia: true,
-        razaoSocial: true,
-        cnpj: true,
-        telefone: true,
-        logradouro: true,
-        numero: true,
-        bairro: true,
-        cidade: true,
-        estado: true,
-        prazoGarantiaPadraoDias: true,
-        prazoMinimoGarantiaDias: true,
-        prazoMaximoGarantiaDias: true,
-        exigirItemParaGarantia: true,
-        permitirGarantiaPersonalizada: true,
-        textoCoberturaGarantia: true,
-        textoExclusoesGarantia: true,
-        textoResponsabilidadeDados: true,
-      },
-    }) as ConfiguracaoTermo | null;
-  } catch (erro) {
-    if (!mensagemIndicaRuntimeLegadoConfiguracao(erro)) {
-      throw erro;
-    }
-
-    try {
-      const rows = await client.$queryRaw<Array<ConfiguracaoTermo>>`
-        SELECT
-          "nomeFantasia", "razaoSocial", "cnpj", "telefone",
-          "logradouro", "numero", "bairro", "cidade", "estado",
-          "prazoGarantiaPadraoDias", "prazoMinimoGarantiaDias", "prazoMaximoGarantiaDias",
-          "exigirItemParaGarantia", "permitirGarantiaPersonalizada",
-          "textoCoberturaGarantia", "textoExclusoesGarantia", "textoResponsabilidadeDados"
-        FROM "Configuracao" ORDER BY "criadoEm" ASC LIMIT 1
-      `;
-      configuracao = rows[0] ?? null;
-    } catch {
-      configuracao = await client.configuracao.findFirst({
-        orderBy: { criadoEm: "asc" },
-        select: {
-          nomeFantasia: true,
-          razaoSocial: true,
-          cnpj: true,
-          telefone: true,
-          logradouro: true,
-          numero: true,
-          bairro: true,
-          cidade: true,
-          estado: true,
-        },
-      }) as ConfiguracaoTermo | null;
-    }
-  }
-
+  const configuracao = await lerConfiguracaoTermo(client);
   const regrasGarantia = obterRegrasGarantia(configuracao);
 
   if (regrasGarantia.exigirItemParaGarantia && (os.itens ?? []).length === 0) {
@@ -578,7 +662,7 @@ export async function garantirTermoGarantiaPorOS(
   }
 
   const prazoGarantiaDias = validarPrazoGarantiaConfigurado(input.prazoGarantiaDias, regrasGarantia, os.prazoGarantiaDias);
-  const dataInicioGarantia = new Date(os.atualizadoEm);
+  const dataInicioGarantia = new Date(input.dataInicioGarantia);
   const dataFimGarantia = adicionarDias(dataInicioGarantia, prazoGarantiaDias);
   const numeroOS = formatarNumeroOS(os.numeroOs);
 
@@ -637,6 +721,24 @@ export async function garantirTermoGarantiaPorOS(
     data: { prazoGarantiaDias },
   });
 
+  // Auditoria na MESMA transacao. Antes da Fase 1A esta funcao gravava em
+  // TermoGarantiaOS e em OrdemServico.prazoGarantiaDias sem nenhum registro
+  // proprio, o que fazia `atualizadoEm` da OS avancar sem evento de auditoria
+  // correspondente (AUDIT_REPORT 16.7-b, caminho 1).
+  await registrarLogAuditoria(client, input.auditoria.contexto, {
+    acao: ACOES_AUDITORIA.GERAR_TERMO_GARANTIA,
+    entidade: ENTIDADES_AUDITORIA.TERMO_GARANTIA_OS,
+    entidadeId: termo.id,
+    dadosDepois: {
+      osId: os.id,
+      prazoGarantiaDias,
+      dataInicioGarantia: dataInicioGarantia.toISOString(),
+      dataFimGarantia: dataFimGarantia.toISOString(),
+      criadoNovo: true,
+      ...(input.auditoria.extras ?? {}),
+    },
+  });
+
   return {
     termoGarantiaId: termo.id,
     osId: os.id,
@@ -647,92 +749,65 @@ export async function garantirTermoGarantiaPorOS(
   };
 }
 
-export async function gerarTermoGarantiaOS(input: GerarTermoGarantiaOSInput): Promise<ResultadoGerarGarantia> {
-  try {
-    const contexto = await exigirContextoTenant();
-    const prisma = contexto.prisma;
-    const usuario = contexto.usuarioOperacional;
-    const osId = normalizarTexto(input.osId);
+/**
+ * PREVIA do termo de garantia — nao persiste nada.
+ *
+ * Ate a Fase 1A esta acao CRIAVA o termo enquanto a OS estava em PRONTO, com
+ * `dataInicioGarantia` ancorada em `atualizadoEm`. Na pratica a garantia do
+ * cliente comecava a correr no ultimo arraste do cartao, dias antes da entrega
+ * (AUDIT_REPORT 16.7-a). A emissao passou para `finalizarOrdemServico`, que
+ * ancora a garantia no momento da entrega.
+ *
+ * O que sobra aqui e a previa: o operador ve o prazo e a data prevista de
+ * termino, e o termo so nasce quando a OS e entregue.
+ */
+export async function obterPreviaTermoGarantiaOS(
+  osId: string
+): Promise<PreviaTermoGarantiaOS | null> {
+  const contexto = await exigirContextoTenant();
+  const prisma = contexto.prisma;
+  const idNormalizado = normalizarTexto(osId);
 
-    if (!osId) {
-      return { sucesso: false, erro: "Ordem de servico nao encontrada." };
-    }
-
-    const prazoGarantiaDiasInformado = Number(input.prazoGarantiaDias);
-    const prazoGarantiaDias = Number.isFinite(prazoGarantiaDiasInformado) ? prazoGarantiaDiasInformado : undefined;
-
-    const termoGerado = await prisma.$transaction(async (tx) => {
-      const resultado = await garantirTermoGarantiaPorOS(tx, {
-        osId,
-        criadoPorId: normalizarIdUsuarioOperacional(usuario),
-        prazoGarantiaDias,
-      });
-
-      await registrarLogAuditoria(
-        tx,
-        contextoAuditoriaDoUsuario(usuario, "app/actions/garantias.ts:gerarTermoGarantiaOS"),
-        {
-          acao: ACOES_AUDITORIA.GERAR_TERMO_GARANTIA,
-          entidade: ENTIDADES_AUDITORIA.TERMO_GARANTIA_OS,
-          entidadeId: resultado.termoGarantiaId,
-          dadosDepois: {
-            osId: resultado.osId,
-            prazoGarantiaDias: resultado.prazoGarantiaDias,
-            dataInicioGarantia: resultado.dataInicioGarantia.toISOString(),
-            dataFimGarantia: resultado.dataFimGarantia.toISOString(),
-            termoGarantiaId: resultado.termoGarantiaId,
-            criadoNovo: resultado.criadoNovo,
-            ...descreverAutoria(contexto),
-          },
-        }
-      );
-
-      return resultado;
-    });
-
-    revalidatePath("/os");
-    revalidatePath(`/os/${osId}`);
-    revalidatePath(`/os/${osId}/garantia`);
-    revalidatePath("/os/garantias");
-    revalidatePath("/");
-    revalidatePath("/dashboard");
-
-    return {
-      sucesso: true,
-      mensagem: "Termo de garantia gerado com sucesso.",
-      osId,
-      termoGarantiaId: termoGerado.termoGarantiaId,
-    };
-  } catch (erro) {
-    const mensagem = erro instanceof Error ? erro.message : "";
-
-    if (
-      mensagem === MENSAGEM_ERRO_STATUS_GARANTIA ||
-      mensagem === MENSAGEM_ERRO_GARANTIA_SEM_ITENS ||
-      mensagem === MENSAGEM_PRAZO_OBRIGATORIO ||
-      mensagem === MENSAGEM_PRAZO_INVALIDO ||
-      mensagem === "O prazo de garantia informado está fora do limite permitido nas configurações." ||
-      mensagem === "Ordem de servico nao encontrada." ||
-      mensagem === "Nao e permitido gerar garantia para OS excluida."
-    ) {
-      return { sucesso: false, erro: mensagem };
-    }
-
-    if (mensagem.includes("Sess")) {
-      return { sucesso: false, erro: mensagem };
-    }
-
-    console.error("[garantia] falha ao gerar termo", {
-      osId: input.osId,
-      erro: mensagem || "erro-desconhecido",
-    });
-
-    return {
-      sucesso: false,
-      erro: MENSAGEM_ERRO_GERAR_GARANTIA,
-    };
+  if (!idNormalizado) {
+    return null;
   }
+
+  const os = await prisma.ordemServico.findUnique({
+    where: { id: idNormalizado },
+    select: {
+      id: true,
+      numeroOs: true,
+      status: true,
+      excluidaEm: true,
+      prazoGarantiaDias: true,
+      _count: { select: { itens: true } },
+    },
+  });
+
+  if (!os || os.excluidaEm) {
+    return null;
+  }
+
+  const configuracao = await lerConfiguracaoTermo(prisma);
+  const regras = obterRegrasGarantia(configuracao);
+
+  const prazoPrevisto =
+    typeof os.prazoGarantiaDias === 'number' && Number.isFinite(os.prazoGarantiaDias)
+      ? os.prazoGarantiaDias
+      : regras.prazoPadrao;
+
+  return {
+    osId: os.id,
+    numeroOS: formatarNumeroOS(os.numeroOs),
+    statusOS: String(os.status),
+    prazoPrevistoDias: prazoPrevisto,
+    prazoMinimoDias: regras.prazoMinimo,
+    prazoMaximoDias: regras.prazoMaximo,
+    possuiItens: Number(os._count?.itens ?? 0) > 0,
+    exigeItemParaGarantia: regras.exigirItemParaGarantia,
+  };
 }
+
 
 export async function obterContextoGarantiaOS(osId: string): Promise<ContextoGarantiaOS | null> {
   const contexto = await exigirContextoTenant();

@@ -17,6 +17,12 @@ import {
 } from "@/lib/configuracoes-os-garantias";
 import type { OrdemServico, OrdemServicoExcluida, TipoPecaOrcamento } from "@/types/os";
 import { STATUS_OS_SEQUENCIA } from "@/lib/dominio/os/maquina-estados";
+import {
+  avaliarFinalizacao,
+  resumirPendencias,
+  type PendenciaFinalizacao,
+  type RegrasConfiguracaoFinalizacao,
+} from "@/lib/dominio/os/regras-finalizacao";
 
 type PrismaTenant = Awaited<ReturnType<typeof exigirContextoTenant>>["prisma"];
 
@@ -219,9 +225,22 @@ const statusValidos: readonly StatusOS[] = STATUS_OS_SEQUENCIA;
 
 const MENSAGEM_MOVER_ENTREGUE_SEM_GARANTIA = "Para mover a OS para Entregue, gere o termo de garantia primeiro.";
 const MENSAGEM_MOVER_ENTREGUE_SEM_DIAGNOSTICO = "Informe o diagnóstico técnico antes de finalizar a OS.";
-const MENSAGEM_FINALIZAR_SEM_GARANTIA = "Para finalizar a OS, informe o prazo de garantia e gere o termo de garantia.";
-const MENSAGEM_FINALIZAR_SEM_ITENS = "Para finalizar a OS, cadastre pelo menos uma peca ou servico na OS.";
 const MENSAGEM_FINALIZAR_SEM_PAGAMENTO = "Esta OS ainda não possui confirmação de pagamento.";
+
+/**
+ * Invalidacao de cache das telas afetadas por uma OS.
+ * Centralizada porque as acoes repetiam listas ligeiramente diferentes — e uma
+ * delas apontava para "/dashboard", rota que nao existe: o dashboard e "/"
+ * (AUDIT_REPORT F-65).
+ */
+function revalidarOrdemServico(osId: string): void {
+  revalidatePath("/");
+  revalidatePath("/os");
+  revalidatePath(`/os/${osId}`);
+  revalidatePath(`/os/${osId}/garantia`);
+  revalidatePath("/os/garantias");
+  revalidatePath("/financeiro");
+}
 
 class ErroRegraNegocioOS extends Error {
   constructor(mensagem: string) {
@@ -914,385 +933,361 @@ export type ResultadoFinalizacaoOrdemServico =
       requerGarantia?: boolean;
     };
 
-export async function archiveDeliveredOrderService(
-  input: FinalizarOrdemServicoInput
-): Promise<ResultadoFinalizacaoOrdemServico> {
-  const contexto = await exigirContextoTenant();
-  const prisma = contexto.prisma;
-  const usuario = contexto.usuarioOperacional;
-  const orderServiceId = String(input?.osId ?? "").trim();
+type OrdemServicoFinalizacao = {
+  id: string;
+  numeroOs: number;
+  status: StatusOS;
+  archivedAt: Date | null;
+  excluidaEm: Date | null;
+  ehRetornoGarantia: boolean;
+  observacoes: string | null;
+  termoGarantia: { id: string } | null;
+  _count: { itens: number };
+};
 
-  if (!orderServiceId) {
-    return {
-      sucesso: false,
-      erro: "ID da ordem de servico nao informado.",
-    };
-  }
+/**
+ * Le as regras de finalizacao da Configuracao do tenant.
+ * Reaproveita `obterRegrasOs` (gates de OS) e completa com os prazos de garantia.
+ */
+async function obterRegrasFinalizacao(prisma: PrismaTenant): Promise<RegrasConfiguracaoFinalizacao> {
+  const defaults = obterDefaultsConfiguracaoOsGarantias();
+  const regrasOs = await obterRegrasOs(prisma);
 
-  const prismaAny = prisma as typeof prisma & Record<string, unknown>;
-  const orderServiceDelegate = (prismaAny.ordemServico ?? prismaAny.OrdemServico) as
-    | {
-        findUnique?: (args: unknown) => Promise<{
-          id: string;
-          status?: string | null;
-          archivedAt?: Date | null;
-          excluidaEm?: Date | null;
-          ehRetornoGarantia?: boolean | null;
-          termoGarantia?: { id?: string | null } | null;
-        } | null>;
-        update?: (args: unknown) => Promise<unknown>;
-      }
-    | undefined;
-
-  if (!orderServiceDelegate?.findUnique || !orderServiceDelegate?.update) {
-    return {
-      sucesso: false,
-      erro: "Delegate Prisma de OrdemServico nao disponivel.",
-    };
-  }
-
-  let orderService: {
-    id: string;
-    status?: string | null;
-    archivedAt?: Date | null;
-    excluidaEm?: Date | null;
-    ehRetornoGarantia?: boolean | null;
-    _count?: {
-      itens?: number | null;
-    };
-    termoGarantia?: { id?: string | null } | null;
+  let configuracao: {
+    exigirItemParaGarantia?: boolean | null;
+    prazoGarantiaPadraoDias?: number | null;
+    prazoMinimoGarantiaDias?: number | null;
+    prazoMaximoGarantiaDias?: number | null;
   } | null = null;
 
   try {
-    orderService = await orderServiceDelegate.findUnique({
-      where: {
-        id: orderServiceId,
-      },
+    configuracao = await prisma.configuracao.findFirst({
+      orderBy: { criadoEm: "asc" },
       select: {
-        id: true,
-        numeroOs: true,
-        status: true,
-        archivedAt: true,
-        excluidaEm: true,
-        ehRetornoGarantia: true,
-        _count: {
-          select: {
-            itens: true,
-          },
-        },
-        termoGarantia: {
-          select: {
-            id: true,
-          },
-        },
+        exigirItemParaGarantia: true,
+        prazoGarantiaPadraoDias: true,
+        prazoMinimoGarantiaDias: true,
+        prazoMaximoGarantiaDias: true,
       },
     });
-  } catch (error) {
-    if (!archivedAtUnsupported(error)) {
-      throw error;
+  } catch (erro) {
+    if (!mensagemIndicaRuntimeLegadoConfiguracao(erro)) {
+      throw erro;
     }
-
-    const fallbackRows = await prisma.$queryRaw<Array<{
-      id: string;
-      status: string;
-      archivedAt: Date | null;
-      excluidaEm: Date | null;
-    }>>`
-      SELECT id, status::text AS status, "archivedAt", "excluidaEm"
-      FROM "OrdemServico"
-      WHERE id = ${orderServiceId}
-      LIMIT 1
-    `;
-
-    orderService = fallbackRows[0] ?? null;
   }
 
-  if (!orderService) {
-    return {
-      sucesso: false,
-      erro: "Ordem de servico nao encontrada.",
-    };
-  }
-
-  if (orderService.excluidaEm) {
-    return {
-      sucesso: false,
-      erro: "Nao e permitido finalizar uma OS excluida.",
-    };
-  }
-
-  if (String(orderService.status) !== "ENTREGUE") {
-    return {
-      sucesso: false,
-      erro: "A OS precisa estar com status Entregue antes de ser finalizada.",
-    };
-  }
-
-  if (!orderService.ehRetornoGarantia && Number(orderService._count?.itens ?? 0) === 0) {
-    return {
-      sucesso: false,
-      erro: MENSAGEM_FINALIZAR_SEM_ITENS,
-    };
-  }
-
-  if (!orderService.ehRetornoGarantia && !orderService.termoGarantia?.id) {
-    return {
-      sucesso: false,
-      erro: MENSAGEM_FINALIZAR_SEM_GARANTIA,
-      requerGarantia: true,
-    };
-  }
-
-  await prisma.$transaction(async (tx) => {
-    const txAny = tx as typeof tx & Record<string, unknown>;
-    const txOrderServiceDelegate = (txAny.ordemServico ?? txAny.OrdemServico) as
-      | {
-          update?: (args: unknown) => Promise<unknown>;
-        }
-      | undefined;
-
-    if (!txOrderServiceDelegate?.update) {
-      throw new Error("Delegate Prisma de OrdemServico nao disponivel na transacao.");
-    }
-
-    if (!orderService.archivedAt) {
-      await txOrderServiceDelegate.update({
-        where: {
-          id: orderServiceId,
-        },
-        data: {
-          archivedAt: new Date(),
-        },
-      });
-    }
-
-    await registrarLogAuditoria(
-      tx,
-      contextoAuditoriaDoUsuario(usuario, "app/actions/os.ts:archiveDeliveredOrderService"),
-      {
-        acao: ACOES_AUDITORIA.FINALIZAR,
-        entidade: ENTIDADES_AUDITORIA.ORDEM_SERVICO,
-        entidadeId: orderServiceId,
-        dadosAntes: {
-          status: orderService.status,
-          archivedAt: orderService.archivedAt,
-        },
-        dadosDepois: {
-          status: orderService.status,
-          archivedAt: new Date().toISOString(),
-        },
-      }
-    );
-  });
-
-  revalidatePath("/os");
-  revalidatePath("/dashboard");
-  revalidatePath("/os/garantias");
-  revalidatePath(`/os/${orderServiceId}`);
-  revalidatePath(`/os/${orderServiceId}/garantia`);
-  revalidatePath("/");
-  revalidatePath("/financeiro");
+  const numeroOuPadrao = (valor: number | null | undefined, padrao: number): number =>
+    typeof valor === "number" && Number.isFinite(valor) ? valor : padrao;
 
   return {
-    sucesso: true,
-    mensagem: "OS finalizada com sucesso.",
-    osId: orderServiceId,
-    termoGarantiaId: orderService.termoGarantia?.id ? String(orderService.termoGarantia.id) : undefined,
-    garantiaGerada: false,
+    exigirItemParaGarantia:
+      typeof configuracao?.exigirItemParaGarantia === "boolean"
+        ? configuracao.exigirItemParaGarantia
+        : defaults.exigirItemParaGarantia,
+    exigirDiagnosticoParaFinalizar: regrasOs.exigirDiagnosticoParaFinalizar,
+    permitirFinalizarSemPagamento: regrasOs.permitirFinalizarSemPagamento,
+    prazoGarantiaPadraoDias: numeroOuPadrao(
+      configuracao?.prazoGarantiaPadraoDias,
+      defaults.prazoGarantiaPadraoDias
+    ),
+    prazoMinimoGarantiaDias: numeroOuPadrao(
+      configuracao?.prazoMinimoGarantiaDias,
+      defaults.prazoMinimoGarantiaDias
+    ),
+    prazoMaximoGarantiaDias: numeroOuPadrao(
+      configuracao?.prazoMaximoGarantiaDias,
+      defaults.prazoMaximoGarantiaDias
+    ),
   };
 }
 
-export async function gerarGarantiaEFinalizarOS(
-  input: GerarGarantiaEFinalizarOSInput
-): Promise<ResultadoFinalizacaoOrdemServico> {
+/**
+ * Data de entrega usada como inicio da garantia no caso de RESGATE
+ * (OS ja ENTREGUE a que falta o termo).
+ *
+ * Preferimos a ultima transicao para ENTREGUE registrada na auditoria: e a data
+ * real em que o cliente recebeu o aparelho. Sem esse registro (OS legada,
+ * anterior a trilha), cai para agora e o fato fica anotado na propria auditoria.
+ */
+async function obterMomentoEntregaAuditado(
+  prisma: PrismaTenant,
+  osId: string
+): Promise<{ momento: Date; fonte: "AUDITORIA" | "AGORA" }> {
+  try {
+    const linhas = await prisma.$queryRaw<Array<{ criadoEm: Date }>>`
+      SELECT "criadoEm"
+      FROM "LogAuditoria"
+      WHERE entidade = 'ORDEM_SERVICO'
+        AND "entidadeId" = ${osId}
+        AND "dadosDepois" ->> 'status' = 'ENTREGUE'
+      ORDER BY "criadoEm" DESC
+      LIMIT 1
+    `;
+
+    const registro = linhas[0];
+
+    if (registro?.criadoEm) {
+      return { momento: new Date(registro.criadoEm), fonte: "AUDITORIA" };
+    }
+  } catch (erro) {
+    // Trilha ausente ou tabela inexistente nao pode impedir o resgate da OS.
+    console.error("[os] falha ao ler a entrega auditada; usando agora como inicio da garantia", {
+      osId,
+      erro: erro instanceof Error ? erro.message : String(erro),
+    });
+  }
+
+  return { momento: new Date(), fonte: "AGORA" };
+}
+
+export type ResultadoFinalizarOrdemServico =
+  | {
+      sucesso: true;
+      mensagem: string;
+      osId: string;
+      termoGarantiaId?: string;
+      garantiaGerada: boolean;
+      ehResgate: boolean;
+    }
+  | {
+      sucesso: false;
+      erro: string;
+      pendencias: PendenciaFinalizacao[];
+      requerGarantia?: boolean;
+    };
+
+/**
+ * FINALIZACAO ATOMICA DA OS — ponto unico de entrega.
+ *
+ * Substitui os dois caminhos anteriores (`gerarGarantiaEFinalizarOS` e
+ * `archiveDeliveredOrderService`), que divergiam nos gates e deixavam uma
+ * armadilha fechada: OS ja ENTREGUE e sem termo nao podia ser finalizada por
+ * nenhum dos dois (AUDIT_REPORT 16.3-1).
+ *
+ * Numa unica transacao:
+ *   1. carrega OS + itens + termo + regras;
+ *   2. avalia TODAS as regras de uma vez (nada e gravado se houver pendencia);
+ *   3. emite ou reancora o termo de garantia (OS normal);
+ *   4. grava status = ENTREGUE, archivedAt = agora e prazoGarantiaDias;
+ *   5. audita OS e termo com antes/depois.
+ */
+export async function finalizarOrdemServico(
+  input: FinalizarOrdemServicoInput & { prazoGarantiaDias?: number | null }
+): Promise<ResultadoFinalizarOrdemServico> {
   const contexto = await exigirContextoTenant();
   const prisma = contexto.prisma;
   const usuario = contexto.usuarioOperacional;
   const osId = String(input?.osId ?? "").trim();
-  const prazoGarantiaDias = Number(input?.prazoGarantiaDias);
-  const regrasOs = await obterRegrasOs(prisma);
 
   if (!osId) {
     return {
       sucesso: false,
       erro: "ID da ordem de servico nao informado.",
+      pendencias: [],
     };
   }
 
-  if (Number.isFinite(prazoGarantiaDias) && (!Number.isInteger(prazoGarantiaDias) || prazoGarantiaDias < 1 || prazoGarantiaDias > 3650)) {
-    return {
-      sucesso: false,
-      erro: "Informe um prazo de garantia valido.",
-      requerGarantia: true,
-    };
-  }
-
-  type OrdemServicoFinalizacao = {
-    id: string;
-    status: string;
-    archivedAt: Date | null;
-    excluidaEm: Date | null;
-    ehRetornoGarantia: boolean;
-    observacoes: string | null;
-    termoGarantia: { id: string } | null;
-    _count: {
-      itens: number;
-    };
-  };
-
-  const ordemServico = await prisma.ordemServico.findUnique({
-    where: {
-      id: osId,
-    },
+  const ordemServico = (await prisma.ordemServico.findUnique({
+    where: { id: osId },
     select: {
       id: true,
+      numeroOs: true,
       status: true,
       archivedAt: true,
       excluidaEm: true,
       ehRetornoGarantia: true,
       observacoes: true,
-      termoGarantia: {
-        select: {
-          id: true,
-        },
-      },
-      _count: {
-        select: {
-          itens: true,
-        },
-      },
+      termoGarantia: { select: { id: true } },
+      _count: { select: { itens: true } },
     },
-  }) as OrdemServicoFinalizacao | null;
+  })) as OrdemServicoFinalizacao | null;
 
   if (!ordemServico) {
     return {
       sucesso: false,
       erro: "Ordem de servico nao encontrada.",
+      pendencias: [],
     };
   }
 
-  if (ordemServico.excluidaEm) {
+  const regras = await obterRegrasFinalizacao(prisma);
+  const possuiPagamentoConfirmado = regras.permitirFinalizarSemPagamento
+    ? true
+    : await osPossuiPagamentoConfirmado(prisma, osId);
+
+  const avaliacao = avaliarFinalizacao({
+    status: ordemServico.status,
+    ehRetornoGarantia: ordemServico.ehRetornoGarantia,
+    excluidaEm: ordemServico.excluidaEm,
+    archivedAt: ordemServico.archivedAt,
+    possuiTermoGarantia: ordemServico.termoGarantia !== null,
+    quantidadeItens: Number(ordemServico._count?.itens ?? 0),
+    observacoes: ordemServico.observacoes,
+    possuiPagamentoConfirmado,
+    prazoGarantiaDiasInformado: input.prazoGarantiaDias ?? null,
+    regras,
+  });
+
+  if (!avaliacao.podeFinalizar) {
     return {
       sucesso: false,
-      erro: "Nao e permitido finalizar uma OS excluida.",
+      erro: resumirPendencias(avaliacao.pendencias),
+      pendencias: avaliacao.pendencias,
+      requerGarantia: avaliacao.deveGerarTermo,
     };
   }
 
-  if (!ordemServico.ehRetornoGarantia && Number(ordemServico._count?.itens ?? 0) === 0) {
-    return {
-      sucesso: false,
-      erro: MENSAGEM_FINALIZAR_SEM_ITENS,
-    };
-  }
-
-  if (regrasOs.exigirDiagnosticoParaFinalizar && !String(ordemServico.observacoes ?? "").trim()) {
-    return {
-      sucesso: false,
-      erro: MENSAGEM_MOVER_ENTREGUE_SEM_DIAGNOSTICO,
-    };
-  }
-
-  if (!regrasOs.permitirFinalizarSemPagamento) {
-    const possuiPagamento = await osPossuiPagamentoConfirmado(prisma, osId);
-    if (!possuiPagamento) {
-      return {
-        sucesso: false,
-        erro: MENSAGEM_FINALIZAR_SEM_PAGAMENTO,
-      };
-    }
-  }
-
-  if (String(ordemServico.status) !== "PRONTO" && String(ordemServico.status) !== "ENTREGUE") {
-    return {
-      sucesso: false,
-      erro: "A OS precisa estar com status Pronto ou Entregue para ser finalizada.",
-    };
-  }
+  // Momento da entrega: agora no fluxo normal; a entrega auditada no resgate.
+  const entrega = avaliacao.ehResgate
+    ? await obterMomentoEntregaAuditado(prisma, osId)
+    : { momento: new Date(), fonte: "AGORA" as const };
 
   const resultado = await prisma.$transaction(async (tx) => {
-    let termoGarantiaId = ordemServico.termoGarantia?.id ? String(ordemServico.termoGarantia.id) : undefined;
+    let termoGarantiaId = ordemServico.termoGarantia?.id;
     let garantiaGerada = false;
+    let prazoGarantiaAplicado: number | null = null;
 
-    if (!ordemServico.ehRetornoGarantia && !termoGarantiaId) {
+    if (!ordemServico.ehRetornoGarantia) {
       const garantia = await garantirTermoGarantiaPorOS(tx, {
         osId,
         criadoPorId: normalizarIdUsuarioOperacional(usuario),
-        prazoGarantiaDias: Number.isFinite(prazoGarantiaDias) ? prazoGarantiaDias : undefined,
+        prazoGarantiaDias: avaliacao.prazoGarantiaEfetivo ?? undefined,
+        dataInicioGarantia: entrega.momento,
+        auditoria: {
+          contexto: contextoAuditoriaDoUsuario(
+            { id: normalizarIdUsuarioOperacional(usuario) },
+            "app/actions/os.ts:finalizarOrdemServico"
+          ),
+          extras: {
+            ehResgate: avaliacao.ehResgate,
+            fonteDataEntrega: entrega.fonte,
+            ...descreverAutoria(contexto),
+          },
+        },
       });
 
       termoGarantiaId = garantia.termoGarantiaId;
-      garantiaGerada = Boolean(garantia.criadoNovo);
-
-      await registrarLogAuditoria(
-        tx,
-        contextoAuditoriaDoUsuario(usuario, "app/actions/os.ts:gerarGarantiaEFinalizarOS"),
-        {
-          acao: ACOES_AUDITORIA.GERAR_TERMO_GARANTIA,
-          entidade: ENTIDADES_AUDITORIA.TERMO_GARANTIA_OS,
-          entidadeId: garantia.termoGarantiaId,
-          dadosDepois: {
-            osId,
-            prazoGarantiaDias: garantia.prazoGarantiaDias,
-            dataInicioGarantia: garantia.dataInicioGarantia.toISOString(),
-            dataFimGarantia: garantia.dataFimGarantia.toISOString(),
-            criadoNovo: garantia.criadoNovo,
-          },
-        }
-      );
+      garantiaGerada = garantia.criadoNovo;
+      prazoGarantiaAplicado = garantia.prazoGarantiaDias;
     }
 
+    const archivedAtFinal = ordemServico.archivedAt ?? entrega.momento;
+
     await tx.ordemServico.update({
-      where: {
-        id: osId,
-      },
+      where: { id: osId },
       data: {
         status: "ENTREGUE",
-        archivedAt: ordemServico.archivedAt ?? new Date(),
+        archivedAt: archivedAtFinal,
+        ...(prazoGarantiaAplicado !== null ? { prazoGarantiaDias: prazoGarantiaAplicado } : {}),
       },
     });
 
     await registrarLogAuditoria(
       tx,
-      contextoAuditoriaDoUsuario(usuario, "app/actions/os.ts:gerarGarantiaEFinalizarOS"),
+      contextoAuditoriaDoUsuario(
+        { id: normalizarIdUsuarioOperacional(usuario) },
+        "app/actions/os.ts:finalizarOrdemServico"
+      ),
       {
         acao: ACOES_AUDITORIA.FINALIZAR,
         entidade: ENTIDADES_AUDITORIA.ORDEM_SERVICO,
         entidadeId: osId,
         dadosAntes: {
           status: ordemServico.status,
-          archivedAt: ordemServico.archivedAt,
+          archivedAt: ordemServico.archivedAt ? ordemServico.archivedAt.toISOString() : null,
+          possuiTermoGarantia: ordemServico.termoGarantia !== null,
         },
         dadosDepois: {
           status: "ENTREGUE",
-          archivedAt: (ordemServico.archivedAt ?? new Date()).toISOString(),
-          termoGarantiaId,
+          archivedAt: archivedAtFinal.toISOString(),
+          termoGarantiaId: termoGarantiaId ?? null,
           garantiaGerada,
+          prazoGarantiaDias: prazoGarantiaAplicado,
+          ehResgate: avaliacao.ehResgate,
+          // Registra de onde veio a data de entrega no resgate, para que a
+          // origem do numero seja auditavel depois.
+          fonteDataEntrega: entrega.fonte,
+          ...descreverAutoria(contexto),
         },
       }
     );
 
-    return {
-      termoGarantiaId,
-      garantiaGerada,
-    };
+    return { termoGarantiaId, garantiaGerada };
   });
 
-  revalidatePath("/os");
-  revalidatePath("/dashboard");
-  revalidatePath("/os/garantias");
-  revalidatePath(`/os/${osId}`);
-  revalidatePath(`/os/${osId}/garantia`);
-  revalidatePath("/");
-  revalidatePath("/financeiro");
+  revalidarOrdemServico(osId);
 
   return {
     sucesso: true,
-    mensagem: "Garantia gerada e OS finalizada com sucesso.",
+    mensagem: avaliacao.ehResgate
+      ? "OS regularizada: entrega, garantia e arquivamento concluídos."
+      : "OS finalizada com sucesso.",
     osId,
+    termoGarantiaId: resultado.termoGarantiaId,
+    garantiaGerada: resultado.garantiaGerada,
+    ehResgate: avaliacao.ehResgate,
+  };
+}
+
+/**
+ * COMPATIBILIDADE. Delegava a logica propria de arquivamento; agora e um
+ * invólucro fino de `finalizarOrdemServico`.
+ * Chamador: components/os/dashboard-os.tsx.
+ */
+export async function archiveDeliveredOrderService(
+  input: FinalizarOrdemServicoInput
+): Promise<ResultadoFinalizacaoOrdemServico> {
+  const resultado = await finalizarOrdemServico({ osId: input.osId });
+
+  if (!resultado.sucesso) {
+    return {
+      sucesso: false,
+      erro: resultado.erro,
+      requerGarantia: resultado.requerGarantia,
+    };
+  }
+
+  return {
+    sucesso: true,
+    mensagem: resultado.mensagem,
+    osId: resultado.osId,
     termoGarantiaId: resultado.termoGarantiaId,
     garantiaGerada: resultado.garantiaGerada,
   };
 }
+
+/**
+ * COMPATIBILIDADE. Mesmo invólucro, aceitando o prazo de garantia.
+ * Chamador: components/os/dashboard-os.tsx.
+ */
+export async function gerarGarantiaEFinalizarOS(
+  input: GerarGarantiaEFinalizarOSInput
+): Promise<ResultadoFinalizacaoOrdemServico> {
+  const prazo = Number(input?.prazoGarantiaDias);
+
+  const resultado = await finalizarOrdemServico({
+    osId: input.osId,
+    prazoGarantiaDias: Number.isFinite(prazo) && prazo > 0 ? prazo : null,
+  });
+
+  if (!resultado.sucesso) {
+    return {
+      sucesso: false,
+      erro: resultado.erro,
+      requerGarantia: resultado.requerGarantia,
+    };
+  }
+
+  return {
+    sucesso: true,
+    mensagem: resultado.mensagem,
+    osId: resultado.osId,
+    termoGarantiaId: resultado.termoGarantiaId,
+    garantiaGerada: resultado.garantiaGerada,
+  };
+}
+
+
 
 export type ResultadoExcluirOrdemServico =
   | {
@@ -1330,6 +1325,8 @@ function normalizarMotivoExclusao(valor: string): string | null {
 
   return motivo;
 }
+
+
 
 export async function excluirOrdemServico(input: EntradaExcluirOrdemServico): Promise<ResultadoExcluirOrdemServico> {
   try {
