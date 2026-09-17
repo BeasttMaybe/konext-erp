@@ -34,6 +34,7 @@ import {
   atualizarStatusOrdemServico,
 } from "@/app/actions/os";
 import { finalizarRetornoGarantiaOS } from "@/app/actions/garantias";
+import { useTemPermissao } from "@/contextos/contexto-permissoes";
 import { Search, Plus, AlertCircle, ListChecks, KanbanSquare, Trash2, ArchiveX } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -46,8 +47,6 @@ interface DashboardOSProps {
   /** Quando fornecido, abre o modal de nova OS automaticamente e pré-seleciona o cliente. */
   clienteIdInicial?: string | null;
   modoInicial?: "KANBAN" | "LISTA_FINALIZADAS" | "LISTA_EXCLUIDAS";
-  /** Papel do vinculo do usuario na empresa (ADMIN/GESTOR/USUARIO). */
-  papelUsuario?: string;
   prazoGarantiaPadraoDias?: number;
   prazoMinimoGarantiaDias?: number;
   prazoMaximoGarantiaDias?: number;
@@ -61,7 +60,6 @@ export function DashboardOS({
   deletedOrderServices,
   clienteIdInicial,
   modoInicial = "KANBAN",
-  papelUsuario = "",
   prazoGarantiaPadraoDias = 90,
   prazoMinimoGarantiaDias = 1,
   prazoMaximoGarantiaDias = 365,
@@ -82,8 +80,9 @@ export function DashboardOS({
   const resolverFinalizacaoRef = useRef<((sucesso: boolean) => void) | null>(null);
   const resolverReaberturaRef = useRef<((sucesso: boolean) => void) | null>(null);
 
-  // Reabrir desfaz uma entrega: restrito a ADMIN/GESTOR, igual a action.
-  const podeReabrirOS = papelUsuario === "ADMIN" || papelUsuario === "GESTOR";
+  // Reabrir desfaz uma entrega: a mesma permissao "os.reabrir" checada no
+  // servidor (por exigirPermissao). Ocultar o botao aqui e so cosmetico.
+  const podeReabrirOS = useTemPermissao("os.reabrir");
 
   const filteredActiveOrders = activeOrderServices.filter((os) =>
     os.numeroOS.toLowerCase().includes(buscaTexto.toLowerCase()) ||

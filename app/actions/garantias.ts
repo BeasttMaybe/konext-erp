@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { Prisma, type ResultadoRetornoGarantia } from "@prisma/client";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
+import { ErroPermissao, exigirPermissao } from "@/lib/auth/permissoes";
 import {
   descreverAutoria,
   normalizarIdUsuarioOperacional,
@@ -1317,6 +1318,8 @@ export async function obterDashboardGarantiasOS(): Promise<DashboardGarantiasOS>
 export async function registrarRetornoGarantiaOS(input: RegistrarRetornoGarantiaInput): Promise<ResultadoAcao> {
   try {
     const contexto = await exigirContextoTenant();
+    // Registrar um retorno cria uma nova OS (de retorno de garantia).
+    exigirPermissao(contexto, "os.criar");
     const prisma = contexto.prisma;
     const usuario = contexto.usuarioOperacional;
 
@@ -1524,6 +1527,10 @@ export async function registrarRetornoGarantiaOS(input: RegistrarRetornoGarantia
       mensagem: `Retorno registrado com sucesso. Nova OS de retorno criada: ${formatarNumeroOS(transacao.numeroOsRetorno)}.`,
     };
   } catch (erro) {
+    if (erro instanceof ErroPermissao) {
+      return { sucesso: false, erro: erro.message };
+    }
+
     const mensagem = erro instanceof Error ? erro.message : "";
 
     if (mensagem === "TERMO_NAO_ENCONTRADO") {
@@ -1548,6 +1555,7 @@ export async function registrarRetornoGarantiaOS(input: RegistrarRetornoGarantia
 export async function finalizarRetornoGarantiaOS(input: FinalizarRetornoGarantiaInput): Promise<ResultadoAcao> {
   try {
     const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "os.finalizar");
     const prisma = contexto.prisma;
     const usuario = contexto.usuarioOperacional;
 
@@ -1742,6 +1750,10 @@ export async function finalizarRetornoGarantiaOS(input: FinalizarRetornoGarantia
 
     return { sucesso: true, mensagem: "Retorno de garantia finalizado com sucesso." };
   } catch (erro) {
+    if (erro instanceof ErroPermissao) {
+      return { sucesso: false, erro: erro.message };
+    }
+
     const mensagem = erro instanceof Error ? erro.message : "";
 
     if (mensagem === "RETORNO_NAO_ENCONTRADO") {

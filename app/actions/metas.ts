@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
+import { exigirPermissao } from "@/lib/auth/permissoes";
 import { obterIdUsuarioOperacionalOuNulo } from "@/lib/tenant/usuario-operacional";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
@@ -763,6 +764,7 @@ function mensagemSincronizacao(
 export async function criarMeta(input: CriarMetaInput): Promise<ResultadoAcaoComId> {
   try {
     const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "metas.editar");
     const prisma = contexto.prisma;
     const usuario = { id: obterUsuarioOperacionalId(contexto) };
 
@@ -874,6 +876,7 @@ export async function listarMetas(
 ): Promise<{ sucesso: true; dados: LinhaMetaLista[]; total: number } | { sucesso: false; erro: string }> {
   try {
     const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "metas.ver");
     const prisma = contexto.prisma;
     const usuario = { id: obterUsuarioOperacionalId(contexto) };
 
@@ -1004,6 +1007,7 @@ export async function listarMetas(
 export async function obterMetaPorId(id: string): Promise<DetalhesMeta | null> {
   try {
     const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "metas.ver");
     const prisma = contexto.prisma;
     const usuario = { id: obterUsuarioOperacionalId(contexto) };
 
@@ -1139,6 +1143,7 @@ export async function obterDashboardMetas(): Promise<DashboardMetasResult> {
 
   try {
     const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "metas.ver");
     const prisma = contexto.prisma;
     const usuario = { id: obterUsuarioOperacionalId(contexto) };
 
@@ -1212,6 +1217,7 @@ export async function obterDashboardMetas(): Promise<DashboardMetasResult> {
 export async function atualizarMeta(input: AtualizarMetaInput): Promise<ResultadoAcao> {
   try {
     const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "metas.editar");
     const prisma = contexto.prisma;
     const usuario = { id: obterUsuarioOperacionalId(contexto) };
 
@@ -1314,6 +1320,7 @@ export async function atualizarMeta(input: AtualizarMetaInput): Promise<Resultad
 export async function atualizarProgressoMeta(input: AtualizarProgressoInput): Promise<ResultadoAcao> {
   try {
     const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "metas.editar");
     const prisma = contexto.prisma;
     const usuario = { id: obterUsuarioOperacionalId(contexto) };
 
@@ -1402,6 +1409,7 @@ export async function atualizarProgressoMeta(input: AtualizarProgressoInput): Pr
 export async function alterarStatusMeta(input: AlterarStatusInput): Promise<ResultadoAcao> {
   try {
     const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "metas.editar");
     const prisma = contexto.prisma;
     const usuario = { id: obterUsuarioOperacionalId(contexto) };
 
@@ -1496,6 +1504,7 @@ export async function alterarStatusMeta(input: AlterarStatusInput): Promise<Resu
 export async function adicionarItemChecklistMeta(input: ItemChecklistInput): Promise<ResultadoAcao> {
   try {
     const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "metas.editar");
     const prisma = contexto.prisma;
     const usuario = { id: obterUsuarioOperacionalId(contexto) };
 
@@ -1567,6 +1576,7 @@ export async function adicionarItemChecklistMeta(input: ItemChecklistInput): Pro
 export async function alternarItemChecklistMeta(itemId: string): Promise<ResultadoAcao> {
   try {
     const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "metas.editar");
     const prisma = contexto.prisma;
     const usuario = { id: obterUsuarioOperacionalId(contexto) };
 
@@ -1646,6 +1656,7 @@ export async function alternarItemChecklistMeta(itemId: string): Promise<Resulta
 export async function removerItemChecklistMeta(itemId: string): Promise<ResultadoAcao> {
   try {
     const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "metas.editar");
     const prisma = contexto.prisma;
     const usuario = { id: obterUsuarioOperacionalId(contexto) };
 
@@ -1713,6 +1724,7 @@ export async function removerItemChecklistMeta(itemId: string): Promise<Resultad
 export async function adicionarHistoricoMeta(metaId: string, observacao: string): Promise<ResultadoAcao> {
   try {
     const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "metas.editar");
     const prisma = contexto.prisma;
     const usuario = { id: obterUsuarioOperacionalId(contexto) };
 
@@ -1752,6 +1764,7 @@ export async function adicionarHistoricoMeta(metaId: string, observacao: string)
 export async function calcularValorAtualMetaAutomatica(metaId: string): Promise<ResultadoCalculoMetaAutomatica> {
   try {
     const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "metas.ver");
     const prisma = contexto.prisma;
     const usuario = { id: obterUsuarioOperacionalId(contexto) };
 
@@ -1789,6 +1802,7 @@ export async function calcularValorAtualMetaAutomatica(metaId: string): Promise<
 export async function sincronizarMetaAutomatica(metaId: string): Promise<ResultadoAcao> {
   try {
     const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "metas.editar");
     const prisma = contexto.prisma;
     const usuario = { id: obterUsuarioOperacionalId(contexto) };
 
@@ -1904,6 +1918,7 @@ export async function sincronizarMetaAutomatica(metaId: string): Promise<Resulta
 export async function sincronizarTodasMetasAutomaticas(): Promise<ResultadoAcao> {
   try {
     const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "metas.editar");
     const prisma = contexto.prisma;
     const usuario = { id: obterUsuarioOperacionalId(contexto) };
 
@@ -1955,6 +1970,7 @@ export async function sincronizarTodasMetasAutomaticas(): Promise<ResultadoAcao>
 export async function excluirMeta(id: string): Promise<ResultadoAcao> {
   try {
     const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "metas.excluir");
     const prisma = contexto.prisma;
     const usuario = { id: obterUsuarioOperacionalId(contexto) };
 

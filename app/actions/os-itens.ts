@@ -5,6 +5,7 @@ import type { TipoPeca } from "@prisma/client";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
+import { ErroPermissao, exigirPermissao } from "@/lib/auth/permissoes";
 
 const tiposPecaValidos: TipoPeca[] = [
   "TELA",
@@ -225,6 +226,7 @@ async function sincronizarTotaisFinanceirosOS(
 export async function adicionarItemOS(osId: string, data: DadosAdicionarItemOS) {
   // C1: exige sessao valida antes de inserir item na OS.
   const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "os.editar");
   const prisma = contexto.prisma;
   const usuario = contexto.usuarioOperacional;
 
@@ -362,6 +364,7 @@ export async function adicionarItemOS(osId: string, data: DadosAdicionarItemOS) 
 export async function atualizarItemOS(input: EntradaAtualizarItemOS): Promise<ResultadoAcaoItemOS> {
   try {
     const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "os.editar");
     const prisma = contexto.prisma;
     const usuario = contexto.usuarioOperacional;
 
@@ -470,7 +473,11 @@ export async function atualizarItemOS(input: EntradaAtualizarItemOS): Promise<Re
       mensagem: "Item atualizado com sucesso.",
       totalOS,
     };
-  } catch {
+  } catch (erro) {
+    if (erro instanceof ErroPermissao) {
+      return { sucesso: false, erro: erro.message };
+    }
+
     return {
       sucesso: false,
       erro: "Nao foi possivel atualizar o item da ordem de servico.",
@@ -481,6 +488,7 @@ export async function atualizarItemOS(input: EntradaAtualizarItemOS): Promise<Re
 export async function removerItemOS(input: EntradaRemoverItemOS): Promise<ResultadoAcaoItemOS> {
   try {
     const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "os.editar");
     const prisma = contexto.prisma;
     const usuario = contexto.usuarioOperacional;
 
@@ -557,7 +565,11 @@ export async function removerItemOS(input: EntradaRemoverItemOS): Promise<Result
       mensagem: "Item removido com sucesso.",
       totalOS,
     };
-  } catch {
+  } catch (erro) {
+    if (erro instanceof ErroPermissao) {
+      return { sucesso: false, erro: erro.message };
+    }
+
     return {
       sucesso: false,
       erro: "Nao foi possivel remover o item da ordem de servico.",

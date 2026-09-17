@@ -5,6 +5,7 @@ import type { ModeloImpressaoOS, Prisma } from "@prisma/client";
 import { z } from "zod";
 import { consultarCnpjReceitaCliente } from "@/app/actions/crm";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
+import { exigirPermissao } from "@/lib/auth/permissoes";
 import type { ContextoTenantServidor } from "@/types/tenant";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
@@ -926,6 +927,10 @@ async function atualizarCamposPdvComFallbackSql(prismaClient: PrismaOperacionalT
 export async function salvarConfiguracoes(data: DadosConfiguracoes) {
   // C1: exige sessao valida e resolve o tenant antes de alterar configuracoes da empresa.
   const contextoTenant = await exigirContextoTenant();
+  // Um unico formulario grava identidade da empresa e regras de sistema juntas
+  // (F-31: 69 campos numa so Configuracao); gateamos pela mais restritiva.
+  // Nem ADMIN nem GESTOR sao afetados; so GESTOR perde acesso, por desenho.
+  exigirPermissao(contextoTenant, "configuracoes.sistema");
   const usuario = contextoTenant.usuarioOperacional;
   const prismaTenant = contextoTenant.prisma;
 
@@ -1316,7 +1321,6 @@ export async function obterDadosPerfilConfiguracao() {
 }
 
 export async function atualizarPerfil(
-  usuarioId: string | null,
   data: DadosPerfil
 ): Promise<ResultadoAcaoPerfil> {
   // Exige contexto tenant valido antes de alterar perfil.
@@ -1334,13 +1338,12 @@ export async function atualizarPerfil(
 
     const fotoPerfilNormalizada = normalizarUrlImagem(data.fotoPerfilUrl, "URL da foto de perfil");
 
+    // F-03 (IDOR): o alvo é SEMPRE o usuário da própria sessão. Um `usuarioId`
+    // vindo do cliente permitia renomear/reatribuir e-mail de qualquer outro
+    // usuário do tenant — removido de propósito, não é mais um parâmetro.
     let usuarioAlvo = null;
 
-    if (usuarioId && usuarioDelegate.findUnique) {
-      usuarioAlvo = await usuarioDelegate.findUnique({ where: { id: usuarioId } });
-    }
-
-    if (!usuarioAlvo && contextoTenant.usuarioOperacional.id && usuarioDelegate.findUnique) {
+    if (contextoTenant.usuarioOperacional.id && usuarioDelegate.findUnique) {
       usuarioAlvo = await usuarioDelegate.findUnique({
         where: { id: contextoTenant.usuarioOperacional.id },
       });
@@ -1382,13 +1385,13 @@ export async function atualizarPerfil(
 }
 
 export async function atualizarLogoEmpresa(
-  configId: string | null,
   logoUrl: string,
   nomeFantasia?: string
 ): Promise<ResultadoAcaoPerfil> {
   // Exige contexto tenant valido antes de alterar a logo da empresa.
   try {
     const contextoTenant = await exigirContextoTenant();
+    exigirPermissao(contextoTenant, "configuracoes.empresa");
     const prismaTenant = contextoTenant.prisma as PrismaConfiguracoesClient;
     const configuracaoDelegate = prismaTenant.configuracao ?? prismaTenant.Configuracao;
 
@@ -1401,19 +1404,13 @@ export async function atualizarLogoEmpresa(
 
     const logoUrlNormalizada = normalizarUrlImagem(logoUrl, "URL da logo da empresa");
 
-    let configuracaoAlvo = null;
-
-    if (configId && configuracaoDelegate.findUnique) {
-      configuracaoAlvo = await configuracaoDelegate.findUnique({ where: { id: configId } });
-    }
-
-    if (!configuracaoAlvo) {
-      configuracaoAlvo = await configuracaoDelegate.findFirst({
-        orderBy: {
-          criadoEm: "asc",
-        },
-      });
-    }
+    // F-03 (IDOR): a Configuracao alvo é SEMPRE a linha única do tenant (é
+    // singleton, ver F-31), nunca um id vindo do cliente.
+    let configuracaoAlvo = await configuracaoDelegate.findFirst({
+      orderBy: {
+        criadoEm: "asc",
+      },
+    });
 
     if (!configuracaoAlvo) {
       if (!configuracaoDelegate.create) {

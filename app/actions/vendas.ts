@@ -4,6 +4,7 @@ import { FormaPagamento, Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
+import { exigirPermissao } from "@/lib/auth/permissoes";
 
 const pedidoVendaItemSchema = z.object({
   produtoId: z.string().optional(),
@@ -173,7 +174,9 @@ export async function createPedidoVenda(
 
 export async function aprovarPedido(pedidoId: string): Promise<ApprovePedidoVendaResult> {
   try {
-    const { prisma } = await exigirContextoTenant();
+    const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "vendas.aprovar");
+    const { prisma } = contexto;
 
     if (!pedidoId.trim()) {
       return { success: false, message: "Pedido de venda inválido." };
@@ -326,7 +329,9 @@ export async function aprovarPedido(pedidoId: string): Promise<ApprovePedidoVend
 
 export async function rejeitarPedido(pedidoId: string): Promise<ApprovePedidoVendaResult> {
   try {
-    const { prisma } = await exigirContextoTenant();
+    const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "vendas.cancelar");
+    const { prisma } = contexto;
 
     if (!pedidoId.trim()) {
       return { success: false, message: "Pedido de venda inválido." };
@@ -392,7 +397,9 @@ export async function rejeitarPedido(pedidoId: string): Promise<ApprovePedidoVen
 
 export async function cancelarPedido(pedidoId: string): Promise<ApprovePedidoVendaResult> {
   try {
-    const { prisma } = await exigirContextoTenant();
+    const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "vendas.cancelar");
+    const { prisma } = contexto;
 
     if (!pedidoId.trim()) {
       return { success: false, message: "Pedido de venda inválido." };

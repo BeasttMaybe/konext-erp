@@ -1,6 +1,7 @@
 "use server";
 
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
+import { exigirPermissao } from "@/lib/auth/permissoes";
 import { obterReceitaMensalPadrao, obterReceitaTotalPadrao } from "@/lib/dashboard/regras-financeiras";
 import { Prisma } from "@prisma/client";
 
@@ -1015,6 +1016,7 @@ export async function obterDashboardExecutivo(
   periodo: PeriodoDashboard = "hoje"
 ): Promise<DashboardExecutivo> {
   const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "dashboard.financeiro");
   const prisma = contexto.prisma;
   await validarConectividadeBanco(prisma);
 

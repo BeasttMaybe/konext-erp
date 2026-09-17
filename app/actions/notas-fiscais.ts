@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
+import { exigirPermissao } from "@/lib/auth/permissoes";
 import type { StatusNotaFiscal } from "@prisma/client";
 
 export type ResultadoAcaoNotaFiscal =
@@ -63,6 +64,7 @@ export async function listarNotasFiscais(
 ): Promise<{ sucesso: true; dados: NotaFiscalLista[] } | { sucesso: false; erro: string }> {
   try {
     const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "financeiro.ver");
     const prisma = contexto.prisma;
 
     const where: {
@@ -122,6 +124,7 @@ export async function listarNotasFiscais(
 
 export async function listarClientesParaNotaFiscal(): Promise<Array<{ id: string; nome: string }>> {
   const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "financeiro.ver");
   const prisma = contexto.prisma;
 
   const clientes = await prisma.cliente.findMany({
@@ -141,6 +144,7 @@ export async function listarClientesParaNotaFiscal(): Promise<Array<{ id: string
 export async function criarNotaFiscal(input: CriarNotaFiscalInput): Promise<ResultadoAcaoNotaFiscal> {
   try {
     const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "financeiro.lancar");
     const prisma = contexto.prisma;
 
     const erroValidacao = validarNotaFiscal(input);
@@ -170,6 +174,7 @@ export async function criarNotaFiscal(input: CriarNotaFiscalInput): Promise<Resu
 export async function atualizarNotaFiscal(input: AtualizarNotaFiscalInput): Promise<ResultadoAcaoNotaFiscal> {
   try {
     const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "financeiro.editar");
     const prisma = contexto.prisma;
 
     const erroValidacao = validarNotaFiscal(input);
@@ -202,6 +207,7 @@ export async function atualizarStatusNotaFiscal(
 ): Promise<ResultadoAcaoNotaFiscal> {
   try {
     const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "financeiro.editar");
     const prisma = contexto.prisma;
 
     await prisma.notaFiscal.update({

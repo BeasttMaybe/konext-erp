@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
+import { exigirPermissao } from "@/lib/auth/permissoes";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 
@@ -61,6 +62,7 @@ export async function listarContasReceber(): Promise<ContaReceberFinanceiro[]> {
   let contexto: Awaited<ReturnType<typeof exigirContextoTenant>>;
   try {
     contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "financeiro.ver");
   } catch {
     return [];
   }
@@ -110,6 +112,7 @@ export interface CriarContaReceberInput {
 
 export async function criarContaReceber(input: CriarContaReceberInput) {
   const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "financeiro.lancar");
   const prisma = contexto.prisma;
   const usuario = contexto.usuarioOperacional;
 
@@ -175,6 +178,7 @@ export async function criarContaReceber(input: CriarContaReceberInput) {
 export async function darBaixaConta(id: string, observacaoPagamento?: string) {
   // C1: exige sessao valida antes de registrar recebimento.
   const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "financeiro.baixar");
   const prisma = contexto.prisma;
   const usuario = contexto.usuarioOperacional;
 
@@ -285,7 +289,9 @@ export async function editarContaReceber(
   id: string,
   input: EditarContaReceberInput
 ): Promise<void> {
-  const { prisma } = await exigirContextoTenant();
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "financeiro.editar");
+  const { prisma } = contexto;
 
   const conta = await prisma.contaReceber.findUnique({
     where: { id },
@@ -319,6 +325,7 @@ export async function editarContaReceber(
  */
 export async function excluirContaReceber(id: string): Promise<void> {
   const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "financeiro.excluir");
   const prisma = contexto.prisma;
   const usuario = contexto.usuarioOperacional;
 
@@ -389,6 +396,7 @@ export async function listarContasReceberFiltradas(
   let contexto: Awaited<ReturnType<typeof exigirContextoTenant>>;
   try {
     contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "financeiro.ver");
   } catch {
     return [];
   }

@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
+import { exigirPermissao } from "@/lib/auth/permissoes";
 import { propostaFormSchema, type PropostaFormValues } from "@/lib/validations/propostas";
 
 type PropostaStatusInput = "RASCUNHO" | "ENVIADA";
@@ -95,6 +96,7 @@ export async function createProposta(
 ): Promise<CreatePropostaResult> {
   try {
     const contextoTenant = await exigirContextoTenant();
+    exigirPermissao(contextoTenant, "propostas.editar");
     const prisma = contextoTenant.prisma;
 
     const validated = propostaFormSchema.parse(data);

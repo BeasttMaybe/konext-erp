@@ -19,7 +19,8 @@ export interface ItemOrcamento {
   id: string;
   tipo: TipoPecaOrcamento;
   descricao: string;
-  custoPeca: number;
+  /** null quando o usuário logado não tem a permissão `os.ver_custos`. */
+  custoPeca: number | null;
   valorCobrado: number;
 }
 

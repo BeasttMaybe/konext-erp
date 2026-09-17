@@ -1,6 +1,7 @@
 "use server";
 
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
+import { exigirPermissao } from "@/lib/auth/permissoes";
 
 export interface ResumoDashboardFinanceiro {
   totalVendasHoje: number;
@@ -206,17 +207,23 @@ async function buscarFaturamentoCaixaFechadoHojeCentavos(prisma: PrismaFinanceir
 }
 
 export async function obterTotalVendasHoje(): Promise<number> {
-  const { prisma } = await exigirContextoTenant();
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "financeiro.ver");
+  const { prisma } = contexto;
   return paraMoeda(await buscarTotalVendasHojeCentavos(prisma as unknown as PrismaFinanceiroAny));
 }
 
 export async function obterFaturamentoCaixaFechadoHoje(): Promise<number> {
-  const { prisma } = await exigirContextoTenant();
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "financeiro.ver");
+  const { prisma } = contexto;
   return paraMoeda(await buscarFaturamentoCaixaFechadoHojeCentavos(prisma as unknown as PrismaFinanceiroAny));
 }
 
 export async function obterTotalPagarHoje(): Promise<number> {
-  const { prisma } = await exigirContextoTenant();
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "financeiro.ver");
+  const { prisma } = contexto;
   const prismaFinanceiro = prisma as unknown as PrismaFinanceiroAny;
   const { fimHoje } = obterIntervalosFinanceiros();
   const parcelasFornecedor = await buscarParcelasPagarAtrasadasBrutas(prismaFinanceiro, fimHoje);
@@ -225,7 +232,9 @@ export async function obterTotalPagarHoje(): Promise<number> {
 }
 
 export async function obterTotalReceberHoje(): Promise<number> {
-  const { prisma } = await exigirContextoTenant();
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "financeiro.ver");
+  const { prisma } = contexto;
   const prismaFinanceiro = prisma as unknown as PrismaFinanceiroAny;
   const { fimHoje } = obterIntervalosFinanceiros();
   const { contaReceberDelegate } = obterDelegatesFinanceiros(prismaFinanceiro);
@@ -242,7 +251,9 @@ export async function obterTotalReceberHoje(): Promise<number> {
 }
 
 export async function obterSaldoPrevisto(): Promise<number> {
-  const { prisma } = await exigirContextoTenant();
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "financeiro.ver");
+  const { prisma } = contexto;
   const prismaFinanceiro = prisma as unknown as PrismaFinanceiroAny;
   const { fimMes } = obterIntervalosFinanceiros();
   const { contaReceberDelegate } = obterDelegatesFinanceiros(prismaFinanceiro);

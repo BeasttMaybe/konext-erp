@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "node:crypto";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
+import { exigirPermissao } from "@/lib/auth/permissoes";
 
 type CaixaDelegate = {
   findFirst?: (args: unknown) => Promise<{ id?: string; valorAbertura?: number } | null>;
@@ -176,7 +177,9 @@ async function obterResumoCaixaAbertoAtualInterno(client: CaixaClient): Promise<
 }
 
 export async function verificarStatusCaixa(): Promise<boolean> {
-  const { prisma } = await exigirContextoTenant();
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "pdv.vender");
+  const { prisma } = contexto;
   const prismaAny = prisma as CaixaClient;
   const caixaDelegate = obterCaixaDelegate(prismaAny);
 
@@ -202,7 +205,9 @@ export async function verificarStatusCaixa(): Promise<boolean> {
 
 export async function abrirNovaCaixaSession(valorAbertura: number) {
   // C1: exige sessao valida antes de abrir o caixa.
-  const { prisma } = await exigirContextoTenant();
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "caixa.abrir");
+  const { prisma } = contexto;
 
   const valorNumerico = Number(valorAbertura);
 
@@ -266,14 +271,17 @@ export async function abrirNovaCaixaSession(valorAbertura: number) {
 }
 
 export async function obterResumoCaixaAbertoAtual(): Promise<ResumoCaixaAbertoAtual> {
-  const { prisma } = await exigirContextoTenant();
-  const prismaAny = prisma as CaixaClient;
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "pdv.vender");
+  const prismaAny = contexto.prisma as CaixaClient;
   return obterResumoCaixaAbertoAtualInterno(prismaAny);
 }
 
 export async function fecharCaixaSessionAtual(valorFechamento?: number | null) {
   // C1: exige sessao valida antes de fechar o caixa.
-  const { prisma } = await exigirContextoTenant();
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "caixa.fechar");
+  const { prisma } = contexto;
 
   const valorInformado = Number(valorFechamento);
 

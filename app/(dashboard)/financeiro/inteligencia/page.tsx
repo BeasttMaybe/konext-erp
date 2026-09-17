@@ -41,6 +41,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Progress } from "@/components/ui/progress";
+import { useTemPermissao } from "@/contextos/contexto-permissoes";
+import { AcessoNegado } from "@/components/ui/acesso-negado";
 
 const formatarMoeda = (valor: number) =>
   new Intl.NumberFormat("pt-BR", {
@@ -115,6 +117,7 @@ function TooltipCustom({ active, label, payload }: PropsTooltipCustom) {
 }
 
 export default function FinanceiroInteligenciaPage() {
+  const podeVerFinanceiro = useTemPermissao("dashboard.financeiro");
   const [filtroData, setFiltroData] = useState<FiltroDataAnalitico>("MENSAL");
   const [dataInicio, setDataInicio] = useState<string>("");
   const [dataFim, setDataFim] = useState<string>("");
@@ -150,6 +153,9 @@ export default function FinanceiroInteligenciaPage() {
   }, [dataFim, dataInicio, filtroData]);
 
   useEffect(() => {
+    // Sem a permissao, nem tenta buscar — a action recusaria mesmo assim.
+    if (!podeVerFinanceiro) return;
+
     const timerId = setTimeout(() => {
       void carregarDados();
     }, 0);
@@ -157,7 +163,7 @@ export default function FinanceiroInteligenciaPage() {
     return () => {
       clearTimeout(timerId);
     };
-  }, [carregarDados]);
+  }, [carregarDados, podeVerFinanceiro]);
 
   const dadosGraficoTopGastos = useMemo(() => {
     if (!dados) return [];
@@ -192,6 +198,10 @@ export default function FinanceiroInteligenciaPage() {
   }, [dados]);
 
   const semDadosTaxas = (dadosTaxas?.quantidadePagamentos ?? 0) === 0;
+
+  if (!podeVerFinanceiro) {
+    return <AcessoNegado />;
+  }
 
   return (
     <div className="w-full min-h-full flex flex-col bg-transparent">

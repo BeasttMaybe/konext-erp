@@ -13,10 +13,10 @@ import {
   atualizarPerfil,
   obterDadosPerfilConfiguracao,
 } from "@/app/actions/configuracoes";
+import { useTemPermissao } from "@/contextos/contexto-permissoes";
 
 export default function PerfilPage() {
-  const [usuarioId, setUsuarioId] = useState<string | null>(null);
-  const [configId, setConfigId] = useState<string | null>(null);
+  const podeEditarLogoEmpresa = useTemPermissao("configuracoes.empresa");
   const [nomeCompleto, setNomeCompleto] = useState("");
   const [email, setEmail] = useState("");
   const [fotoPerfilUrl, setFotoPerfilUrl] = useState("");
@@ -33,8 +33,6 @@ export default function PerfilPage() {
         const dados = await obterDadosPerfilConfiguracao();
         if (!ativo) return;
 
-        setUsuarioId(dados.usuario?.id ?? null);
-        setConfigId(dados.configuracao?.id ?? null);
         setNomeCompleto(dados.usuario?.nome ?? "");
         setEmail(dados.usuario?.email ?? "");
         setFotoPerfilUrl(dados.usuario?.fotoPerfilUrl ?? "");
@@ -67,7 +65,7 @@ export default function PerfilPage() {
 
     try {
       setSalvando(true);
-      const resultadoPerfil = await atualizarPerfil(usuarioId, {
+      const resultadoPerfil = await atualizarPerfil({
         nome: nomeCompleto,
         email,
         fotoPerfilUrl,
@@ -78,11 +76,15 @@ export default function PerfilPage() {
         return;
       }
 
-      const resultadoLogo = await atualizarLogoEmpresa(configId, logoEmpresaUrl);
+      // A logo da empresa exige configuracoes.empresa — campo nem aparece na
+      // tela para quem nao tem a permissao, entao nem tentamos salvar.
+      if (podeEditarLogoEmpresa) {
+        const resultadoLogo = await atualizarLogoEmpresa(logoEmpresaUrl);
 
-      if (!resultadoLogo.sucesso) {
-        toast.error(resultadoLogo.erro);
-        return;
+        if (!resultadoLogo.sucesso) {
+          toast.error(resultadoLogo.erro);
+          return;
+        }
       }
 
       toast.success("Alteracoes salvas com sucesso.");
@@ -163,17 +165,19 @@ export default function PerfilPage() {
                 />
               </div>
 
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="logoEmpresaUrl">URL da Logo da Empresa</Label>
-                <Input
-                  id="logoEmpresaUrl"
-                  type="url"
-                  value={logoEmpresaUrl}
-                  onChange={(e) => setLogoEmpresaUrl(e.target.value)}
-                  placeholder="https://exemplo.com/logo-da-empresa.png"
-                  disabled={carregando || salvando}
-                />
-              </div>
+              {podeEditarLogoEmpresa ? (
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="logoEmpresaUrl">URL da Logo da Empresa</Label>
+                  <Input
+                    id="logoEmpresaUrl"
+                    type="url"
+                    value={logoEmpresaUrl}
+                    onChange={(e) => setLogoEmpresaUrl(e.target.value)}
+                    placeholder="https://exemplo.com/logo-da-empresa.png"
+                    disabled={carregando || salvando}
+                  />
+                </div>
+              ) : null}
             </div>
 
             <div className="pt-2">

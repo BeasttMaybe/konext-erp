@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { ZodError } from "zod";
 import { formClienteSchema, type FormCliente } from "@/lib/validations/crm";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
+import { exigirPermissao } from "@/lib/auth/permissoes";
 
 type ResultadoCriarCliente =
   | {
@@ -61,6 +62,10 @@ type ResultadoConsultaCnpjCliente =
 export async function consultarCnpjReceitaCliente(
   cnpj: string
 ): Promise<ResultadoConsultaCnpjCliente> {
+  // Sem isso, esta action era um proxy externo alcancavel sem sessao
+  // (qualquer chamada POST ao endpoint do Server Action, autenticado ou nao).
+  await exigirContextoTenant();
+
   const cnpjLimpo = String(cnpj ?? "").replace(/\D/g, "");
 
   if (cnpjLimpo.length !== 14) {
@@ -188,6 +193,7 @@ export async function criarCliente(
 ): Promise<ResultadoCriarCliente> {
   try {
     const contextoTenant = await exigirContextoTenant();
+    exigirPermissao(contextoTenant, "crm.editar");
     const prisma = contextoTenant.prisma;
     const dadosValidados = formClienteSchema.parse(data);
     const papelNormalizado = dadosValidados.papel;
@@ -284,6 +290,7 @@ export async function excluirCliente(
 ): Promise<{ sucesso: boolean; mensagem: string }> {
   try {
     const contextoTenant = await exigirContextoTenant();
+    exigirPermissao(contextoTenant, "crm.excluir");
     const prisma = contextoTenant.prisma;
     await prisma.cliente.delete({
       where: { id: clienteId },
@@ -341,6 +348,7 @@ export async function atualizarCliente(
 ): Promise<ResultadoCriarCliente> {
   try {
     const contextoTenant = await exigirContextoTenant();
+    exigirPermissao(contextoTenant, "crm.editar");
     const prisma = contextoTenant.prisma;
     const dadosValidados = formClienteSchema.parse(dados);
     const papelNormalizado = dadosValidados.papel;
@@ -418,6 +426,7 @@ export async function atualizarCliente(
 
 export async function listarClientes() {
   const contextoTenant = await exigirContextoTenant();
+  exigirPermissao(contextoTenant, "crm.ver");
   const prisma = contextoTenant.prisma;
 
   return prisma.cliente.findMany({
@@ -508,6 +517,7 @@ export async function listarClientesPaginado(
   observacoes: string | null;
 }>> {
   const contextoTenant = await exigirContextoTenant();
+  exigirPermissao(contextoTenant, "crm.ver");
   const prisma = contextoTenant.prisma;
   const skip = (page - 1) * limit;
 
@@ -577,6 +587,7 @@ export async function buscarClientesCRM(
 
   try {
     const contextoTenant = await exigirContextoTenant();
+    exigirPermissao(contextoTenant, "crm.ver");
     const prisma = contextoTenant.prisma;
     const apenasDigitos = termoNormalizado.replace(/\D/g, "");
     

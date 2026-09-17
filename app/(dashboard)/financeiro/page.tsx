@@ -20,6 +20,9 @@ import {
   obterTotalReceberHoje,
   obterTotalVendasHoje,
 } from "@/app/actions/financeiro-hub";
+import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
+import { temPermissao } from "@/lib/auth/permissoes";
+import { AcessoNegado } from "@/components/ui/acesso-negado";
 
 const formatarMoeda = (valor: number) =>
   new Intl.NumberFormat("pt-BR", {
@@ -124,6 +127,12 @@ async function CartaoFaturamentoCaixaFechado() {
  * Renderiza cada indicador em um fluxo independente no servidor.
  */
 export default async function FinanceiroPage() {
+  const contexto = await exigirContextoTenant();
+
+  if (!temPermissao(contexto, "financeiro.ver")) {
+    return <AcessoNegado />;
+  }
+
   return (
     <div className="w-full min-h-full flex flex-col bg-transparent">
       <div className="border-b border-slate-200/70 bg-white/75 px-6 py-6 backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/50 lg:px-8">

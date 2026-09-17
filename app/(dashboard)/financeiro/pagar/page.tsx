@@ -8,6 +8,9 @@ import {
 } from "@/app/actions/financeiro-pagar";
 import { FiltrosPagar } from "./components/FiltrosPagar";
 import { ConteudoPagar } from "./components/ConteudoPagar";
+import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
+import { temPermissao } from "@/lib/auth/permissoes";
+import { AcessoNegado } from "@/components/ui/acesso-negado";
 
 export const metadata = { title: "Contas a Pagar | Konext" };
 
@@ -34,6 +37,12 @@ function obterParam(
  * URL de filtros: /financeiro/pagar?mes=6&ano=2026&categoriaCliente=EMPRESA
  */
 export default async function FinanceiroPagarPage({ searchParams }: PageProps) {
+  const contexto = await exigirContextoTenant();
+
+  if (!temPermissao(contexto, "financeiro.ver")) {
+    return <AcessoNegado />;
+  }
+
   const params = await searchParams;
 
   const filtros = {

@@ -1,7 +1,22 @@
 import { obterConfiguracoes } from "@/app/actions/configuracoes";
 import { LayoutConfiguracoes } from "@/components/configuracoes/layout-configuracoes";
+import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
+import { temAlgumaPermissao } from "@/lib/auth/permissoes";
+import { AcessoNegado } from "@/components/ui/acesso-negado";
 
 export default async function ConfiguracoesPage() {
+  const contexto = await exigirContextoTenant();
+
+  if (
+    !temAlgumaPermissao(contexto, [
+      "configuracoes.empresa",
+      "configuracoes.sistema",
+      "configuracoes.usuarios",
+    ])
+  ) {
+    return <AcessoNegado />;
+  }
+
   const configuracoes = await obterConfiguracoes();
 
   return (

@@ -1,6 +1,7 @@
 "use server";
 
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
+import { exigirPermissao } from "@/lib/auth/permissoes";
 import { obterReceitaPorClientePadrao, obterReceitaTotalPadrao } from "@/lib/dashboard/regras-financeiras";
 
 export type FiltroDataAnalitico = "HOJE" | "SEMANAL" | "MENSAL" | "ANUAL" | "CUSTOMIZADO";
@@ -234,7 +235,9 @@ export async function obterInteligenciaTaxasPagamento(
   dataInicio?: Date,
   dataFim?: Date
 ): Promise<DadosInteligenciaTaxasPagamento> {
-  const { prisma } = await exigirContextoTenant();
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "dashboard.financeiro");
+  const { prisma } = contexto;
   const { inicio, fim } = obterIntervaloDoFiltro(filtroData, dataInicio, dataFim);
 
   const pagamentos = await prisma.vendaPagamento.findMany({
@@ -380,7 +383,9 @@ export async function obterDadosAnaliticos(
   dataInicio?: Date,
   dataFim?: Date
 ): Promise<DadosAnaliticosFinanceiros> {
-  const { prisma } = await exigirContextoTenant();
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "dashboard.financeiro");
+  const { prisma } = contexto;
   const { inicio, fim } = obterIntervaloDoFiltro(filtroData, dataInicio, dataFim);
 
   const [

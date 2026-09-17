@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
+import { exigirPermissao } from "@/lib/auth/permissoes";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 
@@ -185,6 +186,7 @@ function gerarParcelas(
 export async function criarDespesa(data: DadosCriarDespesa) {
   // C1: exige sessao valida antes de criar despesa.
   const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "financeiro.lancar");
   const prisma = contexto.prisma;
   const usuario = contexto.usuarioOperacional;
 
@@ -267,7 +269,9 @@ export async function criarDespesa(data: DadosCriarDespesa) {
 }
 
 export async function listarParcelasPagar(): Promise<ParcelaDespesaComRelacao[]> {
-  const { prisma } = await exigirContextoTenant();
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "financeiro.ver");
+  const { prisma } = contexto;
   const prismaAny = prisma as unknown as PrismaFinanceiroPagarAny;
   const parcelaDespesaDelegate = obterDelegateParcelaDespesa(prismaAny, prismaAny);
 
@@ -323,7 +327,9 @@ export interface ResumoPagar {
 export async function listarParcelasPagarFiltradas(
   filtros?: FiltrosPagar
 ): Promise<ParcelaDespesaComRelacao[]> {
-  const { prisma } = await exigirContextoTenant();
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "financeiro.ver");
+  const { prisma } = contexto;
 
   const where: Record<string, unknown> = {};
 
@@ -417,6 +423,7 @@ export async function obterResumoPagar(filtros?: FiltrosPagar): Promise<ResumoPa
 export async function pagarParcela(parcelaId: string, valorPago: number) {
   // C1: exige sessao valida antes de pagar parcela.
   const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "financeiro.baixar");
   const prisma = contexto.prisma;
   const usuario = contexto.usuarioOperacional;
 

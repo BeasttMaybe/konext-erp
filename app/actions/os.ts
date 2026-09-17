@@ -17,7 +17,7 @@ import {
 } from "@/lib/configuracoes-os-garantias";
 import type { OrdemServico, OrdemServicoExcluida, TipoPecaOrcamento } from "@/types/os";
 import { STATUS_OS_SEQUENCIA, motivoTransicaoNegada } from "@/lib/dominio/os/maquina-estados";
-import { ErroPermissaoNegada, exigirPapel } from "@/lib/auth/exigir-papel";
+import { ErroPermissao, exigirPermissao, temPermissao } from "@/lib/auth/permissoes";
 import {
   avaliarFinalizacao,
   resumirPendencias,
@@ -108,12 +108,14 @@ function normalizarDataISO(valor: unknown): string {
   return new Date().toISOString();
 }
 
-function mapearOrdemServicoDashboard(order: RawOrdemServico): OrdemServico {
+function mapearOrdemServicoDashboard(order: RawOrdemServico, podeVerCustos: boolean): OrdemServico {
   const itensOrcamento = (order.itens ?? []).map((item) => ({
     id: String(item.id),
     tipo: String(item.tipoPeca ?? item.tipo ?? "OUTROS") as TipoPecaOrcamento,
     descricao: String(item.descricao ?? ""),
-    custoPeca: Number(item.custoPeca ?? 0),
+    // F-41: custo/margem só vai para o cliente com os.ver_custos. Omitido no
+    // mapeamento do servidor — nunca filtrado na UI.
+    custoPeca: podeVerCustos ? Number(item.custoPeca ?? 0) : null,
     valorCobrado: Number(item.valorCobrado ?? 0),
   }));
 
@@ -412,6 +414,7 @@ export async function buscarClientePorId(clienteId: string): Promise<ClienteBusc
 export async function obterDadosDashboardOS(): Promise<DadosDashboardOS> {
   const contexto = await exigirContextoTenant();
   const prisma = contexto.prisma;
+  const podeVerCustos = temPermissao(contexto, "os.ver_custos");
 
   const prismaAny = prisma as unknown as Record<string, unknown>;
   const ordemServicoDelegate =
@@ -529,8 +532,12 @@ export async function obterDadosDashboardOS(): Promise<DadosDashboardOS> {
   }
 
   return {
-    ordensAtivas: ordensAtivasBrutas.map(mapearOrdemServicoDashboard),
-    ordensArquivadas: ordensArquivadasBrutas.map(mapearOrdemServicoDashboard),
+    // Wrapper em arrow function de proposito: `mapearOrdemServicoDashboard`
+    // passado direto para `.map` receberia o INDICE como segundo argumento
+    // (`podeVerCustos`), que e truthy a partir do indice 1 — vazaria custo
+    // para todo item exceto o primeiro de cada lista.
+    ordensAtivas: ordensAtivasBrutas.map((ordem) => mapearOrdemServicoDashboard(ordem, podeVerCustos)),
+    ordensArquivadas: ordensArquivadasBrutas.map((ordem) => mapearOrdemServicoDashboard(ordem, podeVerCustos)),
     ordensExcluidas,
   };
 }
@@ -538,6 +545,7 @@ export async function obterDadosDashboardOS(): Promise<DadosDashboardOS> {
 export async function criarOrdemServico(dados: DadosNovaOS) {
   // C1: rejeita chamadas nao autenticadas diretamente no backend.
   const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "os.criar");
   const prisma = contexto.prisma;
   const usuario = contexto.usuarioOperacional;
 
@@ -702,6 +710,7 @@ export async function atualizarStatusOrdemServico(
 ): Promise<ResultadoAtualizacaoStatusOrdemServico> {
   try {
     const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "os.editar");
     const prisma = contexto.prisma;
     const usuario = contexto.usuarioOperacional;
 
@@ -796,7 +805,7 @@ export async function atualizarStatusOrdemServico(
       status,
     };
   } catch (error) {
-    if (error instanceof ErroRegraNegocioOS) {
+    if (error instanceof ErroRegraNegocioOS || error instanceof ErroPermissao) {
       return {
         sucesso: false,
         erro: error.message,
@@ -906,10 +915,9 @@ export async function reabrirOrdemServico(
 ): Promise<ResultadoReaberturaOrdemServico> {
   try {
     const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "os.reabrir");
     const prisma = contexto.prisma;
     const usuario = contexto.usuarioOperacional;
-
-    exigirPapel(contexto, ["ADMIN", "GESTOR"]);
 
     const osId = String(input?.osId ?? "").trim();
     const motivo = String(input?.motivo ?? "").trim();
@@ -1009,7 +1017,7 @@ export async function reabrirOrdemServico(
       status: statusDestino,
     };
   } catch (error) {
-    if (error instanceof ErroPermissaoNegada || error instanceof ErroRegraNegocioOS) {
+    if (error instanceof ErroPermissao || error instanceof ErroRegraNegocioOS) {
       return { sucesso: false, erro: error.message };
     }
 
@@ -1186,6 +1194,16 @@ export async function finalizarOrdemServico(
   input: FinalizarOrdemServicoInput & { prazoGarantiaDias?: number | null }
 ): Promise<ResultadoFinalizarOrdemServico> {
   const contexto = await exigirContextoTenant();
+
+  try {
+    exigirPermissao(contexto, "os.finalizar");
+  } catch (erro) {
+    if (erro instanceof ErroPermissao) {
+      return { sucesso: false, erro: erro.message, pendencias: [] };
+    }
+    throw erro;
+  }
+
   const prisma = contexto.prisma;
   const usuario = contexto.usuarioOperacional;
   const osId = String(input?.osId ?? "").trim();
@@ -1442,6 +1460,7 @@ function normalizarMotivoExclusao(valor: string): string | null {
 export async function excluirOrdemServico(input: EntradaExcluirOrdemServico): Promise<ResultadoExcluirOrdemServico> {
   try {
     const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "os.excluir");
     const prisma = contexto.prisma;
     const usuario = contexto.usuarioOperacional;
 
@@ -1568,6 +1587,10 @@ export async function excluirOrdemServico(input: EntradaExcluirOrdemServico): Pr
       mensagem: "OS excluída com sucesso.",
     };
   } catch (erro) {
+    if (erro instanceof ErroPermissao) {
+      return { sucesso: false, erro: erro.message };
+    }
+
     const mensagemInterna = erro instanceof Error ? erro.message : "";
 
     if (mensagemInterna.includes("OS ja excluida")) {
@@ -1648,7 +1671,9 @@ export async function listarOrdensServicoExcluidas(): Promise<DadosOrdemServicoE
 
 export async function gerarPedidoVendaPorOS(osId: string) {
   // C1: exige sessao valida antes de gerar pedido/venda.
-  const { prisma } = await exigirContextoTenant();
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "pdv.vender");
+  const { prisma } = contexto;
 
   if (!osId) {
     throw new Error("ID da ordem de servico nao informado.");

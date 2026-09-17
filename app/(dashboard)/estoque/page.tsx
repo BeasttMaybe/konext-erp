@@ -38,6 +38,7 @@ import {
 import { ModalNovoProduto } from "@/components/estoque/modal-novo-produto";
 import { PaginationControls } from "@/components/ui/pagination-controls";
 import { categoriasProduto, type FormProduto } from "@/lib/validations/estoque";
+import { useTemPermissao } from "@/contextos/contexto-permissoes";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -102,7 +103,8 @@ interface ProdutoTabela {
   imagemUrl: string | null;
   descricao: string | null;
   categoria: CategoriaProduto;
-  custo: number;
+  /** null quando o usuário logado não tem a permissão estoque.ver_custos. */
+  custo: number | null;
   precoVenda: number;
   quantidadeEstoque: number;
   estoqueMinimo: number;
@@ -127,6 +129,8 @@ const normalizarTexto = (texto: string) => texto.toLowerCase().replace(/[^a-z0-9
 function ConteudoEstoque() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const podeEditarEstoque = useTemPermissao("estoque.editar");
+  const podeExcluirEstoque = useTemPermissao("estoque.excluir");
 
   // Página atual lida da URL (?page=N), com fallback para 1
   const currentPage = Math.max(1, Number(searchParams.get("page") ?? "1"));
@@ -303,10 +307,12 @@ function ConteudoEstoque() {
                   </SelectContent>
                 </Select>
 
-                <Button onClick={aoAbrirNovoProduto}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Novo Produto
-                </Button>
+                {podeEditarEstoque ? (
+                  <Button onClick={aoAbrirNovoProduto}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Novo Produto
+                  </Button>
+                ) : null}
               </div>
 
               <div className="rounded-lg border border-border overflow-hidden">
@@ -343,7 +349,7 @@ function ConteudoEstoque() {
                           </TableCell>
                           <TableCell className="font-medium text-foreground">{produto.nome}</TableCell>
                           <TableCell>{mapaCategoriaRotulo[produto.categoria]}</TableCell>
-                          <TableCell>{formatarMoeda(produto.custo)}</TableCell>
+                          <TableCell>{produto.custo === null ? "—" : formatarMoeda(produto.custo)}</TableCell>
                           <TableCell>{formatarMoeda(produto.precoVenda)}</TableCell>
                           <TableCell>
                             <Badge variant={estoqueBaixo ? "destructive" : "outline"}>
@@ -351,24 +357,30 @@ function ConteudoEstoque() {
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon">
-                                  <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => aoEditarProduto(produto)}>
-                                  Editar
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  className="text-destructive"
-                                  onClick={() => setProdutoParaExcluir(produto)}
-                                >
-                                  Excluir
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                            {podeEditarEstoque || podeExcluirEstoque ? (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  {podeEditarEstoque ? (
+                                    <DropdownMenuItem onClick={() => aoEditarProduto(produto)}>
+                                      Editar
+                                    </DropdownMenuItem>
+                                  ) : null}
+                                  {podeExcluirEstoque ? (
+                                    <DropdownMenuItem
+                                      className="text-destructive"
+                                      onClick={() => setProdutoParaExcluir(produto)}
+                                    >
+                                      Excluir
+                                    </DropdownMenuItem>
+                                  ) : null}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            ) : null}
                           </TableCell>
                         </TableRow>
                       );
@@ -414,6 +426,10 @@ function ConteudoEstoque() {
                 codigoBarras: produtoEditando.codigoBarras ?? undefined,
                 imagemUrl: produtoEditando.imagemUrl ?? undefined,
                 descricao: produtoEditando.descricao ?? undefined,
+                // custo só chega null quando falta estoque.ver_custos — e essa
+                // permissão sempre acompanha estoque.editar na matriz atual,
+                // então editar sem enxergar o custo não é um caminho real hoje.
+                custo: produtoEditando.custo ?? 0,
               }
             : null
         }

@@ -1,6 +1,7 @@
 "use server";
 
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
+import { exigirPermissao } from "@/lib/auth/permissoes";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 
@@ -38,6 +39,7 @@ function textoAusente(valor: unknown): boolean {
 
 export async function auditarDadosLegados(): Promise<RelatorioAuditoriaLegado> {
   const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "auditoria.ver");
   const prisma = contexto.prisma;
 
   const [
@@ -145,6 +147,7 @@ export async function auditarDadosLegados(): Promise<RelatorioAuditoriaLegado> {
 
 export async function gerarSnapshotPreSaneamento(): Promise<SnapshotPreSaneamento> {
   const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "auditoria.ver");
   const prisma = contexto.prisma;
   const usuarioOperacionalId = String(contexto.usuarioOperacional.id ?? "").trim() || null;
 

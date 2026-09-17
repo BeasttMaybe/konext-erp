@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { ZodError } from "zod";
 
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
+import { exigirPermissao } from "@/lib/auth/permissoes";
 import {
   formOportunidadeSchema,
   type EstagioFunil,
@@ -194,6 +195,7 @@ function mapearOportunidade(
 export async function criarOportunidade(dados: FormOportunidade): Promise<ResultadoOportunidade> {
   try {
     const contextoTenant = await exigirContextoTenant();
+    exigirPermissao(contextoTenant, "crm.editar");
     const prismaTenant = contextoTenant.prisma;
     const delegate = obterDelegateOportunidade(prismaTenant);
 
@@ -316,6 +318,7 @@ export async function criarOportunidade(dados: FormOportunidade): Promise<Result
 
 export async function listarOportunidades(): Promise<OportunidadeListagem[]> {
   const contextoTenant = await exigirContextoTenant();
+  exigirPermissao(contextoTenant, "crm.ver");
   const prismaTenant = contextoTenant.prisma;
   const delegate = obterDelegateOportunidade(prismaTenant);
 
@@ -370,6 +373,7 @@ export async function atualizarEstagioOportunidade(
 ): Promise<ResultadoOportunidade> {
   try {
     const contextoTenant = await exigirContextoTenant();
+    exigirPermissao(contextoTenant, "crm.editar");
     const prismaTenant = contextoTenant.prisma;
     const delegate = obterDelegateOportunidade(prismaTenant);
 

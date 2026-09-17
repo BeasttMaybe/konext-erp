@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
+import { exigirPermissao } from "@/lib/auth/permissoes";
 
 export interface ContaReceberFinanceiro {
   id: string;
@@ -21,6 +22,7 @@ export async function listarContasReceber(): Promise<ContaReceberFinanceiro[]> {
   let contexto: Awaited<ReturnType<typeof exigirContextoTenant>>;
   try {
     contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "financeiro.ver");
   } catch {
     return [];
   }
@@ -65,7 +67,9 @@ type ResultadoBaixaConta = { sucesso: boolean; erro: string | null };
 export async function darBaixaConta(id: string): Promise<ResultadoBaixaConta> {
   try {
     // Mutação sensível: exige sessão autenticada no backend.
-    const { prisma } = await exigirContextoTenant();
+    const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "financeiro.baixar");
+    const { prisma } = contexto;
 
     if (!id || typeof id !== "string") {
       return { sucesso: false, erro: "Identificador da conta inválido." };

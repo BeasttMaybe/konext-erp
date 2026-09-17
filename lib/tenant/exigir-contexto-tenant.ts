@@ -1,6 +1,7 @@
 import { exigirSessaoCentral } from "@/lib/auth/sessao-central";
 import { obterPrismaTenant } from "@/lib/tenant/prisma-tenant";
 import { resolverConexaoTenant } from "@/lib/tenant/resolver-conexao-tenant";
+import { ehPapelEmpresa, type PapelEmpresa } from "@/lib/auth/permissoes";
 import type { ContextoTenantServidor } from "@/types/tenant";
 
 type UsuarioOperacionalMapeado = {
@@ -14,6 +15,10 @@ type UsuarioOperacionalMapeado = {
  * Mapeamento read-only do usuario central para um Usuario operacional
  * pre-existente no banco do tenant (por e-mail). Nunca cria usuario.
  * Sem correspondencia local, o id fica vazio e fluxos tratam como null.
+ *
+ * O `role` devolvido aqui e o `Usuario.role` do TENANT (ADMIN/OPERADOR/TECNICO)
+ * quando ha correspondencia — e so por isso NUNCA deve ser usado para
+ * autorizacao. Autorizacao usa exclusivamente `papelEmpresa` (ver abaixo).
  */
 async function mapearUsuarioOperacional(
   prisma: ContextoTenantServidor["prisma"],
@@ -64,6 +69,15 @@ async function mapearUsuarioOperacional(
   }
 }
 
+/**
+ * `SessaoCentral.role` vem do enum central `RoleEmpresa` — sempre um dos tres
+ * valores. O fallback so existe para blindar contra um valor corrompido/legado
+ * chegando do banco; nesse caso tratamos como o papel menos privilegiado.
+ */
+function normalizarPapelEmpresa(role: string): PapelEmpresa {
+  return ehPapelEmpresa(role) ? role : "USUARIO";
+}
+
 export async function exigirContextoTenant(): Promise<ContextoTenantServidor> {
   const sessaoCentral = await exigirSessaoCentral();
 
@@ -86,6 +100,8 @@ export async function exigirContextoTenant(): Promise<ContextoTenantServidor> {
     tenantId: sessaoCentral.tenantId,
     tenantSlug: sessaoCentral.tenantSlug,
     connectionRef: sessaoCentral.connectionRef,
+    // Direto da sessao central, nunca contaminado pelo Usuario.role do tenant.
+    papelEmpresa: normalizarPapelEmpresa(sessaoCentral.role),
     prisma,
   };
 }
