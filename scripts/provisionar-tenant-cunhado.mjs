@@ -1,15 +1,13 @@
 import "dotenv/config";
-import fs from "node:fs/promises";
-import path from "node:path";
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
-import { fileURLToPath } from "node:url";
 import { Client, neonConfig } from "@neondatabase/serverless";
 import { PrismaClient as PrismaOperacional } from "@prisma/client";
 import { PrismaClient as PrismaCentral } from "@prisma/client-central";
 import { PrismaNeon } from "@prisma/adapter-neon";
 import ws from "ws";
 import { CUSTO_HASH_SENHA } from "../lib/auth/senha.ts";
+import { executarComandoPrisma, obterUltimaMigracaoTenant } from "./lib/migracoes.mjs";
 
 if (typeof WebSocket === "undefined") {
   neonConfig.webSocketConstructor = ws;
@@ -18,9 +16,6 @@ if (typeof WebSocket === "undefined") {
 const CONNECTION_REF = "TENANT_CUNHADO_DATABASE_URL";
 const EMPRESA_SLUG = "cunhado";
 const TENANT_SLUG = "cunhado";
-const VERSAO_SCHEMA = "operacional-baseline-20260706";
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const BASELINE_PATH = path.resolve(__dirname, "..", "prisma", "tenant-baseline", `${VERSAO_SCHEMA}.sql`);
 
 function obterEnvObrigatoria(nome) {
   const valor = process.env[nome];
@@ -116,15 +111,21 @@ function validarBancoVazio(objetos) {
   }
 }
 
-async function aplicarBaseline(connectionString) {
-  const sql = await fs.readFile(BASELINE_PATH, "utf8");
-  const client = new Client({ connectionString });
-  await client.connect();
+/**
+ * Aplica a migration 0_baseline (gerada de `prisma/schema.prisma`, ver
+ * docs/operacao/migrations.md) via `prisma migrate deploy` — nao le SQL bruto
+ * na mao. Isso faz o Prisma gravar a linha correspondente em
+ * "_prisma_migrations" no banco do tenant novo, entao ele nasce com o
+ * historico de migrations em dia (nunca precisa de `migrate resolve
+ * --applied`, que e so para bancos ja existentes antes da baseline).
+ */
+function aplicarBaseline(connectionString) {
+  const resultado = executarComandoPrisma("migrate deploy", connectionString);
 
-  try {
-    await client.query(sql);
-  } finally {
-    await client.end();
+  if (!resultado.ok) {
+    throw new Error(
+      `\`prisma migrate deploy\` falhou ao aplicar a baseline no tenant cunhado:\n${resultado.stdout}\n${resultado.stderr}`
+    );
   }
 }
 
@@ -236,14 +237,14 @@ async function executar() {
     tenantCunhadoDatabaseUrl
   );
 
-  await fs.access(BASELINE_PATH);
+  const versaoSchema = await obterUltimaMigracaoTenant();
   const objetosAntes = await listarObjetosPublicos(tenantCunhadoDatabaseUrl);
   validarBancoVazio(objetosAntes);
 
   if (dryRun) {
     console.log(JSON.stringify({
       modo: "dry-run",
-      baseline: VERSAO_SCHEMA,
+      baseline: versaoSchema,
       connectionRef: CONNECTION_REF,
       bancosDistintos: true,
       bancoAlvoVazio: true,
@@ -304,7 +305,7 @@ async function executar() {
 
     tenantId = tenant.id;
 
-    await aplicarBaseline(tenantCunhadoDatabaseUrl);
+    aplicarBaseline(tenantCunhadoDatabaseUrl);
 
     const prismaTenant = criarPrismaOperacional(tenantCunhadoDatabaseUrl);
     let configuracaoInicial;
@@ -322,7 +323,7 @@ async function executar() {
       where: { id: tenant.id },
       data: {
         status: "ATIVO",
-        versaoSchema: VERSAO_SCHEMA,
+        versaoSchema,
         connectionRef: CONNECTION_REF,
       },
       select: {
@@ -337,7 +338,7 @@ async function executar() {
 
     console.log(JSON.stringify({
       modo: "confirm",
-      baseline: VERSAO_SCHEMA,
+      baseline: versaoSchema,
       bancosDistintos: true,
       empresa: {
         slug: empresa.slug,
