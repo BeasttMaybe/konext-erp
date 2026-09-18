@@ -1,6 +1,7 @@
 // Helpers compartilhados pelos scripts de reparo de OS
 // (scripts/reparo/relatorio-os-inconsistentes.mjs e scripts/reparo/aplicar-reparo-os.mjs).
 import { types } from "@neondatabase/serverless";
+import { encontrarEntregaAuditada } from "../../lib/dominio/os/entrega-auditada.ts";
 
 // Tolerancia usada para "este evento e o mesmo momento que aquele timestamp":
 // o mesmo valor (2 segundos) ja usado em scripts/diagnostico/diagnosticar-tenants.mjs
@@ -105,24 +106,37 @@ export function tabelaMarkdown(linhas, colunas) {
 }
 
 /**
- * Ultima transicao PARA ENTREGUE registrada na auditoria desta OS — mesma
- * consulta de `obterMomentoEntregaAuditado` em app/actions/os.ts, reescrita
- * para o cliente `pg` (parametros posicionais, nao tagged template do Prisma).
+ * Entrega real desta OS, reconstruida da auditoria — usa a MESMA funcao pura
+ * de `app/actions/os.ts:obterMomentoEntregaAuditado`
+ * (lib/dominio/os/entrega-auditada.ts): a PRIMEIRA transicao para ENTREGUE,
+ * nunca um eco de resgate (Arquivar OS completando uma OS que ja estava
+ * ENTREGUE). Nome antigo era `buscarUltimaTransicaoEntregue` — pegava a mais
+ * RECENTE, o que confundia esse eco com uma entrega de verdade.
  */
-export async function buscarUltimaTransicaoEntregue(clientePg, osId) {
+export async function buscarEntregaAuditada(clientePg, osId) {
   const resultado = await clientePg.query(
-    `SELECT id, "criadoEm"
+    `SELECT id, "criadoEm",
+            "dadosAntes" ->> 'status' AS "statusAntes",
+            "dadosDepois" ->> 'status' AS "statusDepois",
+            "dadosDepois" ->> 'tipoFinalizacao' AS "tipoFinalizacao"
        FROM "LogAuditoria"
       WHERE entidade = 'ORDEM_SERVICO'
         AND "entidadeId" = $1
-        AND "dadosDepois" ->> 'status' = 'ENTREGUE'
-      ORDER BY "criadoEm" DESC
-      LIMIT 1`,
+        AND "dadosDepois" ->> 'status' = 'ENTREGUE'`,
     [osId]
   );
 
-  const linha = resultado.rows[0];
-  return linha ? { logId: String(linha.id), criadoEm: new Date(linha.criadoEm) } : null;
+  const encontrada = encontrarEntregaAuditada(
+    resultado.rows.map((linha) => ({
+      id: String(linha.id),
+      criadoEm: new Date(linha.criadoEm),
+      statusAntes: linha.statusAntes,
+      statusDepois: linha.statusDepois,
+      tipoFinalizacao: linha.tipoFinalizacao,
+    }))
+  );
+
+  return encontrada.encontrada ? { logId: encontrada.logId, criadoEm: encontrada.momento } : null;
 }
 
 /**

@@ -17,6 +17,7 @@ import {
 } from "@/lib/configuracoes-os-garantias";
 import type { OrdemServico, OrdemServicoExcluida, TipoPecaOrcamento } from "@/types/os";
 import { STATUS_OS_SEQUENCIA, motivoTransicaoNegada } from "@/lib/dominio/os/maquina-estados";
+import { encontrarEntregaAuditada } from "@/lib/dominio/os/entrega-auditada";
 import { ErroPermissao, exigirPermissao, temPermissao } from "@/lib/auth/permissoes";
 import {
   avaliarFinalizacao,
@@ -1110,29 +1111,47 @@ async function obterRegrasFinalizacao(prisma: PrismaTenant): Promise<RegrasConfi
  * Data de entrega usada como inicio da garantia no caso de RESGATE
  * (OS ja ENTREGUE a que falta o termo).
  *
- * Preferimos a ultima transicao para ENTREGUE registrada na auditoria: e a data
- * real em que o cliente recebeu o aparelho. Sem esse registro (OS legada,
- * anterior a trilha), cai para agora e o fato fica anotado na propria auditoria.
+ * A entrega real e a PRIMEIRA transicao auditada para ENTREGUE — nunca um eco
+ * de resgate (ver lib/dominio/os/entrega-auditada.ts para o motivo). Sem
+ * nenhuma transicao real registrada (OS legada, anterior a trilha), cai para
+ * agora e o fato fica anotado na propria auditoria como ESTIMADO.
  */
 async function obterMomentoEntregaAuditado(
   prisma: PrismaTenant,
   osId: string
 ): Promise<{ momento: Date; fonte: "AUDITORIA" | "ESTIMADO" }> {
   try {
-    const linhas = await prisma.$queryRaw<Array<{ criadoEm: Date }>>`
-      SELECT "criadoEm"
+    const linhas = await prisma.$queryRaw<
+      Array<{
+        id: string;
+        criadoEm: Date;
+        statusAntes: string | null;
+        statusDepois: string | null;
+        tipoFinalizacao: string | null;
+      }>
+    >`
+      SELECT id, "criadoEm",
+             "dadosAntes" ->> 'status' AS "statusAntes",
+             "dadosDepois" ->> 'status' AS "statusDepois",
+             "dadosDepois" ->> 'tipoFinalizacao' AS "tipoFinalizacao"
       FROM "LogAuditoria"
       WHERE entidade = 'ORDEM_SERVICO'
         AND "entidadeId" = ${osId}
         AND "dadosDepois" ->> 'status' = 'ENTREGUE'
-      ORDER BY "criadoEm" DESC
-      LIMIT 1
     `;
 
-    const registro = linhas[0];
+    const resultado = encontrarEntregaAuditada(
+      linhas.map((linha) => ({
+        id: String(linha.id),
+        criadoEm: new Date(linha.criadoEm),
+        statusAntes: linha.statusAntes,
+        statusDepois: linha.statusDepois,
+        tipoFinalizacao: linha.tipoFinalizacao,
+      }))
+    );
 
-    if (registro?.criadoEm) {
-      return { momento: new Date(registro.criadoEm), fonte: "AUDITORIA" };
+    if (resultado.encontrada) {
+      return { momento: resultado.momento, fonte: "AUDITORIA" };
     }
   } catch (erro) {
     // Trilha ausente ou tabela inexistente nao pode impedir o resgate da OS.
@@ -1269,9 +1288,9 @@ export async function finalizarOrdemServico(
     : { momento: new Date(), fonte: "AGORA" as const };
 
   // Rotulo estavel do tipo de finalizacao, gravado em toda auditoria desta
-  // funcao — lib/dominio/os/entrega-auditada.ts le exatamente este campo
-  // (junto com dadosAntes.status) para nunca confundir um resgate com uma
-  // entrega de verdade.
+  // funcao — ver lib/dominio/os/entrega-auditada.ts, que le exatamente este
+  // campo (junto com dadosAntes.status) para nunca confundir um resgate com
+  // uma entrega de verdade.
   const tipoFinalizacao = avaliacao.ehResgate ? ("RESGATE" as const) : ("ENTREGA" as const);
 
   const resultado = await prisma.$transaction(async (tx) => {

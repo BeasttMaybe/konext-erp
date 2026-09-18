@@ -38,7 +38,7 @@ import {
   buscarItensParaAvaliacao,
   buscarPagamentoConfirmado,
   buscarTermoAtivo,
-  buscarUltimaTransicaoEntregue,
+  buscarEntregaAuditada,
   buscarVendaVinculada,
   configurarParserTimestampUtc,
   formatarDataHora,
@@ -138,7 +138,7 @@ async function avaliarGrupoA(cliente, os, regras) {
   const pagamento = await buscarPagamentoConfirmado(cliente, os.id);
   const itens = await buscarItensParaAvaliacao(cliente, os.id);
   const possuiVendaVinculada = await buscarVendaVinculada(cliente, os.id);
-  const ultimaEntrega = await buscarUltimaTransicaoEntregue(cliente, os.id);
+  const ultimaEntrega = await buscarEntregaAuditada(cliente, os.id);
 
   const avaliacao = avaliarFinalizacao({
     status: os.status,
@@ -178,7 +178,7 @@ async function avaliarGrupoB(cliente, os, regras) {
   const pagamento = await buscarPagamentoConfirmado(cliente, os.id);
   const itens = await buscarItensParaAvaliacao(cliente, os.id);
   const possuiVendaVinculada = await buscarVendaVinculada(cliente, os.id);
-  const ultimaEntrega = await buscarUltimaTransicaoEntregue(cliente, os.id);
+  const ultimaEntrega = await buscarEntregaAuditada(cliente, os.id);
 
   const avaliacao = avaliarFinalizacao({
     status: os.status,
@@ -236,7 +236,7 @@ function motivoSeNaoPodeRecalcular(ultimaEntrega, diferencaMs, dataInicioAtual) 
  */
 async function avaliarGrupoC(cliente, linha) {
   const osId = String(linha.os_id);
-  const ultimaEntrega = await buscarUltimaTransicaoEntregue(cliente, osId);
+  const ultimaEntrega = await buscarEntregaAuditada(cliente, osId);
   const prazoDias = Number(linha.prazo_dias);
   const dataInicioAtual = new Date(linha.data_inicio_atual);
 
