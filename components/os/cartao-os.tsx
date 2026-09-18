@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { OrdemServico, SituacaoOS } from "@/types/os";
 import { ROTULOS_SITUACAO_OS } from "@/lib/dominio/os/maquina-estados";
 import { SITUACOES_VALIDAS_POR_ETAPA } from "@/lib/dominio/os/etapas";
@@ -16,14 +18,18 @@ import {
   RotateCcw,
   Archive,
   MoreVertical,
+  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ResumoTecnicosOS } from "./resumo-tecnicos-os";
+import { ModalTecnicosOS } from "./modal-tecnicos-os";
 
 interface CartaoOSProps {
   os: OrdemServico;
@@ -48,6 +54,8 @@ interface CartaoOSProps {
   estadoExplicacao?: string;
   /** Marca/limpa a situacao sem mover o card de coluna (Fase 1C-3, Parte 4). Ausente esconde o menu. */
   onAlterarSituacao?: (situacao: SituacaoOS | null) => void;
+  /** Permissao os.editar do usuario logado — controla so a acao rapida "Técnicos..." (Fase 1D-2). Ausente esconde a opção, nunca desabilita. */
+  podeEditarTecnicos?: boolean;
 }
 
 export function CartaoOS({
@@ -67,8 +75,12 @@ export function CartaoOS({
   onArquivar,
   estadoExplicacao,
   onAlterarSituacao,
+  podeEditarTecnicos = false,
 }: CartaoOSProps) {
+  const router = useRouter();
+  const [modalTecnicosAberto, setModalTecnicosAberto] = useState(false);
   const situacoesDisponiveis = SITUACOES_VALIDAS_POR_ETAPA[os.etapa];
+  const mostrarMenu = Boolean(onAlterarSituacao && situacoesDisponiveis.length > 0) || podeEditarTecnicos;
   const formatarMoeda = (valor: number) => {
     return new Intl.NumberFormat("pt-BR", {
       style: "currency",
@@ -116,7 +128,7 @@ export function CartaoOS({
                 Sem serviço
               </Badge>
             ) : null}
-            {onAlterarSituacao && situacoesDisponiveis.length > 0 ? (
+            {mostrarMenu ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -127,29 +139,46 @@ export function CartaoOS({
                     onClick={(event) => event.stopPropagation()}
                   >
                     <MoreVertical className="h-4 w-4" />
-                    <span className="sr-only">Situação da OS</span>
+                    <span className="sr-only">Mais ações</span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" onClick={(event) => event.stopPropagation()}>
-                  {situacoesDisponiveis.map((situacao) => (
-                    <DropdownMenuItem
-                      key={situacao}
-                      disabled={os.situacao === situacao}
-                      onClick={() => onAlterarSituacao(situacao)}
-                    >
-                      Marcar {ROTULOS_SITUACAO_OS[situacao].toLowerCase()}
-                    </DropdownMenuItem>
-                  ))}
-                  {os.situacao ? (
-                    <DropdownMenuItem onClick={() => onAlterarSituacao(null)}>
-                      Limpar situação
-                    </DropdownMenuItem>
-                  ) : null}
+                  {onAlterarSituacao && situacoesDisponiveis.length > 0 && (
+                    <>
+                      {situacoesDisponiveis.map((situacao) => (
+                        <DropdownMenuItem
+                          key={situacao}
+                          disabled={os.situacao === situacao}
+                          onClick={() => onAlterarSituacao(situacao)}
+                        >
+                          Marcar {ROTULOS_SITUACAO_OS[situacao].toLowerCase()}
+                        </DropdownMenuItem>
+                      ))}
+                      {os.situacao ? (
+                        <DropdownMenuItem onClick={() => onAlterarSituacao(null)}>
+                          Limpar situação
+                        </DropdownMenuItem>
+                      ) : null}
+                    </>
+                  )}
+                  {podeEditarTecnicos && (
+                    <>
+                      {onAlterarSituacao && situacoesDisponiveis.length > 0 && <DropdownMenuSeparator />}
+                      <DropdownMenuItem onClick={() => setModalTecnicosAberto(true)}>
+                        <Users className="mr-2 h-4 w-4" />
+                        Técnicos...
+                      </DropdownMenuItem>
+                    </>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : null}
           </div>
         </div>
+
+        {os.tecnicos.length > 0 && (
+          <ResumoTecnicosOS tecnicos={os.tecnicos} className="justify-end" />
+        )}
 
         {/* Client */}
         <div className="text-sm border-t border-border/60 pt-2">
@@ -303,6 +332,18 @@ export function CartaoOS({
           </Button>
         ) : null}
       </div>
+
+      {podeEditarTecnicos && (
+        <ModalTecnicosOS
+          key={modalTecnicosAberto ? `aberto-${os.id}` : `fechado-${os.id}`}
+          aberta={modalTecnicosAberto}
+          onAbrirMudar={setModalTecnicosAberto}
+          osId={os.id}
+          numeroOs={os.numeroOS}
+          tecnicosAtuais={os.tecnicos}
+          onSalvo={() => router.refresh()}
+        />
+      )}
     </Card>
   );
 }

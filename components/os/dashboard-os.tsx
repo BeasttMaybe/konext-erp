@@ -91,6 +91,8 @@ export function DashboardOS({
   // "Arquivar OS" (resgate) chama finalizarOrdemServico, que exige os.finalizar
   // no servidor — mesma permissao usada pra Entregar e finalizar normal.
   const podeFinalizarOS = useTemPermissao("os.finalizar");
+  // Atribuir tecnicos (Fase 1D-2) exige os.editar no servidor (definirTecnicosOS).
+  const podeEditarTecnicos = useTemPermissao("os.editar");
 
   const filteredActiveOrders = activeOrderServices.filter((os) =>
     os.numeroOS.toLowerCase().includes(buscaTexto.toLowerCase()) ||
@@ -552,6 +554,7 @@ export function DashboardOS({
                   onEntregarOS={handleEntregarOS}
                   onReabrirOS={podeReabrirOS ? handleReabrirOS : undefined}
                   podeArquivarOS={podeFinalizarOS}
+                  podeEditarTecnicos={podeEditarTecnicos}
                 />
             </div>
           ) : modoVisualizacao === "LISTA_FINALIZADAS" ? (

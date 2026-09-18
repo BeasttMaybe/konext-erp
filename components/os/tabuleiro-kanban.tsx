@@ -38,6 +38,8 @@ interface TabuleiroKanbanProps {
   onReabrirOS?: (os: OrdemServico) => Promise<boolean>;
   /** Permissao os.finalizar do usuario logado — controla so o botao "Arquivar OS" do resgate. */
   podeArquivarOS?: boolean;
+  /** Permissao os.editar do usuario logado — controla so a acao rapida "Técnicos..." do card (Fase 1D-2). */
+  podeEditarTecnicos?: boolean;
 }
 
 type AcaoOtimistaOS =
@@ -192,6 +194,7 @@ export function TabuleiroKanban({
   onEntregarOS,
   onReabrirOS,
   podeArquivarOS = false,
+  podeEditarTecnicos = false,
 }: TabuleiroKanbanProps) {
   const [, startTransition] = useTransition();
   // Guarda a OS em arraste para bloquear colunas invalidas em tempo real.
@@ -567,6 +570,7 @@ export function TabuleiroKanban({
                                     ? undefined
                                     : (situacao) => void alterarSituacao(os.id, situacao)
                                 }
+                                podeEditarTecnicos={podeEditarTecnicos}
                               />
                             </div>
                           )}

@@ -14,6 +14,8 @@ import { BotaoGerarPedidoVenda } from "@/components/os/botao-gerar-pedido-venda"
 import { BotaoCopiarLinkRastreio } from "@/components/os/botao-copiar-link-rastreio";
 import { AcaoGarantiaOS } from "@/components/os/garantias/acao-garantia-os";
 import { MenuImprimirOS } from "@/components/os/menu-imprimir-os";
+import { SecaoTecnicosOS } from "@/components/os/secao-tecnicos-os";
+import type { TecnicoDaOS } from "@/types/os";
 
 type PropsPaginaDetalheOS = {
   params: Promise<{
@@ -83,6 +85,12 @@ type OrdemServicoDetalhe = {
     } | null;
   }>;
   termoGarantia?: { id?: string | null } | null;
+  tecnicos?: Array<{
+    usuarioId?: string | null;
+    participacaoPercentual?: unknown;
+    principal?: boolean | null;
+    usuario?: { nome?: string | null } | null;
+  }>;
 };
 
 const mapaStatusLabel: Record<string, string> = {
@@ -180,6 +188,14 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
           },
         },
       },
+      tecnicos: {
+        select: {
+          usuarioId: true,
+          participacaoPercentual: true,
+          principal: true,
+          usuario: { select: { nome: true } },
+        },
+      },
     },
   });
 
@@ -220,6 +236,14 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
                   criadoEm: true,
                 },
               },
+            },
+          },
+          tecnicos: {
+            select: {
+              usuarioId: true,
+              participacaoPercentual: true,
+              principal: true,
+              usuario: { select: { nome: true } },
             },
           },
         },
@@ -273,6 +297,15 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
   const ehRetornoGarantia = Boolean(osBanco.ehRetornoGarantia);
   const entregueSemServico = Boolean(osBanco.entregueSemServico);
   const motivoSemServico = osBanco.motivoSemServico ? String(osBanco.motivoSemServico) : null;
+  const tecnicosNormalizados: TecnicoDaOS[] = (osBanco.tecnicos ?? [])
+    .filter((tecnico) => Boolean(tecnico?.usuarioId))
+    .map((tecnico) => ({
+      usuarioId: String(tecnico.usuarioId),
+      nome: String(tecnico.usuario?.nome ?? "Técnico"),
+      participacaoPercentual: Number(tecnico.participacaoPercentual ?? 0),
+      principal: Boolean(tecnico.principal),
+    }));
+  const podeEditarOS = temPermissao(contexto, "os.editar");
   const transacaoPdvVinculada = (osBanco.transacoes ?? []).find((transacao) => {
     return transacao?.vendaId && String(transacao.origem) === "ORDEM_SERVICO";
   });
@@ -489,6 +522,12 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
               </Card>
             )}
 
+            <SecaoTecnicosOS
+              osId={idOs}
+              numeroOs={numeroOsExibicao}
+              tecnicos={tecnicosNormalizados}
+              podeEditar={podeEditarOS}
+            />
             <SecaoItensOS osId={idOs} numeroOs={numeroOs} itens={itensNormalizados} />
             <Card className="border-border bg-white dark:bg-slate-900 p-5">
               <p className="text-xs text-slate-500 dark:text-slate-400">Criada em</p>
