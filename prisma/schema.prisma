@@ -277,6 +277,8 @@ model OrdemServico {
   acessorios     String?
 
   status      StatusOS @default(AGUARDANDO_ORCAMENTO)
+  etapa       EtapaOS  @default(ORCAMENTO)
+  situacao    SituacaoOS?
   ehRetornoGarantia Boolean @default(false)
   osOrigemGarantiaId String?
   osOrigemGarantia OrdemServico? @relation("RetornosGarantiaOS", fields: [osOrigemGarantiaId], references: [id])
@@ -307,6 +309,7 @@ model OrdemServico {
   @@index([ehRetornoGarantia])
   @@index([osOrigemGarantiaId])
   @@index([retornoGarantiaId])
+  @@index([etapa])
 }
 
 model TermoGarantiaOS {
@@ -394,6 +397,25 @@ enum StatusOS {
   GARANTIA_RETORNO
   PRONTO
   ENTREGUE
+}
+
+/**
+ * Fase 1C-3: as quatro etapas do fluxo de OS, substituindo os oito valores de
+ * StatusOS como fonte de leitura da aplicacao. `status` continua sendo
+ * escrito (escrita dupla) ate a fase de contrato remover a coluna — ver
+ * docs/operacao/migrations.md e lib/dominio/os/etapas.ts.
+ */
+enum EtapaOS {
+  ORCAMENTO
+  CONSERTO
+  PRONTO
+  ENTREGUE
+}
+
+/** Situacao independente da etapa — nunca implica mudanca de etapa por si so. */
+enum SituacaoOS {
+  AGUARDANDO_APROVACAO
+  AGUARDANDO_PECA
 }
 
 enum TipoPeca {
