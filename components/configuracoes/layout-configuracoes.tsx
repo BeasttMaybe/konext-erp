@@ -8,6 +8,7 @@ import {
   salvarConfiguracoes,
   type DadosConfiguracoes,
 } from "@/app/actions/configuracoes";
+import { useTemPermissao } from "@/contextos/contexto-permissoes";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -16,18 +17,12 @@ import {
   formatarTelefoneVisual,
 } from "@/lib/configuracoes-documentos";
 import { MenuConfiguracoes } from "./menu-configuracoes";
-import { PainelAparencia } from "./painel-aparencia";
-import { PainelAuditoria } from "./painel-auditoria";
-import { PainelCrm } from "./painel-crm";
 import { PainelDocumentos } from "./painel-documentos";
 import { PainelEmpresa } from "./painel-empresa";
-import { PainelEstoque } from "./painel-estoque";
-import { PainelFinanceiro } from "./painel-financeiro";
 import { PainelGarantias } from "./painel-garantias";
-import { PainelMetas } from "./painel-metas";
 import { PainelOs } from "./painel-os";
 import { PainelPdv } from "./painel-pdv";
-import { PainelUsuarios } from "./painel-usuarios";
+import { SecaoUsuariosCargos } from "./usuarios/secao-usuarios-cargos";
 import { SECOES_CONFIGURACOES, type SecaoConfiguracoesId } from "./tipos";
 
 type PropsLayoutConfiguracoes = {
@@ -49,6 +44,12 @@ function montarEnderecoCompleto(dados: {
 }
 
 export function LayoutConfiguracoes({ defaultValues }: PropsLayoutConfiguracoes) {
+  const podeVerUsuariosCargos = useTemPermissao("configuracoes.usuarios");
+  const secoesVisiveis = useMemo(
+    () => SECOES_CONFIGURACOES.filter((secao) => secao.id !== "usuarios" || podeVerUsuariosCargos),
+    [podeVerUsuariosCargos]
+  );
+
   const [secaoAtiva, setSecaoAtiva] = useState<SecaoConfiguracoesId>("empresa");
   const [salvando, setSalvando] = useState(false);
   const [buscandoCnpj, setBuscandoCnpj] = useState(false);
@@ -75,11 +76,11 @@ export function LayoutConfiguracoes({ defaultValues }: PropsLayoutConfiguracoes)
     secaoAtiva === "documentos" ||
     secaoAtiva === "os" ||
     secaoAtiva === "garantias" ||
-    secaoAtiva === "pdv-vendas";
+    secaoAtiva === "pdv-caixa";
 
   const descricaoSecaoAtiva = useMemo(() => {
-    return SECOES_CONFIGURACOES.find((secao) => secao.id === secaoAtiva)?.descricao ?? "";
-  }, [secaoAtiva]);
+    return secoesVisiveis.find((secao) => secao.id === secaoAtiva)?.descricao ?? "";
+  }, [secoesVisiveis, secaoAtiva]);
 
   const aoBuscarDadosCnpj = async () => {
     try {
@@ -193,7 +194,7 @@ export function LayoutConfiguracoes({ defaultValues }: PropsLayoutConfiguracoes)
             configuracaoAtual={configuracaoAtual}
           />
         );
-      case "pdv-vendas":
+      case "pdv-caixa":
         return (
           <PainelPdv
             register={register}
@@ -202,20 +203,8 @@ export function LayoutConfiguracoes({ defaultValues }: PropsLayoutConfiguracoes)
             configuracaoAtual={configuracaoAtual}
           />
         );
-      case "financeiro":
-        return <PainelFinanceiro />;
-      case "estoque":
-        return <PainelEstoque />;
-      case "crm":
-        return <PainelCrm />;
-      case "metas":
-        return <PainelMetas />;
       case "usuarios":
-        return <PainelUsuarios />;
-      case "auditoria":
-        return <PainelAuditoria />;
-      case "aparencia":
-        return <PainelAparencia />;
+        return podeVerUsuariosCargos ? <SecaoUsuariosCargos /> : null;
       default:
         return null;
     }
@@ -225,7 +214,7 @@ export function LayoutConfiguracoes({ defaultValues }: PropsLayoutConfiguracoes)
     <form onSubmit={handleSubmit(aoSalvar)} className="space-y-4">
       <div className="grid grid-cols-1 xl:grid-cols-[320px_1fr] gap-4">
         <MenuConfiguracoes
-          secoes={SECOES_CONFIGURACOES}
+          secoes={secoesVisiveis}
           secaoAtiva={secaoAtiva}
           onSelecionarSecao={setSecaoAtiva}
         />
@@ -234,7 +223,7 @@ export function LayoutConfiguracoes({ defaultValues }: PropsLayoutConfiguracoes)
           <Card className="border-border bg-card p-4">
             <p className="text-sm text-muted-foreground">Seção ativa</p>
             <p className="text-base font-semibold text-foreground">
-              {SECOES_CONFIGURACOES.find((secao) => secao.id === secaoAtiva)?.rotulo}
+              {secoesVisiveis.find((secao) => secao.id === secaoAtiva)?.rotulo}
             </p>
             <p className="text-sm text-muted-foreground mt-1">{descricaoSecaoAtiva}</p>
           </Card>
@@ -243,18 +232,14 @@ export function LayoutConfiguracoes({ defaultValues }: PropsLayoutConfiguracoes)
         </div>
       </div>
 
-      <div className="sticky bottom-3 flex justify-end">
-        <div className="flex items-center gap-3 rounded-xl border border-border bg-background/95 px-3 py-2 shadow-sm backdrop-blur">
-          <p className="text-xs text-muted-foreground">
-            {secaoComPersistenciaAtiva
-              ? formState.isDirty
+      {secaoComPersistenciaAtiva && (
+        <div className="sticky bottom-3 flex justify-end">
+          <div className="flex items-center gap-3 rounded-xl border border-border bg-background/95 px-3 py-2 shadow-sm backdrop-blur">
+            <p className="text-xs text-muted-foreground">
+              {formState.isDirty
                 ? "Há alterações pendentes nesta etapa."
-                : "Nenhuma alteração pendente no formulário atual."
-              : secaoAtiva === "aparencia"
-                ? "As opções desta seção já funcionam e são aplicadas na hora — não há formulário para salvar aqui."
-                : "Esta seção ainda não tem nada para salvar — é só uma prévia do que vem nas próximas etapas."}
-          </p>
-          {secaoComPersistenciaAtiva && (
+                : "Nenhuma alteração pendente no formulário atual."}
+            </p>
             <Button
               type="submit"
               disabled={salvando}
@@ -268,13 +253,13 @@ export function LayoutConfiguracoes({ defaultValues }: PropsLayoutConfiguracoes)
                     ? "Salvar regras de OS"
                     : secaoAtiva === "garantias"
                       ? "Salvar regras de garantia"
-                      : secaoAtiva === "pdv-vendas"
+                      : secaoAtiva === "pdv-caixa"
                         ? "Salvar regras de PDV"
                         : "Salvar empresa"}
             </Button>
-          )}
+          </div>
         </div>
-      </div>
+      )}
     </form>
   );
 }

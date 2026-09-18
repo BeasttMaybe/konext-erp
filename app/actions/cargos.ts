@@ -120,7 +120,7 @@ function primeiroErroZod(erro: z.ZodError): string {
  * configuracoes.usuarios — base pra checar a invariante "sempre sobra 1
  * admin ativo" (lib/auth/invariantes-cargos.ts).
  */
-async function listarUsuariosComAcessoAdmin(empresaId: string): Promise<UsuarioComAcessoAdmin[]> {
+export async function listarUsuariosComAcessoAdmin(empresaId: string): Promise<UsuarioComAcessoAdmin[]> {
   const vinculos = await prismaCentral.usuarioEmpresa.findMany({
     where: { empresaId },
     select: {
