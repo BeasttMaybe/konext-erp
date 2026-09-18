@@ -9,12 +9,13 @@ const OPCOES_PERIODO: Array<{ valor: PeriodoDashboard; rotulo: string }> = [
   { valor: "mes", rotulo: "Mês" },
 ];
 
-type BarraContextoProps = {
+type CabecalhoDashboardProps = {
   empresa: string;
   periodo: PeriodoDashboard;
 };
 
-export function BarraContexto({ empresa, periodo }: BarraContextoProps) {
+/** Cabeçalho da home (Fase 3-2A): nome da empresa, data e seletor de período. */
+export function CabecalhoDashboard({ empresa, periodo }: CabecalhoDashboardProps) {
   const dataHoje = new Intl.DateTimeFormat("pt-BR", {
     day: "2-digit",
     month: "long",
@@ -22,14 +23,13 @@ export function BarraContexto({ empresa, periodo }: BarraContextoProps) {
   }).format(new Date());
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <p className="text-sm text-muted-foreground">
-        <span className="font-medium text-foreground">{empresa}</span>
-        <span className="mx-2 text-border">|</span>
-        {dataHoje}
-      </p>
+    <div className="flex flex-wrap items-center justify-between gap-kx-3">
+      <div>
+        <h1 className="text-lg font-semibold text-kx-texto">{empresa}</h1>
+        <p className="text-sm text-kx-legenda">{dataHoje}</p>
+      </div>
 
-      <nav aria-label="Período" className="flex items-center gap-1">
+      <nav aria-label="Período" className="flex items-center gap-1 rounded-kx-botao bg-kx-superficie p-1">
         {OPCOES_PERIODO.map((opcao) => {
           const ativo = opcao.valor === periodo;
 
@@ -39,10 +39,8 @@ export function BarraContexto({ empresa, periodo }: BarraContextoProps) {
               href={`/?periodo=${opcao.valor}`}
               aria-current={ativo ? "page" : undefined}
               className={cn(
-                "rounded-md px-2.5 py-1 text-sm transition-colors",
-                ativo
-                  ? "bg-muted font-medium text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
+                "flex h-11 items-center rounded-kx-botao px-3 text-sm font-medium transition-colors",
+                ativo ? "bg-kx-primaria/15 text-kx-primaria" : "text-kx-legenda hover:text-kx-texto"
               )}
             >
               {opcao.rotulo}
