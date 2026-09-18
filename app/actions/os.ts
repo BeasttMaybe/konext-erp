@@ -1117,7 +1117,7 @@ async function obterRegrasFinalizacao(prisma: PrismaTenant): Promise<RegrasConfi
 async function obterMomentoEntregaAuditado(
   prisma: PrismaTenant,
   osId: string
-): Promise<{ momento: Date; fonte: "AUDITORIA" | "AGORA" }> {
+): Promise<{ momento: Date; fonte: "AUDITORIA" | "ESTIMADO" }> {
   try {
     const linhas = await prisma.$queryRaw<Array<{ criadoEm: Date }>>`
       SELECT "criadoEm"
@@ -1142,7 +1142,7 @@ async function obterMomentoEntregaAuditado(
     });
   }
 
-  return { momento: new Date(), fonte: "AGORA" };
+  return { momento: new Date(), fonte: "ESTIMADO" };
 }
 
 export type ResultadoFinalizarOrdemServico =
@@ -1268,6 +1268,12 @@ export async function finalizarOrdemServico(
     ? await obterMomentoEntregaAuditado(prisma, osId)
     : { momento: new Date(), fonte: "AGORA" as const };
 
+  // Rotulo estavel do tipo de finalizacao, gravado em toda auditoria desta
+  // funcao — lib/dominio/os/entrega-auditada.ts le exatamente este campo
+  // (junto com dadosAntes.status) para nunca confundir um resgate com uma
+  // entrega de verdade.
+  const tipoFinalizacao = avaliacao.ehResgate ? ("RESGATE" as const) : ("ENTREGA" as const);
+
   const resultado = await prisma.$transaction(async (tx) => {
     let termoGarantiaId = ordemServico.termoGarantia?.id;
     let garantiaGerada = false;
@@ -1286,6 +1292,7 @@ export async function finalizarOrdemServico(
           ),
           extras: {
             ehResgate: avaliacao.ehResgate,
+            tipoFinalizacao,
             fonteDataEntrega: entrega.fonte,
             ...descreverAutoria(contexto),
           },
@@ -1330,6 +1337,7 @@ export async function finalizarOrdemServico(
           garantiaGerada,
           prazoGarantiaDias: prazoGarantiaAplicado,
           ehResgate: avaliacao.ehResgate,
+          tipoFinalizacao,
           // Registra de onde veio a data de entrega no resgate, para que a
           // origem do numero seja auditavel depois.
           fonteDataEntrega: entrega.fonte,
@@ -1465,6 +1473,7 @@ export async function finalizarSemServico(
           status: "ENTREGUE",
           archivedAt: agora.toISOString(),
           entregueSemServico: true,
+          tipoFinalizacao: "ENTREGA",
           ...descreverAutoria(contexto),
         },
         motivo,
