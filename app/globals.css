@@ -7,6 +7,18 @@
 
 @layer base {
   :root {
+    /*
+     * Sem isso, o navegador pinta o "chrome" nativo (popup de <select>,
+     * calendario de <input type="date">, spinners) com o tema claro do SO,
+     * mesmo com o app inteiro escuro — o texto de cada <option> fica igual
+     * (herda a cor do app) e some contra o fundo branco do SO. Fixo em
+     * "dark" por enquanto porque não existe ainda um tema claro de verdade
+     * (só o dark dos tokens `--kx-*` está pronto); quando o tema claro
+     * existir, isto vira "light dark" pra o navegador escolher pelo tema
+     * ativo.
+     */
+    color-scheme: dark;
+
     --background: 0 0% 100%;
     --foreground: 240 10% 3.9%;
     --card: 0 0% 100%;
@@ -226,4 +238,38 @@ input[type="number"]::-webkit-inner-spin-button {
 input[type="number"] {
   -moz-appearance: textfield;
   appearance: textfield;
+}
+
+/*
+ * <select>/<option> nativos: `color-scheme: dark` (acima) já resolve a
+ * maioria dos navegadores, mas alguns (Firefox e Chrome mais antigo no
+ * Windows) ignoram a cor herdada de dentro do popup de opções e pintam o
+ * texto com a cor do app mesmo assim — daí o texto escuro sumindo contra o
+ * fundo escuro que o SO desenha. Declarar explicitamente com os tokens do
+ * design system resolve nos dois casos.
+ */
+select {
+  background-color: var(--kx-superficie);
+  color: var(--kx-texto);
+}
+
+select option {
+  background-color: var(--kx-painel);
+  color: var(--kx-texto);
+}
+
+/*
+ * <input type="date">/"time"/"color">: o campo em si já segue o tema do
+ * app (ver components/ui/input.tsx), mas o popup nativo (calendário,
+ * seletor de hora, paleta de cor) é "chrome" do navegador — só
+ * `color-scheme` controla a cor dele. O ícone do calendário/relógio
+ * também é pintado a partir de `color-scheme`, então já nasce legível.
+ */
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"],
+input[type="month"],
+input[type="week"],
+input[type="color"] {
+  color-scheme: dark;
 }
