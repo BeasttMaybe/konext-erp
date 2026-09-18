@@ -187,6 +187,8 @@
   --color-kx-garantia: var(--kx-garantia);
   --color-kx-garantia-pilula-fundo: var(--kx-garantia-pilula-fundo);
   --color-kx-garantia-pilula-texto: var(--kx-garantia-pilula-texto);
+  --color-kx-garantia-fundo: var(--kx-garantia-fundo);
+  --color-kx-garantia-texto: var(--kx-garantia-texto);
   --color-kx-sucesso: var(--kx-sucesso);
   --color-kx-sucesso-fundo: var(--kx-sucesso-fundo);
   --color-kx-sucesso-texto: var(--kx-sucesso-texto);

@@ -57,10 +57,14 @@
   --kx-entregue-fundo: #332f6b;
   --kx-entregue-texto: #c7caff;
 
-  /* ---- Cor: garantia (indicador — a pílula abaixo é quem carrega texto) ---- */
+  /* ---- Cor: garantia (indicador — a pílula abaixo é quem carrega texto) ----
+     --kx-garantia-fundo/-texto (Fase 3-2A) reaproveitam o mesmo par da pílula —
+     mesma cor, nome mais genérico pra também servir de fundo de ícone de cartão. */
   --kx-garantia: #c2408f;
   --kx-garantia-pilula-fundo: #4a2b52;
   --kx-garantia-pilula-texto: #f9a8d4;
+  --kx-garantia-fundo: #4a2b52;
+  --kx-garantia-texto: #f9a8d4;
 
   /* ---- Cor: feedback (indicador) + pílulas suaves (texto) ---- */
   --kx-sucesso: #34d399;
@@ -162,6 +166,8 @@
   --kx-garantia: #c2408f;
   --kx-garantia-pilula-fundo: #fce7f3;
   --kx-garantia-pilula-texto: #9d2670;
+  --kx-garantia-fundo: #fce7f3;
+  --kx-garantia-texto: #9d2670;
 
   /* ---- Cor: feedback ---- */
   --kx-sucesso: #0a7d55;

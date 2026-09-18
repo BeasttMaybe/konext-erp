@@ -17,6 +17,8 @@ const faixaVariants = cva("absolute inset-y-0 left-0 w-1 rounded-l-kx-cartao", {
       alerta: "bg-kx-alerta",
       erro: "bg-kx-erro",
       neutro: "bg-kx-legenda",
+      azul: "bg-kx-conserto",
+      garantia: "bg-kx-garantia",
     },
   },
   defaultVariants: { variante: "primaria" },
@@ -30,6 +32,8 @@ const iconeVariants = cva("flex h-10 w-10 shrink-0 items-center justify-center r
       alerta: "bg-kx-alerta-fundo text-kx-alerta-texto",
       erro: "bg-kx-erro-fundo text-kx-erro-texto",
       neutro: "bg-muted text-muted-foreground",
+      azul: "bg-kx-conserto-fundo text-kx-conserto-texto",
+      garantia: "bg-kx-garantia-fundo text-kx-garantia-texto",
     },
   },
   defaultVariants: { variante: "primaria" },
@@ -42,7 +46,8 @@ export type PropsCartaoIndicador = Omit<React.HTMLAttributes<HTMLDivElement>, "t
     icone?: React.ReactNode;
     /** Variação percentual — positiva mostra seta pra cima, negativa pra baixo. Sem prop = não mostra nada. */
     tendenciaPercentual?: number;
-    descricao?: string;
+    /** Aceita nó React pra permitir destaque pontual (ex.: um trecho em --kx-alerta) sem quebrar quem só passa string. */
+    descricao?: React.ReactNode;
   };
 
 function CartaoIndicador({
