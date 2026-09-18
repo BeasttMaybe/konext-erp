@@ -1,11 +1,19 @@
 /**
  * Maquina de estados da Ordem de Servico — dominio puro.
  *
- * Fonte UNICA de verdade para a sequencia de status, rotulos, cores e
- * transicoes permitidas. Antes da Fase 1A essa informacao estava duplicada em
- * quatro lugares (app/actions/os.ts, components/os/tabuleiro-kanban.tsx,
- * dados/mock-os.ts e o proprio enum do Prisma), com dois esquemas de cor
- * diferentes e nenhuma regra de alcancabilidade.
+ * Fonte UNICA de verdade para a sequencia de etapas, rotulos, cores e
+ * transicoes permitidas — ver a secao "ETAPA (Fase 1C-3)" abaixo, que e a
+ * API viva usada pela aplicacao. Antes da Fase 1A essa informacao estava
+ * duplicada em quatro lugares (app/actions/os.ts,
+ * components/os/tabuleiro-kanban.tsx, dados/mock-os.ts e o proprio enum do
+ * Prisma), com dois esquemas de cor diferentes e nenhuma regra de
+ * alcancabilidade.
+ *
+ * A primeira metade do arquivo (StatusOS e as funcoes que operam sobre ele)
+ * e o modelo LEGADO de 8 status — mantido so porque a coluna `status` ainda
+ * existe pra escrita dupla (ver lib/dominio/os/etapas.ts e
+ * docs/operacao/migrations.md secao 7). Nenhum codigo novo deve decidir uma
+ * transicao com base nele; use as funcoes de etapa.
  *
  * Este modulo nao importa Prisma, React nem Next: e testavel sem banco.
  */
@@ -274,4 +282,182 @@ export function motivoTransicaoNegada(
   }
 
   return `Não é possível mover a OS de "${ROTULOS_STATUS_OS[de]}" para "${ROTULOS_STATUS_OS[para]}".`;
+}
+
+// ============================================================================
+// ETAPA (Fase 1C-3) — API viva. Toda decisao de transicao nova usa isto, nao
+// as funcoes de StatusOS acima.
+// ============================================================================
+
+export type { EtapaOS, SituacaoOS } from "./etapas";
+import type { EtapaOS, SituacaoOS } from "./etapas";
+
+/** Ordem de exibicao das colunas do Kanban e dos contadores do topo. */
+export const ETAPA_OS_SEQUENCIA = ["ORCAMENTO", "CONSERTO", "PRONTO", "ENTREGUE"] as const satisfies readonly EtapaOS[];
+
+export const ROTULOS_ETAPA_OS: Readonly<Record<EtapaOS, string>> = {
+  ORCAMENTO: "Orçamento",
+  CONSERTO: "Conserto",
+  PRONTO: "Pronto",
+  ENTREGUE: "Entregue",
+};
+
+export const DESCRICOES_ETAPA_OS: Readonly<Record<EtapaOS, string>> = {
+  ORCAMENTO: "Entrada, diagnóstico e aprovação do orçamento.",
+  CONSERTO: "Execução técnica do reparo.",
+  PRONTO: "Aguardando retirada.",
+  ENTREGUE: "Fluxo concluído com sucesso.",
+};
+
+export const ROTULOS_SITUACAO_OS: Readonly<Record<SituacaoOS, string>> = {
+  AGUARDANDO_APROVACAO: "Aguardando aprovação",
+  AGUARDANDO_PECA: "Aguardando peça",
+};
+
+/** Cores aprovadas pra Fase 1C-3 (ver prompt da fase) — uma por etapa, em hexadecimal puro. */
+export const HEX_ETAPA_OS: Readonly<Record<EtapaOS, string>> = {
+  ORCAMENTO: "#FBBF24",
+  CONSERTO: "#60A5FA",
+  PRONTO: "#34D399",
+  ENTREGUE: "#8B91FF",
+};
+
+export type ClassesVisuaisEtapaOS = {
+  /** Gradiente do cabecalho da coluna do Kanban. */
+  readonly coluna: string;
+  /** Borda da coluna do Kanban. */
+  readonly borda: string;
+  /** Chip compacto usado no cartao e nas tabelas. */
+  readonly chip: string;
+};
+
+export const CLASSES_ETAPA_OS: Readonly<Record<EtapaOS, ClassesVisuaisEtapaOS>> = {
+  ORCAMENTO: {
+    coluna: "from-amber-50 via-white to-white dark:from-amber-950/40 dark:via-slate-900 dark:to-slate-900",
+    borda: "border-amber-300/80 dark:border-amber-900/60",
+    chip: "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300",
+  },
+  CONSERTO: {
+    coluna: "from-sky-50 via-white to-white dark:from-sky-950/40 dark:via-slate-900 dark:to-slate-900",
+    borda: "border-sky-300/80 dark:border-sky-900/60",
+    chip: "bg-sky-100 text-sky-700 dark:bg-sky-950/50 dark:text-sky-300",
+  },
+  PRONTO: {
+    coluna: "from-emerald-50 via-white to-white dark:from-emerald-950/40 dark:via-slate-900 dark:to-slate-900",
+    borda: "border-emerald-300/80 dark:border-emerald-900/60",
+    chip: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300",
+  },
+  ENTREGUE: {
+    coluna: "from-indigo-50 via-white to-white dark:from-indigo-950/40 dark:via-slate-900 dark:to-slate-900",
+    borda: "border-[#8B91FF]/50 dark:border-[#8B91FF]/40",
+    chip: "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300",
+  },
+};
+
+export function ehEtapaOS(valor: string): valor is EtapaOS {
+  return (ETAPA_OS_SEQUENCIA as readonly string[]).includes(valor);
+}
+
+/**
+ * Etapas em que uma OS do tipo informado pode legitimamente estar.
+ * ENTREGUE aparece aqui porque e um estagio valido — mas so se chega nele
+ * pela finalizacao, nunca por mudanca generica de etapa.
+ */
+export function etapasPermitidasParaTipo(contexto: ContextoTransicaoOS): readonly EtapaOS[] {
+  return contexto.ehRetornoGarantia
+    ? (["CONSERTO", "PRONTO", "ENTREGUE"] as const)
+    : ETAPA_OS_SEQUENCIA;
+}
+
+/**
+ * Regra central de etapa. Cobre APENAS mudanca generica de etapa.
+ *
+ * Duas transicoes ficam de fora por definicao e sao tratadas por acoes
+ * dedicadas, com regras e auditoria proprias — mesma exigencia do modelo
+ * legado acima:
+ *   - qualquer -> ENTREGUE  ....... finalizarOrdemServico/finalizarSemServico
+ *   - ENTREGUE -> qualquer  ....... reabrirOrdemServico
+ *
+ * `situacao` NAO participa desta funcao: ela e lida/gravada por uma acao
+ * separada (ver normalizarSituacao em etapas.ts) que nunca move a etapa.
+ */
+export function podeTransicionarEtapa(
+  de: EtapaOS,
+  para: EtapaOS,
+  contexto: ContextoTransicaoOS
+): boolean {
+  if (de === para) {
+    return false;
+  }
+
+  // ENTREGUE so entra pela finalizacao e so sai pela reabertura.
+  if (para === "ENTREGUE" || de === "ENTREGUE") {
+    return false;
+  }
+
+  if (contexto.ehRetornoGarantia) {
+    // Retorno de garantia nunca visita ORCAMENTO: comeca em CONSERTO e so
+    // conversa com PRONTO.
+    if (de === "CONSERTO") return para === "PRONTO";
+    if (de === "PRONTO") return para === "CONSERTO";
+    return false;
+  }
+
+  // OS normal: ORCAMENTO e CONSERTO conversam livremente entre si (pular
+  // orcamento e permitido de proposito — a oficina nem sempre orca antes de
+  // consertar, ver AUDIT_REPORT secao 16.7-d), ambas levam a PRONTO direto, e
+  // PRONTO so volta pra CONSERTO (retrabalho, nunca pra ORCAMENTO de novo).
+  if (de === "ORCAMENTO") return para === "CONSERTO" || para === "PRONTO";
+  if (de === "CONSERTO") return para === "ORCAMENTO" || para === "PRONTO";
+  if (de === "PRONTO") return para === "CONSERTO";
+
+  return false;
+}
+
+/** Todos os destinos alcancaveis a partir de `de`, na ordem do Kanban. */
+export function destinosPermitidosEtapa(
+  de: EtapaOS,
+  contexto: ContextoTransicaoOS
+): readonly EtapaOS[] {
+  return ETAPA_OS_SEQUENCIA.filter((destino) => podeTransicionarEtapa(de, destino, contexto));
+}
+
+/**
+ * Mensagem em pt-BR explicando por que a transicao de etapa foi negada.
+ * Retorna null quando a transicao e permitida.
+ */
+export function motivoTransicaoNegadaEtapa(
+  de: EtapaOS,
+  para: EtapaOS,
+  contexto: ContextoTransicaoOS
+): string | null {
+  if (podeTransicionarEtapa(de, para, contexto)) {
+    return null;
+  }
+
+  if (de === para) {
+    return `A OS já está em "${ROTULOS_ETAPA_OS[para]}".`;
+  }
+
+  if (para === "ENTREGUE") {
+    return 'Para entregar a OS, use a ação "Finalizar": ela gera o termo de garantia e arquiva a OS na mesma operação.';
+  }
+
+  if (de === "ENTREGUE") {
+    return 'Esta OS já foi entregue. Para movê-la novamente, use a ação "Reabrir OS" e informe o motivo.';
+  }
+
+  if (contexto.ehRetornoGarantia) {
+    if (para === "ORCAMENTO") {
+      return "OS de retorno de garantia não passa por Orçamento. Use Conserto ou Pronto.";
+    }
+
+    return `Não é possível mover uma OS de retorno de garantia de "${ROTULOS_ETAPA_OS[de]}" para "${ROTULOS_ETAPA_OS[para]}".`;
+  }
+
+  if (de === "PRONTO") {
+    return 'Uma OS pronta só pode voltar para "Conserto" (retrabalho).';
+  }
+
+  return `Não é possível mover a OS de "${ROTULOS_ETAPA_OS[de]}" para "${ROTULOS_ETAPA_OS[para]}".`;
 }

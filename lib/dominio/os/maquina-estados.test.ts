@@ -1,14 +1,21 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ETAPA_OS_SEQUENCIA,
   STATUS_OS_EM_ANDAMENTO,
   STATUS_OS_SEQUENCIA,
   destinosPermitidos,
+  destinosPermitidosEtapa,
+  ehEtapaOS,
   ehResgatePendente,
   ehStatusOS,
+  etapasPermitidasParaTipo,
   motivoTransicaoNegada,
+  motivoTransicaoNegadaEtapa,
   podeTransicionar,
+  podeTransicionarEtapa,
   statusPermitidosParaTipo,
+  type EtapaOS,
   type StatusOS,
 } from "./maquina-estados";
 
@@ -239,5 +246,195 @@ describe("statusPermitidosParaTipo", () => {
     expect(permitidos).not.toContain("AGUARDANDO_ORCAMENTO");
     expect(permitidos).not.toContain("AGUARDANDO_APROVACAO");
     expect(permitidos).not.toContain("APROVADO");
+  });
+});
+
+// ============================================================================
+// ETAPA (Fase 1C-3)
+// ============================================================================
+
+function ordenarEtapasPelaSequencia(etapas: readonly EtapaOS[]): EtapaOS[] {
+  return ETAPA_OS_SEQUENCIA.filter((item) => etapas.includes(item));
+}
+
+/** Matriz esperada para OS normal: de -> destinos permitidos. */
+const MATRIZ_ETAPA_NORMAL: Readonly<Record<EtapaOS, EtapaOS[]>> = {
+  ORCAMENTO: ["CONSERTO", "PRONTO"],
+  CONSERTO: ["ORCAMENTO", "PRONTO"],
+  PRONTO: ["CONSERTO"],
+  ENTREGUE: [],
+};
+
+/** Matriz esperada para OS de retorno de garantia: nunca visita ORCAMENTO. */
+const MATRIZ_ETAPA_GARANTIA: Readonly<Record<EtapaOS, EtapaOS[]>> = {
+  ORCAMENTO: [],
+  CONSERTO: ["PRONTO"],
+  PRONTO: ["CONSERTO"],
+  ENTREGUE: [],
+};
+
+describe("ehEtapaOS", () => {
+  it("aceita todas as etapas da sequencia", () => {
+    for (const etapa of ETAPA_OS_SEQUENCIA) {
+      expect(ehEtapaOS(etapa)).toBe(true);
+    }
+  });
+
+  it("rejeita valores fora do enum, inclusive status legados", () => {
+    expect(ehEtapaOS("APROVADO")).toBe(false);
+    expect(ehEtapaOS("")).toBe(false);
+    expect(ehEtapaOS("entregue")).toBe(false);
+  });
+});
+
+describe("podeTransicionarEtapa — matriz completa da OS normal", () => {
+  for (const de of ETAPA_OS_SEQUENCIA) {
+    for (const para of ETAPA_OS_SEQUENCIA) {
+      const esperado = MATRIZ_ETAPA_NORMAL[de].includes(para);
+
+      it(`${de} -> ${para} = ${esperado}`, () => {
+        expect(podeTransicionarEtapa(de, para, OS_NORMAL)).toBe(esperado);
+      });
+    }
+  }
+});
+
+describe("podeTransicionarEtapa — matriz completa da OS de retorno de garantia", () => {
+  for (const de of ETAPA_OS_SEQUENCIA) {
+    for (const para of ETAPA_OS_SEQUENCIA) {
+      const esperado = MATRIZ_ETAPA_GARANTIA[de].includes(para);
+
+      it(`${de} -> ${para} = ${esperado}`, () => {
+        expect(podeTransicionarEtapa(de, para, OS_GARANTIA)).toBe(esperado);
+      });
+    }
+  }
+});
+
+describe("invariantes do ciclo de vida por etapa", () => {
+  it("ENTREGUE nunca e alcancavel por mudanca generica de etapa", () => {
+    for (const de of ETAPA_OS_SEQUENCIA) {
+      expect(podeTransicionarEtapa(de, "ENTREGUE", OS_NORMAL)).toBe(false);
+      expect(podeTransicionarEtapa(de, "ENTREGUE", OS_GARANTIA)).toBe(false);
+    }
+  });
+
+  it("ENTREGUE nunca sai por mudanca generica de etapa", () => {
+    for (const para of ETAPA_OS_SEQUENCIA) {
+      expect(podeTransicionarEtapa("ENTREGUE", para, OS_NORMAL)).toBe(false);
+      expect(podeTransicionarEtapa("ENTREGUE", para, OS_GARANTIA)).toBe(false);
+    }
+  });
+
+  it("nenhuma etapa transiciona para si mesma", () => {
+    for (const etapa of ETAPA_OS_SEQUENCIA) {
+      expect(podeTransicionarEtapa(etapa, etapa, OS_NORMAL)).toBe(false);
+      expect(podeTransicionarEtapa(etapa, etapa, OS_GARANTIA)).toBe(false);
+    }
+  });
+
+  it("OS de retorno de garantia nunca visita ORCAMENTO, nos dois sentidos", () => {
+    for (const outra of ETAPA_OS_SEQUENCIA) {
+      expect(podeTransicionarEtapa(outra, "ORCAMENTO", OS_GARANTIA)).toBe(false);
+      expect(podeTransicionarEtapa("ORCAMENTO", outra, OS_GARANTIA)).toBe(false);
+    }
+  });
+
+  it("OS normal pode pular Conserto e ir direto pra Pronto, dos dois lados", () => {
+    expect(podeTransicionarEtapa("ORCAMENTO", "PRONTO", OS_NORMAL)).toBe(true);
+    expect(podeTransicionarEtapa("CONSERTO", "PRONTO", OS_NORMAL)).toBe(true);
+  });
+
+  it("OS normal volta de Pronto so pra Conserto (retrabalho), nunca pra Orcamento", () => {
+    expect(podeTransicionarEtapa("PRONTO", "CONSERTO", OS_NORMAL)).toBe(true);
+    expect(podeTransicionarEtapa("PRONTO", "ORCAMENTO", OS_NORMAL)).toBe(false);
+  });
+
+  it("OS de garantia comeca em Conserto e so conversa com Pronto", () => {
+    expect(podeTransicionarEtapa("CONSERTO", "PRONTO", OS_GARANTIA)).toBe(true);
+    expect(podeTransicionarEtapa("PRONTO", "CONSERTO", OS_GARANTIA)).toBe(true);
+  });
+});
+
+describe("destinosPermitidosEtapa", () => {
+  it("bate com a matriz da OS normal, na ordem do Kanban", () => {
+    for (const de of ETAPA_OS_SEQUENCIA) {
+      expect(destinosPermitidosEtapa(de, OS_NORMAL)).toEqual(ordenarEtapasPelaSequencia(MATRIZ_ETAPA_NORMAL[de]));
+    }
+  });
+
+  it("bate com a matriz da OS de retorno de garantia", () => {
+    for (const de of ETAPA_OS_SEQUENCIA) {
+      expect(destinosPermitidosEtapa(de, OS_GARANTIA)).toEqual(
+        ordenarEtapasPelaSequencia(MATRIZ_ETAPA_GARANTIA[de])
+      );
+    }
+  });
+
+  it("nunca inclui ENTREGUE", () => {
+    for (const de of ETAPA_OS_SEQUENCIA) {
+      expect(destinosPermitidosEtapa(de, OS_NORMAL)).not.toContain("ENTREGUE");
+      expect(destinosPermitidosEtapa(de, OS_GARANTIA)).not.toContain("ENTREGUE");
+    }
+  });
+});
+
+describe("motivoTransicaoNegadaEtapa", () => {
+  it("devolve null quando a transicao e permitida", () => {
+    expect(motivoTransicaoNegadaEtapa("ORCAMENTO", "CONSERTO", OS_NORMAL)).toBeNull();
+    expect(motivoTransicaoNegadaEtapa("CONSERTO", "PRONTO", OS_GARANTIA)).toBeNull();
+  });
+
+  it("aponta a finalizacao ao tentar mover para ENTREGUE", () => {
+    expect(motivoTransicaoNegadaEtapa("PRONTO", "ENTREGUE", OS_NORMAL)).toContain("Finalizar");
+  });
+
+  it("aponta a reabertura ao tentar mover a partir de ENTREGUE", () => {
+    expect(motivoTransicaoNegadaEtapa("ENTREGUE", "PRONTO", OS_NORMAL)).toContain("Reabrir OS");
+  });
+
+  it("explica que retorno de garantia nao passa por Orcamento", () => {
+    expect(motivoTransicaoNegadaEtapa("CONSERTO", "ORCAMENTO", OS_GARANTIA)).toContain("Orçamento");
+  });
+
+  it("explica o retrabalho ao tentar voltar de Pronto pra Orcamento", () => {
+    expect(motivoTransicaoNegadaEtapa("PRONTO", "ORCAMENTO", OS_NORMAL)).toContain("retrabalho");
+  });
+
+  it("avisa quando a OS ja esta na etapa pedida", () => {
+    expect(motivoTransicaoNegadaEtapa("CONSERTO", "CONSERTO", OS_NORMAL)).toContain("já está");
+  });
+
+  it("sempre devolve mensagem quando a transicao e negada", () => {
+    for (const de of ETAPA_OS_SEQUENCIA) {
+      for (const para of ETAPA_OS_SEQUENCIA) {
+        for (const contexto of [OS_NORMAL, OS_GARANTIA]) {
+          const permitido = podeTransicionarEtapa(de, para, contexto);
+          const motivo = motivoTransicaoNegadaEtapa(de, para, contexto);
+
+          if (permitido) {
+            expect(motivo).toBeNull();
+          } else {
+            expect(motivo).toBeTypeOf("string");
+            expect(String(motivo).length).toBeGreaterThan(5);
+          }
+        }
+      }
+    }
+  });
+});
+
+describe("etapasPermitidasParaTipo", () => {
+  it("OS normal inclui as 4 etapas", () => {
+    const permitidas = etapasPermitidasParaTipo(OS_NORMAL);
+    expect(permitidas).toEqual(ETAPA_OS_SEQUENCIA);
+  });
+
+  it("OS de garantia nao inclui ORCAMENTO", () => {
+    const permitidas = etapasPermitidasParaTipo(OS_GARANTIA);
+    expect(permitidas).not.toContain("ORCAMENTO");
+    expect(permitidas).toContain("CONSERTO");
+    expect(permitidas).toContain("PRONTO");
+    expect(permitidas).toContain("ENTREGUE");
   });
 });
