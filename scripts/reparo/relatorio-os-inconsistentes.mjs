@@ -32,16 +32,20 @@ import {
   mascararConnectionString,
 } from "../lib/conexao-somente-leitura.mjs";
 import {
+  LIMIAR_HORAS_RECALCULO_GARANTIA,
   TOLERANCIA_SEGUNDOS_EVENTO,
   adicionarDias,
+  buscarItensParaAvaliacao,
   buscarPagamentoConfirmado,
-  buscarQuantidadeItens,
   buscarTermoAtivo,
   buscarUltimaTransicaoEntregue,
+  buscarVendaVinculada,
   configurarParserTimestampUtc,
   formatarDataHora,
   tabelaMarkdown,
 } from "../lib/reparo-os.mjs";
+
+const LIMIAR_MS_RECALCULO_GARANTIA = LIMIAR_HORAS_RECALCULO_GARANTIA * 60 * 60 * 1000;
 
 // Ver o comentario de configurarParserTimestampUtc em scripts/lib/reparo-os.mjs:
 // sem isto, o snapshot que este script grava em reparo-os.json (lido via
@@ -132,7 +136,8 @@ async function buscarCandidatosGrupoC(cliente) {
 async function avaliarGrupoA(cliente, os, regras) {
   const termo = await buscarTermoAtivo(cliente, os.id);
   const pagamento = await buscarPagamentoConfirmado(cliente, os.id);
-  const quantidadeItens = await buscarQuantidadeItens(cliente, os.id);
+  const itens = await buscarItensParaAvaliacao(cliente, os.id);
+  const possuiVendaVinculada = await buscarVendaVinculada(cliente, os.id);
   const ultimaEntrega = await buscarUltimaTransicaoEntregue(cliente, os.id);
 
   const avaliacao = avaliarFinalizacao({
@@ -141,9 +146,10 @@ async function avaliarGrupoA(cliente, os, regras) {
     excluidaEm: os.excluidaEm,
     archivedAt: os.archivedAt,
     possuiTermoGarantia: termo !== null,
-    quantidadeItens,
+    itens,
     observacoes: os.observacoes,
     possuiPagamentoConfirmado: pagamento !== null,
+    possuiVendaVinculada,
     regras,
   });
 
@@ -170,7 +176,8 @@ async function avaliarGrupoA(cliente, os, regras) {
 async function avaliarGrupoB(cliente, os, regras) {
   const termo = await buscarTermoAtivo(cliente, os.id);
   const pagamento = await buscarPagamentoConfirmado(cliente, os.id);
-  const quantidadeItens = await buscarQuantidadeItens(cliente, os.id);
+  const itens = await buscarItensParaAvaliacao(cliente, os.id);
+  const possuiVendaVinculada = await buscarVendaVinculada(cliente, os.id);
   const ultimaEntrega = await buscarUltimaTransicaoEntregue(cliente, os.id);
 
   const avaliacao = avaliarFinalizacao({
@@ -179,9 +186,10 @@ async function avaliarGrupoB(cliente, os, regras) {
     excluidaEm: os.excluidaEm,
     archivedAt: os.archivedAt,
     possuiTermoGarantia: termo !== null,
-    quantidadeItens,
+    itens,
     observacoes: os.observacoes,
     possuiPagamentoConfirmado: pagamento !== null,
+    possuiVendaVinculada,
     regras,
   });
 
@@ -205,13 +213,38 @@ async function avaliarGrupoB(cliente, os, regras) {
   };
 }
 
+function motivoSeNaoPodeRecalcular(ultimaEntrega, diferencaMs, dataInicioAtual) {
+  if (ultimaEntrega === null) {
+    return "sem transicao ENTREGUE auditada para esta OS";
+  }
+  if (diferencaMs <= 0) {
+    return `a entrega auditada (${formatarDataHora(ultimaEntrega.criadoEm)}) nao e posterior ao inicio de garantia atual (${formatarDataHora(dataInicioAtual)}) — recalcular encurtaria ou nao mudaria a garantia, e isso nunca e permitido`;
+  }
+  if (diferencaMs <= LIMIAR_MS_RECALCULO_GARANTIA) {
+    return `a entrega auditada (${formatarDataHora(ultimaEntrega.criadoEm)}) e so ${(diferencaMs / 3_600_000).toFixed(1)}h posterior ao inicio atual (${formatarDataHora(dataInicioAtual)}) — abaixo do limiar de ${LIMIAR_HORAS_RECALCULO_GARANTIA}h, tratado como ruido e nao como o bug historico`;
+  }
+  return null;
+}
+
+/**
+ * So sugere recalculo quando a entrega auditada e mais de
+ * LIMIAR_HORAS_RECALCULO_GARANTIA horas POSTERIOR ao dataInicioGarantia atual
+ * (ver o comentario da constante em scripts/lib/reparo-os.mjs) — nunca quando
+ * e anterior, igual, ou proxima demais pra ser ruido. Como o prazo em dias
+ * nao muda, isso tambem garante que dataFimGarantia so pode mover pra frente:
+ * a garantia nunca encurta.
+ */
 async function avaliarGrupoC(cliente, linha) {
   const osId = String(linha.os_id);
   const ultimaEntrega = await buscarUltimaTransicaoEntregue(cliente, osId);
   const prazoDias = Number(linha.prazo_dias);
+  const dataInicioAtual = new Date(linha.data_inicio_atual);
 
-  const dataInicioRecalculada = ultimaEntrega ? ultimaEntrega.criadoEm : null;
-  const dataFimRecalculada = ultimaEntrega ? adicionarDias(ultimaEntrega.criadoEm, prazoDias) : null;
+  const diferencaMs = ultimaEntrega ? ultimaEntrega.criadoEm.getTime() - dataInicioAtual.getTime() : null;
+  const podeRecalcular = ultimaEntrega !== null && diferencaMs > LIMIAR_MS_RECALCULO_GARANTIA;
+
+  const dataInicioRecalculada = podeRecalcular ? ultimaEntrega.criadoEm : null;
+  const dataFimRecalculada = podeRecalcular ? adicionarDias(ultimaEntrega.criadoEm, prazoDias) : null;
 
   return {
     termoId: String(linha.termo_id),
@@ -219,15 +252,15 @@ async function avaliarGrupoC(cliente, linha) {
     numeroOs: Number(linha.numero_os),
     statusOsAtual: linha.os_status,
     prazoGarantiaDias: prazoDias,
-    dataInicioGarantiaAtual: new Date(linha.data_inicio_atual),
+    dataInicioGarantiaAtual: dataInicioAtual,
     dataFimGarantiaAtual: new Date(linha.data_fim_atual),
     termoAtualizadoEmSnapshot: new Date(linha.termo_atualizado_em),
     eventoNaoEntregueDetectado: { logId: String(linha.evento_id), status: linha.evento_status, criadoEm: new Date(linha.evento_criado_em) },
     ultimaTransicaoEntregueAuditada: ultimaEntrega,
     dataInicioGarantiaRecalculada: dataInicioRecalculada,
     dataFimGarantiaRecalculada: dataFimRecalculada,
-    podeRecalcular: ultimaEntrega !== null,
-    motivoSeNaoPode: ultimaEntrega === null ? "sem transicao ENTREGUE auditada para esta OS" : null,
+    podeRecalcular,
+    motivoSeNaoPode: motivoSeNaoPodeRecalcular(ultimaEntrega, diferencaMs, dataInicioAtual),
   };
 }
 
@@ -309,7 +342,13 @@ completo.
   criava o termo ainda em PRONTO, ancorado no ultimo \`atualizadoEm\` da OS, em
   vez da entrega real). Nenhuma correcao e sugerida como certa: o relatorio so
   mostra o que a data **passaria a ser** se recalculada a partir da ultima
-  entrega auditada desta OS, quando ela existe.
+  entrega auditada desta OS, quando ela existe. \`podeRecalcular\` so fica
+  \`true\` quando essa entrega auditada e mais de ${LIMIAR_HORAS_RECALCULO_GARANTIA}h
+  **posterior** ao \`dataInicioGarantia\` atual do termo — nunca quando e
+  anterior, igual, ou proxima demais pra ser ruido de relogio. Como o prazo em
+  dias do termo nao muda, isso garante ao mesmo tempo que o recalculo nunca
+  **encurta** a garantia: se o inicio so pode mover pra frente, o fim tambem
+  so move pra frente.
 - Elegibilidade (\`podeAplicar\`) para os grupos A e B vem de
   \`avaliarFinalizacao\` (\`lib/dominio/os/regras-finalizacao.ts\`) — a mesma
   funcao pura usada por \`finalizarOrdemServico\` em produção. Uma OS com

@@ -7,6 +7,22 @@ import { types } from "@neondatabase/serverless";
 // para comparar OrdemServico.atualizadoEm contra o ultimo evento de auditoria.
 export const TOLERANCIA_SEGUNDOS_EVENTO = 2;
 
+/**
+ * Limiar minimo, em horas, para o Grupo C sugerir o recalculo de
+ * dataInicioGarantia. So recalcula quando a entrega ENTREGUE auditada e mais
+ * de LIMIAR_HORAS_RECALCULO_GARANTIA horas POSTERIOR ao dataInicioGarantia
+ * atual do termo — nunca quando e anterior ou proxima o suficiente pra ser
+ * ruido de fuso/relogio.
+ *
+ * Como dataFimGarantia = dataInicioGarantia + prazoGarantiaDias (prazo fixo),
+ * exigir "entrega auditada > inicio atual + limiar" garante ao mesmo tempo as
+ * duas regras exigidas pelo arquiteto: (1) so mexe quando a diferenca e
+ * grande o bastante pra ser o bug historico, de verdade, e nao ruido; e (2) a
+ * data recalculada NUNCA encurta a garantia — inicio so pode mover pra
+ * frente, entao o fim tambem so move pra frente.
+ */
+export const LIMIAR_HORAS_RECALCULO_GARANTIA = 24;
+
 const OID_TIMESTAMP_SEM_FUSO = 1114;
 
 /**
@@ -162,11 +178,44 @@ export async function buscarTermoAtivo(clientePg, osId) {
   };
 }
 
-export async function buscarQuantidadeItens(clientePg, osId) {
+/**
+ * Itens no formato que lib/dominio/os/regras-finalizacao.ts:avaliarFinalizacao
+ * exige (`itens: ItemParaAvaliacaoFinalizacao[]`) — mesmo mapeamento
+ * custoPeca -> custo / valorCobrado -> precoVenda de
+ * app/actions/os.ts:finalizarOrdemServico.
+ */
+export async function buscarItensParaAvaliacao(clientePg, osId) {
   const resultado = await clientePg.query(
-    `SELECT COUNT(*)::int AS quantidade FROM "ItemOS" WHERE "osId" = $1`,
+    `SELECT id, descricao, "custoPeca" AS custo, "valorCobrado" AS "precoVenda"
+       FROM "ItemOS"
+      WHERE "osId" = $1
+      ORDER BY "criadoEm" ASC`,
     [osId]
   );
 
-  return Number(resultado.rows[0]?.quantidade ?? 0);
+  return resultado.rows.map((linha) => ({
+    id: String(linha.id),
+    descricao: linha.descricao,
+    custo: Number(linha.custo),
+    precoVenda: Number(linha.precoVenda),
+  }));
+}
+
+/**
+ * "Pedido gerado no PDV" — mesmo criterio de
+ * app/actions/os.ts:finalizarOrdemServico (`possuiVendaVinculada`): existe um
+ * ContaReceber com origem ORDEM_SERVICO e vendaId preenchido para esta OS.
+ */
+export async function buscarVendaVinculada(clientePg, osId) {
+  const resultado = await clientePg.query(
+    `SELECT EXISTS (
+        SELECT 1 FROM "ContaReceber" cr
+         WHERE cr."ordemServicoId" = $1
+           AND cr."vendaId" IS NOT NULL
+           AND cr.origem = 'ORDEM_SERVICO'
+     ) AS possui`,
+    [osId]
+  );
+
+  return Boolean(resultado.rows[0]?.possui);
 }
