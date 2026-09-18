@@ -1832,7 +1832,7 @@ export async function obterDashboardExecutivo(
       tipo: "GARANTIAS",
       titulo: "Garantias vencendo em 7 dias",
       descricao: `${garantiasVencem7Dias} garantia(s) perto do vencimento.`,
-      href: "/os/garantias",
+      href: "/os?modo=garantia",
       criticidade: "ATENCAO",
     });
   }
@@ -1842,7 +1842,7 @@ export async function obterDashboardExecutivo(
       tipo: "GARANTIAS",
       titulo: "Retornos de garantia em andamento",
       descricao: `${retornosEmAndamento} retorno(s) aguardando finalização.`,
-      href: "/os/garantias",
+      href: "/os?modo=garantia",
       criticidade: "INFO",
     });
   }
@@ -2040,7 +2040,7 @@ export async function obterDashboardExecutivo(
       subtitulo: limparIdentificadores(retorno.motivo) || undefined,
       data: retorno.finalizadoEm ?? retorno.criadoEm,
       status: retorno.finalizadoEm ? "Concluído" : "Em garantia",
-      href: "/os/garantias",
+      href: "/os?modo=garantia",
     })),
     ...historicosMetasRecentes.map((historico) => ({
       id: `META-${historico.id}`,

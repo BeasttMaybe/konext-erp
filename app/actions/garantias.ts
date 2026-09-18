@@ -1521,7 +1521,6 @@ export async function registrarRetornoGarantiaOS(input: RegistrarRetornoGarantia
 
     revalidatePath("/");
     revalidatePath("/os");
-    revalidatePath("/os/garantias");
     if (transacao.osOrigemId) {
       revalidatePath(`/os/${transacao.osOrigemId}`);
       revalidatePath(`/os/${transacao.osOrigemId}/garantia`);
@@ -1746,7 +1745,6 @@ export async function finalizarRetornoGarantiaOS(input: FinalizarRetornoGarantia
 
     revalidatePath("/");
     revalidatePath("/os");
-    revalidatePath("/os/garantias");
     revalidatePath("/financeiro");
     if (retornoFinalizado.osRetornoId) {
       revalidatePath(`/os/${retornoFinalizado.osRetornoId}`);

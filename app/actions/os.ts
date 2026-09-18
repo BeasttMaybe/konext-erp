@@ -236,7 +236,6 @@ function revalidarOrdemServico(osId: string): void {
   revalidatePath("/os");
   revalidatePath(`/os/${osId}`);
   revalidatePath(`/os/${osId}/garantia`);
-  revalidatePath("/os/garantias");
   revalidatePath("/financeiro");
 }
 
@@ -1888,7 +1887,6 @@ export async function excluirOrdemServico(input: EntradaExcluirOrdemServico): Pr
 
     revalidatePath("/");
     revalidatePath("/os");
-    revalidatePath("/os/garantias");
     revalidatePath(`/os/${idNormalizado}`);
     revalidatePath(`/os/${idNormalizado}/garantia`);
     revalidatePath("/financeiro");

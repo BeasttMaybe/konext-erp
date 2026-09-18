@@ -1,12 +1,31 @@
 import { DashboardOS } from "@/components/os/dashboard-os";
 import { obterDadosDashboardOS } from "@/app/actions/os";
 import { obterConfiguracoes } from "@/app/actions/configuracoes";
+import { listarGarantiasOS, obterDashboardGarantiasOS, type DashboardGarantiasOS, type LinhaGarantiaOS } from "@/app/actions/garantias";
 
 export const metadata = {
   title: "Ordem de Serviço - Konext ERP",
   description: "Gerenciar ordens de serviço e manutenção",
 };
 
+const DASHBOARD_GARANTIAS_VAZIO: DashboardGarantiasOS = {
+  garantiasAtivas: 0,
+  vencemEm7Dias: 0,
+  garantiasVencidas: 0,
+  comRetorno: 0,
+  taxaRetorno: 0,
+  valorEmGarantia: 0,
+  principaisServicosEmRetorno: [],
+  pecasComMaisRetorno: [],
+};
+
+const FILTROS_GARANTIAS_INICIAIS = {
+  busca: "",
+  status: "TODAS" as const,
+  retorno: "TODAS" as const,
+  pagina: 1,
+  tamanhoPagina: 20,
+};
 
 export default async function OSPage({
   searchParams,
@@ -16,17 +35,25 @@ export default async function OSPage({
   const params = await searchParams;
   const clienteIdInicial = params.clienteId ?? null;
   const modoParam = String(params.modo ?? "").toLowerCase();
+  // "excluidas" e o link antigo de uma aba propria — vira o filtro de
+  // excluidas ja ligado dentro da aba Finalizadas (Fase 1C-3, Parte 5).
   const modoInicial =
-    modoParam === "lista"
+    modoParam === "lista" || modoParam === "excluidas"
       ? "LISTA_FINALIZADAS"
-      : modoParam === "excluidas"
-        ? "LISTA_EXCLUIDAS"
+      : modoParam === "garantia"
+        ? "GARANTIA"
         : "KANBAN";
+  const mostrarExcluidasInicial = modoParam === "excluidas";
 
-  const [dadosDashboard, configuracoes] = await Promise.all([
+  const [dadosDashboard, configuracoes, dashboardGarantias, listagemGarantias] = await Promise.all([
     obterDadosDashboardOS(),
     obterConfiguracoes(),
+    obterDashboardGarantiasOS().catch(() => DASHBOARD_GARANTIAS_VAZIO),
+    listarGarantiasOS(FILTROS_GARANTIAS_INICIAIS),
   ]);
+
+  const linhasGarantiasIniciais: LinhaGarantiaOS[] = listagemGarantias.sucesso ? listagemGarantias.dados : [];
+  const erroGarantiasInicial = listagemGarantias.sucesso ? null : listagemGarantias.erro;
 
   return (
     <div className="w-full h-full flex flex-col overflow-hidden bg-transparent">
@@ -52,9 +79,13 @@ export default async function OSPage({
               deletedOrderServices={dadosDashboard.ordensExcluidas}
               clienteIdInicial={clienteIdInicial}
               modoInicial={modoInicial}
+              mostrarExcluidasInicial={mostrarExcluidasInicial}
               prazoGarantiaPadraoDias={configuracoes.prazoGarantiaPadraoDias}
               prazoMinimoGarantiaDias={configuracoes.prazoMinimoGarantiaDias}
               prazoMaximoGarantiaDias={configuracoes.prazoMaximoGarantiaDias}
+              dashboardGarantiasInicial={dashboardGarantias}
+              linhasGarantiasIniciais={linhasGarantiasIniciais}
+              erroGarantiasInicial={erroGarantiasInicial}
             />
           </div>
         </div>

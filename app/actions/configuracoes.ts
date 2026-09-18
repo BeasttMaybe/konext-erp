@@ -1228,7 +1228,6 @@ export async function salvarConfiguracoes(data: DadosConfiguracoes) {
   revalidatePath("/vendas");
   revalidatePath("/financeiro");
   revalidatePath("/os");
-  revalidatePath("/os/garantias");
   revalidatePath("/");
   revalidatePath("/crm/propostas");
   revalidatePath("/vendas/historico");

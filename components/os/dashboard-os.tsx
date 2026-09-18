@@ -25,7 +25,8 @@ import {
   atualizarEtapaOrdemServico,
   atualizarSituacaoOrdemServico,
 } from "@/app/actions/os";
-import { finalizarRetornoGarantiaOS } from "@/app/actions/garantias";
+import { finalizarRetornoGarantiaOS, type DashboardGarantiasOS, type LinhaGarantiaOS } from "@/app/actions/garantias";
+import { PaginaGarantiasOS } from "@/components/os/garantias/pagina-garantias-os";
 import { ehResgatePendente, HEX_ETAPA_OS, ROTULOS_ETAPA_OS } from "@/lib/dominio/os/maquina-estados";
 import { useTemPermissao } from "@/contextos/contexto-permissoes";
 import { SemPermissaoAcao } from "@/components/ui/sem-permissao-acao";
@@ -38,10 +39,16 @@ interface DashboardOSProps {
   deletedOrderServices: OrdemServicoExcluida[];
   /** Quando fornecido, abre o modal de nova OS automaticamente e pré-seleciona o cliente. */
   clienteIdInicial?: string | null;
-  modoInicial?: "KANBAN" | "LISTA_FINALIZADAS" | "LISTA_EXCLUIDAS";
+  modoInicial?: "KANBAN" | "LISTA_FINALIZADAS" | "GARANTIA";
+  /** Liga o filtro de excluidas ja na primeira renderizacao (link antigo /os?modo=excluidas). */
+  mostrarExcluidasInicial?: boolean;
   prazoGarantiaPadraoDias?: number;
   prazoMinimoGarantiaDias?: number;
   prazoMaximoGarantiaDias?: number;
+  /** Carregados no servidor junto com a pagina /os — a aba Garantia nunca busca no cliente no primeiro render (Fase 1C-3, Parte 5). */
+  dashboardGarantiasInicial: DashboardGarantiasOS;
+  linhasGarantiasIniciais: LinhaGarantiaOS[];
+  erroGarantiasInicial?: string | null;
 }
 
 type DadosNovaOS = Parameters<typeof criarOrdemServico>[0];
@@ -52,14 +59,19 @@ export function DashboardOS({
   deletedOrderServices,
   clienteIdInicial,
   modoInicial = "KANBAN",
+  mostrarExcluidasInicial = false,
   prazoGarantiaPadraoDias = 90,
   prazoMinimoGarantiaDias = 1,
   prazoMaximoGarantiaDias = 365,
+  dashboardGarantiasInicial,
+  linhasGarantiasIniciais,
+  erroGarantiasInicial = null,
 }: DashboardOSProps) {
   const router = useRouter();
   const [modalAberta, setModalAberta] = useState(Boolean(clienteIdInicial));
   const [buscaTexto, setBuscaTexto] = useState("");
-  const [modoVisualizacao, setModoVisualizacao] = useState<"KANBAN" | "LISTA_FINALIZADAS" | "LISTA_EXCLUIDAS">(modoInicial);
+  const [modoVisualizacao, setModoVisualizacao] = useState<"KANBAN" | "LISTA_FINALIZADAS" | "GARANTIA">(modoInicial);
+  const [mostrarExcluidas, setMostrarExcluidas] = useState(mostrarExcluidasInicial);
   const [osParaFinalizar, setOsParaFinalizar] = useState<OrdemServico | null>(null);
   const [osFinalizandoId, setOsFinalizandoId] = useState<string | null>(null);
   const [requerGarantiaFinalizacao, setRequerGarantiaFinalizacao] = useState(false);
@@ -426,7 +438,7 @@ export function DashboardOS({
         </Button>
       </div>
 
-      {/* Modo de visualização */}
+      {/* Abas: Kanban | Finalizadas | Garantia — Excluidas virou filtro (Fase 1C-3, Parte 5) */}
       <div className="flex flex-wrap items-center gap-2">
         <Button
           type="button"
@@ -454,23 +466,14 @@ export function DashboardOS({
         </Button>
         <Button
           type="button"
-          variant={modoVisualizacao === "LISTA_EXCLUIDAS" ? "default" : "outline"}
+          variant={modoVisualizacao === "GARANTIA" ? "default" : "outline"}
           onClick={() => {
-            setModoVisualizacao("LISTA_EXCLUIDAS");
-            router.push("/os?modo=excluidas");
+            setModoVisualizacao("GARANTIA");
+            router.push("/os?modo=garantia");
           }}
           className="h-9"
         >
-          <ArchiveX className="w-4 h-4 mr-2" />
-          Excluídas
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => router.push("/os/garantias")}
-          className="h-9"
-        >
-          Garantias
+          Garantia
         </Button>
       </div>
 
@@ -520,8 +523,10 @@ export function DashboardOS({
             {modoVisualizacao === "KANBAN"
               ? "Quadro de Ordens de Serviço"
               : modoVisualizacao === "LISTA_FINALIZADAS"
-                ? "Lista de Finalizadas e Entregues"
-                : "Lista de Ordens de Serviço Excluídas"}
+                ? mostrarExcluidas
+                  ? "Lista de Ordens de Serviço Excluídas"
+                  : "Lista de Finalizadas e Entregues"
+                : "Garantias"}
           </h2>
 
           {modoVisualizacao === "KANBAN" && filteredActiveOrders.length === 0 ? (
@@ -575,17 +580,80 @@ export function DashboardOS({
                   .
                 </p>
               )}
-              <label className="mb-3 flex w-fit items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-                <input
-                  type="checkbox"
-                  checked={somenteSemServico}
-                  onChange={(evento) => setSomenteSemServico(evento.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 dark:border-slate-600"
-                />
-                Mostrar só entregues sem serviço
-              </label>
+              <div className="mb-3 flex flex-wrap items-center gap-4">
+                <label className="flex w-fit items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                  <input
+                    type="checkbox"
+                    checked={mostrarExcluidas}
+                    onChange={(evento) => setMostrarExcluidas(evento.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 dark:border-slate-600"
+                  />
+                  <ArchiveX className="h-4 w-4" />
+                  Mostrar excluídas
+                </label>
+                {!mostrarExcluidas && (
+                  <label className="flex w-fit items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                    <input
+                      type="checkbox"
+                      checked={somenteSemServico}
+                      onChange={(evento) => setSomenteSemServico(evento.target.checked)}
+                      className="h-4 w-4 rounded border-slate-300 dark:border-slate-600"
+                    />
+                    Mostrar só entregues sem serviço
+                  </label>
+                )}
+              </div>
 
-              {filteredArchivedOrders.length === 0 ? (
+              {mostrarExcluidas ? (
+                filteredDeletedOrders.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-center">
+                    <AlertCircle className="w-12 h-12 text-slate-300 mb-4" />
+                    <p className="text-slate-500 font-medium">
+                      Nenhuma ordem de serviço excluída encontrada.
+                    </p>
+                  </div>
+                ) : (
+                  <table className="w-full min-w-[1120px] text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200 dark:border-slate-700 text-left text-slate-500 dark:text-slate-400">
+                        <th className="py-2 pr-3 font-medium">Nº OS</th>
+                        <th className="py-2 pr-3 font-medium">Cliente</th>
+                        <th className="py-2 pr-3 font-medium">Equipamento</th>
+                        <th className="py-2 pr-3 font-medium">Orçamento</th>
+                        <th className="py-2 pr-3 font-medium">Status anterior</th>
+                        <th className="py-2 pr-3 font-medium">Excluída por</th>
+                        <th className="py-2 pr-3 font-medium">Motivo da exclusão</th>
+                        <th className="py-2 pr-3 font-medium">Excluída em</th>
+                        <th className="py-2 pr-0 font-medium text-right">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredDeletedOrders.map((os) => (
+                        <tr
+                          key={os.id}
+                          className="border-b border-slate-100 dark:border-slate-700/70 text-slate-700 dark:text-slate-200"
+                        >
+                          <td className="py-3 pr-3 font-semibold">{os.numeroOS}</td>
+                          <td className="py-3 pr-3">{os.nomeCliente}</td>
+                          <td className="py-3 pr-3">{os.equipamento}</td>
+                          <td className="py-3 pr-3">{formatarMoeda(os.totalOrcamento)}</td>
+                          <td className="py-3 pr-3">
+                            <Badge variant="outline">{os.statusAnterior}</Badge>
+                          </td>
+                          <td className="py-3 pr-3">{os.excluidaPor}</td>
+                          <td className="py-3 pr-3 max-w-[320px] truncate" title={os.motivoExclusao}>
+                            {os.motivoExclusao}
+                          </td>
+                          <td className="py-3 pr-3 text-slate-500 dark:text-slate-400">
+                            {formatarDataHora(os.excluidaEm)}
+                          </td>
+                          <td className="py-3 pr-0 text-right text-xs text-slate-500">Somente leitura</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )
+              ) : filteredArchivedOrders.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 text-center">
                   <AlertCircle className="w-12 h-12 text-slate-300 mb-4" />
                   <p className="text-slate-500 font-medium">
@@ -676,55 +744,12 @@ export function DashboardOS({
                 </table>
               )}
             </div>
-          ) : filteredDeletedOrders.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <AlertCircle className="w-12 h-12 text-slate-300 mb-4" />
-              <p className="text-slate-500 font-medium">
-                Nenhuma ordem de serviço excluída encontrada.
-              </p>
-            </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[1120px] text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 dark:border-slate-700 text-left text-slate-500 dark:text-slate-400">
-                    <th className="py-2 pr-3 font-medium">Nº OS</th>
-                    <th className="py-2 pr-3 font-medium">Cliente</th>
-                    <th className="py-2 pr-3 font-medium">Equipamento</th>
-                    <th className="py-2 pr-3 font-medium">Orçamento</th>
-                    <th className="py-2 pr-3 font-medium">Status anterior</th>
-                    <th className="py-2 pr-3 font-medium">Excluída por</th>
-                    <th className="py-2 pr-3 font-medium">Motivo da exclusão</th>
-                    <th className="py-2 pr-3 font-medium">Excluída em</th>
-                    <th className="py-2 pr-0 font-medium text-right">Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredDeletedOrders.map((os) => (
-                    <tr
-                      key={os.id}
-                      className="border-b border-slate-100 dark:border-slate-700/70 text-slate-700 dark:text-slate-200"
-                    >
-                      <td className="py-3 pr-3 font-semibold">{os.numeroOS}</td>
-                      <td className="py-3 pr-3">{os.nomeCliente}</td>
-                      <td className="py-3 pr-3">{os.equipamento}</td>
-                      <td className="py-3 pr-3">{formatarMoeda(os.totalOrcamento)}</td>
-                      <td className="py-3 pr-3">
-                        <Badge variant="outline">{os.statusAnterior}</Badge>
-                      </td>
-                      <td className="py-3 pr-3">{os.excluidaPor}</td>
-                      <td className="py-3 pr-3 max-w-[320px] truncate" title={os.motivoExclusao}>
-                        {os.motivoExclusao}
-                      </td>
-                      <td className="py-3 pr-3 text-slate-500 dark:text-slate-400">
-                        {formatarDataHora(os.excluidaEm)}
-                      </td>
-                      <td className="py-3 pr-0 text-right text-xs text-slate-500">Somente leitura</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <PaginaGarantiasOS
+              dashboardInicial={dashboardGarantiasInicial}
+              linhasIniciais={linhasGarantiasIniciais}
+              erroInicial={erroGarantiasInicial}
+            />
           )}
         </div>
       </Card>

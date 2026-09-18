@@ -42,7 +42,7 @@ export const ITENS_NAVEGACAO: readonly ItemNavegacao[] = [
       { label: "Hub Central", path: "/os" },
       { label: "Kanban", path: "/os?modo=kanban" },
       { label: "Finalizadas", path: "/os?modo=lista" },
-      { label: "Garantias", path: "/os/garantias" },
+      { label: "Garantias", path: "/os?modo=garantia" },
     ],
   },
   {

@@ -1,10 +1,12 @@
-import { PaginaGarantiasOS } from "@/components/os/garantias/pagina-garantias-os";
+import { redirect } from "next/navigation";
 
-export const metadata = {
-  title: "Garantias - Ordens de Serviço - Konext ERP",
-  description: "Submódulo de garantias de OS com indicadores, filtros e retornos.",
-};
-
+/**
+ * Fase 1C-3, Parte 5: Garantia virou uma aba dentro de /os, nao uma rota
+ * propria — este redirect existe so pra nao quebrar links e favoritos
+ * antigos. Nenhum link novo no codigo aponta mais pra cá (ver
+ * lib/navegacao/itens-navegacao.ts, components/dashboard/bloco-garantia.tsx
+ * e app/actions/dashboard.ts).
+ */
 export default function GarantiasOSPage() {
-  return <PaginaGarantiasOS />;
+  redirect("/os?modo=garantia");
 }

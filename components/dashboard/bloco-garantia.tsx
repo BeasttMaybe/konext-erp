@@ -15,7 +15,7 @@ export function BlocoGarantia({ garantia }: BlocoGarantiaProps) {
       <CabecalhoCard
         titulo="Garantia"
         acao={
-          <Link href="/os/garantias" className="hover:text-foreground">
+          <Link href="/os?modo=garantia" className="hover:text-foreground">
             Abrir garantias ↗
           </Link>
         }
