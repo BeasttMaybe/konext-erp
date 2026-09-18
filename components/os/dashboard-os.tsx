@@ -25,6 +25,7 @@ import {
   atualizarStatusOrdemServico,
 } from "@/app/actions/os";
 import { finalizarRetornoGarantiaOS } from "@/app/actions/garantias";
+import { ehResgatePendente } from "@/lib/dominio/os/maquina-estados";
 import { useTemPermissao } from "@/contextos/contexto-permissoes";
 import { SemPermissaoAcao } from "@/components/ui/sem-permissao-acao";
 import { Search, Plus, AlertCircle, ListChecks, KanbanSquare, ArchiveX, RotateCcw, X } from "lucide-react";
@@ -105,9 +106,7 @@ export function DashboardOS({
   // pro card "Entregues" e alimenta o aviso acima da lista (Fase 1C-2 follow-up,
   // Parte 4: arquivar e um passo administrativo depois da entrega, nao muda se
   // ela aconteceu).
-  const ordensEntreguesNaoArquivadas = filteredActiveOrders.filter(
-    (orderService) => orderService.status === "ENTREGUE" && !orderService.archivedAt
-  );
+  const ordensEntreguesNaoArquivadas = filteredActiveOrders.filter(ehResgatePendente);
   const deliveredOrdersCount = ordensEntreguesNaoArquivadas.length + filteredArchivedOrders.length;
 
   const handleSalvarNovaOS = async (dados: DadosNovaOS) => {

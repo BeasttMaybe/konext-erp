@@ -18,6 +18,7 @@ import {
   ROTULOS_STATUS_OS,
   STATUS_OS_SEQUENCIA,
   destinosPermitidos,
+  ehResgatePendente,
   ehStatusOS,
 } from "@/lib/dominio/os/maquina-estados";
 import { Badge } from "@/components/ui/badge";
@@ -486,8 +487,10 @@ export function TabuleiroKanban({
                       const ehEntregue = os.status === "ENTREGUE";
                       // Resgate: ENTREGUE sem archivedAt — a OS entregue que ainda aparece
                       // no quadro porque falta so completar o arquivamento (e a garantia,
-                      // se faltar). Ver comentario de arquivarOS acima.
-                      const precisaArquivar = ehEntregue && !os.archivedAt;
+                      // se faltar). Ver comentario de arquivarOS acima e de ehResgatePendente
+                      // em lib/dominio/os/maquina-estados.ts — mesma regra usada pelo aviso
+                      // em dashboard-os.tsx, nunca reimplementada duas vezes.
+                      const precisaArquivar = ehResgatePendente(os);
                       const podeFinalizarRetorno =
                         Boolean(os.ehRetornoGarantia) && !retornoJaFinalizado && !ehEntregue;
                       // A entrega sai pelo dialogo de finalizacao; o botao do

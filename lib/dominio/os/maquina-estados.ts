@@ -133,6 +133,23 @@ export function ehStatusOS(valor: string): valor is StatusOS {
   return (STATUS_OS_SEQUENCIA as readonly string[]).includes(valor);
 }
 
+/**
+ * "Resgate": OS ENTREGUE cujo arquivamento (e a garantia, se faltar) ainda
+ * nao foi completado — o unico jeito de terminar isso e a acao "Arquivar OS"
+ * (que chama finalizarOrdemServico de novo, o mesmo caminho de uma entrega
+ * normal). Fonte unica desta regra: components/os/tabuleiro-kanban.tsx (mostra
+ * o botao "Arquivar OS" no card) e components/os/dashboard-os.tsx (conta o
+ * aviso "N OS entregues ainda nao arquivadas" acima da lista de finalizadas)
+ * usam esta mesma funcao — nunca reimplementam a condicao cada um do seu
+ * jeito. Precisa bater com o filtro SQL do Grupo A em
+ * scripts/reparo/relatorio-os-inconsistentes.mjs (status ENTREGUE, archivedAt
+ * IS NULL, excluidaEm IS NULL — excluidaEm nao entra aqui porque quem chama
+ * ja filtrou isso na consulta).
+ */
+export function ehResgatePendente(os: { status: string; archivedAt?: string | null }): boolean {
+  return os.status === "ENTREGUE" && !os.archivedAt;
+}
+
 function pertence(lista: readonly StatusOS[], status: StatusOS): boolean {
   return lista.includes(status);
 }

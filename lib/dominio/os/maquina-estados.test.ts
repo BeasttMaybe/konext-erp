@@ -4,6 +4,7 @@ import {
   STATUS_OS_EM_ANDAMENTO,
   STATUS_OS_SEQUENCIA,
   destinosPermitidos,
+  ehResgatePendente,
   ehStatusOS,
   motivoTransicaoNegada,
   podeTransicionar,
@@ -197,6 +198,27 @@ describe("motivoTransicaoNegada", () => {
         }
       }
     }
+  });
+});
+
+describe("ehResgatePendente", () => {
+  it("verdadeiro so quando ENTREGUE e sem archivedAt", () => {
+    expect(ehResgatePendente({ status: "ENTREGUE", archivedAt: null })).toBe(true);
+    expect(ehResgatePendente({ status: "ENTREGUE", archivedAt: undefined })).toBe(true);
+    expect(ehResgatePendente({ status: "ENTREGUE" })).toBe(true);
+  });
+
+  it("falso quando ENTREGUE mas ja arquivada", () => {
+    expect(ehResgatePendente({ status: "ENTREGUE", archivedAt: "2026-09-18T03:47:58.509Z" })).toBe(false);
+  });
+
+  it("falso pra qualquer status que nao seja ENTREGUE, com ou sem archivedAt", () => {
+    for (const status of STATUS_OS_SEQUENCIA) {
+      if (status === "ENTREGUE") continue;
+      expect(ehResgatePendente({ status, archivedAt: null })).toBe(false);
+      expect(ehResgatePendente({ status, archivedAt: "2026-01-01T00:00:00.000Z" })).toBe(false);
+    }
+    expect(ehResgatePendente({ status: "CANCELADO", archivedAt: null })).toBe(false);
   });
 });
 
