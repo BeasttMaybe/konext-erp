@@ -114,6 +114,13 @@ model Configuracao {
   prazoPadraoBoletoDias     Int      @default(7)
   prazoPadraoCrediarioDias  Int      @default(30)
   maxParcelasCartaoCredito  Int      @default(12)
+  /**
+   * Fase 1D-3: liga/desliga o fechamento automatico de caixa e o horario em
+   * que ele deveria rodar ("HH:mm"). So a configuracao — o fechamento em si
+   * ainda nao tem tarefa agendada que o execute (ver painel-pdv.tsx).
+   */
+  fechamentoAutomaticoCaixaAtivo    Boolean @default(false)
+  fechamentoAutomaticoCaixaHorario  String  @default("23:59")
   prazoGarantiaPadraoDias   Int      @default(90)
   prazoMinimoGarantiaDias   Int      @default(1)
   prazoMaximoGarantiaDias   Int      @default(365)

@@ -38,13 +38,14 @@ type ConfiguracaoRegistro = {
   cidade?: string | null;
   estado?: string | null;
   endereco?: string | null;
-  chavePix?: string | null;
   mensagemCupom?: string | null;
   modeloImpressaoOSPadrao?: ModeloImpressaoOS | null;
   imprimirLogoTermica?: boolean | null;
   mensagemRodapeImpressaoOS?: string | null;
   habilitarMargemAutomatica?: boolean | null;
   permitirVendaSemEstoque?: boolean | null;
+  fechamentoAutomaticoCaixaAtivo?: boolean | null;
+  fechamentoAutomaticoCaixaHorario?: string | null;
   permitirPagamentoMisto?: boolean | null;
   permitirDescontoPDV?: boolean | null;
   descontoMaximoPDVPercentual?: number | Prisma.Decimal | null;
@@ -139,13 +140,14 @@ export type DadosConfiguracoes = {
   cidade: string;
   estado: string;
   endereco: string;
-  chavePix: string;
   mensagemCupom: string;
   modeloImpressaoOSPadrao: ModeloImpressaoOS;
   imprimirLogoTermica: boolean;
   mensagemRodapeImpressaoOS: string;
   habilitarMargemAutomatica: boolean;
   permitirVendaSemEstoque: boolean;
+  fechamentoAutomaticoCaixaAtivo: boolean;
+  fechamentoAutomaticoCaixaHorario: string;
   permitirPagamentoMisto: boolean;
   permitirDescontoPDV: boolean;
   descontoMaximoPDVPercentual: number;
@@ -246,13 +248,17 @@ const schemaDadosConfiguracoes = z.object({
   cidade: z.string().trim().max(120, "Cidade excede o limite de 120 caracteres."),
   estado: z.string().trim().max(2, "UF deve ter no máximo 2 caracteres."),
   endereco: z.string().trim().max(255, "Endereço completo excede o limite de 255 caracteres."),
-  chavePix: z.string().trim().max(160, "Chave PIX excede o limite de 160 caracteres."),
   mensagemCupom: z.string().trim().max(1000, "Mensagem do cupom excede o limite de 1000 caracteres."),
   modeloImpressaoOSPadrao: z.enum(["A4", "TERMICA_80MM"]),
   imprimirLogoTermica: z.boolean(),
   mensagemRodapeImpressaoOS: z.string().trim().max(300, "Mensagem de rodapé excede o limite de 300 caracteres."),
   habilitarMargemAutomatica: z.boolean(),
   permitirVendaSemEstoque: z.boolean(),
+  fechamentoAutomaticoCaixaAtivo: z.boolean(),
+  fechamentoAutomaticoCaixaHorario: z
+    .string()
+    .trim()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Informe um horário válido, no formato HH:mm."),
   permitirPagamentoMisto: z.boolean(),
   permitirDescontoPDV: z.boolean(),
   descontoMaximoPDVPercentual: z.coerce
@@ -372,13 +378,14 @@ function obterConfiguracoesPadrao(): DadosConfiguracoes {
     cidade: "",
     estado: "",
     endereco: "",
-    chavePix: "",
     mensagemCupom: "",
     modeloImpressaoOSPadrao: "A4",
     imprimirLogoTermica: true,
     mensagemRodapeImpressaoOS: "",
     habilitarMargemAutomatica: true,
     permitirVendaSemEstoque: false,
+    fechamentoAutomaticoCaixaAtivo: false,
+    fechamentoAutomaticoCaixaHorario: "23:59",
     permitirPagamentoMisto: defaultsPdv.permitirPagamentoMisto,
     permitirDescontoPDV: defaultsPdv.permitirDescontoPDV,
     descontoMaximoPDVPercentual: defaultsPdv.descontoMaximoPDVPercentual,
@@ -585,10 +592,11 @@ export async function obterConfiguracoes(): Promise<{ id: string } & DadosConfig
           cidade: "",
           estado: "",
           endereco: "",
-          chavePix: null,
           mensagemCupom: null,
           habilitarMargemAutomatica: true,
           permitirVendaSemEstoque: false,
+          fechamentoAutomaticoCaixaAtivo: false,
+          fechamentoAutomaticoCaixaHorario: "23:59",
           logoUrl: null,
           prazoGarantiaPadraoDias: 90,
           prazoMinimoGarantiaDias: 1,
@@ -641,7 +649,6 @@ export async function obterConfiguracoes(): Promise<{ id: string } & DadosConfig
     cidade: configuracao?.cidade ? String(configuracao.cidade) : "",
     estado: configuracao?.estado ? String(configuracao.estado) : "",
     endereco: configuracao?.endereco ? String(configuracao.endereco) : "",
-    chavePix: configuracao?.chavePix ? String(configuracao.chavePix) : "",
     mensagemCupom: configuracao?.mensagemCupom ? String(configuracao.mensagemCupom) : "",
     modeloImpressaoOSPadrao: configuracao?.modeloImpressaoOSPadrao === "TERMICA_80MM" ? "TERMICA_80MM" : "A4",
     imprimirLogoTermica:
@@ -657,6 +664,13 @@ export async function obterConfiguracoes(): Promise<{ id: string } & DadosConfig
       typeof configuracao?.permitirVendaSemEstoque === "boolean"
         ? Boolean(configuracao.permitirVendaSemEstoque)
         : false,
+    fechamentoAutomaticoCaixaAtivo:
+      typeof configuracao?.fechamentoAutomaticoCaixaAtivo === "boolean"
+        ? Boolean(configuracao.fechamentoAutomaticoCaixaAtivo)
+        : false,
+    fechamentoAutomaticoCaixaHorario: configuracao?.fechamentoAutomaticoCaixaHorario
+      ? String(configuracao.fechamentoAutomaticoCaixaHorario)
+      : "23:59",
     permitirPagamentoMisto:
       typeof camposPdv?.permitirPagamentoMisto === "boolean"
         ? Boolean(camposPdv.permitirPagamentoMisto)
@@ -964,13 +978,14 @@ export async function salvarConfiguracoes(data: DadosConfiguracoes) {
         cidade: "",
         estado: "",
         endereco: "",
-        chavePix: null,
         mensagemCupom: null,
         modeloImpressaoOSPadrao: "A4",
         imprimirLogoTermica: true,
         mensagemRodapeImpressaoOS: null,
         habilitarMargemAutomatica: true,
         permitirVendaSemEstoque: false,
+        fechamentoAutomaticoCaixaAtivo: false,
+        fechamentoAutomaticoCaixaHorario: "23:59",
         permitirPagamentoMisto: true,
         permitirDescontoPDV: true,
         descontoMaximoPDVPercentual: 0,
@@ -1021,13 +1036,14 @@ export async function salvarConfiguracoes(data: DadosConfiguracoes) {
     cidade: dadosNormalizados.cidade,
     estado: dadosNormalizados.estado,
     endereco: dadosNormalizados.endereco,
-    chavePix: dadosNormalizados.chavePix || null,
     mensagemCupom: dadosNormalizados.mensagemCupom || null,
     modeloImpressaoOSPadrao: dadosNormalizados.modeloImpressaoOSPadrao,
     imprimirLogoTermica: dadosNormalizados.imprimirLogoTermica,
     mensagemRodapeImpressaoOS: dadosNormalizados.mensagemRodapeImpressaoOS || null,
     habilitarMargemAutomatica: dadosNormalizados.habilitarMargemAutomatica,
     permitirVendaSemEstoque: dadosNormalizados.permitirVendaSemEstoque,
+    fechamentoAutomaticoCaixaAtivo: dadosNormalizados.fechamentoAutomaticoCaixaAtivo,
+    fechamentoAutomaticoCaixaHorario: dadosNormalizados.fechamentoAutomaticoCaixaHorario,
     logoUrl: dadosNormalizados.logoUrl || null,
   };
 

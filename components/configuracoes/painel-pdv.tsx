@@ -21,12 +21,14 @@ type CampoTogglePdv =
   | "permitirPagamentoMisto"
   | "permitirDescontoPDV"
   | "permitirVendaFiado"
+  | "permitirVendaSemEstoque"
   | "habilitarPix"
   | "habilitarDinheiro"
   | "habilitarCartaoDebito"
   | "habilitarCartaoCredito"
   | "habilitarBoleto"
-  | "habilitarCrediario";
+  | "habilitarCrediario"
+  | "fechamentoAutomaticoCaixaAtivo";
 
 type BlocoToggleProps = {
   control: Control<DadosConfiguracoes>;
@@ -80,8 +82,8 @@ const CAMPOS_TAXA_CREDITO: Array<{ campo: keyof DadosConfiguracoes; label: strin
 export function PainelPdv({ register, control, salvando, configuracaoAtual }: PropsPainelPdv) {
   return (
     <SecaoConfiguracoes
-      titulo="PDV e Vendas"
-      descricao="Defina regras de recebimento, descontos, crediário e taxas de pagamento aplicadas ao caixa."
+      titulo="PDV e Caixa"
+      descricao="Defina regras de recebimento, descontos, crediário, taxas de pagamento e fechamento do caixa."
     >
       <div className="space-y-5">
         <Card className="border-border bg-background">
@@ -116,6 +118,12 @@ export function PainelPdv({ register, control, salvando, configuracaoAtual }: Pr
               titulo="Permitir venda fiado"
               descricao="Permite gerar venda sem recebimento imediato."
             />
+            <BlocoToggle
+              control={control}
+              campo="permitirVendaSemEstoque"
+              titulo="Permitir venda sem estoque"
+              descricao="Autoriza vender um item mesmo com saldo zerado ou negativo."
+            />
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
@@ -130,6 +138,21 @@ export function PainelPdv({ register, control, salvando, configuracaoAtual }: Pr
                 disabled={salvando || !configuracaoAtual.permitirDescontoPDV}
                 {...register("descontoMaximoPDVPercentual", { valueAsNumber: true })}
               />
+              <p className="text-xs text-muted-foreground">
+                Com 0%, ninguém sem a permissão &quot;Aplicar desconto acima do limite&quot; consegue dar desconto.
+              </p>
+              {configuracaoAtual.permitirDescontoPDV && configuracaoAtual.descontoMaximoPDVPercentual === 0 && (
+                <p className="text-xs font-medium text-amber-600 dark:text-amber-400">
+                  Atenção: desconto está permitido, mas o limite está em 0% — na prática, ninguém sem aquela permissão
+                  especial consegue aplicar desconto nenhum. Se não é essa a intenção, ajuste um dos dois campos.
+                </p>
+              )}
+              {!configuracaoAtual.permitirDescontoPDV && configuracaoAtual.descontoMaximoPDVPercentual > 0 && (
+                <p className="text-xs font-medium text-amber-600 dark:text-amber-400">
+                  Atenção: desconto está desligado, mas há um limite de {configuracaoAtual.descontoMaximoPDVPercentual}%
+                  configurado — ele não tem efeito enquanto &quot;Permitir desconto no PDV&quot; estiver desmarcado.
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -250,6 +273,38 @@ export function PainelPdv({ register, control, salvando, configuracaoAtual }: Pr
                 />
               </div>
             ))}
+          </div>
+        </Card>
+
+        <Card className="border-border bg-background">
+          <p className="text-sm font-semibold text-foreground">Fechamento automático de caixa</p>
+          <p className="text-xs text-muted-foreground">
+            Encerra sozinho qualquer sessão de caixa que ficar aberta até o horário definido.
+          </p>
+
+          <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+            Esta configuração ainda não faz nada sozinha: ela só fica salva aqui. O fechamento automático em si
+            depende de uma tarefa agendada que ainda não existe — passa a valer quando ela for implementada numa
+            fase futura.
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <BlocoToggle
+              control={control}
+              campo="fechamentoAutomaticoCaixaAtivo"
+              titulo="Fechar caixa automaticamente"
+              descricao="Liga a regra de fechamento — sem efeito até a tarefa agendada existir (ver aviso acima)."
+            />
+
+            <div className="space-y-2">
+              <Label htmlFor="fechamentoAutomaticoCaixaHorario">Horário do fechamento</Label>
+              <Input
+                id="fechamentoAutomaticoCaixaHorario"
+                type="time"
+                disabled={salvando || !configuracaoAtual.fechamentoAutomaticoCaixaAtivo}
+                {...register("fechamentoAutomaticoCaixaHorario")}
+              />
+            </div>
           </div>
         </Card>
       </div>
