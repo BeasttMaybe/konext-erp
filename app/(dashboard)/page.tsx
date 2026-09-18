@@ -1,24 +1,18 @@
 import { obterConfiguracoes } from "@/app/actions/configuracoes";
 import {
-  obterDashboardExecutivoSeguro,
+  obterFaturamentoHomeSeguro,
   obterPainelOperacionalHomeSeguro,
   type PeriodoDashboard,
 } from "@/app/actions/dashboard";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { temPermissao } from "@/lib/auth/permissoes";
-import { selecionarSecoesDashboardHome } from "@/lib/dominio/dashboard/selecao-secoes-home";
-import { BandaKpis } from "@/components/dashboard/banda-kpis";
-import { BarraContexto } from "@/components/dashboard/barra-contexto";
-import { BlocoGarantia } from "@/components/dashboard/bloco-garantia";
-import { BlocoMetas } from "@/components/dashboard/bloco-metas";
-import { FaixaAcoes } from "@/components/dashboard/faixa-acoes";
-import { FilaOs } from "@/components/dashboard/fila-os";
-import { GraficoResultado } from "@/components/dashboard/grafico-resultado";
-import { GraficoSaldo } from "@/components/dashboard/grafico-saldo";
-import { ListaMovimentacoes } from "@/components/dashboard/lista-movimentacoes";
-import { MedidoresOrcamento } from "@/components/dashboard/medidores-orcamento";
-import { TabelaDre } from "@/components/dashboard/tabela-dre";
-import { TabelaParados } from "@/components/dashboard/tabela-parados";
+import { CabecalhoDashboard } from "@/components/dashboard/cabecalho-dashboard";
+import { KpisHome } from "@/components/dashboard/kpis-home";
+import { GraficoReceita } from "@/components/dashboard/grafico-receita";
+import { FluxoOs } from "@/components/dashboard/fluxo-os";
+import { MovimentacoesHome } from "@/components/dashboard/movimentacoes-home";
+import { MetasHome } from "@/components/dashboard/metas-home";
+import { PendenciasHome } from "@/components/dashboard/pendencias-home";
 
 export const dynamic = "force-dynamic";
 
@@ -36,111 +30,81 @@ type PropsPaginaDashboard = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
+/**
+ * Home operacional (Fase 3-2A): "o que está na minha bancada hoje?" —
+ * profundidade financeira (DRE, orçamento, saldo) mora em `/financeiro`.
+ * O painel operacional é sempre buscado; o faturamento só quando o contexto
+ * tem `dashboard.financeiro` — sem essa permissão, a home nunca fica cinza,
+ * só omite o card de Faturamento, o gráfico de receita e as pendências
+ * financeiras.
+ */
 export default async function PaginaDashboard({ searchParams }: PropsPaginaDashboard) {
   const query = await searchParams;
   const periodo = normalizarPeriodo(query.periodo);
 
-  // C3: sem dashboard.financeiro, a home nunca busca dado financeiro — nem
-  // renderiza AcessoNegado. Mostra só as secoes operacionais que o papel ja
-  // pode ver em outras telas (OS, garantia, metas).
   const contexto = await exigirContextoTenant();
-  const secoes = selecionarSecoesDashboardHome({
-    temDashboardFinanceiro: temPermissao(contexto, "dashboard.financeiro"),
-    temMetasVer: temPermissao(contexto, "metas.ver"),
-  });
+  const temFinanceiro = temPermissao(contexto, "dashboard.financeiro");
 
-  if (!secoes.financeiro) {
-    const [resultadoOperacional, configuracoes] = await Promise.all([
-      obterPainelOperacionalHomeSeguro(periodo),
-      obterConfiguracoes(),
-    ]);
-
-    if (!resultadoOperacional.sucesso) {
-      return (
-        <div className="py-4">
-          <div className="rounded-lg border border-border bg-card p-6">
-            <h1 className="text-base font-medium text-foreground">Falha ao carregar o painel</h1>
-            <p className="mt-2 text-sm text-muted-foreground">{resultadoOperacional.erro}</p>
-          </div>
-        </div>
-      );
-    }
-
-    const painel = resultadoOperacional.dados;
-    const mostrarMetas = Boolean(painel.metasResumo && painel.metasResumo.principais.length > 0);
-
-    return (
-      <div className="space-y-2.5 py-3">
-        <BarraContexto empresa={configuracoes.nomeFantasia} periodo={painel.periodo} />
-
-        <div className="grid grid-cols-1 gap-2.5 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,1.35fr)_minmax(0,1fr)]">
-          <FilaOs fila={painel.operacao.fila} />
-          <TabelaParados parados={painel.operacao.parados} limite={5} />
-          <BlocoGarantia garantia={painel.operacao.garantia} />
-        </div>
-
-        {mostrarMetas && painel.metasResumo ? (
-          <div className="grid grid-cols-1 gap-2.5 xl:grid-cols-2">
-            <BlocoMetas resumo={painel.metasResumo} />
-          </div>
-        ) : null}
-      </div>
-    );
-  }
-
-  const [resultadoDashboard, configuracoes] = await Promise.all([
-    obterDashboardExecutivoSeguro(periodo),
+  const [resultadoOperacional, resultadoFaturamento, configuracoes] = await Promise.all([
+    obterPainelOperacionalHomeSeguro(periodo),
+    temFinanceiro ? obterFaturamentoHomeSeguro(periodo) : Promise.resolve(null),
     obterConfiguracoes(),
   ]);
 
-  if (!resultadoDashboard.sucesso) {
+  if (!resultadoOperacional.sucesso) {
     return (
       <div className="py-4">
         <div className="rounded-lg border border-border bg-card p-6">
-          <h1 className="text-base font-medium text-foreground">Falha ao carregar o dashboard</h1>
-          <p className="mt-2 text-sm text-muted-foreground">{resultadoDashboard.erro}</p>
+          <h1 className="text-base font-medium text-foreground">Falha ao carregar o painel</h1>
+          <p className="mt-2 text-sm text-muted-foreground">{resultadoOperacional.erro}</p>
         </div>
       </div>
     );
   }
 
-  const dashboard = resultadoDashboard.dados;
-  const painel = dashboard.painel;
-  const metas = dashboard.metasResumo;
-  const mostrarMetas = Boolean(metas && metas.principais.length > 0);
+  const painel = resultadoOperacional.dados;
+  const faturamento = resultadoFaturamento?.sucesso ? resultadoFaturamento.dados : null;
+  const erroFaturamento = resultadoFaturamento && !resultadoFaturamento.sucesso ? resultadoFaturamento.erro : null;
+
+  const pendencias = [...painel.pendencias, ...(faturamento?.pendenciasFinanceiras ?? [])];
 
   return (
-    <div className="space-y-2.5 py-3">
-      <BarraContexto empresa={configuracoes.nomeFantasia} periodo={dashboard.periodo} />
+    <div className="space-y-kx-4 py-3">
+      <CabecalhoDashboard empresa={configuracoes.nomeFantasia} periodo={painel.periodo} />
 
-      <FaixaAcoes acoes={dashboard.acoes} />
+      <KpisHome
+        temFinanceiro={temFinanceiro}
+        faturamento={faturamento}
+        fluxoEtapas={painel.fluxoEtapas}
+        prontasAguardandoRetirada={painel.operacao.prontasAguardandoRetirada}
+        garantia={painel.operacao.garantia}
+      />
 
-      <BandaKpis painel={painel} />
+      {temFinanceiro ? (
+        <div className="grid grid-cols-1 gap-kx-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+          {faturamento ? (
+            <GraficoReceita serie={faturamento.serie} margemLiquidaPercentual={faturamento.margemLiquidaPercentual} />
+          ) : (
+            <div className="flex min-h-[200px] items-center justify-center rounded-kx-cartao border border-kx-erro-borda bg-kx-erro-fundo p-kx-4 text-center text-sm text-kx-erro-texto">
+              {erroFaturamento ?? "Não foi possível carregar os indicadores financeiros."}
+            </div>
+          )}
+          <FluxoOs fluxoEtapas={painel.fluxoEtapas} />
+        </div>
+      ) : (
+        <FluxoOs fluxoEtapas={painel.fluxoEtapas} />
+      )}
 
-      <div className="grid grid-cols-1 gap-2.5 xl:grid-cols-[minmax(0,2.15fr)_minmax(0,1fr)]">
-        <GraficoResultado dados={[...painel.serieMensal]} />
-        <MedidoresOrcamento
-          receita={painel.orcamentoReceita}
-          despesa={painel.orcamentoDespesa}
-          custoPecas={painel.orcamentoCustoPecas}
-        />
-      </div>
+      {painel.metasResumo ? (
+        <div className="grid grid-cols-1 gap-kx-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+          <MovimentacoesHome itens={painel.ultimasMovimentacoes} />
+          <MetasHome resumo={painel.metasResumo} />
+        </div>
+      ) : (
+        <MovimentacoesHome itens={painel.ultimasMovimentacoes} />
+      )}
 
-      <div className="grid grid-cols-1 gap-2.5 xl:grid-cols-2">
-        <GraficoSaldo dados={painel.saldoAcumuladoPorMes} />
-        <TabelaDre dre={painel.dre} />
-      </div>
-
-      <div className="grid grid-cols-1 gap-2.5 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,1.35fr)_minmax(0,1fr)]">
-        <FilaOs fila={dashboard.operacao.fila} />
-        <TabelaParados parados={dashboard.operacao.parados} limite={5} />
-        <BlocoGarantia garantia={dashboard.operacao.garantia} />
-      </div>
-
-      <div className="grid grid-cols-1 gap-2.5 xl:grid-cols-2">
-        {mostrarMetas && metas ? <BlocoMetas resumo={metas} /> : <div />}
-        <ListaMovimentacoes itens={dashboard.ultimasMovimentacoes} />
-      </div>
+      <PendenciasHome itens={pendencias} />
     </div>
   );
 }
