@@ -1,23 +1,8 @@
 "use client";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import {
-  Building2,
-  FileText,
-  Wrench,
-  ShieldCheck,
-  ShoppingCart,
-  Wallet,
-  Package,
-  Users,
-  Target,
-  UserCog,
-  Shield,
-  Palette,
-  type LucideIcon,
-} from "lucide-react";
+import { Building2, FileText, Wrench, ShieldCheck, ShoppingCart, UserCog, type LucideIcon } from "lucide-react";
 import type { ItemSecaoConfiguracoes, SecaoConfiguracoesId } from "./tipos";
 
 const iconesPorSecao: Record<SecaoConfiguracoesId, LucideIcon> = {
@@ -25,14 +10,8 @@ const iconesPorSecao: Record<SecaoConfiguracoesId, LucideIcon> = {
   documentos: FileText,
   os: Wrench,
   garantias: ShieldCheck,
-  "pdv-vendas": ShoppingCart,
-  financeiro: Wallet,
-  estoque: Package,
-  crm: Users,
-  metas: Target,
+  "pdv-caixa": ShoppingCart,
   usuarios: UserCog,
-  auditoria: Shield,
-  aparencia: Palette,
 };
 
 type PropsMenuConfiguracoes = {
@@ -65,20 +44,7 @@ export function MenuConfiguracoes({ secoes, secaoAtiva, onSelecionarSecao }: Pro
               <span className="flex items-start gap-2.5 text-left">
                 <Icone className="h-4 w-4 mt-0.5 shrink-0" />
                 <span className="space-y-0.5">
-                  <span className="flex items-center gap-1.5">
-                    <span className="block text-sm font-medium leading-tight">{secao.rotulo}</span>
-                    {secao.emPreparacao && (
-                      <Badge
-                        variant="outline"
-                        className={cn(
-                          "h-4 shrink-0 px-1.5 text-[10px] font-normal leading-none",
-                          ativo ? "border-emerald-200 text-emerald-50" : "border-border text-muted-foreground"
-                        )}
-                      >
-                        Em breve
-                      </Badge>
-                    )}
-                  </span>
+                  <span className="block text-sm font-medium leading-tight">{secao.rotulo}</span>
                   <span
                     className={cn(
                       "block text-xs leading-tight whitespace-normal",

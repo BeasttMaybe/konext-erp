@@ -1,23 +1,9 @@
-export type SecaoConfiguracoesId =
-  | "empresa"
-  | "documentos"
-  | "os"
-  | "garantias"
-  | "pdv-vendas"
-  | "financeiro"
-  | "estoque"
-  | "crm"
-  | "metas"
-  | "usuarios"
-  | "auditoria"
-  | "aparencia";
+export type SecaoConfiguracoesId = "empresa" | "documentos" | "os" | "garantias" | "pdv-caixa" | "usuarios";
 
 export type ItemSecaoConfiguracoes = {
   id: SecaoConfiguracoesId;
   rotulo: string;
   descricao: string;
-  /** Seção só com cards de placeholder (ver PainelPlaceholder) — sinalizada no menu antes mesmo de abrir. */
-  emPreparacao?: boolean;
 };
 
 export const SECOES_CONFIGURACOES: ItemSecaoConfiguracoes[] = [
@@ -42,49 +28,13 @@ export const SECOES_CONFIGURACOES: ItemSecaoConfiguracoes[] = [
     descricao: "Gerencie a base das configurações e documentos de garantia.",
   },
   {
-    id: "pdv-vendas",
-    rotulo: "PDV e Vendas",
-    descricao: "Centralize preferências de vendas, recebimentos e formas de pagamento.",
-  },
-  {
-    id: "financeiro",
-    rotulo: "Financeiro",
-    descricao: "Ajuste parâmetros gerais de contas, caixa e comportamento financeiro.",
-    emPreparacao: true,
-  },
-  {
-    id: "estoque",
-    rotulo: "Estoque",
-    descricao: "Controle preferências de movimentação, baixa e disponibilidade de itens.",
-    emPreparacao: true,
-  },
-  {
-    id: "crm",
-    rotulo: "CRM",
-    descricao: "Ajuste informações e preferências relacionadas aos clientes.",
-    emPreparacao: true,
-  },
-  {
-    id: "metas",
-    rotulo: "Metas",
-    descricao: "Defina preferências iniciais do módulo de metas e indicadores.",
-    emPreparacao: true,
+    id: "pdv-caixa",
+    rotulo: "PDV e Caixa",
+    descricao: "Centralize preferências de vendas, pagamentos e caixa.",
   },
   {
     id: "usuarios",
-    rotulo: "Usuários e Permissões",
-    descricao: "Organize os acessos e papéis dos usuários do sistema.",
-    emPreparacao: true,
-  },
-  {
-    id: "auditoria",
-    rotulo: "Segurança e Auditoria",
-    descricao: "Centralize logs, rastreabilidade e segurança operacional.",
-    emPreparacao: true,
-  },
-  {
-    id: "aparencia",
-    rotulo: "Aparência",
-    descricao: "Personalize tema, identidade visual e preferências da interface.",
+    rotulo: "Usuários e Cargos",
+    descricao: "Organize os acessos, cargos e permissões dos usuários do sistema.",
   },
 ];
