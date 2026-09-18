@@ -1,38 +1,166 @@
 /**
- * Fundacao do design system Konext (Fase 1B-FIX, Parte 4).
+ * Fundação do design system Konext (Fase 3-1) — fonte única de verdade de
+ * cor, espaçamento, raio, sombra e z-index pro app inteiro (não só o login
+ * mais — ver docs/design/sistema-visual.md pro catálogo completo).
  *
- * Tokens prefixados `--kx-` para nao colidir com as variaveis shadcn/ui
- * (`--background`, `--foreground`, etc.) ja usadas no resto do app. Usado
- * por enquanto so em `app/(auth)/**` (login e recuperacao de senha); as
- * demais telas continuam com o tema atual — nao restilizar aqui.
+ * Tokens prefixados `--kx-` para não colidir com as variáveis shadcn/ui
+ * (`--background`, `--foreground`, etc.). `app/globals.css` mapeia essas
+ * duas famílias uma vez (`@theme inline`), então todo componente shadcn já
+ * existente passa a herdar esta paleta sem ser reescrito.
+ *
+ * Claro/escuro: os valores "escuro" são os oficiais do mockup aprovado — o
+ * bloco `:root` (sem classe) já nasce escuro, porque essa é a identidade de
+ * marca; `:root:not(.dark)` é quem SOBRESCREVE pro claro. Isso é o inverso
+ * do padrão usual "claro por padrão" — decisão deliberada: o mockup de
+ * referência (`app/(auth)/layout.tsx`) é sempre escuro, sem alternância, e
+ * é o mesmo `.dark` que `components/provedores/provedor-tema.tsx` já
+ * alterna há tempos — não criamos mecanismo novo.
+ *
+ * Contraste: toda cor de texto/ícone abaixo já passou por
+ * `scripts/dev/auditar-contraste.mjs` contra os fundos onde ela realmente
+ * aparece (ver docs/design/sistema-visual.md, seção de contraste, pra cada
+ * par e sua nota). Duas cores do mockup original precisaram de ajuste pra
+ * fechar AA — marcadas abaixo com comentário "ajustado".
  */
+
 :root {
+  /* ---- Cor: superfícies ---- */
   --kx-fundo: #1b1d38;
   --kx-painel: #2a2c50;
   --kx-painel-borda: #353862;
-  --kx-campo-borda: #383b66;
+  --kx-campo-borda: #7b80bd; /* ajustado de #383B66 — fronteira de campo precisa de 3:1 (WCAG 1.4.11), divisor de painel nao */
   --kx-superficie: #23254a;
   --kx-cartao: #2e3158;
+
+  /* ---- Cor: texto ---- */
   --kx-texto: #eef0fb;
   --kx-texto-2: #c3c6e4;
   --kx-legenda: #a7aace;
-  --kx-placeholder: #8e91b8;
+  --kx-placeholder: #9da0c4; /* ajustado de #8E91B8 — 4.06:1 no cartão, abaixo de AA */
+
+  /* ---- Cor: marca ---- */
   --kx-primaria: #5a5fe0;
   --kx-destaque: #8b91ff;
   --kx-link: #a5aaff;
   --kx-foco: #8b91ff;
 
+  /* ---- Cor: etapas da OS (indicador — ponto/borda, não texto corrido) ---- */
   --kx-orcamento: #fbbf24;
   --kx-conserto: #60a5fa;
   --kx-pronto: #34d399;
   --kx-entregue: #8b91ff;
 
+  /* ---- Cor: garantia (indicador — a pílula abaixo é quem carrega texto) ---- */
+  --kx-garantia: #c2408f;
+  --kx-garantia-pilula-fundo: #4a2b52;
+  --kx-garantia-pilula-texto: #f9a8d4;
+
+  /* ---- Cor: feedback (indicador) + pílulas suaves (texto) ---- */
+  --kx-sucesso: #34d399;
+  --kx-sucesso-fundo: #1e4540;
+  --kx-sucesso-texto: #6ee7b7;
+  --kx-sucesso-icone: #34d399;
+
+  --kx-alerta: #fbbf24;
   --kx-alerta-fundo: #4a3a22;
   --kx-alerta-texto: #fde7c7;
   --kx-alerta-icone: #fdba74;
 
+  --kx-erro: #f87171;
   --kx-erro-fundo: #4a2b35;
   --kx-erro-texto: #fde2e2;
   --kx-erro-icone: #fca5a5;
   --kx-erro-borda: #b4556a;
+  /* Preenchimento sólido (botão destrutivo + texto branco) precisa de um
+     vermelho mais escuro que o #F87171 de indicador — branco nele so da 2.77:1. */
+  --kx-erro-solido: #c0392b;
+
+  /* ---- Espaçamento (grade de 4px) ---- */
+  --kx-espaco-1: 4px;
+  --kx-espaco-2: 8px;
+  --kx-espaco-3: 12px;
+  --kx-espaco-4: 16px;
+  --kx-espaco-5: 20px;
+  --kx-espaco-6: 24px;
+  --kx-espaco-8: 32px;
+  --kx-espaco-10: 40px;
+  --kx-espaco-12: 48px;
+  --kx-espaco-16: 64px;
+
+  /* ---- Raio ---- */
+  --kx-raio-painel: 24px;
+  --kx-raio-cartao: 16px;
+  --kx-raio-botao: 12px;
+  --kx-raio-pilula: 999px;
+
+  /* ---- Sombra (elevação sobre fundo escuro — sutil, sem preto puro) ---- */
+  --kx-sombra-cartao: 0 1px 2px rgba(8, 9, 20, 0.24), 0 1px 1px rgba(8, 9, 20, 0.16);
+  --kx-sombra-painel: 0 8px 24px rgba(8, 9, 20, 0.32);
+  --kx-sombra-flutuante: 0 16px 40px rgba(8, 9, 20, 0.44);
+
+  /* ---- Z-index (uma escala só, pra nunca duas camadas brigarem por número solto) ---- */
+  --kx-z-base: 0;
+  --kx-z-sticky: 20;
+  --kx-z-cabecalho: 30;
+  --kx-z-barra-lateral: 35;
+  --kx-z-sobreposicao: 40;
+  --kx-z-dialogo: 50;
+  --kx-z-popover: 60;
+  --kx-z-toast: 70;
+
+  color-scheme: dark;
+}
+
+:root:not(.dark) {
+  /* ---- Cor: superfícies ---- */
+  --kx-fundo: #f5f6fb;
+  --kx-painel: #ffffff;
+  --kx-painel-borda: #e2e4f3;
+  --kx-campo-borda: #7b7fb8; /* mesma logica do escuro — 3:1 pra fronteira de campo */
+  --kx-superficie: #eef0fa;
+  --kx-cartao: #ffffff;
+
+  /* ---- Cor: texto ---- */
+  --kx-texto: #1b1d38;
+  --kx-texto-2: #4b4e76;
+  --kx-legenda: #6b6e96;
+  --kx-placeholder: #5f639c;
+
+  /* ---- Cor: marca ---- */
+  --kx-primaria: #5a5fe0;
+  --kx-destaque: #4b50d6;
+  --kx-link: #4548c9;
+  --kx-foco: #4b50d6;
+
+  /* ---- Cor: etapas da OS — versões escurecidas pra manter 3:1 sobre branco;
+     o par escuro (mais claro) fica pro fundo escuro, onde já funciona. ---- */
+  --kx-orcamento: #92660a;
+  --kx-conserto: #1d63c0;
+  --kx-pronto: #0a7d55;
+  --kx-entregue: #4548c9;
+
+  /* ---- Cor: garantia ---- */
+  --kx-garantia: #c2408f;
+  --kx-garantia-pilula-fundo: #fce7f3;
+  --kx-garantia-pilula-texto: #9d2670;
+
+  /* ---- Cor: feedback ---- */
+  --kx-sucesso: #0a7d55;
+  --kx-sucesso-fundo: #e3f9ef;
+  --kx-sucesso-texto: #0a7d55;
+  --kx-sucesso-icone: #0a7d55;
+
+  --kx-alerta: #92660a;
+  --kx-alerta-fundo: #fef3d8;
+  --kx-alerta-texto: #92660a;
+  --kx-alerta-icone: #92660a;
+
+  --kx-erro: #c0392b;
+  --kx-erro-fundo: #fde8e6;
+  --kx-erro-texto: #c0392b;
+  --kx-erro-icone: #c0392b;
+  --kx-erro-borda: #e8a8a0;
+  --kx-erro-solido: #c0392b;
+
+  color-scheme: light;
 }

@@ -111,30 +111,30 @@ export function GraficoResultado({ dados }: GraficoResultadoProps) {
           {montado ? (
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={dados} margin={{ top: 16, right: 16, bottom: 0, left: 8 }} barGap={2} barCategoryGap="28%">
-                <CartesianGrid vertical={false} stroke="hsl(var(--border))" />
+                <CartesianGrid vertical={false} stroke="var(--border)" />
                 <XAxis
                   dataKey="mes"
-                  stroke="hsl(var(--border))"
-                  tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
+                  stroke="var(--border)"
+                  tick={{ fill: "var(--muted-foreground)", fontSize: 12 }}
                   tickLine={false}
                   className="tabular-nums"
                 />
                 <YAxis
                   domain={[piso, teto]}
-                  stroke="hsl(var(--border))"
-                  tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
+                  stroke="var(--border)"
+                  tick={{ fill: "var(--muted-foreground)", fontSize: 12 }}
                   tickLine={false}
                   width={78}
                   tickFormatter={(valor: number) => formatarMoedaCompacta(valor)}
                   className="tabular-nums"
                 />
                 <Tooltip
-                  cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.35 }}
+                  cursor={{ fill: "var(--muted)", fillOpacity: 0.35 }}
                   contentStyle={{
-                    background: "hsl(var(--popover))",
-                    border: "1px solid hsl(var(--border))",
+                    background: "var(--popover)",
+                    border: "1px solid var(--border)",
                     borderRadius: "0.5rem",
-                    color: "hsl(var(--popover-foreground))",
+                    color: "var(--popover-foreground)",
                     fontSize: 12,
                   }}
                   formatter={(valor, nome) => [formatarMoeda(Number(valor)), String(nome)]}
@@ -162,7 +162,7 @@ export function GraficoResultado({ dados }: GraficoResultadoProps) {
                   strokeWidth={2}
                   strokeLinejoin="round"
                   dot={false}
-                  activeDot={{ r: 4, stroke: "hsl(var(--card))", strokeWidth: 2 }}
+                  activeDot={{ r: 4, stroke: "var(--card)", strokeWidth: 2 }}
                 >
                   <LabelList
                     dataKey="lucro"
@@ -183,7 +183,7 @@ export function GraficoResultado({ dados }: GraficoResultadoProps) {
                           x={x}
                           y={y - 10}
                           textAnchor="end"
-                          fill="hsl(var(--foreground))"
+                          fill="var(--foreground)"
                           fontSize={12}
                         >
                           {formatarMoedaCompacta(valor)}

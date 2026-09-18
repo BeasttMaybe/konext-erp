@@ -85,30 +85,30 @@ export function GraficoSaldo({ dados }: GraficoSaldoProps) {
           {montado ? (
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={[...dados]} margin={{ top: 12, right: 12, bottom: 0, left: 8 }}>
-                <CartesianGrid vertical={false} stroke="hsl(var(--border))" />
+                <CartesianGrid vertical={false} stroke="var(--border)" />
                 <XAxis
                   dataKey="mes"
-                  stroke="hsl(var(--border))"
-                  tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
+                  stroke="var(--border)"
+                  tick={{ fill: "var(--muted-foreground)", fontSize: 12 }}
                   tickLine={false}
                   className="tabular-nums"
                 />
                 <YAxis
                   domain={[piso, teto]}
-                  stroke="hsl(var(--border))"
-                  tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
+                  stroke="var(--border)"
+                  tick={{ fill: "var(--muted-foreground)", fontSize: 12 }}
                   tickLine={false}
                   width={78}
                   tickFormatter={(valor: number) => formatarMoedaCompacta(valor)}
                   className="tabular-nums"
                 />
                 <Tooltip
-                  cursor={{ stroke: "hsl(var(--muted-foreground))", strokeWidth: 1 }}
+                  cursor={{ stroke: "var(--muted-foreground)", strokeWidth: 1 }}
                   contentStyle={{
-                    background: "hsl(var(--popover))",
-                    border: "1px solid hsl(var(--border))",
+                    background: "var(--popover)",
+                    border: "1px solid var(--border)",
                     borderRadius: "0.5rem",
-                    color: "hsl(var(--popover-foreground))",
+                    color: "var(--popover-foreground)",
                     fontSize: 12,
                   }}
                   formatter={(valor) => [formatarMoeda(Number(valor)), "Saldo"]}
@@ -121,7 +121,7 @@ export function GraficoSaldo({ dados }: GraficoSaldoProps) {
                   strokeWidth={2}
                   strokeLinejoin="round"
                   dot={false}
-                  activeDot={{ r: 4, stroke: "hsl(var(--card))", strokeWidth: 2 }}
+                  activeDot={{ r: 4, stroke: "var(--card)", strokeWidth: 2 }}
                 />
               </LineChart>
             </ResponsiveContainer>

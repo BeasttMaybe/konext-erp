@@ -3,7 +3,7 @@ export const ESTILO_IMPRESSAO_A4 = `
 
   /*
    * Sobrescreve o tema escuro do ERP.
-   * globals.css usa hsl(var(--background)) SEM !important,
+   * globals.css usa var(--background) SEM !important,
    * por isso !important aqui sempre vence.
    */
   html, body {

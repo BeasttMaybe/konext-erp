@@ -46,7 +46,7 @@ export function Medidor({
         cy={centro}
         r={raio}
         fill="none"
-        stroke="hsl(var(--muted))"
+        stroke="var(--muted)"
         strokeWidth={espessura}
       />
       {percentual === null ? null : (
