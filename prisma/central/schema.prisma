@@ -34,6 +34,8 @@ model Empresa {
   status       StatusEmpresa    @default(ATIVA)
   tenants      Tenant[]
   usuarios     UsuarioEmpresa[]
+  cargos       Cargo[]
+  logsAuditoria LogAuditoria[]
   criadoEm     DateTime         @default(now())
   atualizadoEm DateTime         @updatedAt
 }
@@ -60,6 +62,7 @@ model UsuarioCentral {
   senha        String
   ativo        Boolean          @default(true)
   empresas     UsuarioEmpresa[]
+  logsAuditoria LogAuditoria[]
   criadoEm     DateTime         @default(now())
   atualizadoEm DateTime         @updatedAt
 }
@@ -90,7 +93,11 @@ model UsuarioEmpresa {
   usuario      UsuarioCentral @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
   empresaId    String
   empresa      Empresa        @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  // RoleEmpresa legado: mantido em escrita dupla enquanto Cargo nao substitui
+  // por completo a autorizacao (Fase 1D-1) — ver lib/auth/mapear-cargo-legado.ts.
   role         RoleEmpresa    @default(USUARIO)
+  cargoId      String?
+  cargo        Cargo?         @relation(fields: [cargoId], references: [id])
   ativo        Boolean        @default(true)
   criadoEm     DateTime       @default(now())
   atualizadoEm DateTime       @updatedAt
@@ -98,4 +105,73 @@ model UsuarioEmpresa {
   @@unique([usuarioId, empresaId])
   @@index([empresaId])
   @@index([role])
+  @@index([cargoId])
+}
+
+/**
+ * Cargo configuravel por empresa (Fase 1D-1) — substitui gradualmente o
+ * RoleEmpresa fixo de 3 valores. "Administrador" nasce com fixo=true em toda
+ * empresa (ver backfill da migracao): suas permissoes nunca sao as linhas de
+ * CargoPermissao, e sim o catalogo inteiro, sempre — ver
+ * lib/auth/invariantes-cargos.ts.
+ */
+model Cargo {
+  id           String           @id @default(uuid())
+  empresaId    String
+  empresa      Empresa          @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  nome         String
+  descricao    String?
+  fixo         Boolean          @default(false)
+  /** Soft delete — cargo em uso nao pode ser arquivado (ver invariantes). */
+  arquivadoEm  DateTime?
+  permissoes   CargoPermissao[]
+  usuarios     UsuarioEmpresa[]
+  criadoEm     DateTime         @default(now())
+  atualizadoEm DateTime         @updatedAt
+
+  @@unique([empresaId, nome])
+  @@index([empresaId])
+  @@index([arquivadoEm])
+}
+
+model CargoPermissao {
+  id        String @id @default(uuid())
+  cargoId   String
+  cargo     Cargo  @relation(fields: [cargoId], references: [id], onDelete: Cascade)
+  /** String, nao enum: o catalogo (lib/auth/permissoes.ts) e a fonte de verdade, nao o banco. */
+  permissao String
+
+  @@unique([cargoId, permissao])
+  @@index([cargoId])
+}
+
+/**
+ * Trilha de auditoria do banco CENTRAL — espelha o LogAuditoria do tenant
+ * (prisma/schema.prisma), mas para mudancas que vivem so aqui: cargos,
+ * permissoes e vinculos de usuario/empresa (Fase 1D-1). Mesmo nome de
+ * modelo de proposito: reaproveita o contrato de lib/auditoria.ts (delegate
+ * `logAuditoria`/`LogAuditoria`), so que apontado pro client central — ver
+ * lib/auditoria-central.ts.
+ */
+model LogAuditoria {
+  id          String          @id @default(uuid())
+  empresaId   String
+  empresa     Empresa         @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  usuarioId   String?
+  usuario     UsuarioCentral? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  acao        String
+  entidade    String
+  entidadeId  String?
+  dadosAntes  Json?
+  dadosDepois Json?
+  motivo      String?
+  origem      String?
+  criadoEm    DateTime        @default(now())
+
+  @@index([empresaId])
+  @@index([usuarioId])
+  @@index([entidade])
+  @@index([entidadeId])
+  @@index([acao])
+  @@index([criadoEm])
 }
