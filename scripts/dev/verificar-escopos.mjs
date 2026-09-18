@@ -200,12 +200,27 @@ async function main() {
           observacao = "sem usuario no tenant (as areas restritas sem permissao deram 0, como esperado)";
         }
       } else if (!temOsVerTodas) {
-        const osCriadasPorMim = await prismaTenant.ordemServico.count({ where: { criadoPorId: usuarioTenant.id } });
-        if (osCriadasPorMim !== osComEscopo) {
+        // escopoOrdemServico e OR de duas fontes (criadoPorId / TecnicoOS) —
+        // pra nao reimplementar esse OR aqui, busco os ids de cada fonte
+        // SEPARADAMENTE (duas queries simples, sem nenhuma decisao de
+        // negocio) e uno em memoria com um Set; so a contagem de tamanho e
+        // comparada com o resultado real da funcao de escopo.
+        const [osCriadasPorMim, osComoTecnico] = await Promise.all([
+          prismaTenant.ordemServico.findMany({ where: { criadoPorId: usuarioTenant.id }, select: { id: true } }),
+          prismaTenant.tecnicoOS.findMany({ where: { usuarioId: usuarioTenant.id }, select: { osId: true } }),
+        ]);
+        const idsEsperados = new Set([
+          ...osCriadasPorMim.map((os) => os.id),
+          ...osComoTecnico.map((tecnico) => tecnico.osId),
+        ]);
+
+        if (idsEsperados.size !== osComEscopo) {
           inconsistencias.push(
-            `${vinculo.usuario.email}: escopo de OS devolveu ${osComEscopo}, mas OS criadas por ele sao ${osCriadasPorMim} (nenhuma OS tem tecnico ainda — deveriam bater).`
+            `${vinculo.usuario.email}: escopo de OS devolveu ${osComEscopo}, mas a uniao (criadas por ele + TecnicoOS) da ${idsEsperados.size}.`
           );
-          observacao = "DIVERGENTE de criadoPorId";
+          observacao = "DIVERGENTE da uniao criadoPorId+TecnicoOS";
+        } else if (osComoTecnico.length > 0) {
+          observacao = `OK (${osComoTecnico.length} como tecnico, ${osCriadasPorMim.length} criada(s))`;
         }
       }
 
