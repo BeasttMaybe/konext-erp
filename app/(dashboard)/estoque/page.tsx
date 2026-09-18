@@ -39,7 +39,6 @@ import { ModalNovoProduto } from "@/components/estoque/modal-novo-produto";
 import { PaginationControls } from "@/components/ui/pagination-controls";
 import { categoriasProduto, type FormProduto } from "@/lib/validations/estoque";
 import { useTemPermissao } from "@/contextos/contexto-permissoes";
-import { SemPermissaoAcao } from "@/components/ui/sem-permissao-acao";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -326,7 +325,9 @@ function ConteudoEstoque() {
                       <TableHead>Custo</TableHead>
                       <TableHead>Preco de Venda</TableHead>
                       <TableHead>Estoque Atual</TableHead>
-                      <TableHead className="text-right">Acoes</TableHead>
+                      {(podeEditarEstoque || podeExcluirEstoque) && (
+                        <TableHead className="text-right">Acoes</TableHead>
+                      )}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -357,8 +358,8 @@ function ConteudoEstoque() {
                               {produto.quantidadeEstoque}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-right">
-                            {podeEditarEstoque || podeExcluirEstoque ? (
+                          {(podeEditarEstoque || podeExcluirEstoque) && (
+                            <TableCell className="text-right">
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <Button variant="ghost" size="icon">
@@ -381,17 +382,18 @@ function ConteudoEstoque() {
                                   ) : null}
                                 </DropdownMenuContent>
                               </DropdownMenu>
-                            ) : (
-                              <SemPermissaoAcao />
-                            )}
-                          </TableCell>
+                            </TableCell>
+                          )}
                         </TableRow>
                       );
                     })}
 
                     {!carregando && produtosFiltrados.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                        <TableCell
+                          colSpan={podeEditarEstoque || podeExcluirEstoque ? 7 : 6}
+                          className="text-center py-8 text-muted-foreground"
+                        >
                           Nenhum produto encontrado para os filtros atuais.
                         </TableCell>
                       </TableRow>
@@ -399,7 +401,10 @@ function ConteudoEstoque() {
 
                     {carregando && (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                        <TableCell
+                          colSpan={podeEditarEstoque || podeExcluirEstoque ? 7 : 6}
+                          className="text-center py-8 text-muted-foreground"
+                        >
                           Carregando produtos...
                         </TableCell>
                       </TableRow>

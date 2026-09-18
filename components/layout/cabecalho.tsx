@@ -27,6 +27,13 @@ import { SinoNotificacoes } from "@/components/layout/sino-notificacoes";
 import { MenuMobile } from "@/components/layout/menu-mobile";
 import { NavPrincipal } from "@/components/layout/nav-principal";
 import { useTheme } from "@/components/provedores/provedor-tema";
+import { useTemAlgumaPermissao } from "@/contextos/contexto-permissoes";
+
+const PERMISSOES_CONFIGURACOES = [
+  "configuracoes.empresa",
+  "configuracoes.sistema",
+  "configuracoes.usuarios",
+] as const;
 
 /**
  * Cabeçalho único do sistema: logo, navegação principal e ações do usuário.
@@ -34,6 +41,7 @@ import { useTheme } from "@/components/provedores/provedor-tema";
 export function Cabecalho() {
   const { theme, setTheme } = useTheme();
   const router = useRouter();
+  const podeVerConfiguracoes = useTemAlgumaPermissao(PERMISSOES_CONFIGURACOES);
   const [nomeUsuario, setNomeUsuario] = useState("Usuario Konext");
   const [emailUsuario, setEmailUsuario] = useState("usuario@konext.local");
   const [fotoPerfilUrl, setFotoPerfilUrl] = useState<string | null>(null);
@@ -159,13 +167,15 @@ export function Cabecalho() {
                 <User className="h-4 w-4" />
                 <span>Meu Perfil</span>
               </DropdownMenuItem>
-              <DropdownMenuItem
-                className="flex cursor-pointer items-center gap-2"
-                onSelect={() => router.push("/configuracoes")}
-              >
-                <Settings className="h-4 w-4" />
-                <span>Configurações</span>
-              </DropdownMenuItem>
+              {podeVerConfiguracoes && (
+                <DropdownMenuItem
+                  className="flex cursor-pointer items-center gap-2"
+                  onSelect={() => router.push("/configuracoes")}
+                >
+                  <Settings className="h-4 w-4" />
+                  <span>Configurações</span>
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
 
               <DropdownMenuItem

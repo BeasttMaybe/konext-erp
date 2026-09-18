@@ -29,7 +29,6 @@ import { finalizarRetornoGarantiaOS, type DashboardGarantiasOS, type LinhaGarant
 import { PaginaGarantiasOS } from "@/components/os/garantias/pagina-garantias-os";
 import { ehResgatePendente, HEX_ETAPA_OS, ROTULOS_ETAPA_OS } from "@/lib/dominio/os/maquina-estados";
 import { useTemPermissao } from "@/contextos/contexto-permissoes";
-import { SemPermissaoAcao } from "@/components/ui/sem-permissao-acao";
 import { Search, Plus, AlertCircle, ListChecks, KanbanSquare, ArchiveX, RotateCcw, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -687,7 +686,7 @@ export function DashboardOS({
                       <th className="py-2 pr-3 font-medium">Orçamento</th>
                       <th className="py-2 pr-3 font-medium">Status</th>
                       <th className="py-2 pr-3 font-medium">Atualizado em</th>
-                      <th className="py-2 pr-0 font-medium text-right">Ações</th>
+                      {podeReabrirOS && <th className="py-2 pr-0 font-medium text-right">Ações</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -720,9 +719,9 @@ export function DashboardOS({
                         <td className="py-3 pr-3 text-slate-500 dark:text-slate-400">
                           {formatarDataHora(os.dataAtualizacao)}
                         </td>
-                        <td className="py-3 pr-0 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            {podeReabrirOS ? (
+                        {podeReabrirOS && (
+                          <td className="py-3 pr-0 text-right">
+                            <div className="flex items-center justify-end gap-2">
                               <Button
                                 type="button"
                                 variant="outline"
@@ -736,11 +735,9 @@ export function DashboardOS({
                                 <RotateCcw className="h-4 w-4 mr-2" />
                                 Reabrir OS
                               </Button>
-                            ) : (
-                              <SemPermissaoAcao />
-                            )}
-                          </div>
-                        </td>
+                            </div>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>

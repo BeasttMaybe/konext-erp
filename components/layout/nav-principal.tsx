@@ -4,11 +4,15 @@ import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
+  caminhoDoItem,
+  filhosVisiveis,
   ITENS_NAVEGACAO,
   indiceFilhoAtivo,
   itemEstaAtivo,
 } from "@/lib/navegacao/itens-navegacao";
 import { cn } from "@/lib/utils";
+import { usePermissoes } from "@/contextos/contexto-permissoes";
+import type { Permissao } from "@/lib/auth/permissoes";
 
 const CLASSE_GATILHO =
   "relative flex h-14 items-center gap-1.5 rounded-md px-2.5 text-[13.5px] whitespace-nowrap transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset";
@@ -43,6 +47,9 @@ export function NavPrincipal() {
   const searchParams = useSearchParams();
   const navRef = useRef<HTMLElement>(null);
   const chaveRota = `${pathname}?${searchParams.toString()}`;
+  const { permissoes } = usePermissoes();
+  const temAlgumaPermissao = (permissoesRequeridas: readonly Permissao[]) =>
+    permissoesRequeridas.some((permissao) => permissoes.has(permissao));
 
   // O submenu abre por :hover e :focus-within, sem JS. Escape e troca de rota
   // apenas soltam o foco — é o que fecha o menu aberto pelo teclado.
@@ -84,14 +91,21 @@ export function NavPrincipal() {
       className="hidden min-w-0 items-center gap-0.5 lg:flex"
     >
       {ITENS_NAVEGACAO.map((item) => {
+        const filhos = filhosVisiveis(item, temAlgumaPermissao);
+
+        if (item.filhos?.length && filhos.length === 0) {
+          return null;
+        }
+
         const ativo = itemEstaAtivo(item, pathname, searchParams);
-        const temFilhos = Boolean(item.filhos?.length);
-        const indiceAtivo = indiceFilhoAtivo(item.filhos ?? [], pathname, searchParams);
+        const temFilhos = Boolean(filhos.length);
+        const indiceAtivo = indiceFilhoAtivo(filhos, pathname, searchParams);
+        const caminho = caminhoDoItem(item, filhos);
 
         return (
           <div key={item.path} data-item-nav className="group relative">
             <Link
-              href={item.path}
+              href={caminho}
               data-gatilho-nav
               aria-current={ativo ? "page" : undefined}
               aria-haspopup={temFilhos ? "true" : undefined}
@@ -117,7 +131,7 @@ export function NavPrincipal() {
                   "motion-reduce:transition-none"
                 )}
               >
-                {item.filhos?.map((filho, indice) => (
+                {filhos.map((filho, indice) => (
                   <Link
                     key={filho.path}
                     href={filho.path}

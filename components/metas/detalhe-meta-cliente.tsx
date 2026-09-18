@@ -25,7 +25,6 @@ import { ChecklistMeta } from "@/components/metas/checklist-meta";
 import { HistoricoMeta } from "@/components/metas/historico-meta";
 import { ModalAtualizarProgresso } from "@/components/metas/modal-atualizar-progresso";
 import { useTemPermissao } from "@/contextos/contexto-permissoes";
-import { SemPermissaoAcao } from "@/components/ui/sem-permissao-acao";
 import {
   alterarStatusMeta,
   adicionarHistoricoMeta,
@@ -216,7 +215,6 @@ export function DetalheMetaCliente({ meta: metaInicial }: DetalheMetaClienteProp
 
         {/* Ações */}
         <div className="flex flex-wrap items-center gap-2 shrink-0">
-          {!temPermissaoEditarMeta && !temPermissaoExcluirMeta && <SemPermissaoAcao />}
           {podeAtualizar && (
             <Button size="sm" onClick={() => setModalProgressoAberto(true)} disabled={processando}>
               <TrendingUp className="h-4 w-4 mr-1" />

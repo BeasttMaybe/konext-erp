@@ -10,7 +10,6 @@ import {
 } from "@/app/actions/notas-fiscais";
 import type { StatusNotaFiscal } from "@prisma/client";
 import { useTemPermissao } from "@/contextos/contexto-permissoes";
-import { SemPermissaoAcao } from "@/components/ui/sem-permissao-acao";
 
 type Props = {
   notasIniciais: NotaFiscalLista[];
@@ -264,7 +263,7 @@ export function PaginaNotasFiscais({ notasIniciais, clientes }: Props) {
                 <th className="px-2 py-2">Valor</th>
                 <th className="px-2 py-2">Status</th>
                 <th className="px-2 py-2">Criado em</th>
-                <th className="px-2 py-2">Acoes</th>
+                {podeEditar && <th className="px-2 py-2">Acoes</th>}
               </tr>
             </thead>
             <tbody>
@@ -279,8 +278,8 @@ export function PaginaNotasFiscais({ notasIniciais, clientes }: Props) {
                   </td>
                   <td className="px-2 py-2">{nota.status}</td>
                   <td className="px-2 py-2">{new Date(nota.criadoEm).toLocaleDateString("pt-BR")}</td>
-                  <td className="px-2 py-2">
-                    {podeEditar ? (
+                  {podeEditar && (
+                    <td className="px-2 py-2">
                       <div className="flex flex-wrap gap-2">
                         <button
                           onClick={() => preencherFormulario(nota)}
@@ -305,15 +304,13 @@ export function PaginaNotasFiscais({ notasIniciais, clientes }: Props) {
                           </button>
                         ) : null}
                       </div>
-                    ) : (
-                      <SemPermissaoAcao />
-                    )}
-                  </td>
+                    </td>
+                  )}
                 </tr>
               ))}
               {notasFiltradas.length === 0 ? (
                 <tr>
-                  <td className="px-2 py-4 text-zinc-500" colSpan={6}>
+                  <td className="px-2 py-4 text-zinc-500" colSpan={podeEditar ? 6 : 5}>
                     Nenhuma nota fiscal encontrada para os filtros atuais.
                   </td>
                 </tr>

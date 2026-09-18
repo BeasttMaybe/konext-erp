@@ -160,13 +160,6 @@ export function SecaoItensOS({ osId, numeroOs, itens, desabilitarCadastro = fals
   };
 
   const abrirEdicao = (item: ItemOSTabela) => {
-    // Sem visibilidade de custo (os.ver_custos), editar sobrescreveria o custo
-    // real por um valor que o operador nao consegue ver nem conferir.
-    if (item.custoPeca === null) {
-      toast.error("Você não tem permissão para ver o custo desta peça, então não pode editá-la.");
-      return;
-    }
-
     setItemEmEdicao(item);
     setTipoPecaEdicao(item.tipoPeca);
     setDescricaoEdicao(item.descricao);
@@ -378,16 +371,18 @@ export function SecaoItensOS({ osId, numeroOs, itens, desabilitarCadastro = fals
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="inline-flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-8"
-                      onClick={() => abrirEdicao(item)}
-                      disabled={desabilitarCadastro || isPendingEditar || isPendingRemover}
-                    >
-                      <Pencil className="h-3.5 w-3.5 mr-1" />
-                      Editar
-                    </Button>
+                    {item.custoPeca !== null && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8"
+                        onClick={() => abrirEdicao(item)}
+                        disabled={desabilitarCadastro || isPendingEditar || isPendingRemover}
+                      >
+                        <Pencil className="h-3.5 w-3.5 mr-1" />
+                        Editar
+                      </Button>
+                    )}
                     <Button
                       variant="destructive"
                       size="sm"

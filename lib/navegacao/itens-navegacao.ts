@@ -1,4 +1,11 @@
-export type SubItemNavegacao = { label: string; path: string };
+import type { Permissao } from "@/lib/auth/permissoes";
+
+export type SubItemNavegacao = {
+  label: string;
+  path: string;
+  /** Ausente = visível pra qualquer usuário logado. Presente = precisa de ALGUMA dessas permissões. */
+  permissoesRequeridas?: readonly Permissao[];
+};
 
 export type ItemNavegacao = {
   label: string;
@@ -50,11 +57,11 @@ export const ITENS_NAVEGACAO: readonly ItemNavegacao[] = [
     path: "/financeiro",
     iconKey: "Financeiro",
     filhos: [
-      { label: "Hub Financeiro", path: "/financeiro" },
-      { label: "Contas a Receber", path: "/financeiro/receber" },
-      { label: "Contas a Pagar", path: "/financeiro/pagar" },
-      { label: "Inteligência", path: "/financeiro/inteligencia" },
-      { label: "Notas Fiscais", path: "/financeiro/notas-fiscais" },
+      { label: "Hub Financeiro", path: "/financeiro", permissoesRequeridas: ["financeiro.ver"] },
+      { label: "Contas a Receber", path: "/financeiro/receber", permissoesRequeridas: ["financeiro.ver"] },
+      { label: "Contas a Pagar", path: "/financeiro/pagar", permissoesRequeridas: ["financeiro.ver"] },
+      { label: "Inteligência", path: "/financeiro/inteligencia", permissoesRequeridas: ["dashboard.financeiro"] },
+      { label: "Notas Fiscais", path: "/financeiro/notas-fiscais", permissoesRequeridas: ["financeiro.ver"] },
     ],
   },
   { label: "Metas", path: "/metas", iconKey: "Metas" },
@@ -146,4 +153,32 @@ export function itemEstaAtivo(
   }
 
   return indiceFilhoAtivo(item.filhos ?? [], pathname, searchParams) >= 0;
+}
+
+/**
+ * Fase 1D-2, Parte 4: uma página bloqueada por `AcessoNegado` some do menu —
+ * quem não pode abrir a página não vê o link. Filhos sem `permissoesRequeridas`
+ * ficam visíveis pra qualquer usuário logado.
+ */
+export function filhosVisiveis(
+  item: ItemNavegacao,
+  temAlgumaPermissao: (permissoes: readonly Permissao[]) => boolean
+): readonly SubItemNavegacao[] {
+  if (!item.filhos) return [];
+
+  return item.filhos.filter(
+    (filho) => !filho.permissoesRequeridas || temAlgumaPermissao(filho.permissoesRequeridas)
+  );
+}
+
+/**
+ * Caminho pro qual o item pai deve linkar: o próprio `item.path` quando ele
+ * segue visível entre os filhos filtrados, senão o primeiro filho visível —
+ * evita levar o usuário pro hub bloqueado quando só um filho secundário
+ * (ex.: Inteligência) permanece acessível pra ele.
+ */
+export function caminhoDoItem(item: ItemNavegacao, filhosFiltrados: readonly SubItemNavegacao[]): string {
+  if (!item.filhos?.length) return item.path;
+  if (filhosFiltrados.some((filho) => filho.path === item.path)) return item.path;
+  return filhosFiltrados[0]?.path ?? item.path;
 }

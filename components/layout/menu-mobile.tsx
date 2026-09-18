@@ -18,11 +18,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import {
+  caminhoDoItem,
+  filhosVisiveis,
   ITENS_NAVEGACAO,
   indiceFilhoAtivo,
   itemEstaAtivo,
 } from "@/lib/navegacao/itens-navegacao";
 import { cn } from "@/lib/utils";
+import { usePermissoes } from "@/contextos/contexto-permissoes";
+import type { Permissao } from "@/lib/auth/permissoes";
 
 const ICONES: Record<string, React.ReactNode> = {
   Dashboard: <LayoutDashboard className="h-4 w-4" />,
@@ -56,6 +60,9 @@ export function MenuMobile() {
   const ehTelaPequena = useEhTelaPequena();
   const [aberto, setAberto] = useState(false);
   const [expandidos, setExpandidos] = useState<Record<string, boolean>>({});
+  const { permissoes } = usePermissoes();
+  const temAlgumaPermissao = (permissoesRequeridas: readonly Permissao[]) =>
+    permissoesRequeridas.some((permissao) => permissoes.has(permissao));
 
   const chaveRota = `${pathname}?${searchParams.toString()}`;
 
@@ -83,15 +90,21 @@ export function MenuMobile() {
 
         <nav aria-label="Navegação principal" className="p-2">
           {ITENS_NAVEGACAO.map((item) => {
+            const filhos = filhosVisiveis(item, temAlgumaPermissao);
+
+            if (item.filhos?.length && filhos.length === 0) {
+              return null;
+            }
+
             const ativo = itemEstaAtivo(item, pathname, searchParams);
-            const indiceAtivo = indiceFilhoAtivo(item.filhos ?? [], pathname, searchParams);
+            const indiceAtivo = indiceFilhoAtivo(filhos, pathname, searchParams);
             const expandido = expandidos[item.path] ?? ativo;
 
-            if (!item.filhos?.length) {
+            if (!filhos.length) {
               return (
                 <Link
                   key={item.path}
-                  href={item.path}
+                  href={caminhoDoItem(item, filhos)}
                   aria-current={ativo ? "page" : undefined}
                   className={cn(
                     "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm",
@@ -127,7 +140,7 @@ export function MenuMobile() {
 
                 {expandido ? (
                   <div className="ml-6 border-l border-border pl-3">
-                    {item.filhos.map((filho, indice) => {
+                    {filhos.map((filho, indice) => {
                       const filhoAtivo = indice === indiceAtivo;
 
                       return (

@@ -14,7 +14,6 @@ import {
 } from "@/app/actions/financeiro-pagar";
 import { SeletorClienteCRM } from "@/components/financeiro/seletor-cliente-crm";
 import { useTemPermissao } from "@/contextos/contexto-permissoes";
-import { SemPermissaoAcao } from "@/components/ui/sem-permissao-acao";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -472,9 +471,7 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
                                 >
                                   Pagar / Antecipar
                                 </Button>
-                              ) : (
-                                <SemPermissaoAcao />
-                              )}
+                              ) : null}
                             </TableCell>
                           </TableRow>
                         );

@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { CheckCircle2, Eye, Loader2, XCircle } from "lucide-react";
 import { aprovarPedido, cancelarPedido, rejeitarPedido } from "@/app/actions/vendas";
 import { useTemPermissao } from "@/contextos/contexto-permissoes";
-import { SemPermissaoAcao } from "@/components/ui/sem-permissao-acao";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -325,17 +324,17 @@ export function SalesHistoryOrderSheet({ trigger, order }: SalesHistoryOrderShee
             )}
           </div>
 
-          <div className="border-t border-white/10 bg-slate-950/95 px-6 py-5 backdrop-blur-xl">
-            {isLocked ? (
-              <Button
-                type="button"
-                disabled
-                className="w-full border border-white/10 bg-slate-800 text-slate-300 hover:bg-slate-800"
-              >
-                Pedido Bloqueado - {statusLabelMap[order.status]}
-              </Button>
-            ) : isPdvApprovedOrder ? (
-              podeCancelar ? (
+          {(isLocked || (isPdvApprovedOrder ? podeCancelar : podeCancelar || podeAprovar)) && (
+            <div className="border-t border-white/10 bg-slate-950/95 px-6 py-5 backdrop-blur-xl">
+              {isLocked ? (
+                <Button
+                  type="button"
+                  disabled
+                  className="w-full border border-white/10 bg-slate-800 text-slate-300 hover:bg-slate-800"
+                >
+                  Pedido Bloqueado - {statusLabelMap[order.status]}
+                </Button>
+              ) : isPdvApprovedOrder ? (
                 <Button
                   type="button"
                   variant="destructive"
@@ -347,38 +346,34 @@ export function SalesHistoryOrderSheet({ trigger, order }: SalesHistoryOrderShee
                   Cancelar Pedido
                 </Button>
               ) : (
-                <SemPermissaoAcao />
-              )
-            ) : podeCancelar || podeAprovar ? (
-              <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-                {podeCancelar && (
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    onClick={handleReject}
-                    disabled={isPending}
-                    className="sm:min-w-40"
-                  >
-                    {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
-                    Rejeitar
-                  </Button>
-                )}
-                {podeAprovar && (
-                  <Button
-                    type="button"
-                    onClick={handleApprove}
-                    disabled={isPending || isMissingApprovalData}
-                    className="bg-emerald-500 text-slate-950 hover:bg-emerald-400 sm:min-w-40"
-                  >
-                    {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                    Aprovar Venda
-                  </Button>
-                )}
-              </div>
-            ) : (
-              <SemPermissaoAcao />
-            )}
-          </div>
+                <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+                  {podeCancelar && (
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      onClick={handleReject}
+                      disabled={isPending}
+                      className="sm:min-w-40"
+                    >
+                      {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
+                      Rejeitar
+                    </Button>
+                  )}
+                  {podeAprovar && (
+                    <Button
+                      type="button"
+                      onClick={handleApprove}
+                      disabled={isPending || isMissingApprovalData}
+                      className="bg-emerald-500 text-slate-950 hover:bg-emerald-400 sm:min-w-40"
+                    >
+                      {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                      Aprovar Venda
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </SheetContent>
     </Sheet>
