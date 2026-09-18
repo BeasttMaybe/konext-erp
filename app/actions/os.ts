@@ -26,6 +26,7 @@ import {
 import { normalizarSituacao, paraEstagio, paraStatusLegado, type EtapaOS, type SituacaoOS } from "@/lib/dominio/os/etapas";
 import { encontrarEntregaAuditada } from "@/lib/dominio/os/entrega-auditada";
 import { ErroPermissao, exigirPermissao, temPermissao } from "@/lib/auth/permissoes";
+import { escopoOrdemServico } from "@/lib/auth/escopos";
 import {
   avaliarFinalizacao,
   avaliarFinalizacaoSemServico,
@@ -99,6 +100,14 @@ type RawOrdemServico = {
   criadoEm?: unknown;
   atualizadoEm?: unknown;
   itens?: RawItemOS[];
+  tecnicos?: RawTecnicoOS[];
+};
+
+type RawTecnicoOS = {
+  usuarioId?: unknown;
+  participacaoPercentual?: unknown;
+  principal?: unknown;
+  usuario?: { nome?: unknown } | null;
 };
 
 export type DadosDashboardOS = {
@@ -173,6 +182,12 @@ function mapearOrdemServicoDashboard(order: RawOrdemServico, podeVerCustos: bool
     entregueSemServico: Boolean(order.entregueSemServico),
     motivoSemServico: order.motivoSemServico ? String(order.motivoSemServico) : undefined,
     archivedAt: order.archivedAt ? normalizarDataISO(order.archivedAt) : null,
+    tecnicos: (order.tecnicos ?? []).map((tecnico) => ({
+      usuarioId: String(tecnico.usuarioId),
+      nome: String(tecnico.usuario?.nome ?? "Técnico"),
+      participacaoPercentual: Number(tecnico.participacaoPercentual ?? 0),
+      principal: Boolean(tecnico.principal),
+    })),
     dataCriacao: normalizarDataISO(order.criadoEm),
     dataAtualizacao: normalizarDataISO(order.atualizadoEm),
   };
@@ -413,6 +428,11 @@ export async function obterDadosDashboardOS(): Promise<DadosDashboardOS> {
   const contexto = await exigirContextoTenant();
   const prisma = contexto.prisma;
   const podeVerCustos = temPermissao(contexto, "os.ver_custos");
+  // Escopo de visibilidade (Fase 1D-2): sem os.ver_todas, so OS criadas pelo
+  // usuario ou em que ele aparece como tecnico — ver lib/auth/escopos.ts.
+  // Vale pro quadro, pra lista de finalizadas e pros contadores do topo, que
+  // sao todos derivados do que esta funcao devolve.
+  const escopoOS = escopoOrdemServico(contexto);
 
   const prismaAny = prisma as unknown as Record<string, unknown>;
   const ordemServicoDelegate =
@@ -441,6 +461,14 @@ export async function obterDadosDashboardOS(): Promise<DadosDashboardOS> {
         finalizadoEm: true,
       },
     },
+    tecnicos: {
+      select: {
+        usuarioId: true,
+        participacaoPercentual: true,
+        principal: true,
+        usuario: { select: { nome: true } },
+      },
+    },
   };
 
   let ordensAtivasBrutas: RawOrdemServico[] = [];
@@ -453,6 +481,7 @@ export async function obterDadosDashboardOS(): Promise<DadosDashboardOS> {
         where: {
           archivedAt: null,
           excluidaEm: null,
+          ...escopoOS,
         },
         include: includeOrderRelations,
         orderBy: {
@@ -471,6 +500,7 @@ export async function obterDadosDashboardOS(): Promise<DadosDashboardOS> {
             not: null,
           },
           excluidaEm: null,
+          ...escopoOS,
         },
         include: includeOrderRelations,
         orderBy: {
@@ -500,6 +530,7 @@ export async function obterDadosDashboardOS(): Promise<DadosDashboardOS> {
 
     const [todasOrdens, archiveRows, excluidas] = await Promise.all([
       ordemServicoDelegate.findMany({
+        where: escopoOS,
         include: includeOrderRelations,
         orderBy: {
           criadoEm: "desc",
@@ -647,6 +678,8 @@ export async function criarOrdemServico(dados: DadosNovaOS) {
         etapa: estagioInicial.etapa,
         situacao: estagioInicial.situacao,
         observacoes: dados.observacoesInternas?.trim() || null,
+        // Fase 1D-2: fonte de "OS que eu criei" pra quem nao tem os.ver_todas — ver lib/auth/escopos.ts.
+        criadoPorId: usuario.id || null,
       },
       select: {
         id: true,

@@ -33,6 +33,14 @@ export interface ChecklistEntrada {
   acessorios: string;
 }
 
+/** Um tecnico atribuido a OS (Fase 1D-2) — ver lib/dominio/os/tecnicos.ts. */
+export interface TecnicoDaOS {
+  usuarioId: string;
+  nome: string;
+  participacaoPercentual: number;
+  principal: boolean;
+}
+
 export interface OrdemServico {
   id: string;
   numeroOS: string;
@@ -70,6 +78,8 @@ export interface OrdemServico {
   motivoSemServico?: string;
   /** Preenchido só na entrega (finalizarOrdemServico/finalizarSemServico). null enquanto nao arquivada, mesmo com status ENTREGUE — o caso de "resgate". */
   archivedAt?: string | null;
+  /** Fase 1D-2 — ver lib/dominio/os/tecnicos.ts. Vazio = OS sem tecnico atribuido. */
+  tecnicos: TecnicoDaOS[];
   dataCriacao: string;
   dataAtualizacao: string;
 }
