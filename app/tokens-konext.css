@@ -44,11 +44,18 @@
   --kx-link: #a5aaff;
   --kx-foco: #8b91ff;
 
-  /* ---- Cor: etapas da OS (indicador — ponto/borda, não texto corrido) ---- */
+  /* ---- Cor: etapas da OS (indicador — ponto/borda; a pílula usa os pares
+     fundo/texto abaixo). "orçamento" reaproveita o par de --kx-alerta e
+     "pronto" o de --kx-sucesso — são exatamente a mesma cor no mockup
+     (#FBBF24 e #34D399), então não duplicamos par nenhum pra eles. ---- */
   --kx-orcamento: #fbbf24;
   --kx-conserto: #60a5fa;
+  --kx-conserto-fundo: #1e3a5f;
+  --kx-conserto-texto: #bfdbfe;
   --kx-pronto: #34d399;
   --kx-entregue: #8b91ff;
+  --kx-entregue-fundo: #332f6b;
+  --kx-entregue-texto: #c7caff;
 
   /* ---- Cor: garantia (indicador — a pílula abaixo é quem carrega texto) ---- */
   --kx-garantia: #c2408f;
@@ -98,6 +105,14 @@
   --kx-sombra-painel: 0 8px 24px rgba(8, 9, 20, 0.32);
   --kx-sombra-flutuante: 0 16px 40px rgba(8, 9, 20, 0.44);
 
+  /* Fundo de dialogo/gaveta/popover — sempre escuro-translucido, nos dois
+     temas (é o resto da TELA escurecendo, não uma superfície do app). */
+  --kx-sobreposicao: rgba(8, 9, 20, 0.7);
+
+  /* Bolinha de controles (switch) — sempre branca, nos dois temas: é uma
+     peça física neutra, não texto nem superfície do app. */
+  --kx-controle-bolinha: #ffffff;
+
   /* ---- Z-index (uma escala só, pra nunca duas camadas brigarem por número solto) ---- */
   --kx-z-base: 0;
   --kx-z-sticky: 20;
@@ -136,8 +151,12 @@
      o par escuro (mais claro) fica pro fundo escuro, onde já funciona. ---- */
   --kx-orcamento: #92660a;
   --kx-conserto: #1d63c0;
+  --kx-conserto-fundo: #dceafe;
+  --kx-conserto-texto: #1d63c0;
   --kx-pronto: #0a7d55;
   --kx-entregue: #4548c9;
+  --kx-entregue-fundo: #e4e4ff;
+  --kx-entregue-texto: #4548c9;
 
   /* ---- Cor: garantia ---- */
   --kx-garantia: #c2408f;

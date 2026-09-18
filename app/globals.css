@@ -178,8 +178,12 @@
   --color-kx-foco: var(--kx-foco);
   --color-kx-orcamento: var(--kx-orcamento);
   --color-kx-conserto: var(--kx-conserto);
+  --color-kx-conserto-fundo: var(--kx-conserto-fundo);
+  --color-kx-conserto-texto: var(--kx-conserto-texto);
   --color-kx-pronto: var(--kx-pronto);
   --color-kx-entregue: var(--kx-entregue);
+  --color-kx-entregue-fundo: var(--kx-entregue-fundo);
+  --color-kx-entregue-texto: var(--kx-entregue-texto);
   --color-kx-garantia: var(--kx-garantia);
   --color-kx-garantia-pilula-fundo: var(--kx-garantia-pilula-fundo);
   --color-kx-garantia-pilula-texto: var(--kx-garantia-pilula-texto);
@@ -218,6 +222,8 @@
   --shadow-kx-cartao: var(--kx-sombra-cartao);
   --shadow-kx-painel: var(--kx-sombra-painel);
   --shadow-kx-flutuante: var(--kx-sombra-flutuante);
+  --color-kx-sobreposicao: var(--kx-sobreposicao);
+  --color-kx-controle-bolinha: var(--kx-controle-bolinha);
 
   --font-sans: var(--kx-fonte), ui-sans-serif, system-ui, sans-serif;
 }
