@@ -54,14 +54,14 @@ async function buscarCaixaAbertoViaSql(client: SqlExecutor): Promise<{ id: strin
   return { id: String(resultado[0].id) };
 }
 
-async function criarCaixaViaSql(client: SqlExecutor, valorAbertura: number) {
+async function criarCaixaViaSql(client: SqlExecutor, valorAbertura: number, abertoPorId: string | null) {
   const id = randomUUID();
 
   const resultado = await client.$queryRaw<
     Array<{ id: string; valorAbertura: number; dataAbertura: Date }>
   >`
-    INSERT INTO "CaixaSession" (id, status, "valorAbertura", "criadoEm", "atualizadoEm")
-    VALUES (${id}, 'ABERTO', ${valorAbertura}, NOW(), NOW())
+    INSERT INTO "CaixaSession" (id, status, "valorAbertura", "abertoPorId", "criadoEm", "atualizadoEm")
+    VALUES (${id}, 'ABERTO', ${valorAbertura}, ${abertoPorId}, NOW(), NOW())
     RETURNING id, "valorAbertura", "dataAbertura"
   `;
 
@@ -240,6 +240,7 @@ export async function abrirNovaCaixaSession(valorAbertura: number) {
         data: {
           status: "ABERTO",
           valorAbertura: valorNumerico,
+          abertoPorId: contexto.usuarioOperacional.id || null,
         },
         select: {
           id: true,
@@ -260,7 +261,7 @@ export async function abrirNovaCaixaSession(valorAbertura: number) {
         throw new Error("Ja existe um caixa aberto. Feche o caixa atual antes de abrir um novo.");
       }
 
-      resultado = await criarCaixaViaSql(txAny, valorNumerico);
+      resultado = await criarCaixaViaSql(txAny, valorNumerico, contexto.usuarioOperacional.id || null);
     }
 
     await registrarLogAuditoria(

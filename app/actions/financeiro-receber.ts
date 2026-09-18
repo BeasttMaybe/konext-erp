@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { exigirPermissao } from "@/lib/auth/permissoes";
+import { escopoContaReceber } from "@/lib/auth/escopos";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 import { paraMensagemSegura } from "@/lib/erros";
@@ -80,6 +81,7 @@ export async function listarContasReceber(): Promise<ContaReceberFinanceiro[]> {
   const prisma = contexto.prisma;
 
   const contas = await prisma.contaReceber.findMany({
+    where: escopoContaReceber(contexto),
     include: {
       cliente: {
         select: {
@@ -167,6 +169,7 @@ async function criarContaReceberInterno(input: CriarContaReceberInput): Promise<
       totalParcelas: qtdParcelas,
       dataInicio: input.dataInicio,
       dataFinalizacao: null,
+      criadoPorId: usuario.id || null,
     };
   });
 
@@ -454,7 +457,7 @@ export async function listarContasReceberFiltradas(
   }
   const prisma = contexto.prisma;
 
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = { ...escopoContaReceber(contexto) };
 
   // Usa os valores da URL quando presentes; caso contrário, adota o mês/ano atual.
   const hoje = new Date();

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { Prisma, type ResultadoRetornoGarantia } from "@prisma/client";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { ErroPermissao, exigirPermissao } from "@/lib/auth/permissoes";
+import { escopoOrdemServico } from "@/lib/auth/escopos";
 import {
   descreverAutoria,
   normalizarIdUsuarioOperacional,
@@ -1023,8 +1024,11 @@ export async function listarGarantiasOS(filtros: FiltrosGarantiaInput = {}): Pro
     const fimFiltro = filtros.dataFim ? fimDoDia(new Date(filtros.dataFim)) : null;
 
     const whereBase: Prisma.TermoGarantiaOSWhereInput = {
+      // Escopo de visibilidade (Fase 1D-2): sem os.ver_todas, so garantias
+      // de OS que o usuario criou ou em que aparece como tecnico — ver
+      // lib/auth/escopos.ts.
       os: {
-        is: {},
+        is: escopoOrdemServico(contexto),
       },
       ...(inicioFiltro || fimFiltro
         ? {
@@ -1226,39 +1230,51 @@ export async function obterDashboardGarantiasOS(): Promise<DashboardGarantiasOS>
   const hoje = inicioDoDia();
   const limite7 = fimDoDia(adicionarDias(hoje, 7));
 
+  // Escopo de visibilidade (Fase 1D-2): os cartoes do topo da aba Garantia
+  // precisam refletir o MESMO recorte da tabela abaixo — ver
+  // lib/auth/escopos.ts. `escopoOS` (Prisma) alimenta os `count()`;
+  // `filtroOsRawSql` traduz a MESMA decisao (restrito ou nao) pras 3
+  // consultas em SQL cru, que agregam com GROUP BY.
+  const escopoOS = escopoOrdemServico(contexto);
+  const usuarioIdAtual = contexto.usuarioOperacional.id || null;
+  const filtroOsRawSql =
+    Object.keys(escopoOS).length === 0
+      ? Prisma.empty
+      : Prisma.sql`AND (os."criadoPorId" = ${usuarioIdAtual} OR EXISTS (SELECT 1 FROM "TecnicoOS" t WHERE t."osId" = os.id AND t."usuarioId" = ${usuarioIdAtual}))`;
+
   const [ativas, vencem7, vencidas, comRetorno, totalBase, valorAtivoRaw, principaisServicos, principaisPecas] = await Promise.all([
     prisma.termoGarantiaOS.count({
       where: {
         canceladaEm: null,
-        os: { excluidaEm: null },
+        os: { excluidaEm: null, ...escopoOS },
         dataFimGarantia: { gte: hoje },
       },
     }),
     prisma.termoGarantiaOS.count({
       where: {
         canceladaEm: null,
-        os: { excluidaEm: null },
+        os: { excluidaEm: null, ...escopoOS },
         dataFimGarantia: { gte: hoje, lte: limite7 },
       },
     }),
     prisma.termoGarantiaOS.count({
       where: {
         canceladaEm: null,
-        os: { excluidaEm: null },
+        os: { excluidaEm: null, ...escopoOS },
         dataFimGarantia: { lt: hoje },
       },
     }),
     prisma.termoGarantiaOS.count({
       where: {
         canceladaEm: null,
-        os: { excluidaEm: null },
+        os: { excluidaEm: null, ...escopoOS },
         retornos: { some: {} },
       },
     }),
     prisma.termoGarantiaOS.count({
       where: {
         canceladaEm: null,
-        os: { excluidaEm: null },
+        os: { excluidaEm: null, ...escopoOS },
       },
     }),
     prisma.$queryRaw<Array<{ total: number | null }>>`
@@ -1269,6 +1285,7 @@ export async function obterDashboardGarantiasOS(): Promise<DashboardGarantiasOS>
       WHERE tg."canceladaEm" IS NULL
         AND os."excluidaEm" IS NULL
         AND tg."dataFimGarantia" >= ${hoje}
+        ${filtroOsRawSql}
     `,
     prisma.$queryRaw<Array<{ nome: string | null; quantidade: bigint }>>`
       SELECT i.descricao AS nome, COUNT(r.id) AS quantidade
@@ -1278,6 +1295,7 @@ export async function obterDashboardGarantiasOS(): Promise<DashboardGarantiasOS>
       INNER JOIN "ItemOS" i ON i."osId" = os.id
       WHERE tg."canceladaEm" IS NULL
         AND os."excluidaEm" IS NULL
+        ${filtroOsRawSql}
       GROUP BY i.descricao
       ORDER BY COUNT(r.id) DESC
       LIMIT 5
@@ -1290,6 +1308,7 @@ export async function obterDashboardGarantiasOS(): Promise<DashboardGarantiasOS>
       INNER JOIN "ItemOS" i ON i."osId" = os.id
       WHERE tg."canceladaEm" IS NULL
         AND os."excluidaEm" IS NULL
+        ${filtroOsRawSql}
       GROUP BY i."tipoPeca"
       ORDER BY COUNT(r.id) DESC
       LIMIT 5

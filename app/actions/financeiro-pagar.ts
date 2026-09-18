@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { exigirPermissao } from "@/lib/auth/permissoes";
+import { escopoDespesa } from "@/lib/auth/escopos";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 import { paraMensagemSegura } from "@/lib/erros";
@@ -239,6 +240,7 @@ async function criarDespesaInterno(data: DadosCriarDespesa) {
         valorTotal: data.valorTotal,
         tipo: data.tipo,
         qtdParcelas,
+        criadoPorId: usuario.id || null,
       },
     });
 
@@ -289,7 +291,7 @@ export async function listarParcelasPagar(): Promise<ParcelaDespesaComRelacao[]>
   const parcelaDespesaDelegate = obterDelegateParcelaDespesa(prismaAny, prismaAny);
 
   const parcelas = await parcelaDespesaDelegate.findMany({
-    where: {},
+    where: { despesa: { is: escopoDespesa(contexto) } },
     include: {
       despesa: {
         include: {
@@ -363,16 +365,17 @@ export async function listarParcelasPagarFiltradas(
     };
   }
 
-  // Filtro por categoria de cliente (via despesa.cliente.categoria)
-  if (filtros?.categoriaCliente) {
-    where.despesa = {
-      cliente: {
-        is: {
-          categoria: filtros.categoriaCliente,
-        },
-      },
-    };
-  }
+  // Escopo de visibilidade (Fase 1D-2) + filtro por categoria de cliente,
+  // os dois dentro do mesmo `despesa.is` — nunca dois filtros concorrentes
+  // na mesma relacao.
+  where.despesa = {
+    is: {
+      ...escopoDespesa(contexto),
+      ...(filtros?.categoriaCliente
+        ? { cliente: { is: { categoria: filtros.categoriaCliente } } }
+        : {}),
+    },
+  };
 
   const parcelas = await prisma.parcelaDespesa.findMany({
     where,

@@ -3,6 +3,7 @@
 import { Prisma } from "@prisma/client";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { exigirPermissao } from "@/lib/auth/permissoes";
+import { escopoCaixaSession } from "@/lib/auth/escopos";
 
 type OrdemServicoCustoItem = { custoPeca?: number | null };
 type OrdemServicoCustoRow = { itens?: OrdemServicoCustoItem[] };
@@ -320,12 +321,23 @@ export async function obterHistoricoFechamentos(
   const { prisma } = contexto;
   const offset = (page - 1) * limit;
 
+  // Escopo de visibilidade (Fase 1D-2): sem caixa.ver_todos, so as sessoes
+  // que o proprio usuario abriu. A decisao vem de lib/auth/escopos.ts — aqui
+  // so traduzimos o fragmento pra SQL cru, ja que esta consulta agrega com
+  // GROUP BY (fora do que o query builder do Prisma expressa bem).
+  const escopoCaixa = escopoCaixaSession(contexto);
+  const filtroAutorSql =
+    "abertoPorId" in escopoCaixa && escopoCaixa.abertoPorId
+      ? Prisma.sql`AND "abertoPorId" = ${escopoCaixa.abertoPorId}`
+      : Prisma.empty;
+
   // Total de sessões fechadas (para calcular totalPages)
   const totalRaw = await prisma.$queryRaw<Array<{ count: bigint }>>`
     SELECT COUNT(*) AS count
     FROM "CaixaSession"
     WHERE status::text = 'FECHADO'
       AND "dataFechamento" IS NOT NULL
+      ${filtroAutorSql}
   `;
   const total = Number(totalRaw[0]?.count ?? 0);
 
@@ -348,6 +360,7 @@ export async function obterHistoricoFechamentos(
     LEFT JOIN "Venda" v ON v."caixaSessionId" = c.id
     WHERE c.status::text = 'FECHADO'
       AND c."dataFechamento" IS NOT NULL
+      ${filtroAutorSql}
     GROUP BY c.id, c."dataFechamento", c."valorAbertura", c."valorFechamento"
     ORDER BY c."dataFechamento" DESC
     LIMIT ${limit} OFFSET ${offset}

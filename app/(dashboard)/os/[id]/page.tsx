@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { temPermissao } from "@/lib/auth/permissoes";
+import { escopoOrdemServico } from "@/lib/auth/escopos";
 import { obterConfiguracoes } from "@/app/actions/configuracoes";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -138,9 +139,16 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
     throw new Error("Delegate Prisma de OrdemServico nao disponivel.");
   }
 
+  // Escopo de visibilidade (Fase 1D-2): sem os.ver_todas, uma URL direta pra
+  // OS de outro tecnico devolve null aqui — cai no `notFound()` abaixo,
+  // exatamente como uma OS inexistente. Nunca "sem permissao", sempre "nao
+  // encontrada" — ver lib/auth/escopos.ts.
+  const escopoOS = escopoOrdemServico(contexto);
+
   let osBanco = await delegateOrdemServico.findUnique({
     where: {
       id,
+      ...escopoOS,
     },
     include: {
       cliente: {
@@ -182,6 +190,7 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
       osBanco = await delegateOrdemServico.findFirst({
         where: {
           numeroOs: numeroOsSlug,
+          ...escopoOS,
         },
         include: {
           cliente: {
