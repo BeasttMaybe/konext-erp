@@ -1,6 +1,6 @@
 # Migrations
 
-Operational runbook for `prisma/migrations` (tenant schema) and the per-tenant migration runner. Read [`backup-restore.md`](./backup-restore.md) first — every write path here starts with a backup.
+Operational runbook for `prisma/migrations` (tenant schema) and the per-tenant migration runner. Read [`backup-restore.md`](./backup-restore.md) first: the one-time baseline adoption in section 3 still starts with `npm run db:backup`; the ongoing per-tenant runner in section 5 instead requires a Neon branch as a restore point (`PONTO_RESTAURACAO`) before it writes anything.
 
 > **Hard rule, no exceptions:** never run `prisma migrate dev`, `prisma db push`, or `prisma migrate reset` against any environment. They are dev-convenience commands that can drop or reset data. This project only ever uses `prisma migrate diff` (read-only, to *compute* SQL) and `prisma migrate deploy` / `prisma migrate resolve` (to *apply or record* it).
 
@@ -71,26 +71,29 @@ This writes one row to that tenant's `_prisma_migrations` table (`migration_name
 
 ## 5. Ongoing migrations: the per-tenant runner (`npm run db:migrar`)
 
-`scripts/migracao/migrar-tenants.mjs` loops over every `Tenant` with `status = 'ATIVO'` (of an `Empresa` with `status = 'ATIVA'`), read from the central database, in the same order `db:backup`/`db:diagnostico` use. For **each** tenant, in order:
+`scripts/migracao/migrar-tenants.mjs` loops over every `Tenant` with `status = 'ATIVO'` (of an `Empresa` with `status = 'ATIVA'`), read from the central database, in the same order `db:backup`/`db:diagnostico` use.
 
-1. **Backup** that one tenant (`node scripts/backup/backup-bancos.mjs --tenant <slug>`, which also backs up central). If it fails, the whole run stops — no tenant is ever migrated without a fresh backup.
-2. Confirm `0_baseline` is resolved in that tenant's `_prisma_migrations` (section 3). If not, the run stops with the exact `migrate resolve` command to run first.
-3. `prisma migrate status` — printed for visibility.
-4. `prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script` — the SQL this tenant is missing. Every non-comment line is checked against a fixed list of destructive patterns: `DROP TABLE`, `DROP COLUMN`, `ALTER COLUMN ... TYPE`, `DROP CONSTRAINT`, `TRUNCATE`, `DELETE`, `UPDATE`, `SET DEFAULT` on a column whose name contains "status" or "archiv", and `ALTER TYPE` on an enum. If any of these match, the exact offending SQL line is printed and the run stops unless `AUTORIZAR_DESTRUTIVO=SIM` is set.
-5. `prisma migrate deploy` — applies whatever is pending.
-6. Updates that tenant's `Tenant.versaoSchema` in the **central** database to the newest migration folder name.
-7. Runs the same `migrate diff` from step 4 again and asserts it is now empty. If it isn't, the tenant is reported as `POS_DEPLOY_DIVERGENTE` and the run stops immediately — this should never happen if `migrate deploy` succeeded, so treat it as an emergency, not routine.
+Before touching any tenant, `--aplicar` mode requires `PONTO_RESTAURACAO=<nome>` in the environment: the operator creates a Neon branch from the target database as a restore point and passes its name once, for the whole run. Without it the script aborts before processing any tenant — it never calls `pg_dump` itself. The name is printed in the run's header and echoed before each tenant's steps, so it ends up in the console log. `db:backup` (section 2) still exists as its own standalone command, kept for the future VPS deployment where Neon branching won't be available, but it is no longer part of this runner's pipeline.
 
-`prisma migrate deploy` applies each pending migration file in its own Prisma-managed transaction; that guarantee is Prisma's, not this script's. The `Tenant.versaoSchema` update in step 6 is a single-row update, trivially atomic on its own — there is no distributed transaction spanning the tenant database and the central database (Postgres doesn't support one across two separate databases), which is why step 7 exists as an explicit, separate safety check rather than relying on atomicity across steps 5–6.
+For **each** tenant, in order:
 
-There is no `LogAuditoria` entry for any of this: `LogAuditoria` is a tenant business-data model (used for OS/sales/financial mutations), and schema/DDL changes are not tenant business data. The audit trail for a migration run is the backup taken in step 1, the migration history itself, and this script's console output.
+1. Confirm `0_baseline` is resolved in that tenant's `_prisma_migrations` (section 3). If not, the run stops with the exact `migrate resolve` command to run first.
+2. `prisma migrate status` — printed for visibility.
+3. `prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script` — the SQL this tenant is missing. Every non-comment line is checked against a fixed list of destructive patterns: `DROP TABLE`, `DROP COLUMN`, `ALTER COLUMN ... TYPE`, `DROP CONSTRAINT`, `TRUNCATE`, `DELETE`, `UPDATE`, `SET DEFAULT` on a column whose name contains "status" or "archiv", and `ALTER TYPE` on an enum. If any of these match, the exact offending SQL line is printed and the run stops unless `AUTORIZAR_DESTRUTIVO=SIM` is set.
+4. `prisma migrate deploy` — applies whatever is pending.
+5. Updates that tenant's `Tenant.versaoSchema` in the **central** database to the newest migration folder name.
+6. Runs the same `migrate diff` from step 3 again and asserts it is now empty. If it isn't, the tenant is reported as `POS_DEPLOY_DIVERGENTE` and the run stops immediately — this should never happen if `migrate deploy` succeeded, so treat it as an emergency, not routine.
+
+`prisma migrate deploy` applies each pending migration file in its own Prisma-managed transaction; that guarantee is Prisma's, not this script's. The `Tenant.versaoSchema` update in step 5 is a single-row update, trivially atomic on its own — there is no distributed transaction spanning the tenant database and the central database (Postgres doesn't support one across two separate databases), which is why step 6 exists as an explicit, separate safety check rather than relying on atomicity across steps 4–5.
+
+There is no `LogAuditoria` entry for any of this: `LogAuditoria` is a tenant business-data model (used for OS/sales/financial mutations), and schema/DDL changes are not tenant business data. The audit trail for a migration run is the Neon restore point named in `PONTO_RESTAURACAO`, the migration history itself, and this script's console output.
 
 ### 5.1 Modes
 
 | Flag | Behavior |
 |---|---|
-| *(none)*, or `--dry-run` | Default. Prints the full plan for every selected tenant — status, diff, destructive-pattern findings, whether `0_baseline` is resolved — and writes nothing anywhere, not even a backup file. Always evaluates **every** selected tenant, even if one of them would be blocked, so the operator sees the whole picture in one run. |
-| `--aplicar` | Leaves dry-run. Also requires `CONFIRMAR=SIM` in the environment, or it refuses to start. In this mode the run **stops at the first tenant that doesn't finish `OK`** and never proceeds to the next one. |
+| *(none)*, or `--dry-run` | Default. Prints the full plan for every selected tenant — status, diff, destructive-pattern findings, whether `0_baseline` is resolved — and writes nothing anywhere; does not require `PONTO_RESTAURACAO`. Always evaluates **every** selected tenant, even if one of them would be blocked, so the operator sees the whole picture in one run. |
+| `--aplicar` | Leaves dry-run. Also requires `CONFIRMAR=SIM` **and** `PONTO_RESTAURACAO=<nome do branch Neon>` in the environment, or it refuses to start. In this mode the run **stops at the first tenant that doesn't finish `OK`** and never proceeds to the next one. |
 | `--tenant <slug>` | Restricts either mode to one tenant. |
 
 ```bash
@@ -100,17 +103,18 @@ npm run db:migrar
 # Same, for one tenant only
 npm run db:migrar -- --tenant principal
 
-# Actually migrate one tenant (after reviewing its dry-run plan)
-CONFIRMAR=SIM npm run db:migrar -- --tenant principal --aplicar
+# Actually migrate one tenant: create a Neon branch from that tenant's
+# database first, then pass its name (after reviewing the dry-run plan)
+CONFIRMAR=SIM PONTO_RESTAURACAO=pre-migracao-principal-20260917 npm run db:migrar -- --tenant principal --aplicar
 
 # Actually migrate every active tenant
-CONFIRMAR=SIM npm run db:migrar -- --aplicar
+CONFIRMAR=SIM PONTO_RESTAURACAO=pre-migracao-20260917 npm run db:migrar -- --aplicar
 
-# ...and if step 4 reports a genuinely intended destructive change
-AUTORIZAR_DESTRUTIVO=SIM CONFIRMAR=SIM npm run db:migrar -- --tenant principal --aplicar
+# ...and if step 3 reports a genuinely intended destructive change
+AUTORIZAR_DESTRUTIVO=SIM CONFIRMAR=SIM PONTO_RESTAURACAO=pre-migracao-principal-20260917 npm run db:migrar -- --tenant principal --aplicar
 ```
 
-The final line of output is always a table — tenant, backup file, migrations applied, new `versaoSchema`, result — for every tenant that was evaluated, including the one that stopped the run.
+The final line of output is always a table — tenant, restore point, migrations applied, new `versaoSchema`, result — for every tenant that was evaluated, including the one that stopped the run.
 
 ### 5.2 When a tenant fails
 
@@ -122,8 +126,7 @@ The run stops immediately; no later tenant is touched. What to do depends on whi
 | `BLOQUEADO_RESOLVE` | `0_baseline` isn't marked applied for this tenant yet. | Run the `migrate resolve --applied 0_baseline` command from section 3 for that one tenant, then re-run `db:migrar`. |
 | `ERRO_DIFF` | `prisma migrate diff` itself failed (connectivity, permissions, etc). | Investigate the printed stderr; the database was not touched. |
 | `BLOQUEADO_DESTRUTIVO` | The pending SQL matched a destructive pattern. | Read the printed statement(s) carefully. If genuinely intended, re-run with `AUTORIZAR_DESTRUTIVO=SIM`. If not, fix the migration file instead. |
-| `FALHA_BACKUP` | `db:backup --tenant <slug>` failed. | Fix whatever `pg_dump` reported (see `backup-restore.md`); nothing else ran for this tenant. |
-| `FALHA_DEPLOY` | `prisma migrate deploy` itself failed. | A backup was already taken in step 1 — restore from it if the tenant was left in a partial state, per `backup-restore.md` section 3. Investigate the Prisma error before retrying. |
+| `FALHA_DEPLOY` | `prisma migrate deploy` itself failed. | If the tenant was left in a partial state, recover through the Neon branch named in `PONTO_RESTAURACAO` for that run (promote it, or point `DATABASE_URL` at it) — there is no local dump to `pg_restore` from. Investigate the Prisma error before retrying. |
 | `POS_DEPLOY_DIVERGENTE` | Deploy reported success but the post-deploy diff isn't empty. | Treat as an emergency: `Tenant.versaoSchema` was already updated in central, but the tenant database doesn't actually match `prisma/schema.prisma`. Investigate before running anything else against this tenant. |
 
 A tenant that finishes `OK` needs no follow-up. Tenants after the failed one were never started — their row (if dry-run had shown one) simply doesn't reflect any actual attempt.
@@ -139,3 +142,18 @@ A tenant that finishes `OK` needs no follow-up. Tenants after the failed one wer
 4. Run `npm run db:migrar` (dry-run first) to roll it out tenant by tenant.
 
 This is exactly how `0_baseline` itself and the `retornoGarantiaId` index fix were produced — there is no other sanctioned way to create a migration file in this project.
+
+## 6. `aplicar-reparo-os.mjs` also requires a restore point
+
+`scripts/reparo/aplicar-reparo-os.mjs` (`npm run db:reparar-os`) is a separate, one-off data-repair script — it does not touch `prisma/migrations` at all, it only applies what `docs/diagnostico/reparo-os.json` (generated by `npm run db:relatorio-os`) already decided per OS/term. It never called `pg_dump` on its own, but it writes to the tenant database, so it follows the same restore-point discipline as the runner in section 5:
+
+- Running without `CONFIRMAR=SIM` only prints the header (environment, masked host, restore point, action, ids, motivo) and exits without touching anything — `PONTO_RESTAURACAO` is not required in this preview mode.
+- Running with `CONFIRMAR=SIM` also requires `PONTO_RESTAURACAO=<nome do branch Neon>` in the environment, or it aborts right there, before reading `reparo-os.json` or opening any database connection.
+
+```bash
+# Preview only — no restore point needed
+AMBIENTE=producao npm run db:reparar-os -- --acao arquivar --ids abc,def --motivo "Reparo Fase 1C-1 grupo A"
+
+# Actually apply: create the Neon branch first, then pass its name
+AMBIENTE=producao CONFIRMAR=SIM PONTO_RESTAURACAO=pre-reparo-os-20260917 npm run db:reparar-os -- --acao arquivar --ids abc,def --motivo "Reparo Fase 1C-1 grupo A"
+```

@@ -1,7 +1,10 @@
 // npm run db:reparar-os -- --acao <arquivar|entregar|recalcular-garantia> --ids <id,id,...> --motivo "<texto>"
 //
-// ESCREVE no banco. So roda com AMBIENTE definido, CONFIRMAR=SIM, e recusa
-// "-pooler". Le docs/diagnostico/reparo-os.json (gerado por
+// ESCREVE no banco. So roda com AMBIENTE definido, CONFIRMAR=SIM,
+// PONTO_RESTAURACAO=<branch Neon criado a partir do banco alvo como ponto de
+// restauracao> e recusa "-pooler". Nao faz pg_dump nenhum: quem cria o
+// branch e o operador, antes de rodar. Le docs/diagnostico/reparo-os.json
+// (gerado por
 // scripts/reparo/relatorio-os-inconsistentes.mjs, que precisa ter rodado
 // antes) para duas coisas:
 //   1. as datas e a elegibilidade JA DECIDIDAS pelo relatorio — este script
@@ -63,7 +66,7 @@ function imprimirUso() {
   console.log("");
   console.log("Exemplo:");
   console.log(
-    '  AMBIENTE=producao CONFIRMAR=SIM npm run db:reparar-os -- --acao arquivar --ids abc,def --motivo "Reparo Fase 1C-1 grupo A"'
+    '  AMBIENTE=producao CONFIRMAR=SIM PONTO_RESTAURACAO=pre-reparo-os-20260917 npm run db:reparar-os -- --acao arquivar --ids abc,def --motivo "Reparo Fase 1C-1 grupo A"'
   );
   console.log("");
   console.log("Requer docs/diagnostico/reparo-os.json (rode \"npm run db:relatorio-os\" antes).");
@@ -367,11 +370,14 @@ async function main() {
 
   recusarPooler(databaseUrl, "DATABASE_URL");
 
+  const pontoRestauracao = String(process.env.PONTO_RESTAURACAO ?? "").trim();
+
   console.log("");
   console.log("Reparo de OS");
   console.log(`  Ambiente : ${ambiente}`);
   console.log(`  Banco    : ${mascararConnectionString(databaseUrl)}`);
   console.log(`  Host     : ${extrairHostMascarado(databaseUrl)}`);
+  console.log(`  Restauracao : ${pontoRestauracao || "(nao definido)"}`);
   console.log(`  Acao     : ${acao}`);
   console.log(`  Ids      : ${ids.join(", ")}`);
   console.log(`  Motivo   : ${motivo}`);
@@ -382,6 +388,16 @@ async function main() {
     console.log("");
     imprimirUso();
     return;
+  }
+
+  if (!pontoRestauracao) {
+    console.error("");
+    console.error("[erro] ABORTADO: CONFIRMAR=SIM exige tambem PONTO_RESTAURACAO=<nome do branch Neon> no ambiente.");
+    console.error(
+      "[erro] Crie, no console da Neon, um branch a partir do banco alvo (ponto de restauracao) e passe o nome dele em PONTO_RESTAURACAO antes de rodar."
+    );
+    console.error("");
+    process.exit(1);
   }
 
   let relatorio;

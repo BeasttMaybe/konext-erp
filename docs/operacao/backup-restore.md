@@ -70,7 +70,7 @@ What it does:
 
 Exit code is non-zero if any database failed, so the backup is never silently partial.
 
-Pass `--tenant <slug>` to back up the central database plus a single tenant instead of every active one — this is what `npm run db:migrar` (see [`migrations.md`](./migrations.md)) calls before touching a given tenant.
+Pass `--tenant <slug>` to back up the central database plus a single tenant instead of every active one — useful for a manual, on-disk copy before an operation. `npm run db:migrar` (see [`migrations.md`](./migrations.md)) does **not** call this: it requires a Neon branch (`PONTO_RESTAURACAO`) as its restore point instead of taking a `pg_dump` itself.
 
 ### 2.1 Output layout
 

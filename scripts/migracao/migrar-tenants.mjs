@@ -1,21 +1,24 @@
 // npm run db:migrar
 //
 // Roda o pipeline de migration tenant a tenant, na ordem devolvida pelo banco
-// central, um de cada vez: backup -> checa se a baseline ja foi resolvida ->
-// migrate status -> migrate diff (bloqueia SQL destrutivo sem autorizacao) ->
-// migrate deploy -> atualiza Tenant.versaoSchema no central -> migrate diff de
-// novo (tem que dar vazio). Procedimento completo, incluindo o que fazer
-// quando um tenant falha, em docs/operacao/migrations.md.
+// central, um de cada vez: checa se a baseline ja foi resolvida -> migrate
+// status -> migrate diff (bloqueia SQL destrutivo sem autorizacao) -> migrate
+// deploy -> atualiza Tenant.versaoSchema no central -> migrate diff de novo
+// (tem que dar vazio). Procedimento completo, incluindo o que fazer quando um
+// tenant falha, em docs/operacao/migrations.md.
 //
 // --dry-run (padrao, tambem pode ser passado explicito): so mostra o plano de
-//   cada tenant selecionado. Nao faz backup, nao aplica nada, nao escreve no
-//   central. Sempre avalia TODOS os tenants selecionados (nunca para no meio),
-//   porque o objetivo do dry-run e mostrar o plano inteiro de uma vez.
-// --aplicar: sai do modo dry-run. Exige tambem CONFIRMAR=SIM no ambiente.
-//   Nesse modo, para no PRIMEIRO tenant que falhar e nao segue para o proximo.
+//   cada tenant selecionado. Nao aplica nada, nao escreve no central, nao
+//   exige PONTO_RESTAURACAO. Sempre avalia TODOS os tenants selecionados
+//   (nunca para no meio), porque o objetivo do dry-run e mostrar o plano
+//   inteiro de uma vez.
+// --aplicar: sai do modo dry-run. Exige tambem CONFIRMAR=SIM e
+//   PONTO_RESTAURACAO=<nome do branch Neon criado como ponto de restauracao>
+//   no ambiente — o operador cria o branch a partir do banco alvo antes de
+//   rodar; o script nao faz pg_dump nenhum. Nesse modo, para no PRIMEIRO
+//   tenant que falhar e nao segue para o proximo.
 // --tenant <slug>: restringe a um unico tenant ATIVO (por slug).
 import "dotenv/config";
-import { spawnSync } from "node:child_process";
 import { PrismaClient as PrismaCentral } from "@prisma/client-central";
 import { PrismaNeon } from "@prisma/adapter-neon";
 import { neonConfig } from "@neondatabase/serverless";
@@ -133,24 +136,6 @@ async function verificarBaselineResolvida(connectionString) {
   });
 }
 
-function rodarBackupDoTenant(slug) {
-  const resultado = spawnSync("node", ["scripts/backup/backup-bancos.mjs", "--tenant", slug], {
-    encoding: "utf8",
-    env: process.env,
-    maxBuffer: 64 * 1024 * 1024,
-  });
-
-  const stdout = resultado.stdout ?? "";
-  const destino = stdout.match(/\[backup\] Destino: (.+)/)?.[1]?.trim() ?? null;
-
-  return {
-    ok: resultado.status === 0,
-    stdout,
-    stderr: resultado.stderr ?? "",
-    pastaDestino: destino,
-  };
-}
-
 function imprimirBlocoDiff(sqlScript, destrutivas) {
   if (diffEstaVazio(sqlScript)) {
     console.log("  diff: vazio (banco ja bate com prisma/schema.prisma)");
@@ -170,7 +155,7 @@ function imprimirBlocoDiff(sqlScript, destrutivas) {
   }
 }
 
-async function processarTenant(tenant, { dryRun, versaoAlvo, prismaCentral }) {
+async function processarTenant(tenant, { dryRun, versaoAlvo, prismaCentral, pontoRestauracao }) {
   console.log("");
   console.log(`[migrar] Tenant: ${tenant.slug} (empresa ${tenant.empresaSlug})`);
   console.log(`[migrar]   host: ${extrairHostMascarado(tenant.connectionString)}`);
@@ -228,7 +213,7 @@ async function processarTenant(tenant, { dryRun, versaoAlvo, prismaCentral }) {
 
     return linhaResultado(tenant, {
       status: "PLANEJADO",
-      backup: "(dry-run: nao gerado)",
+      pontoRestauracao: "(dry-run: nao necessario)",
       migracoes: "(dry-run: nao aplicado)",
       versaoSchemaNova: `(dry-run: seria ${versaoAlvo})`,
       detalhe: resultado,
@@ -236,40 +221,28 @@ async function processarTenant(tenant, { dryRun, versaoAlvo, prismaCentral }) {
   }
 
   // --aplicar a partir daqui.
-  console.log("[migrar]   1/6 backup...");
-  const backup = rodarBackupDoTenant(tenant.slug);
+  console.log(`[migrar]   ponto de restauracao confirmado: ${pontoRestauracao}`);
 
-  if (!backup.ok) {
-    console.error("[migrar]   FALHOU no backup. Abortando o restante da execucao.");
-    console.error(backup.stderr || backup.stdout);
-    return linhaResultado(tenant, { status: "FALHA_BACKUP", detalhe: backup.stderr || backup.stdout });
-  }
-
-  const arquivoBackup = backup.pastaDestino
-    ? `${backup.pastaDestino}/${tenant.slugArquivo}.dump`
-    : "(gerado, caminho nao identificado no stdout)";
-  console.log(`[migrar]   backup OK -> ${arquivoBackup}`);
-
-  console.log("[migrar]   2/6 checando se 0_baseline ja foi resolvida...");
+  console.log("[migrar]   1/5 checando se 0_baseline ja foi resolvida...");
   const baseline = await verificarBaselineResolvida(tenant.connectionString);
 
   if (!baseline.resolvida) {
     console.error(`[migrar]   BLOQUEADO: ${baseline.motivo}.`);
     console.error("[migrar]   rode uma vez, manualmente, antes de tentar de novo:");
     console.error(`[migrar]     DATABASE_URL="<${tenant.connectionRef}>" npx prisma migrate resolve --applied 0_baseline`);
-    return linhaResultado(tenant, { status: "BLOQUEADO_RESOLVE", backup: arquivoBackup, detalhe: baseline.motivo });
+    return linhaResultado(tenant, { status: "BLOQUEADO_RESOLVE", pontoRestauracao, detalhe: baseline.motivo });
   }
 
-  console.log("[migrar]   3/6 migrate status...");
+  console.log("[migrar]   2/5 migrate status...");
   const status = executarComandoPrisma("migrate status", tenant.connectionString);
   console.log((status.stdout || status.stderr).trim());
 
-  console.log("[migrar]   4/6 migrate diff...");
+  console.log("[migrar]   3/5 migrate diff...");
   const diff = executarComandoPrisma(DIFF_SCHEMA, tenant.connectionString);
 
   if (!diff.ok) {
     console.error(`[migrar]   FALHOU ao rodar migrate diff: ${diff.stderr}`);
-    return linhaResultado(tenant, { status: "ERRO_DIFF", backup: arquivoBackup, detalhe: diff.stderr });
+    return linhaResultado(tenant, { status: "ERRO_DIFF", pontoRestauracao, detalhe: diff.stderr });
   }
 
   const destrutivas = encontrarOperacoesDestrutivas(diff.stdout);
@@ -284,7 +257,7 @@ async function processarTenant(tenant, { dryRun, versaoAlvo, prismaCentral }) {
       console.error("[migrar]   BLOQUEADO. Para prosseguir mesmo assim, defina AUTORIZAR_DESTRUTIVO=SIM e rode de novo.");
       return linhaResultado(tenant, {
         status: "BLOQUEADO_DESTRUTIVO",
-        backup: arquivoBackup,
+        pontoRestauracao,
         detalhe: destrutivas.map((d) => d.regra).join(", "),
       });
     }
@@ -292,12 +265,12 @@ async function processarTenant(tenant, { dryRun, versaoAlvo, prismaCentral }) {
     console.warn("[migrar]   AUTORIZAR_DESTRUTIVO=SIM definido: prosseguindo mesmo com SQL destrutivo acima.");
   }
 
-  console.log("[migrar]   5/6 migrate deploy...");
+  console.log("[migrar]   4/5 migrate deploy...");
   const deploy = executarComandoPrisma("migrate deploy", tenant.connectionString);
 
   if (!deploy.ok) {
     console.error(`[migrar]   FALHOU no migrate deploy: ${deploy.stderr}`);
-    return linhaResultado(tenant, { status: "FALHA_DEPLOY", backup: arquivoBackup, detalhe: deploy.stderr });
+    return linhaResultado(tenant, { status: "FALHA_DEPLOY", pontoRestauracao, detalhe: deploy.stderr });
   }
 
   const migracoesAplicadas =
@@ -309,7 +282,7 @@ async function processarTenant(tenant, { dryRun, versaoAlvo, prismaCentral }) {
 
   console.log(`[migrar]   deploy OK: ${migracoesAplicadas}`);
 
-  console.log(`[migrar]   6/6 atualizando Tenant.versaoSchema para "${versaoAlvo}" no central...`);
+  console.log(`[migrar]   5/5 atualizando Tenant.versaoSchema para "${versaoAlvo}" no central...`);
   await prismaCentral.tenant.update({
     where: { id: tenant.id },
     data: { versaoSchema: versaoAlvo },
@@ -323,7 +296,7 @@ async function processarTenant(tenant, { dryRun, versaoAlvo, prismaCentral }) {
     console.error("[migrar]   Tenant.versaoSchema no central JA FOI atualizado; investigue antes de continuar.");
     return linhaResultado(tenant, {
       status: "POS_DEPLOY_DIVERGENTE",
-      backup: arquivoBackup,
+      pontoRestauracao,
       migracoes: migracoesAplicadas,
       versaoSchemaNova: versaoAlvo,
       detalhe: reDiff.stdout || reDiff.stderr,
@@ -334,17 +307,17 @@ async function processarTenant(tenant, { dryRun, versaoAlvo, prismaCentral }) {
 
   return linhaResultado(tenant, {
     status: "OK",
-    backup: arquivoBackup,
+    pontoRestauracao,
     migracoes: migracoesAplicadas,
     versaoSchemaNova: versaoAlvo,
     detalhe: "",
   });
 }
 
-function linhaResultado(tenant, { status, backup = "-", migracoes = "-", versaoSchemaNova = "-", detalhe = "" }) {
+function linhaResultado(tenant, { status, pontoRestauracao = "-", migracoes = "-", versaoSchemaNova = "-", detalhe = "" }) {
   return {
     tenant: tenant.slug,
-    backup,
+    pontoRestauracao,
     migracoesAplicadas: migracoes,
     novaVersaoSchema: versaoSchemaNova,
     resultado: detalhe ? `${status}: ${detalhe}`.slice(0, 160) : status,
@@ -371,10 +344,23 @@ async function principal() {
     process.exit(1);
   }
 
+  const pontoRestauracao = dryRun ? null : String(process.env.PONTO_RESTAURACAO ?? "").trim();
+
+  if (!dryRun && !pontoRestauracao) {
+    console.error("");
+    console.error("[migrar] ABORTADO: --aplicar exige tambem PONTO_RESTAURACAO=<nome do branch Neon> no ambiente.");
+    console.error(
+      "[migrar] Crie, no console da Neon, um branch a partir do banco alvo (ponto de restauracao) e passe o nome dele em PONTO_RESTAURACAO antes de rodar."
+    );
+    console.error("");
+    process.exit(1);
+  }
+
   console.log("");
   console.log("Migracao por tenant");
   console.log(`  Banco central : ${mascararConnectionString(centralDatabaseUrl)}`);
   console.log(`  Modo          : ${dryRun ? "DRY-RUN (nada sera escrito)" : "APLICAR"}`);
+  console.log(`  Restauracao   : ${dryRun ? "(dry-run: nao necessario)" : pontoRestauracao}`);
 
   const versaoAlvo = await obterUltimaMigracaoTenant();
   console.log(`  Migration alvo: ${versaoAlvo}`);
@@ -412,7 +398,7 @@ async function principal() {
 
   try {
     for (const tenant of tenants) {
-      const resultado = await processarTenant(tenant, { dryRun, versaoAlvo, prismaCentral });
+      const resultado = await processarTenant(tenant, { dryRun, versaoAlvo, prismaCentral, pontoRestauracao });
       resultados.push(resultado);
 
       if (!dryRun && !resultado.resultado.startsWith("OK")) {
