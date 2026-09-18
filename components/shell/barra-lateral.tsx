@@ -55,7 +55,7 @@ export function BarraLateral() {
   return (
     <aside className="fixed inset-y-0 left-0 z-kx-barra-lateral hidden w-[72px] flex-col border-r border-kx-painel-borda bg-kx-painel lg:flex xl:w-[248px]">
       <div className="flex h-16 shrink-0 items-center justify-center gap-2.5 px-2 xl:justify-start xl:px-5">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-kx-botao bg-kx-primaria text-base font-extrabold text-white">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-kx-botao bg-kx-primaria text-base font-extrabold text-primary-foreground">
           K
         </div>
         <span className="hidden text-base font-extrabold tracking-tight text-kx-texto xl:inline">Konext</span>
