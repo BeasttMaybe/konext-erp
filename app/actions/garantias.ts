@@ -9,6 +9,7 @@ import {
   normalizarIdUsuarioOperacional,
 } from "@/lib/tenant/usuario-operacional";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
+import { paraEstagio } from "@/lib/dominio/os/etapas";
 import {
   contextoAuditoriaDoUsuario,
   registrarLogAuditoria,
@@ -1405,6 +1406,10 @@ export async function registrarRetornoGarantiaOS(input: RegistrarRetornoGarantia
         throw new Error("RETORNO_EM_ANDAMENTO");
       }
 
+      // Escrita dupla (Fase 1C-3) — GARANTIA_RETORNO nasce direto em CONSERTO,
+      // sem situacao (ver lib/dominio/os/etapas.ts).
+      const estagioRetorno = paraEstagio("GARANTIA_RETORNO");
+
       const osRetorno = await tx.ordemServico.create({
         data: {
           clienteId: termo.os.clienteId,
@@ -1418,6 +1423,8 @@ export async function registrarRetornoGarantiaOS(input: RegistrarRetornoGarantia
           condicaoFisica: termo.os.condicaoFisica,
           acessorios: termo.os.acessorios,
           status: "GARANTIA_RETORNO",
+          etapa: estagioRetorno.etapa,
+          situacao: estagioRetorno.situacao,
           observacoes: `Motivo do retorno: ${motivo}`,
           ehRetornoGarantia: true,
           osOrigemGarantiaId: termo.os.id,
@@ -1467,6 +1474,8 @@ export async function registrarRetornoGarantiaOS(input: RegistrarRetornoGarantia
           entidadeId: osRetorno.id,
           dadosDepois: {
             status: "GARANTIA_RETORNO",
+            etapa: estagioRetorno.etapa,
+            situacao: estagioRetorno.situacao,
             archivedAt: null,
             ehRetornoGarantia: true,
             osOrigemGarantiaId: termo.os.id,

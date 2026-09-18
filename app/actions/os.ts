@@ -17,6 +17,7 @@ import {
 } from "@/lib/configuracoes-os-garantias";
 import type { OrdemServico, OrdemServicoExcluida, TipoPecaOrcamento } from "@/types/os";
 import { STATUS_OS_SEQUENCIA, motivoTransicaoNegada } from "@/lib/dominio/os/maquina-estados";
+import { paraEstagio } from "@/lib/dominio/os/etapas";
 import { encontrarEntregaAuditada } from "@/lib/dominio/os/entrega-auditada";
 import { ErroPermissao, exigirPermissao, temPermissao } from "@/lib/auth/permissoes";
 import {
@@ -629,6 +630,11 @@ export async function criarOrdemServico(dados: DadosNovaOS) {
     const txOrdemServico = txAny.ordemServico ?? txAny.OrdemServico;
     const txItemOS = txAny.itemOS ?? txAny.ItemOS;
 
+    // Escrita dupla (Fase 1C-3): a OS ainda nasce a partir de um StatusOS
+    // escolhido pela UI legada — etapa/situacao sao derivados dele com a
+    // mesma funcao usada em toda a aplicacao (lib/dominio/os/etapas.ts).
+    const estagioInicial = paraEstagio(dados.status);
+
     const ordemCriada = await txOrdemServico.create({
       data: {
         clienteId: dados.clienteId,
@@ -642,6 +648,8 @@ export async function criarOrdemServico(dados: DadosNovaOS) {
         condicaoFisica: dados.condicaoFisica?.trim() || null,
         acessorios: dados.acessorios?.trim() || null,
         status: dados.status,
+        etapa: estagioInicial.etapa,
+        situacao: estagioInicial.situacao,
         observacoes: dados.observacoesInternas?.trim() || null,
       },
       select: {
@@ -770,9 +778,14 @@ export async function atualizarStatusOrdemServico(
         throw new ErroNegocio(motivoNegado);
       }
 
+      // Escrita dupla (Fase 1C-3): o Kanban ainda move OS por StatusOS: etapa
+      // e situacao sao derivados dele pela mesma funcao usada em toda a
+      // aplicacao — ver lib/dominio/os/etapas.ts.
+      const estagioNovo = paraEstagio(status);
+
       await tx.ordemServico.update({
         where: { id: osId },
-        data: { status },
+        data: { status, etapa: estagioNovo.etapa, situacao: estagioNovo.situacao },
       });
 
       await registrarLogAuditoria(
@@ -791,6 +804,8 @@ export async function atualizarStatusOrdemServico(
           },
           dadosDepois: {
             status,
+            etapa: estagioNovo.etapa,
+            situacao: estagioNovo.situacao,
             // archivedAt intencionalmente inalterado por esta acao.
             archivedAt: antes.archivedAt ? antes.archivedAt.toISOString() : null,
             ...descreverAutoria(contexto),
@@ -971,10 +986,15 @@ export async function reabrirOrdemServico(
         );
       }
 
+      // Escrita dupla (Fase 1C-3) — mesma funcao usada em toda a aplicacao.
+      const estagioDestino = paraEstagio(statusDestino);
+
       await tx.ordemServico.update({
         where: { id: osId },
         data: {
           status: statusDestino,
+          etapa: estagioDestino.etapa,
+          situacao: estagioDestino.situacao,
           archivedAt: null,
         },
       });
@@ -996,6 +1016,8 @@ export async function reabrirOrdemServico(
           },
           dadosDepois: {
             status: statusDestino,
+            etapa: estagioDestino.etapa,
+            situacao: estagioDestino.situacao,
             archivedAt: null,
             reabertura: true,
             // O termo de garantia continua valido e com as datas originais.
@@ -1325,10 +1347,15 @@ export async function finalizarOrdemServico(
 
     const archivedAtFinal = ordemServico.archivedAt ?? entrega.momento;
 
+    // Escrita dupla (Fase 1C-3) — ENTREGUE mapeia 1:1 nos dois modelos.
+    const estagioEntregue = paraEstagio("ENTREGUE");
+
     await tx.ordemServico.update({
       where: { id: osId },
       data: {
         status: "ENTREGUE",
+        etapa: estagioEntregue.etapa,
+        situacao: estagioEntregue.situacao,
         archivedAt: archivedAtFinal,
         ...(prazoGarantiaAplicado !== null ? { prazoGarantiaDias: prazoGarantiaAplicado } : {}),
       },
@@ -1351,6 +1378,8 @@ export async function finalizarOrdemServico(
         },
         dadosDepois: {
           status: "ENTREGUE",
+          etapa: estagioEntregue.etapa,
+          situacao: estagioEntregue.situacao,
           archivedAt: archivedAtFinal.toISOString(),
           termoGarantiaId: termoGarantiaId ?? null,
           garantiaGerada,
@@ -1462,12 +1491,16 @@ export async function finalizarSemServico(
   }
 
   const agora = new Date();
+  // Escrita dupla (Fase 1C-3) — ENTREGUE mapeia 1:1 nos dois modelos.
+  const estagioEntregue = paraEstagio("ENTREGUE");
 
   await prisma.$transaction(async (tx) => {
     await tx.ordemServico.update({
       where: { id: osId },
       data: {
         status: "ENTREGUE",
+        etapa: estagioEntregue.etapa,
+        situacao: estagioEntregue.situacao,
         archivedAt: agora,
         entregueSemServico: true,
         motivoSemServico: motivo,
@@ -1490,6 +1523,8 @@ export async function finalizarSemServico(
         },
         dadosDepois: {
           status: "ENTREGUE",
+          etapa: estagioEntregue.etapa,
+          situacao: estagioEntregue.situacao,
           archivedAt: agora.toISOString(),
           entregueSemServico: true,
           tipoFinalizacao: "ENTREGA",
