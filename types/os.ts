@@ -2,10 +2,13 @@
  * Tipos e Interfaces para Ordem de Serviço (OS)
  */
 
-// StatusOS vive em lib/dominio/os/maquina-estados.ts (fonte unica de verdade).
+// StatusOS vive em lib/dominio/os/maquina-estados.ts (fonte unica de verdade,
+// modelo legado). EtapaOS/SituacaoOS vivem em lib/dominio/os/etapas.ts —
+// fonte de leitura viva a partir da Fase 1C-3.
 import type { StatusOS } from "@/lib/dominio/os/maquina-estados";
+import type { EtapaOS, SituacaoOS } from "@/lib/dominio/os/etapas";
 
-export type { StatusOS };
+export type { StatusOS, EtapaOS, SituacaoOS };
 
 export type TipoPecaOrcamento =
   | "TELA"
@@ -53,6 +56,9 @@ export interface OrdemServico {
   
   // Status e metadados
   status: StatusOS;
+  /** Fonte de leitura viva a partir da Fase 1C-3 — ver lib/dominio/os/etapas.ts. */
+  etapa: EtapaOS;
+  situacao: SituacaoOS | null;
   ehRetornoGarantia?: boolean;
   osOrigemGarantiaId?: string;
   numeroOSOrigemGarantia?: string;

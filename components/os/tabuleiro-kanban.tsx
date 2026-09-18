@@ -11,15 +11,15 @@ import {
   type CSSProperties,
 } from "react";
 import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
-import { OrdemServico, StatusOS } from "@/types/os";
+import { OrdemServico, EtapaOS, SituacaoOS } from "@/types/os";
 import {
-  CLASSES_STATUS_OS,
-  DESCRICOES_STATUS_OS,
-  ROTULOS_STATUS_OS,
-  STATUS_OS_SEQUENCIA,
-  destinosPermitidos,
+  CLASSES_ETAPA_OS,
+  DESCRICOES_ETAPA_OS,
+  ETAPA_OS_SEQUENCIA,
+  ROTULOS_ETAPA_OS,
+  destinosPermitidosEtapa,
+  ehEtapaOS,
   ehResgatePendente,
-  ehStatusOS,
 } from "@/lib/dominio/os/maquina-estados";
 import { Badge } from "@/components/ui/badge";
 import { CartaoOS } from "./cartao-os";
@@ -28,7 +28,9 @@ import { ListaColunaKanban } from "./lista-coluna-kanban";
 interface TabuleiroKanbanProps {
   ordensServico: OrdemServico[];
   onCartaoClick?: (os: OrdemServico) => void;
-  onMoverOS?: (osId: string, novoStatus: StatusOS) => Promise<boolean>;
+  onMoverOS?: (osId: string, novaEtapa: EtapaOS) => Promise<boolean>;
+  /** Marca/limpa a situacao pelo menu do card, sem mover a OS de coluna. */
+  onAlterarSituacao?: (osId: string, situacao: SituacaoOS | null) => Promise<boolean>;
   onFinalizarOS?: (os: OrdemServico) => Promise<boolean>;
   /** Abre o fluxo de entrega. Recebe a OS e devolve true quando concluiu. Tambem usado para o resgate (ver onArquivar abaixo) — mesmo caminho, nunca um segundo. */
   onEntregarOS?: (os: OrdemServico) => Promise<boolean>;
@@ -53,55 +55,51 @@ type AcaoOtimistaOS =
     };
 
 // Sequencia, rotulos e cores vem do dominio (fonte unica).
-const STATUS_SEQUENCIA = STATUS_OS_SEQUENCIA;
+const ETAPA_SEQUENCIA = ETAPA_OS_SEQUENCIA;
 
-type StatusKanban = StatusOS;
+type EtapaKanban = EtapaOS;
 
-function isStatusKanban(status: StatusOS): status is StatusKanban {
-  return ehStatusOS(status);
+function isEtapaKanban(etapa: EtapaOS): etapa is EtapaKanban {
+  return ehEtapaOS(etapa);
 }
 
-const configuracaoStatus: Record<
-  StatusKanban,
+const configuracaoEtapa: Record<
+  EtapaKanban,
   { titulo: string; descricao: string; classe: string; borda: string; chip: string }
 > = Object.fromEntries(
-  STATUS_OS_SEQUENCIA.map((status) => [
-    status,
+  ETAPA_OS_SEQUENCIA.map((etapa) => [
+    etapa,
     {
-      titulo: ROTULOS_STATUS_OS[status],
-      descricao: DESCRICOES_STATUS_OS[status],
-      classe: CLASSES_STATUS_OS[status].coluna,
-      borda: CLASSES_STATUS_OS[status].borda,
-      chip: CLASSES_STATUS_OS[status].chip,
+      titulo: ROTULOS_ETAPA_OS[etapa],
+      descricao: DESCRICOES_ETAPA_OS[etapa],
+      classe: CLASSES_ETAPA_OS[etapa].coluna,
+      borda: CLASSES_ETAPA_OS[etapa].borda,
+      chip: CLASSES_ETAPA_OS[etapa].chip,
     },
   ])
-) as Record<StatusKanban, { titulo: string; descricao: string; classe: string; borda: string; chip: string }>;
+) as Record<EtapaKanban, { titulo: string; descricao: string; classe: string; borda: string; chip: string }>;
 
 function classificarOrdens(ordens: OrdemServico[]) {
-  const agrupadas = STATUS_SEQUENCIA.reduce<Record<StatusKanban, OrdemServico[]>>((acc, status) => {
-    acc[status] = [];
+  const agrupadas = ETAPA_SEQUENCIA.reduce<Record<EtapaKanban, OrdemServico[]>>((acc, etapa) => {
+    acc[etapa] = [];
     return acc;
   }, {
-    AGUARDANDO_ORCAMENTO: [],
-    AGUARDANDO_APROVACAO: [],
-    APROVADO: [],
-    AGUARDANDO_PECA: [],
-    EM_MANUTENCAO: [],
-    GARANTIA_RETORNO: [],
+    ORCAMENTO: [],
+    CONSERTO: [],
     PRONTO: [],
     ENTREGUE: [],
   });
 
   for (const os of ordens) {
-    if (!isStatusKanban(os.status)) continue;
-    agrupadas[os.status].push(os);
+    if (!isEtapaKanban(os.etapa)) continue;
+    agrupadas[os.etapa].push(os);
   }
 
   return agrupadas;
 }
 
-function ordenarPorStatus(agrupadas: Record<StatusKanban, OrdemServico[]>) {
-  return STATUS_SEQUENCIA.flatMap((status) => agrupadas[status]);
+function ordenarPorEtapa(agrupadas: Record<EtapaKanban, OrdemServico[]>) {
+  return ETAPA_SEQUENCIA.flatMap((etapa) => agrupadas[etapa]);
 }
 
 function normalizarIndice(indice: number, tamanhoLista: number) {
@@ -116,21 +114,21 @@ function aplicarMovimentoOS(
     destination: { droppableId: string; index: number };
   }
 ) {
-  const statusOrigem = movimento.source.droppableId as StatusKanban;
-  const statusDestino = movimento.destination.droppableId as StatusKanban;
+  const etapaOrigem = movimento.source.droppableId as EtapaKanban;
+  const etapaDestino = movimento.destination.droppableId as EtapaKanban;
 
-  if (!STATUS_SEQUENCIA.includes(statusOrigem) || !STATUS_SEQUENCIA.includes(statusDestino)) {
+  if (!ETAPA_SEQUENCIA.includes(etapaOrigem) || !ETAPA_SEQUENCIA.includes(etapaDestino)) {
     return {
       proximaLista: listaAtual,
       osMovida: null,
-      statusOrigem: null,
-      statusDestino: null,
+      etapaOrigem: null,
+      etapaDestino: null,
     };
   }
 
   const agrupadas = classificarOrdens(listaAtual);
-  const listaOrigem = [...agrupadas[statusOrigem]];
-  const listaDestino = statusOrigem === statusDestino ? listaOrigem : [...agrupadas[statusDestino]];
+  const listaOrigem = [...agrupadas[etapaOrigem]];
+  const listaDestino = etapaOrigem === etapaDestino ? listaOrigem : [...agrupadas[etapaDestino]];
 
   const indiceOrigem = normalizarIndice(movimento.source.index, Math.max(listaOrigem.length - 1, 0));
   let [ordemSelecionada] = listaOrigem.splice(indiceOrigem, 1);
@@ -141,8 +139,8 @@ function aplicarMovimentoOS(
       return {
         proximaLista: listaAtual,
         osMovida: null,
-        statusOrigem: null,
-        statusDestino: null,
+        etapaOrigem: null,
+        etapaDestino: null,
       };
     }
 
@@ -151,8 +149,8 @@ function aplicarMovimentoOS(
       return {
         proximaLista: listaAtual,
         osMovida: null,
-        statusOrigem: null,
-        statusDestino: null,
+        etapaOrigem: null,
+        etapaDestino: null,
       };
     }
     ordemSelecionada = extraida;
@@ -161,24 +159,27 @@ function aplicarMovimentoOS(
   const agoraIso = new Date().toISOString();
   const osMovida: OrdemServico = {
     ...ordemSelecionada,
-    status: statusDestino,
+    etapa: etapaDestino,
+    // Trocar de etapa sempre zera a situacao (Fase 1C-3, Parte 3) — o preview
+    // otimista precisa bater com o que o servidor vai gravar.
+    situacao: etapaOrigem === etapaDestino ? ordemSelecionada.situacao : null,
     dataAtualizacao: agoraIso,
   };
 
   const indiceDestino = normalizarIndice(movimento.destination.index, listaDestino.length);
   listaDestino.splice(indiceDestino, 0, osMovida);
 
-  const proximaLista = ordenarPorStatus({
+  const proximaLista = ordenarPorEtapa({
     ...agrupadas,
-    [statusOrigem]: listaOrigem,
-    [statusDestino]: listaDestino,
+    [etapaOrigem]: listaOrigem,
+    [etapaDestino]: listaDestino,
   });
 
   return {
     proximaLista,
     osMovida,
-    statusOrigem,
-    statusDestino,
+    etapaOrigem,
+    etapaDestino,
   };
 }
 
@@ -186,6 +187,7 @@ export function TabuleiroKanban({
   ordensServico,
   onCartaoClick,
   onMoverOS,
+  onAlterarSituacao,
   onFinalizarOS,
   onEntregarOS,
   onReabrirOS,
@@ -207,43 +209,43 @@ export function TabuleiroKanban({
     }
   );
 
-  const ordensPorStatus = useMemo(() => classificarOrdens(ordensEstado), [ordensEstado]);
+  const ordensPorEtapa = useMemo(() => classificarOrdens(ordensEstado), [ordensEstado]);
 
   /**
    * Colunas validas para a OS que esta sendo arrastada agora.
    * ENTREGUE entra na lista porque a entrega e permitida pela UI — ela apenas
-   * nao passa pela mudanca generica de status, e sim pelo dialogo de
+   * nao passa pela mudanca generica de etapa, e sim pelo dialogo de
    * finalizacao (ver aoFinalizarDrag).
    */
-  const destinosDoArraste = useMemo<ReadonlySet<StatusOS> | null>(() => {
-    if (!osEmArraste || !isStatusKanban(osEmArraste.status)) return null;
+  const destinosDoArraste = useMemo<ReadonlySet<EtapaOS> | null>(() => {
+    if (!osEmArraste || !isEtapaKanban(osEmArraste.etapa)) return null;
 
     const contexto = { ehRetornoGarantia: Boolean(osEmArraste.ehRetornoGarantia) };
-    const permitidos = new Set<StatusOS>(destinosPermitidos(osEmArraste.status, contexto));
+    const permitidos = new Set<EtapaOS>(destinosPermitidosEtapa(osEmArraste.etapa, contexto));
 
-    if (osEmArraste.status !== "ENTREGUE") {
+    if (osEmArraste.etapa !== "ENTREGUE") {
       permitidos.add("ENTREGUE");
     }
 
     return permitidos;
   }, [osEmArraste]);
 
-  const colunaBloqueada = (status: StatusKanban): boolean => {
+  const colunaBloqueada = (etapa: EtapaKanban): boolean => {
     if (!destinosDoArraste) return false;
-    if (osEmArraste && osEmArraste.status === status) return false;
-    return !destinosDoArraste.has(status);
+    if (osEmArraste && osEmArraste.etapa === etapa) return false;
+    return !destinosDoArraste.has(etapa);
   };
 
   const persistirMovimento = async (
     osId: string,
-    statusOrigem: StatusOS,
-    statusDestino: StatusOS,
+    etapaOrigem: EtapaOS,
+    etapaDestino: EtapaOS,
     snapshotAnterior: OrdemServico[]
   ) => {
-    if (statusOrigem === statusDestino) return;
+    if (etapaOrigem === etapaDestino) return;
     if (!onMoverOS) return;
 
-    const sucesso = await onMoverOS(osId, statusDestino);
+    const sucesso = await onMoverOS(osId, etapaDestino);
     if (!sucesso) {
       startTransition(() => {
         setOrdensEstado({ tipo: "SUBSTITUIR", ordens: snapshotAnterior });
@@ -251,15 +253,15 @@ export function TabuleiroKanban({
     }
   };
 
-  const moverPorBotao = async (osId: string, statusDestino: StatusOS) => {
+  const moverPorBotao = async (osId: string, etapaDestino: EtapaOS) => {
     const snapshotAnterior = ordensEstado;
     const agrupadas = classificarOrdens(snapshotAnterior);
 
-    let origem: { status: StatusKanban; index: number } | null = null;
-    for (const status of STATUS_SEQUENCIA) {
-      const index = agrupadas[status].findIndex((item) => item.id === osId);
+    let origem: { etapa: EtapaKanban; index: number } | null = null;
+    for (const etapa of ETAPA_SEQUENCIA) {
+      const index = agrupadas[etapa].findIndex((item) => item.id === osId);
       if (index >= 0) {
-        origem = { status, index };
+        origem = { etapa, index };
         break;
       }
     }
@@ -268,12 +270,12 @@ export function TabuleiroKanban({
 
     const movimento = {
       draggableId: osId,
-      source: { droppableId: origem.status, index: origem.index },
-      destination: { droppableId: statusDestino, index: 0 },
+      source: { droppableId: origem.etapa, index: origem.index },
+      destination: { droppableId: etapaDestino, index: 0 },
     };
 
     const preVisualizacao = aplicarMovimentoOS(snapshotAnterior, movimento);
-    if (!preVisualizacao.osMovida || !preVisualizacao.statusOrigem || !preVisualizacao.statusDestino) {
+    if (!preVisualizacao.osMovida || !preVisualizacao.etapaOrigem || !preVisualizacao.etapaDestino) {
       return;
     }
 
@@ -283,10 +285,28 @@ export function TabuleiroKanban({
 
     await persistirMovimento(
       preVisualizacao.osMovida.id,
-      preVisualizacao.statusOrigem,
-      preVisualizacao.statusDestino,
+      preVisualizacao.etapaOrigem,
+      preVisualizacao.etapaDestino,
       snapshotAnterior
     );
+  };
+
+  const alterarSituacao = async (osId: string, situacao: SituacaoOS | null) => {
+    if (!onAlterarSituacao) return;
+
+    const snapshotAnterior = ordensEstado;
+    const sucesso = await onAlterarSituacao(osId, situacao);
+
+    if (sucesso) {
+      startTransition(() => {
+        setOrdensEstado({
+          tipo: "SUBSTITUIR",
+          ordens: snapshotAnterior.map((item) =>
+            item.id === osId ? { ...item, situacao, dataAtualizacao: new Date().toISOString() } : item
+          ),
+        });
+      });
+    }
   };
 
   const finalizarOS = async (os: OrdemServico) => {
@@ -353,15 +373,15 @@ export function TabuleiroKanban({
     };
 
     const preVisualizacao = aplicarMovimentoOS(snapshotAnterior, movimento);
-    if (!preVisualizacao.osMovida || !preVisualizacao.statusOrigem || !preVisualizacao.statusDestino) {
+    if (!preVisualizacao.osMovida || !preVisualizacao.etapaOrigem || !preVisualizacao.etapaDestino) {
       return;
     }
 
-    // Soltar em ENTREGUE NAO muda status: abre o dialogo de finalizacao, que
+    // Soltar em ENTREGUE NAO muda etapa: abre o dialogo de finalizacao, que
     // emite a garantia e arquiva na mesma transacao. Antes da Fase 1A este drop
     // chamava a mudanca generica de status e produzia OS entregue porem nao
     // arquivada (AUDIT_REPORT 16.7-e).
-    if (preVisualizacao.statusDestino === "ENTREGUE") {
+    if (preVisualizacao.etapaDestino === "ENTREGUE") {
       const osAlvo = snapshotAnterior.find((item) => item.id === preVisualizacao.osMovida?.id);
       if (!osAlvo || !onEntregarOS) return;
 
@@ -386,8 +406,8 @@ export function TabuleiroKanban({
 
     await persistirMovimento(
       preVisualizacao.osMovida.id,
-      preVisualizacao.statusOrigem,
-      preVisualizacao.statusDestino,
+      preVisualizacao.etapaOrigem,
+      preVisualizacao.etapaDestino,
       snapshotAnterior
     );
   };
@@ -424,17 +444,17 @@ export function TabuleiroKanban({
           className="flex min-h-[420px] gap-4 overflow-x-auto pb-4"
           style={alturaBoard === null ? undefined : { height: alturaBoard }}
         >
-        {STATUS_SEQUENCIA.map((status) => {
-          const ordensFiltradas = ordensPorStatus[status];
-          const configuracao = configuracaoStatus[status];
+        {ETAPA_SEQUENCIA.map((etapa) => {
+          const ordensFiltradas = ordensPorEtapa[etapa];
+          const configuracao = configuracaoEtapa[etapa];
 
           return (
-            <Droppable key={status} droppableId={status} isDropDisabled={colunaBloqueada(status)}>
+            <Droppable key={etapa} droppableId={etapa} isDropDisabled={colunaBloqueada(etapa)}>
               {(dropProvided, dropSnapshot) => (
                 <div
                   className={`flex h-full min-h-0 w-[320px] shrink-0 flex-col overflow-hidden rounded-2xl border bg-gradient-to-b shadow-sm transition-all ${configuracao.classe} ${configuracao.borda} ${
                     dropSnapshot.isDraggingOver ? "ring-2 ring-primary/30 shadow-lg" : ""
-                  } ${colunaBloqueada(status) ? "opacity-40 saturate-50" : ""}`}
+                  } ${colunaBloqueada(etapa) ? "opacity-40 saturate-50" : ""}`}
                 >
                   <div className="shrink-0 border-b border-border/60 px-4 py-4">
                     <div className="flex items-center justify-between gap-3">
@@ -447,7 +467,7 @@ export function TabuleiroKanban({
                     <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
                       <span>{ordensFiltradas.length === 1 ? "1 OS" : `${ordensFiltradas.length} OS`}</span>
                       <span>
-                        {colunaBloqueada(status)
+                        {colunaBloqueada(etapa)
                           ? "Etapa indisponível para esta OS"
                           : "Arraste para esta etapa"}
                       </span>
@@ -467,24 +487,22 @@ export function TabuleiroKanban({
                       </div>
                     }
                     renderizarCartao={(os, index) => {
-                      if (!isStatusKanban(os.status)) return null;
+                      if (!isEtapaKanban(os.etapa)) return null;
 
                       const contextoOS = { ehRetornoGarantia: Boolean(os.ehRetornoGarantia) };
-                      const permitidos = destinosPermitidos(os.status, contextoOS);
+                      const permitidos = destinosPermitidosEtapa(os.etapa, contextoOS);
 
                       // Os botoes de avancar/voltar seguem a maquina de estados,
-                      // nao a ordem crua do quadro. Antes eles passavam por
-                      // GARANTIA_RETORNO em toda OS normal a caminho de PRONTO
-                      // (AUDIT_REPORT 16.7-d).
-                      const indiceAtual = STATUS_SEQUENCIA.indexOf(os.status);
-                      const statusAnterior =
-                        [...permitidos].reverse().find((item) => STATUS_SEQUENCIA.indexOf(item) < indiceAtual) ??
+                      // nao a ordem crua do quadro.
+                      const indiceAtual = ETAPA_SEQUENCIA.indexOf(os.etapa);
+                      const etapaAnterior =
+                        [...permitidos].reverse().find((item) => ETAPA_SEQUENCIA.indexOf(item) < indiceAtual) ??
                         null;
-                      const statusSeguinte =
-                        permitidos.find((item) => STATUS_SEQUENCIA.indexOf(item) > indiceAtual) ?? null;
+                      const etapaSeguinte =
+                        permitidos.find((item) => ETAPA_SEQUENCIA.indexOf(item) > indiceAtual) ?? null;
 
                       const retornoJaFinalizado = Boolean(os.retornoGarantiaFinalizadoEm);
-                      const ehEntregue = os.status === "ENTREGUE";
+                      const ehEntregue = os.etapa === "ENTREGUE";
                       // Resgate: ENTREGUE sem archivedAt — a OS entregue que ainda aparece
                       // no quadro porque falta so completar o arquivamento (e a garantia,
                       // se faltar). Ver comentario de arquivarOS acima e de ehResgatePendente
@@ -516,23 +534,21 @@ export function TabuleiroKanban({
                                 os={os}
                                 onClick={() => onCartaoClick?.(os)}
                                 isDragging={dragSnapshot.isDragging}
-                                statusChipClass={configuracao.chip}
-                                statusDaColuna={status}
                                 onMoverAnterior={
-                                  ehEntregue || !statusAnterior
+                                  ehEntregue || !etapaAnterior
                                     ? undefined
-                                    : () => moverPorBotao(os.id, statusAnterior)
+                                    : () => moverPorBotao(os.id, etapaAnterior)
                                 }
                                 onMoverProxima={
-                                  ehEntregue || !statusSeguinte
+                                  ehEntregue || !etapaSeguinte
                                     ? undefined
-                                    : () => moverPorBotao(os.id, statusSeguinte)
+                                    : () => moverPorBotao(os.id, etapaSeguinte)
                                 }
                                 onFinalizar={podeFinalizar ? () => finalizarOS(os) : undefined}
                                 podeFinalizar={podeFinalizar}
                                 textoBotaoFinalizar={textoBotaoFinalizar}
-                                desabilitarMoverAnterior={ehEntregue || !statusAnterior}
-                                desabilitarMoverProxima={ehEntregue || !statusSeguinte}
+                                desabilitarMoverAnterior={ehEntregue || !etapaAnterior}
+                                desabilitarMoverProxima={ehEntregue || !etapaSeguinte}
                                 esconderMoverAnterior={ehEntregue}
                                 onEntregar={
                                   ehEntregue || !onEntregarOS ? undefined : () => void onEntregarOS(os)
@@ -546,6 +562,11 @@ export function TabuleiroKanban({
                                     : undefined
                                 }
                                 estadoExplicacao={precisaArquivar ? "Entregue, falta arquivar" : undefined}
+                                onAlterarSituacao={
+                                  ehEntregue || !onAlterarSituacao
+                                    ? undefined
+                                    : (situacao) => void alterarSituacao(os.id, situacao)
+                                }
                               />
                             </div>
                           )}

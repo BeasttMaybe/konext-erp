@@ -16,16 +16,17 @@ import {
   ModalFinalizarRetornoGarantia,
   type FinalizacaoRetornoGarantiaPayload,
 } from "@/components/os/modal-finalizar-retorno-garantia";
-import { OrdemServico, OrdemServicoExcluida, StatusOS } from "@/types/os";
+import { OrdemServico, OrdemServicoExcluida, EtapaOS, SituacaoOS } from "@/types/os";
 import {
   criarOrdemServico,
   finalizarOrdemServico,
   finalizarSemServico,
   reabrirOrdemServico,
-  atualizarStatusOrdemServico,
+  atualizarEtapaOrdemServico,
+  atualizarSituacaoOrdemServico,
 } from "@/app/actions/os";
 import { finalizarRetornoGarantiaOS } from "@/app/actions/garantias";
-import { ehResgatePendente } from "@/lib/dominio/os/maquina-estados";
+import { ehResgatePendente, HEX_ETAPA_OS, ROTULOS_ETAPA_OS } from "@/lib/dominio/os/maquina-estados";
 import { useTemPermissao } from "@/contextos/contexto-permissoes";
 import { SemPermissaoAcao } from "@/components/ui/sem-permissao-acao";
 import { Search, Plus, AlertCircle, ListChecks, KanbanSquare, ArchiveX, RotateCcw, X } from "lucide-react";
@@ -100,7 +101,6 @@ export function DashboardOS({
     os.motivoExclusao.toLowerCase().includes(buscaTexto.toLowerCase())
   );
 
-  const totalAbertas = filteredActiveOrders.filter((orderService) => orderService.status !== "ENTREGUE").length;
   // ENTREGUE sem archivedAt ("resgate") continua no quadro (ver TabuleiroKanban),
   // nunca na lista de Finalizadas — mas ja foi entregue de verdade, entao conta
   // pro card "Entregues" e alimenta o aviso acima da lista (Fase 1C-2 follow-up,
@@ -122,9 +122,9 @@ export function DashboardOS({
     }
   };
 
-  const handleMoverOS = async (osId: string, novoStatus: StatusOS): Promise<boolean> => {
+  const handleMoverOS = async (osId: string, novaEtapa: EtapaOS): Promise<boolean> => {
     try {
-      const resultado = await atualizarStatusOrdemServico(osId, novoStatus);
+      const resultado = await atualizarEtapaOrdemServico(osId, novaEtapa);
       if (!resultado.sucesso) {
         toast.error(resultado.erro);
         return false;
@@ -132,7 +132,24 @@ export function DashboardOS({
       router.refresh();
       return true;
     } catch (error) {
-      const mensagem = error instanceof Error ? error.message : "Nao foi possivel atualizar o status da OS.";
+      const mensagem = error instanceof Error ? error.message : "Nao foi possivel atualizar a etapa da OS.";
+      toast.error(mensagem);
+      return false;
+    }
+  };
+
+  /** Marca/desmarca a situacao pelo menu do card, sem mover a OS de coluna. */
+  const handleAlterarSituacao = async (osId: string, situacao: SituacaoOS | null): Promise<boolean> => {
+    try {
+      const resultado = await atualizarSituacaoOrdemServico(osId, situacao);
+      if (!resultado.sucesso) {
+        toast.error(resultado.erro);
+        return false;
+      }
+      router.refresh();
+      return true;
+    } catch (error) {
+      const mensagem = error instanceof Error ? error.message : "Nao foi possivel atualizar a situacao da OS.";
       toast.error(mensagem);
       return false;
     }
@@ -210,7 +227,7 @@ export function DashboardOS({
       const resultado = await reabrirOrdemServico({
         osId: osParaReabrir.id,
         motivo: payload.motivo,
-        statusDestino: payload.statusDestino,
+        estagioDestino: payload.estagioDestino,
       });
 
       if (!resultado.sucesso) {
@@ -457,47 +474,40 @@ export function DashboardOS({
         </Button>
       </div>
 
-      {/* Statistics Cards - Responsive Grid */}
+      {/* Statistics Cards - segue as 4 etapas (Fase 1C-3, Parte 4) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="p-4 sm:p-6 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:shadow-sm transition-shadow">
           <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 font-medium mb-2">
-            OS Abertas
+            {ROTULOS_ETAPA_OS.ORCAMENTO}
           </p>
-          <p className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-50">
-            {totalAbertas}
-          </p>
-        </Card>
-
-        <Card className="p-4 sm:p-6 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:shadow-sm transition-shadow">
-          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 font-medium mb-2">
-            Aguardando Orçamento
-          </p>
-          <p className="text-2xl sm:text-3xl font-bold text-orange-600 dark:text-orange-400">
-            {filteredActiveOrders.filter((o) => o.status === "AGUARDANDO_ORCAMENTO").length}
+          <p className="text-2xl sm:text-3xl font-bold" style={{ color: HEX_ETAPA_OS.ORCAMENTO }}>
+            {filteredActiveOrders.filter((o) => o.etapa === "ORCAMENTO").length}
           </p>
         </Card>
 
         <Card className="p-4 sm:p-6 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:shadow-sm transition-shadow">
           <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 font-medium mb-2">
-            Em Progresso
+            {ROTULOS_ETAPA_OS.CONSERTO}
           </p>
-          <p className="text-2xl sm:text-3xl font-bold text-blue-600 dark:text-blue-400">
-            {
-              filteredActiveOrders.filter(
-                (o) =>
-                  o.status === "EM_MANUTENCAO" ||
-                  o.status === "AGUARDANDO_PECA" ||
-                  o.status === "GARANTIA_RETORNO"
-              ).length
-            }
+          <p className="text-2xl sm:text-3xl font-bold" style={{ color: HEX_ETAPA_OS.CONSERTO }}>
+            {filteredActiveOrders.filter((o) => o.etapa === "CONSERTO").length}
           </p>
         </Card>
 
         <Card className="p-4 sm:p-6 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:shadow-sm transition-shadow">
           <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 font-medium mb-2">
-            Entregues
+            {ROTULOS_ETAPA_OS.PRONTO}
           </p>
-          <p className="text-2xl sm:text-3xl font-bold text-emerald-600 dark:text-emerald-400">
+          <p className="text-2xl sm:text-3xl font-bold" style={{ color: HEX_ETAPA_OS.PRONTO }}>
+            {filteredActiveOrders.filter((o) => o.etapa === "PRONTO").length}
+          </p>
+        </Card>
+
+        <Card className="p-4 sm:p-6 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:shadow-sm transition-shadow">
+          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 font-medium mb-2">
+            {ROTULOS_ETAPA_OS.ENTREGUE}
+          </p>
+          <p className="text-2xl sm:text-3xl font-bold" style={{ color: HEX_ETAPA_OS.ENTREGUE }}>
             {deliveredOrdersCount}
           </p>
         </Card>
@@ -531,6 +541,7 @@ export function DashboardOS({
                 <TabuleiroKanban
                   ordensServico={filteredActiveOrders}
                   onMoverOS={handleMoverOS}
+                  onAlterarSituacao={handleAlterarSituacao}
                   onCartaoClick={handleAbrirDetalhesOS}
                   onFinalizarOS={handleFinalizarOS}
                   onEntregarOS={handleEntregarOS}

@@ -13,18 +13,32 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ROTULOS_STATUS_OS } from "@/lib/dominio/os/maquina-estados";
-import type { StatusOS } from "@/types/os";
+import { ROTULOS_ETAPA_OS, ROTULOS_SITUACAO_OS } from "@/lib/dominio/os/maquina-estados";
 import type { OrdemServico } from "@/types/os";
+import type { EstagioDestinoReabertura } from "@/app/actions/os";
 
 const MOTIVO_MINIMO = 10;
 
 /** Mesmos destinos aceitos pela action `reabrirOrdemServico`. */
-const DESTINOS: readonly StatusOS[] = ["PRONTO", "AGUARDANDO_PECA", "EM_MANUTENCAO"];
+const DESTINOS: readonly EstagioDestinoReabertura[] = [
+  { etapa: "CONSERTO", situacao: null },
+  { etapa: "CONSERTO", situacao: "AGUARDANDO_PECA" },
+  { etapa: "PRONTO", situacao: null },
+];
+
+function chaveEstagio(estagio: EstagioDestinoReabertura): string {
+  return `${estagio.etapa}:${estagio.situacao ?? ""}`;
+}
+
+function rotuloEstagio(estagio: EstagioDestinoReabertura): string {
+  return estagio.situacao
+    ? `${ROTULOS_ETAPA_OS[estagio.etapa]} — ${ROTULOS_SITUACAO_OS[estagio.situacao]}`
+    : ROTULOS_ETAPA_OS[estagio.etapa];
+}
 
 export type ConfirmacaoReaberturaPayload = {
   motivo: string;
-  statusDestino: StatusOS;
+  estagioDestino: EstagioDestinoReabertura;
 };
 
 type ModalReabrirOSProps = {
@@ -43,7 +57,7 @@ export function ModalReabrirOS({
   onConfirmar,
 }: ModalReabrirOSProps) {
   const [motivo, setMotivo] = useState("");
-  const [statusDestino, setStatusDestino] = useState<StatusOS>("EM_MANUTENCAO");
+  const [estagioDestino, setEstagioDestino] = useState<EstagioDestinoReabertura>(DESTINOS[0]);
 
   const erroMotivo = useMemo(() => {
     const texto = motivo.trim();
@@ -72,13 +86,16 @@ export function ModalReabrirOS({
             <select
               id="status-destino-reabertura"
               className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
-              value={statusDestino}
-              onChange={(evento) => setStatusDestino(evento.target.value as StatusOS)}
+              value={chaveEstagio(estagioDestino)}
+              onChange={(evento) => {
+                const escolhido = DESTINOS.find((destino) => chaveEstagio(destino) === evento.target.value);
+                if (escolhido) setEstagioDestino(escolhido);
+              }}
               disabled={processando}
             >
               {DESTINOS.map((destino) => (
-                <option key={destino} value={destino}>
-                  {ROTULOS_STATUS_OS[destino]}
+                <option key={chaveEstagio(destino)} value={chaveEstagio(destino)}>
+                  {rotuloEstagio(destino)}
                 </option>
               ))}
             </select>
@@ -110,7 +127,7 @@ export function ModalReabrirOS({
             onClick={(evento) => {
               evento.preventDefault();
               if (erroMotivo) return;
-              void onConfirmar({ motivo: motivo.trim(), statusDestino });
+              void onConfirmar({ motivo: motivo.trim(), estagioDestino });
             }}
             disabled={processando || Boolean(erroMotivo)}
           >

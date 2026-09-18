@@ -1,7 +1,8 @@
 "use client";
 
-import { OrdemServico, StatusOS } from "@/types/os";
-import { mapStatusColor, mapStatusLabel } from "@/dados/mock-os";
+import { OrdemServico, SituacaoOS } from "@/types/os";
+import { ROTULOS_SITUACAO_OS } from "@/lib/dominio/os/maquina-estados";
+import { SITUACOES_VALIDAS_POR_ETAPA } from "@/lib/dominio/os/etapas";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import {
@@ -14,16 +15,20 @@ import {
   PackageCheck,
   RotateCcw,
   Archive,
+  MoreVertical,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface CartaoOSProps {
   os: OrdemServico;
   onClick?: () => void;
   isDragging?: boolean;
-  statusChipClass?: string;
-  /** Status da coluna onde o card está. O chip some quando apenas repetiria a coluna. */
-  statusDaColuna?: StatusOS;
   onMoverAnterior?: () => void;
   onMoverProxima?: () => void;
   onFinalizar?: () => void;
@@ -41,14 +46,14 @@ interface CartaoOSProps {
   onArquivar?: () => void;
   /** Linha curta explicando por que o cartao esta num estado incomum, ex.: "Entregue, falta arquivar". */
   estadoExplicacao?: string;
+  /** Marca/limpa a situacao sem mover o card de coluna (Fase 1C-3, Parte 4). Ausente esconde o menu. */
+  onAlterarSituacao?: (situacao: SituacaoOS | null) => void;
 }
 
 export function CartaoOS({
   os,
   onClick,
   isDragging = false,
-  statusChipClass,
-  statusDaColuna,
   onMoverAnterior,
   onMoverProxima,
   onFinalizar,
@@ -61,7 +66,9 @@ export function CartaoOS({
   onReabrir,
   onArquivar,
   estadoExplicacao,
+  onAlterarSituacao,
 }: CartaoOSProps) {
+  const situacoesDisponiveis = SITUACOES_VALIDAS_POR_ETAPA[os.etapa];
   const formatarMoeda = (valor: number) => {
     return new Intl.NumberFormat("pt-BR", {
       style: "currency",
@@ -95,11 +102,9 @@ export function CartaoOS({
             </h3>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-1">
-            {/* Repetir o status da própria coluna não informa nada. Num retorno de
-                garantia dentro de outra coluna, informa. */}
-            {statusDaColuna !== os.status ? (
-              <Badge className={`${statusChipClass ?? mapStatusColor[os.status]} whitespace-nowrap text-xs font-medium`}>
-                {mapStatusLabel[os.status]}
+            {os.situacao ? (
+              <Badge className="whitespace-nowrap bg-amber-100 text-amber-800 text-xs font-medium dark:bg-amber-950/50 dark:text-amber-300">
+                {ROTULOS_SITUACAO_OS[os.situacao]}
               </Badge>
             ) : null}
             {os.entregueSemServico ? (
@@ -110,6 +115,38 @@ export function CartaoOS({
               >
                 Sem serviço
               </Badge>
+            ) : null}
+            {onAlterarSituacao && situacoesDisponiveis.length > 0 ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 shrink-0"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                    <span className="sr-only">Situação da OS</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" onClick={(event) => event.stopPropagation()}>
+                  {situacoesDisponiveis.map((situacao) => (
+                    <DropdownMenuItem
+                      key={situacao}
+                      disabled={os.situacao === situacao}
+                      onClick={() => onAlterarSituacao(situacao)}
+                    >
+                      Marcar {ROTULOS_SITUACAO_OS[situacao].toLowerCase()}
+                    </DropdownMenuItem>
+                  ))}
+                  {os.situacao ? (
+                    <DropdownMenuItem onClick={() => onAlterarSituacao(null)}>
+                      Limpar situação
+                    </DropdownMenuItem>
+                  ) : null}
+                </DropdownMenuContent>
+              </DropdownMenu>
             ) : null}
           </div>
         </div>

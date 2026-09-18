@@ -16,8 +16,14 @@ import {
   obterDefaultsConfiguracaoOsGarantias,
 } from "@/lib/configuracoes-os-garantias";
 import type { OrdemServico, OrdemServicoExcluida, TipoPecaOrcamento } from "@/types/os";
-import { STATUS_OS_SEQUENCIA, motivoTransicaoNegada } from "@/lib/dominio/os/maquina-estados";
-import { paraEstagio } from "@/lib/dominio/os/etapas";
+import {
+  ROTULOS_ETAPA_OS,
+  ROTULOS_SITUACAO_OS,
+  STATUS_OS_SEQUENCIA,
+  ehEtapaOS,
+  motivoTransicaoNegadaEtapa,
+} from "@/lib/dominio/os/maquina-estados";
+import { normalizarSituacao, paraEstagio, paraStatusLegado, type EtapaOS, type SituacaoOS } from "@/lib/dominio/os/etapas";
 import { encontrarEntregaAuditada } from "@/lib/dominio/os/entrega-auditada";
 import { ErroPermissao, exigirPermissao, temPermissao } from "@/lib/auth/permissoes";
 import {
@@ -78,6 +84,8 @@ type RawOrdemServico = {
   condicaoFisica?: unknown;
   acessorios?: unknown;
   status?: unknown;
+  etapa?: unknown;
+  situacao?: unknown;
   ehRetornoGarantia?: unknown;
   osOrigemGarantiaId?: unknown;
   osOrigemGarantia?: { numeroOs?: unknown } | null;
@@ -149,6 +157,8 @@ function mapearOrdemServicoDashboard(order: RawOrdemServico, podeVerCustos: bool
     itensOrcamento,
     totalOrcamento,
     status: String(order.status) as StatusOS,
+    etapa: String(order.etapa) as EtapaOS,
+    situacao: order.situacao ? (String(order.situacao) as SituacaoOS) : null,
     ehRetornoGarantia: Boolean(order.ehRetornoGarantia),
     osOrigemGarantiaId: order.osOrigemGarantiaId ? String(order.osOrigemGarantiaId) : undefined,
     numeroOSOrigemGarantia:
@@ -229,19 +239,6 @@ function revalidarOrdemServico(osId: string): void {
   revalidatePath("/os/garantias");
   revalidatePath("/financeiro");
 }
-
-export type ResultadoAtualizacaoStatusOrdemServico =
-  | {
-      sucesso: true;
-      mensagem: string;
-      osId: string;
-      status: StatusOS;
-    }
-  | {
-      sucesso: false;
-      erro: string;
-      bloqueioRegra: boolean;
-    };
 
 type RegrasOs = {
   exigirGarantiaAntesEntrega: boolean;
@@ -704,137 +701,6 @@ export async function criarOrdemServico(dados: DadosNovaOS) {
   return novaOS;
 }
 
-/**
- * Mudanca generica de status.
- *
- * Duas transicoes NAO passam por aqui, de proposito:
- *   - qualquer -> ENTREGUE ... `finalizarOrdemServico`
- *   - ENTREGUE -> qualquer ... `reabrirOrdemServico`
- *
- * Esta funcao tambem NAO mexe mais em `archivedAt`. Antes da Fase 1A ela
- * limpava `archivedAt` em toda transicao que nao fosse ENTREGUE e nunca o
- * definia. Como o Kanban aceitava qualquer movimento, arrastar um cartao para
- * fora e de volta para ENTREGUE deixava a OS entregue porem nao arquivada —
- * invisivel na lista de finalizadas e presa no quadro (AUDIT_REPORT 16.2 e
- * 16.7-e). `archivedAt` passa a ser escrito exclusivamente pela finalizacao e
- * limpo exclusivamente pela reabertura.
- */
-export async function atualizarStatusOrdemServico(
-  osId: string,
-  status: StatusOS
-): Promise<ResultadoAtualizacaoStatusOrdemServico> {
-  try {
-    const contexto = await exigirContextoTenant();
-    exigirPermissao(contexto, "os.editar");
-    const prisma = contexto.prisma;
-    const usuario = contexto.usuarioOperacional;
-
-    if (!osId) {
-      return {
-        sucesso: false,
-        erro: "ID da ordem de servico nao informado.",
-        bloqueioRegra: true,
-      };
-    }
-
-    if (!statusValidos.includes(status)) {
-      return {
-        sucesso: false,
-        erro: "Status da ordem de servico invalido.",
-        bloqueioRegra: true,
-      };
-    }
-
-    const numeroOsParaNotificacao = await prisma.$transaction(async (tx) => {
-      const antes = await tx.ordemServico.findUnique({
-        where: { id: osId },
-        select: {
-          id: true,
-          numeroOs: true,
-          status: true,
-          archivedAt: true,
-          excluidaEm: true,
-          ehRetornoGarantia: true,
-          observacoes: true,
-        },
-      });
-
-      if (!antes?.id) {
-        throw new ErroNegocio("Ordem de servico nao encontrada.");
-      }
-
-      if (antes.excluidaEm) {
-        throw new ErroNegocio("Nao e permitido alterar status de uma OS excluida.");
-      }
-
-      const statusAtual = antes.status;
-
-      // Maquina de estados: a unica autoridade sobre o que e alcancavel.
-      const motivoNegado = motivoTransicaoNegada(statusAtual, status, {
-        ehRetornoGarantia: Boolean(antes.ehRetornoGarantia),
-      });
-
-      if (motivoNegado !== null) {
-        throw new ErroNegocio(motivoNegado);
-      }
-
-      // Escrita dupla (Fase 1C-3): o Kanban ainda move OS por StatusOS: etapa
-      // e situacao sao derivados dele pela mesma funcao usada em toda a
-      // aplicacao — ver lib/dominio/os/etapas.ts.
-      const estagioNovo = paraEstagio(status);
-
-      await tx.ordemServico.update({
-        where: { id: osId },
-        data: { status, etapa: estagioNovo.etapa, situacao: estagioNovo.situacao },
-      });
-
-      await registrarLogAuditoria(
-        tx,
-        contextoAuditoriaDoUsuario(
-          { id: normalizarIdUsuarioOperacional(usuario) },
-          "app/actions/os.ts:atualizarStatusOrdemServico"
-        ),
-        {
-          acao: ACOES_AUDITORIA.ATUALIZAR_STATUS,
-          entidade: ENTIDADES_AUDITORIA.ORDEM_SERVICO,
-          entidadeId: osId,
-          dadosAntes: {
-            status: statusAtual,
-            archivedAt: antes.archivedAt ? antes.archivedAt.toISOString() : null,
-          },
-          dadosDepois: {
-            status,
-            etapa: estagioNovo.etapa,
-            situacao: estagioNovo.situacao,
-            // archivedAt intencionalmente inalterado por esta acao.
-            archivedAt: antes.archivedAt ? antes.archivedAt.toISOString() : null,
-            ...descreverAutoria(contexto),
-          },
-        }
-      );
-
-      return Number(antes.numeroOs ?? 0);
-    });
-
-    await notificarMudancaStatusOS(prisma, status, numeroOsParaNotificacao);
-
-    revalidarOrdemServico(osId);
-
-    return {
-      sucesso: true,
-      mensagem: "Status da OS atualizado com sucesso.",
-      osId,
-      status,
-    };
-  } catch (error) {
-    return {
-      sucesso: false,
-      erro: paraMensagemSegura(error),
-      bloqueioRegra: error instanceof ErroNegocio || error instanceof ErroPermissao,
-    };
-  }
-}
-
 const STATUS_NOTIFICAVEIS: Readonly<Record<string, { titulo: string; mensagem: (n: number) => string }>> = {
   APROVADO: {
     titulo: "OS Aprovada",
@@ -894,24 +760,285 @@ async function notificarMudancaStatusOS(
   }
 }
 
+export type ResultadoAtualizacaoEtapaOrdemServico =
+  | {
+      sucesso: true;
+      mensagem: string;
+      osId: string;
+      etapa: EtapaOS;
+      situacao: SituacaoOS | null;
+    }
+  | {
+      sucesso: false;
+      erro: string;
+      bloqueioRegra: boolean;
+    };
+
+/**
+ * Mudanca generica de ETAPA (Fase 1C-3) — a acao viva do Kanban de 4
+ * colunas. Substitui `atualizarStatusOrdemServico` como caminho de escrita
+ * do quadro; a maquina de estados que decide o que e alcancavel agora e
+ * `motivoTransicaoNegadaEtapa`, nao mais a de StatusOS.
+ *
+ * Mudar de etapa sempre zera `situacao` (ela e independente da etapa, mas
+ * nao sobrevive a troca — ver lib/dominio/os/etapas.ts). Quem quiser
+ * marcar/desmarcar uma situacao sem mover o card usa
+ * `atualizarSituacaoOrdemServico`.
+ *
+ * As mesmas duas transicoes de sempre ficam de fora, tratadas por acoes
+ * dedicadas: qualquer -> ENTREGUE (`finalizarOrdemServico`/
+ * `finalizarSemServico`) e ENTREGUE -> qualquer (`reabrirOrdemServico`).
+ */
+export async function atualizarEtapaOrdemServico(
+  osId: string,
+  etapa: EtapaOS
+): Promise<ResultadoAtualizacaoEtapaOrdemServico> {
+  try {
+    const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "os.editar");
+    const prisma = contexto.prisma;
+    const usuario = contexto.usuarioOperacional;
+
+    if (!osId) {
+      return { sucesso: false, erro: "ID da ordem de servico nao informado.", bloqueioRegra: true };
+    }
+
+    if (!ehEtapaOS(etapa)) {
+      return { sucesso: false, erro: "Etapa da ordem de servico invalida.", bloqueioRegra: true };
+    }
+
+    const numeroOsParaNotificacao = await prisma.$transaction(async (tx) => {
+      const antes = await tx.ordemServico.findUnique({
+        where: { id: osId },
+        select: {
+          id: true,
+          numeroOs: true,
+          etapa: true,
+          situacao: true,
+          status: true,
+          archivedAt: true,
+          excluidaEm: true,
+          ehRetornoGarantia: true,
+        },
+      });
+
+      if (!antes?.id) {
+        throw new ErroNegocio("Ordem de servico nao encontrada.");
+      }
+
+      if (antes.excluidaEm) {
+        throw new ErroNegocio("Nao e permitido alterar etapa de uma OS excluida.");
+      }
+
+      const etapaAtual = antes.etapa as EtapaOS;
+      const ehRetornoGarantia = Boolean(antes.ehRetornoGarantia);
+
+      const motivoNegado = motivoTransicaoNegadaEtapa(etapaAtual, etapa, { ehRetornoGarantia });
+
+      if (motivoNegado !== null) {
+        throw new ErroNegocio(motivoNegado);
+      }
+
+      // Trocar de etapa sempre zera a situacao (Parte 3 do prompt da fase).
+      const statusLegado = paraStatusLegado({ etapa, situacao: null }, ehRetornoGarantia);
+
+      await tx.ordemServico.update({
+        where: { id: osId },
+        data: { etapa, situacao: null, status: statusLegado },
+      });
+
+      await registrarLogAuditoria(
+        tx,
+        contextoAuditoriaDoUsuario(
+          { id: normalizarIdUsuarioOperacional(usuario) },
+          "app/actions/os.ts:atualizarEtapaOrdemServico"
+        ),
+        {
+          acao: ACOES_AUDITORIA.ATUALIZAR_STATUS,
+          entidade: ENTIDADES_AUDITORIA.ORDEM_SERVICO,
+          entidadeId: osId,
+          dadosAntes: {
+            etapa: etapaAtual,
+            situacao: antes.situacao,
+            status: antes.status,
+            archivedAt: antes.archivedAt ? antes.archivedAt.toISOString() : null,
+          },
+          dadosDepois: {
+            etapa,
+            situacao: null,
+            status: statusLegado,
+            // archivedAt intencionalmente inalterado por esta acao.
+            archivedAt: antes.archivedAt ? antes.archivedAt.toISOString() : null,
+            ...descreverAutoria(contexto),
+          },
+        }
+      );
+
+      return Number(antes.numeroOs ?? 0);
+    });
+
+    await notificarMudancaStatusOS(prisma, paraStatusLegado({ etapa, situacao: null }, false), numeroOsParaNotificacao);
+
+    revalidarOrdemServico(osId);
+
+    return {
+      sucesso: true,
+      mensagem: "Etapa da OS atualizada com sucesso.",
+      osId,
+      etapa,
+      situacao: null,
+    };
+  } catch (error) {
+    return {
+      sucesso: false,
+      erro: paraMensagemSegura(error),
+      bloqueioRegra: error instanceof ErroNegocio || error instanceof ErroPermissao,
+    };
+  }
+}
+
+export type ResultadoAtualizacaoSituacaoOrdemServico =
+  | {
+      sucesso: true;
+      mensagem: string;
+      osId: string;
+      situacao: SituacaoOS | null;
+    }
+  | {
+      sucesso: false;
+      erro: string;
+    };
+
+/**
+ * Marca ou limpa a `situacao` da OS SEM mover a etapa — a acao do menu do
+ * card (Parte 4). Ao contrario de `atualizarEtapaOrdemServico`, esta funcao
+ * nunca passa pela maquina de estados de etapa: a unica regra e a situacao
+ * pedida ser valida pra etapa ATUAL (normalizarSituacao, em etapas.ts).
+ */
+export async function atualizarSituacaoOrdemServico(
+  osId: string,
+  situacao: SituacaoOS | null
+): Promise<ResultadoAtualizacaoSituacaoOrdemServico> {
+  try {
+    const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "os.editar");
+    const prisma = contexto.prisma;
+    const usuario = contexto.usuarioOperacional;
+
+    if (!osId) {
+      return { sucesso: false, erro: "ID da ordem de servico nao informado." };
+    }
+
+    const situacaoAplicada = await prisma.$transaction(async (tx) => {
+      const antes = await tx.ordemServico.findUnique({
+        where: { id: osId },
+        select: {
+          id: true,
+          etapa: true,
+          situacao: true,
+          status: true,
+          excluidaEm: true,
+          ehRetornoGarantia: true,
+        },
+      });
+
+      if (!antes?.id) {
+        throw new ErroNegocio("Ordem de servico nao encontrada.");
+      }
+
+      if (antes.excluidaEm) {
+        throw new ErroNegocio("Nao e permitido alterar uma OS excluida.");
+      }
+
+      const etapaAtual = antes.etapa as EtapaOS;
+      const situacaoNormalizada = normalizarSituacao(etapaAtual, situacao);
+
+      if (situacao !== null && situacaoNormalizada === null) {
+        throw new ErroNegocio(
+          `"${ROTULOS_SITUACAO_OS[situacao]}" não é uma situação válida para a etapa "${ROTULOS_ETAPA_OS[etapaAtual]}".`
+        );
+      }
+
+      const statusNovo = paraStatusLegado(
+        { etapa: etapaAtual, situacao: situacaoNormalizada },
+        Boolean(antes.ehRetornoGarantia)
+      );
+
+      await tx.ordemServico.update({
+        where: { id: osId },
+        data: { situacao: situacaoNormalizada, status: statusNovo },
+      });
+
+      await registrarLogAuditoria(
+        tx,
+        contextoAuditoriaDoUsuario(
+          { id: normalizarIdUsuarioOperacional(usuario) },
+          "app/actions/os.ts:atualizarSituacaoOrdemServico"
+        ),
+        {
+          acao: ACOES_AUDITORIA.ATUALIZAR_STATUS,
+          entidade: ENTIDADES_AUDITORIA.ORDEM_SERVICO,
+          entidadeId: osId,
+          dadosAntes: {
+            etapa: etapaAtual,
+            situacao: antes.situacao,
+            status: antes.status,
+          },
+          dadosDepois: {
+            etapa: etapaAtual,
+            situacao: situacaoNormalizada,
+            status: statusNovo,
+            ...descreverAutoria(contexto),
+          },
+        }
+      );
+
+      return situacaoNormalizada;
+    });
+
+    revalidarOrdemServico(osId);
+
+    return {
+      sucesso: true,
+      mensagem: situacaoAplicada ? `Situação "${ROTULOS_SITUACAO_OS[situacaoAplicada]}" aplicada.` : "Situação removida.",
+      osId,
+      situacao: situacaoAplicada,
+    };
+  } catch (error) {
+    return { sucesso: false, erro: paraMensagemSegura(error) };
+  }
+}
+
+export type EstagioDestinoReabertura = {
+  etapa: EtapaOS;
+  situacao: SituacaoOS | null;
+};
+
 export type EntradaReaberturaOrdemServico = {
   osId: string;
   motivo: string;
-  statusDestino: StatusOS;
+  estagioDestino: EstagioDestinoReabertura;
 };
 
 export type ResultadoReaberturaOrdemServico =
-  | { sucesso: true; mensagem: string; osId: string; status: StatusOS }
+  | { sucesso: true; mensagem: string; osId: string; etapa: EtapaOS; situacao: SituacaoOS | null }
   | { sucesso: false; erro: string };
 
-// Destinos validos ao reabrir uma OS entregue.
-// Nao exportado: arquivo "use server" so pode exportar funcoes async.
-// A mesma lista aparece em components/os/modal-reabrir-os.tsx.
-const STATUS_DESTINO_REABERTURA: readonly StatusOS[] = [
-  "PRONTO",
-  "AGUARDANDO_PECA",
-  "EM_MANUTENCAO",
+// Destinos validos ao reabrir uma OS entregue (Fase 1C-3: em termos de
+// etapa+situacao, nunca ORCAMENTO). Nao exportado: arquivo "use server" so
+// pode exportar funcoes async. A mesma lista aparece em
+// components/os/modal-reabrir-os.tsx.
+const ESTAGIOS_DESTINO_REABERTURA: readonly EstagioDestinoReabertura[] = [
+  { etapa: "CONSERTO", situacao: null },
+  { etapa: "CONSERTO", situacao: "AGUARDANDO_PECA" },
+  { etapa: "PRONTO", situacao: null },
 ];
+
+function estagioValidoParaReabertura(estagio: EstagioDestinoReabertura): boolean {
+  return ESTAGIOS_DESTINO_REABERTURA.some(
+    (item) => item.etapa === estagio.etapa && item.situacao === estagio.situacao
+  );
+}
 
 const MOTIVO_REABERTURA_MINIMO = 10;
 
@@ -935,7 +1062,7 @@ export async function reabrirOrdemServico(
 
     const osId = String(input?.osId ?? "").trim();
     const motivo = String(input?.motivo ?? "").trim();
-    const statusDestino = input?.statusDestino;
+    const estagioDestino = input?.estagioDestino;
 
     if (!osId) {
       return { sucesso: false, erro: "ID da ordem de servico nao informado." };
@@ -952,10 +1079,10 @@ export async function reabrirOrdemServico(
       return { sucesso: false, erro: "O motivo da reabertura excede 500 caracteres." };
     }
 
-    if (!STATUS_DESTINO_REABERTURA.includes(statusDestino)) {
+    if (!estagioDestino || !estagioValidoParaReabertura(estagioDestino)) {
       return {
         sucesso: false,
-        erro: 'Ao reabrir, escolha "Pronto", "Aguardando Peça" ou "Em Manutenção".',
+        erro: 'Ao reabrir, escolha "Conserto" ou "Pronto" (com ou sem "Aguardando peça").',
       };
     }
 
@@ -987,7 +1114,7 @@ export async function reabrirOrdemServico(
       }
 
       // Escrita dupla (Fase 1C-3) — mesma funcao usada em toda a aplicacao.
-      const estagioDestino = paraEstagio(statusDestino);
+      const statusDestino = paraStatusLegado(estagioDestino, Boolean(antes.ehRetornoGarantia));
 
       await tx.ordemServico.update({
         where: { id: osId },
@@ -1035,7 +1162,8 @@ export async function reabrirOrdemServico(
       sucesso: true,
       mensagem: "OS reaberta com sucesso.",
       osId,
-      status: statusDestino,
+      etapa: estagioDestino.etapa,
+      situacao: estagioDestino.situacao,
     };
   } catch (error) {
     return { sucesso: false, erro: paraMensagemSegura(error) };
