@@ -2,6 +2,7 @@ import { exigirSessaoCentral } from "@/lib/auth/sessao-central";
 import { obterPrismaTenant } from "@/lib/tenant/prisma-tenant";
 import { resolverConexaoTenant } from "@/lib/tenant/resolver-conexao-tenant";
 import { ehPapelEmpresa, type PapelEmpresa } from "@/lib/auth/permissoes";
+import { resolverPermissoesEfetivas } from "@/lib/auth/resolver-permissoes";
 import type { ContextoTenantServidor } from "@/types/tenant";
 
 type UsuarioOperacionalMapeado = {
@@ -92,6 +93,18 @@ export async function exigirContextoTenant(): Promise<ContextoTenantServidor> {
     role: sessaoCentral.role,
   });
 
+  const papelEmpresa = normalizarPapelEmpresa(sessaoCentral.role);
+
+  // Resolvido do Cargo do usuario, uma vez por requisicao (Fase 1D-1) — ver
+  // o comentario em lib/auth/resolver-permissoes.ts sobre por que isso
+  // garante efeito imediato de qualquer mudanca de cargo/permissao, sem
+  // relogar.
+  const permissoes = await resolverPermissoesEfetivas(
+    sessaoCentral.usuarioCentralId,
+    sessaoCentral.empresaId,
+    papelEmpresa
+  );
+
   return {
     usuarioOperacional,
     usuarioCentralId: sessaoCentral.usuarioCentralId,
@@ -101,7 +114,8 @@ export async function exigirContextoTenant(): Promise<ContextoTenantServidor> {
     tenantSlug: sessaoCentral.tenantSlug,
     connectionRef: sessaoCentral.connectionRef,
     // Direto da sessao central, nunca contaminado pelo Usuario.role do tenant.
-    papelEmpresa: normalizarPapelEmpresa(sessaoCentral.role),
+    papelEmpresa,
+    permissoes,
     prisma,
   };
 }

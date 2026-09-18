@@ -36,12 +36,16 @@ export const CATALOGO_PERMISSOES = [
   "os.reabrir",
   "os.finalizar",
   "os.ver_custos",
+  "os.ver",
+  "os.ver_todas",
   // PDV / frente de caixa
   "pdv.vender",
   "pdv.aplicar_desconto_acima_limite",
   "caixa.abrir",
   "caixa.fechar",
   "caixa.ver_historico",
+  "caixa.ver",
+  "caixa.ver_todos",
   // Estoque
   "estoque.ver",
   "estoque.editar",
@@ -59,6 +63,7 @@ export const CATALOGO_PERMISSOES = [
   "financeiro.baixar",
   "financeiro.editar",
   "financeiro.excluir",
+  "financeiro.ver_todos",
   // Metas
   "metas.ver",
   "metas.editar",
@@ -77,8 +82,144 @@ export const CATALOGO_PERMISSOES = [
 
 export type Permissao = (typeof CATALOGO_PERMISSOES)[number];
 
-function ehPermissao(valor: string): valor is Permissao {
+export function ehPermissao(valor: string): valor is Permissao {
   return (CATALOGO_PERMISSOES as readonly string[]).includes(valor);
+}
+
+/**
+ * Modulo de exibicao de cada permissao — usado so pra agrupar o catalogo
+ * (listarPermissoesDisponiveis, em app/actions/cargos.ts) na mesma ordem
+ * das secoes acima.
+ */
+export type ModuloPermissao =
+  | "os"
+  | "pdv"
+  | "estoque"
+  | "crm"
+  | "financeiro"
+  | "metas"
+  | "vendas"
+  | "sistema";
+
+const MODULO_POR_PREFIXO: Readonly<Record<string, ModuloPermissao>> = {
+  os: "os",
+  pdv: "pdv",
+  caixa: "pdv",
+  estoque: "estoque",
+  crm: "crm",
+  propostas: "crm",
+  financeiro: "financeiro",
+  dashboard: "financeiro",
+  metas: "metas",
+  vendas: "vendas",
+  configuracoes: "sistema",
+  auditoria: "sistema",
+};
+
+export const ROTULOS_MODULO_PERMISSAO: Readonly<Record<ModuloPermissao, string>> = {
+  os: "Ordens de Serviço",
+  pdv: "PDV e Caixa",
+  estoque: "Estoque",
+  crm: "CRM e Propostas",
+  financeiro: "Financeiro",
+  metas: "Metas",
+  vendas: "Vendas",
+  sistema: "Sistema e Configurações",
+};
+
+function moduloDaPermissao(permissao: Permissao): ModuloPermissao {
+  const prefixo = permissao.split(".")[0] ?? "";
+  return MODULO_POR_PREFIXO[prefixo] ?? "sistema";
+}
+
+/**
+ * Rotulo e descricao em pt-BR de cada permissao — fonte UNICA, pronta pra
+ * tela de gerenciamento de cargos da Fase 1D-2 (listarPermissoesDisponiveis,
+ * em app/actions/cargos.ts). Nenhuma tela deve manter seu proprio texto pra
+ * uma permissao.
+ *
+ * As permissoes `*.ver_todas`/`*.ver_todos` (Fase 1D-1, addendum) ainda nao
+ * filtram nada: o efeito real comeca na Fase 1D-2, junto do modelo de
+ * tecnicos por OS. Ate la elas so existem no catalogo e nos cargos padrao.
+ */
+export const ROTULOS_PERMISSAO: Readonly<Record<Permissao, { rotulo: string; descricao: string }>> = {
+  "os.criar": { rotulo: "Criar ordens de serviço", descricao: "Abrir uma nova OS." },
+  "os.editar": { rotulo: "Editar ordens de serviço", descricao: "Alterar dados, itens e status de uma OS." },
+  "os.excluir": { rotulo: "Excluir ordens de serviço", descricao: "Excluir logicamente uma OS." },
+  "os.reabrir": { rotulo: "Reabrir ordens de serviço", descricao: "Reabrir uma OS já entregue." },
+  "os.finalizar": { rotulo: "Finalizar ordens de serviço", descricao: "Entregar e finalizar uma OS." },
+  "os.ver_custos": { rotulo: "Ver custos de peças da OS", descricao: "Enxergar o custo (não o preço de venda) de cada item da OS." },
+  "os.ver": {
+    rotulo: "Ver ordens de serviço",
+    descricao: "Ver as OS em que participa (efeito a partir da 1D-2, junto do modelo de técnicos por OS).",
+  },
+  "os.ver_todas": {
+    rotulo: "Ver todas as ordens de serviço",
+    descricao: "Remove a restrição de \"só as minhas\" de os.ver (efeito a partir da 1D-2).",
+  },
+  "pdv.vender": { rotulo: "Vender no PDV", descricao: "Fechar uma venda no PDV." },
+  "pdv.aplicar_desconto_acima_limite": { rotulo: "Aplicar desconto acima do limite", descricao: "Ignorar o limite de desconto configurado no PDV." },
+  "caixa.abrir": { rotulo: "Abrir caixa", descricao: "Abrir uma sessão de caixa." },
+  "caixa.fechar": { rotulo: "Fechar caixa", descricao: "Fechar a própria sessão de caixa." },
+  "caixa.ver_historico": { rotulo: "Ver histórico de caixa", descricao: "Consultar sessões de caixa já fechadas." },
+  "caixa.ver": {
+    rotulo: "Ver caixa",
+    descricao: "Ver a própria sessão de caixa (efeito a partir da 1D-2).",
+  },
+  "caixa.ver_todos": {
+    rotulo: "Ver todos os caixas",
+    descricao: "Remove a restrição de \"só o meu\" de caixa.ver (efeito a partir da 1D-2).",
+  },
+  "estoque.ver": { rotulo: "Ver estoque", descricao: "Consultar itens e saldos de estoque." },
+  "estoque.editar": { rotulo: "Editar estoque", descricao: "Alterar itens e saldos de estoque." },
+  "estoque.ver_custos": { rotulo: "Ver custos de estoque", descricao: "Enxergar o custo dos itens de estoque." },
+  "estoque.excluir": { rotulo: "Excluir itens de estoque", descricao: "Excluir itens do estoque." },
+  "crm.ver": { rotulo: "Ver CRM", descricao: "Consultar contatos e oportunidades do CRM." },
+  "crm.editar": { rotulo: "Editar CRM", descricao: "Criar e alterar contatos e oportunidades." },
+  "crm.excluir": { rotulo: "Excluir CRM", descricao: "Excluir contatos e oportunidades." },
+  "propostas.editar": { rotulo: "Editar propostas", descricao: "Criar e alterar propostas comerciais." },
+  "propostas.excluir": { rotulo: "Excluir propostas", descricao: "Excluir propostas comerciais." },
+  "financeiro.ver": {
+    rotulo: "Ver financeiro",
+    descricao: "Ver os lançamentos financeiros em que participa (efeito a partir da 1D-2).",
+  },
+  "financeiro.lancar": { rotulo: "Lançar no financeiro", descricao: "Criar contas a pagar e a receber." },
+  "financeiro.baixar": { rotulo: "Baixar contas", descricao: "Registrar pagamento/recebimento de uma conta." },
+  "financeiro.editar": { rotulo: "Editar financeiro", descricao: "Alterar lançamentos financeiros." },
+  "financeiro.excluir": { rotulo: "Excluir financeiro", descricao: "Excluir lançamentos financeiros." },
+  "financeiro.ver_todos": {
+    rotulo: "Ver todo o financeiro",
+    descricao: "Remove a restrição de \"só os meus\" de financeiro.ver (efeito a partir da 1D-2).",
+  },
+  "metas.ver": { rotulo: "Ver metas", descricao: "Consultar metas e indicadores." },
+  "metas.editar": { rotulo: "Editar metas", descricao: "Criar e alterar metas." },
+  "metas.excluir": { rotulo: "Excluir metas", descricao: "Excluir metas." },
+  "vendas.criar": { rotulo: "Criar vendas", descricao: "Gerar um pedido de venda." },
+  "vendas.aprovar": { rotulo: "Aprovar vendas", descricao: "Aprovar um pedido de venda." },
+  "vendas.cancelar": { rotulo: "Cancelar vendas", descricao: "Cancelar um pedido de venda." },
+  "configuracoes.empresa": { rotulo: "Configurar dados da empresa", descricao: "Alterar dados cadastrais da empresa." },
+  "configuracoes.sistema": { rotulo: "Configurar o sistema", descricao: "Alterar regras operacionais do ERP." },
+  "configuracoes.usuarios": { rotulo: "Gerenciar usuários e cargos", descricao: "Criar, editar e desativar usuários e cargos." },
+  "auditoria.ver": { rotulo: "Ver auditoria", descricao: "Consultar a trilha de auditoria do sistema." },
+  "dashboard.financeiro": { rotulo: "Ver dashboard financeiro", descricao: "Enxergar os indicadores financeiros do painel inicial." },
+};
+
+export type PermissaoDisponivel = {
+  permissao: Permissao;
+  rotulo: string;
+  descricao: string;
+  modulo: ModuloPermissao;
+  rotuloModulo: string;
+};
+
+/** Catalogo agrupado por modulo, pronto pra tela de gerenciamento de cargos da Fase 1D-2. */
+export function listarCatalogoAgrupado(): readonly PermissaoDisponivel[] {
+  return CATALOGO_PERMISSOES.map((permissao) => ({
+    permissao,
+    ...ROTULOS_PERMISSAO[permissao],
+    modulo: moduloDaPermissao(permissao),
+    rotuloModulo: ROTULOS_MODULO_PERMISSAO[moduloDaPermissao(permissao)],
+  }));
 }
 
 const PERMISSOES_NEGADAS_GESTOR: ReadonlySet<Permissao> = new Set([
@@ -147,7 +288,18 @@ export function permissoesDoPapel(papel: PapelEmpresa): ReadonlySet<Permissao> {
   return MATRIZ_PERMISSOES[papel] ?? MATRIZ_PERMISSOES.USUARIO;
 }
 
+/**
+ * Fonte da decisao: o conjunto de permissoes ja resolvido do Cargo do
+ * usuario (Fase 1D-1) — ver lib/auth/resolver-permissoes.ts, chamado uma vez
+ * por requisicao em exigirContextoTenant. So cai pra matriz legada quando o
+ * contexto, por algum motivo, nao tem `permissoes` resolvido (ex.: um
+ * ContextoTenantSeguro montado a mao em teste/script antigo).
+ */
 export function temPermissao(contexto: ContextoTenantSeguro, permissao: Permissao): boolean {
+  if (contexto.permissoes) {
+    return contexto.permissoes.has(permissao);
+  }
+
   return permissoesDoPapel(papelDoContexto(contexto)).has(permissao);
 }
 
@@ -184,6 +336,6 @@ export function obterPermissoesDoContexto(contexto: ContextoTenantSeguro): Permi
   const papel = papelDoContexto(contexto);
   return {
     papel,
-    permissoes: Array.from(permissoesDoPapel(papel)),
+    permissoes: Array.from(contexto.permissoes ?? permissoesDoPapel(papel)),
   };
 }

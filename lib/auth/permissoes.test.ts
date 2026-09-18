@@ -6,6 +6,7 @@ import {
   PAPEIS_EMPRESA,
   ehPapelEmpresa,
   exigirPermissao,
+  listarCatalogoAgrupado,
   obterPermissoesDoContexto,
   permissoesDoPapel,
   rotularPapel,
@@ -220,6 +221,63 @@ describe("permissoesDoPapel / obterPermissoesDoContexto", () => {
     expect(Array.isArray(resultado.permissoes)).toBe(true);
     expect(resultado.permissoes).not.toContain("configuracoes.empresa");
     expect(resultado.permissoes).toContain("os.excluir");
+  });
+});
+
+describe("contexto.permissoes (Fase 1D-1): resolvido do Cargo tem prioridade sobre a matriz legada", () => {
+  it("temPermissao usa contexto.permissoes quando presente, ignorando o papel", () => {
+    // papelEmpresa diz USUARIO (a matriz legada bloquearia configuracoes.usuarios),
+    // mas o Cargo resolvido concede — o resolvido deve vencer.
+    const contexto: ContextoTenantSeguro = {
+      ...contextoComPapel("USUARIO"),
+      permissoes: new Set<Permissao>(["configuracoes.usuarios", "os.criar"]),
+    };
+
+    expect(temPermissao(contexto, "configuracoes.usuarios")).toBe(true);
+    expect(temPermissao(contexto, "os.criar")).toBe(true);
+    expect(temPermissao(contexto, "os.excluir")).toBe(false);
+  });
+
+  it("obterPermissoesDoContexto tambem usa contexto.permissoes quando presente", () => {
+    const contexto: ContextoTenantSeguro = {
+      ...contextoComPapel("ADMIN"),
+      permissoes: new Set<Permissao>(["crm.ver"]),
+    };
+
+    const resultado = obterPermissoesDoContexto(contexto);
+    expect(resultado.permissoes).toEqual(["crm.ver"]);
+  });
+
+  it("sem contexto.permissoes (ex.: script/teste antigo), cai pra matriz legada do papel — o fallback", () => {
+    const contexto = contextoComPapel("USUARIO");
+    expect(contexto.permissoes).toBeUndefined();
+    expect(temPermissao(contexto, "os.criar")).toBe(true);
+    expect(temPermissao(contexto, "configuracoes.usuarios")).toBe(false);
+  });
+});
+
+describe("listarCatalogoAgrupado (Fase 1D-1, base da tela de cargos da 1D-2)", () => {
+  it("cobre toda permissao do catalogo, uma vez cada", () => {
+    const agrupado = listarCatalogoAgrupado();
+    expect(agrupado).toHaveLength(CATALOGO_PERMISSOES.length);
+    expect(new Set(agrupado.map((item) => item.permissao)).size).toBe(CATALOGO_PERMISSOES.length);
+  });
+
+  it("toda permissao tem rotulo e descricao em pt-BR nao vazios", () => {
+    for (const item of listarCatalogoAgrupado()) {
+      expect(item.rotulo.length).toBeGreaterThan(0);
+      expect(item.descricao.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("as permissoes *_todas/_todos do addendum documentam que so tem efeito a partir da 1D-2", () => {
+    const semEfeitoAinda: Permissao[] = ["os.ver", "os.ver_todas", "caixa.ver", "caixa.ver_todos", "financeiro.ver_todos"];
+    const agrupado = listarCatalogoAgrupado();
+
+    for (const permissao of semEfeitoAinda) {
+      const item = agrupado.find((entry) => entry.permissao === permissao);
+      expect(item?.descricao).toContain("1D-2");
+    }
   });
 });
 

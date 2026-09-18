@@ -1,5 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
-import type { PapelEmpresa } from "@/lib/auth/permissoes";
+import type { PapelEmpresa, Permissao } from "@/lib/auth/permissoes";
 
 export type UsuarioOperacionalTenant = {
   id: string;
@@ -27,6 +27,14 @@ export type ContextoTenantSeguro = {
    * Toda decisao de permissao usa `papelEmpresa`, nunca `usuarioOperacional.role`.
    */
   papelEmpresa: PapelEmpresa;
+  /**
+   * Permissoes efetivas do Cargo do usuario (Fase 1D-1), resolvidas uma vez
+   * por requisicao em exigirContextoTenant — ver
+   * lib/auth/resolver-permissoes.ts. Opcional so pra nao quebrar um
+   * ContextoTenantSeguro montado a mao (teste/script antigo); toda chamada
+   * real de exigirContextoTenant sempre preenche.
+   */
+  permissoes?: ReadonlySet<Permissao>;
 };
 
 export type ContextoTenantServidor = ContextoTenantSeguro & {
