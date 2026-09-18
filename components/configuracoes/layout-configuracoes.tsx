@@ -250,25 +250,29 @@ export function LayoutConfiguracoes({ defaultValues }: PropsLayoutConfiguracoes)
               ? formState.isDirty
                 ? "Há alterações pendentes nesta etapa."
                 : "Nenhuma alteração pendente no formulário atual."
-              : "Nesta etapa não há persistência ativa."}
+              : secaoAtiva === "aparencia"
+                ? "As opções desta seção já funcionam e são aplicadas na hora — não há formulário para salvar aqui."
+                : "Esta seção ainda não tem nada para salvar — é só uma prévia do que vem nas próximas etapas."}
           </p>
-          <Button
-            type="submit"
-            disabled={salvando || !secaoComPersistenciaAtiva}
-            className="bg-emerald-600 text-white hover:bg-emerald-700"
-          >
-            {salvando
-              ? "Salvando..."
-              : secaoAtiva === "documentos"
-                ? "Salvar documentos"
-                : secaoAtiva === "os"
-                  ? "Salvar regras de OS"
-                  : secaoAtiva === "garantias"
-                    ? "Salvar regras de garantia"
-                    : secaoAtiva === "pdv-vendas"
-                      ? "Salvar regras de PDV"
-                    : "Salvar empresa"}
-          </Button>
+          {secaoComPersistenciaAtiva && (
+            <Button
+              type="submit"
+              disabled={salvando}
+              className="bg-emerald-600 text-white hover:bg-emerald-700"
+            >
+              {salvando
+                ? "Salvando..."
+                : secaoAtiva === "documentos"
+                  ? "Salvar documentos"
+                  : secaoAtiva === "os"
+                    ? "Salvar regras de OS"
+                    : secaoAtiva === "garantias"
+                      ? "Salvar regras de garantia"
+                      : secaoAtiva === "pdv-vendas"
+                        ? "Salvar regras de PDV"
+                        : "Salvar empresa"}
+            </Button>
+          )}
         </div>
       </div>
     </form>
