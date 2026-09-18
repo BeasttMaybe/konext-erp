@@ -2,15 +2,16 @@
  * Selecao de secoes da home (`/`) por permissao — dominio puro (Fase
  * 1B-FIX, Parte 1.3).
  *
- * Antes, a home buscava e renderizava um unico `DashboardExecutivo` que
- * exigia `dashboard.financeiro` incondicionalmente: sem essa permissao (o
- * caso de USUARIO), a pagina inteira falhava e mostrava so uma mensagem de
- * erro — ninguem sem acesso financeiro conseguia ver a fila de OS, OS
- * paradas ou garantias na propria home.
- *
- * A home nunca bloqueia por completo: quem tem sessao valida sempre ve pelo
- * menos a secao operacional. Financeiro e metas sao independentes entre si
- * e da secao operacional.
+ * Desde a Fase 3-2A, `app/(dashboard)/page.tsx` chama as duas server actions
+ * da home diretamente (`obterPainelOperacionalHomeSeguro` sempre,
+ * `obterFaturamentoHomeSeguro` só quando `temPermissao(contexto,
+ * "dashboard.financeiro")`) em vez de montar um `DashboardExecutivo` inteiro
+ * OU um painel operacional — esse "OU" antigo nao existe mais. Este arquivo
+ * fica como o registro da regra de negocio (a home nunca bloqueia por
+ * completo; financeiro e metas sao independentes entre si e da secao
+ * operacional, que e sempre visivel pra qualquer sessao valida), coberta
+ * pelo teste ao lado — nao precisa ser importado pela pagina pra continuar
+ * valendo.
  */
 export type SelecaoSecoesDashboardHome = {
   /** KPIs de receita, grafico de resultado, saldo, orcamento, DRE, movimentacoes financeiras. */
