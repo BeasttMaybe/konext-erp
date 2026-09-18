@@ -16,9 +16,14 @@ model Usuario {
   role          RoleUsuario @default(ADMIN)
   logsAuditoria LogAuditoria[]
   ordensServicoExcluidas OrdemServico[] @relation("OrdemServicoExcluidaPor")
+  ordensServicoCriadas OrdemServico[] @relation("OrdemServicoCriadaPor")
+  ordensServicoTecnico TecnicoOS[] @relation("TecnicosDaOS")
   termosGarantiaCriados TermoGarantiaOS[] @relation("TermoGarantiaCriadoPor")
   retornosGarantiaCriados RetornoGarantiaOS[] @relation("RetornoGarantiaCriadoPor")
   metasCriadas Meta[] @relation("MetasCriadasPor")
+  caixaSessionsAbertas CaixaSession[] @relation("CaixaSessionAbertaPor")
+  contasReceberCriadas ContaReceber[] @relation("ContaReceberCriadaPor")
+  despesasCriadas Despesa[] @relation("DespesaCriadaPor")
   criadoEm      DateTime    @default(now())
   atualizadoEm  DateTime    @updatedAt
 }
@@ -296,20 +301,51 @@ model OrdemServico {
   statusAnterior StatusOS?
   prazoGarantiaDias Int?
 
+  /**
+   * Quem registrou a OS — fonte da regra de visibilidade "OS que eu criei"
+   * (Fase 1D-2, ver lib/auth/escopos.ts). Nulo em OS antigas (sem backfill,
+   * mesma decisao de TecnicoOS abaixo): so fica visivel pra quem tem
+   * os.ver_todas ou esta em TecnicoOS.
+   */
+  criadoPorId String?
+  criadoPor   Usuario? @relation("OrdemServicoCriadaPor", fields: [criadoPorId], references: [id])
+
   itens      ItemOS[]
   transacoes ContaReceber[] // Vínculo com o financeiro
   termoGarantia TermoGarantiaOS?
   retornosGarantiaRegistros RetornoGarantiaOS[] @relation("RetornoGarantiaOsOrigem")
+  tecnicos   TecnicoOS[]
 
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
 
   @@index([excluidaEm])
   @@index([excluidaPorId])
+  @@index([criadoPorId])
   @@index([ehRetornoGarantia])
   @@index([osOrigemGarantiaId])
   @@index([retornoGarantiaId])
   @@index([etapa])
+}
+
+/**
+ * Tecnico(s) responsaveis por uma OS (Fase 1D-2). Uma OS pode ter mais de
+ * um; exatamente um e `principal` quando ha pelo menos um tecnico. As
+ * participacoes sempre somam 100% — regra pura e testada em
+ * lib/dominio/os/tecnicos.ts, nunca reimplementada aqui nem na action.
+ */
+model TecnicoOS {
+  id           String       @id @default(uuid())
+  osId         String
+  os           OrdemServico @relation(fields: [osId], references: [id], onDelete: Cascade)
+  usuarioId    String
+  usuario      Usuario      @relation("TecnicosDaOS", fields: [usuarioId], references: [id])
+  participacaoPercentual Decimal @default(0) @db.Decimal(5, 2)
+  principal    Boolean      @default(false)
+  criadoEm     DateTime     @default(now())
+
+  @@unique([osId, usuarioId])
+  @@index([usuarioId])
 }
 
 model TermoGarantiaOS {
@@ -469,12 +505,17 @@ model ContaReceber {
 
   notaFiscalEmitida Boolean @default(false)
 
+  /** Quem lancou a conta — fonte de "financeiro.ver" sem "_todos" (Fase 1D-2, ver lib/auth/escopos.ts). Nulo em lancamentos antigos, sem backfill. */
+  criadoPorId String?
+  criadoPor   Usuario? @relation("ContaReceberCriadaPor", fields: [criadoPorId], references: [id])
+
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
 
   @@index([parcelamentoId])
   @@index([pedidoId])
   @@index([vendaId])
+  @@index([criadoPorId])
 }
 
 enum StatusPagamento {
@@ -520,10 +561,16 @@ model Despesa {
   clienteId String?
   cliente   Cliente? @relation(fields: [clienteId], references: [id])
 
+  /** Quem lancou a despesa — mesma regra de visibilidade de ContaReceber (Fase 1D-2). Nulo em despesas antigas, sem backfill. */
+  criadoPorId String?
+  criadoPor   Usuario? @relation("DespesaCriadaPor", fields: [criadoPorId], references: [id])
+
   criadoEm     DateTime    @default(now())
   atualizadoEm DateTime    @updatedAt
 
   parcelas ParcelaDespesa[]
+
+  @@index([criadoPorId])
 }
 
 model ParcelaDespesa {
@@ -790,8 +837,14 @@ model CaixaSession {
 
   vendas Venda[] // Vincula as vendas feitas nesta sessão
 
+  /** Quem abriu o caixa — fonte de "caixa.ver" sem "_todos" (Fase 1D-2, ver lib/auth/escopos.ts). Nulo em sessoes antigas, sem backfill. */
+  abertoPorId String?
+  abertoPor   Usuario? @relation("CaixaSessionAbertaPor", fields: [abertoPorId], references: [id])
+
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
+
+  @@index([abertoPorId])
 }
 
 enum CaixaStatus {
