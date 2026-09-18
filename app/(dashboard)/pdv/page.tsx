@@ -64,6 +64,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useCartStore, ProdutoPDV } from "@/store/useCartStore";
+import { useTemPermissao } from "@/contextos/contexto-permissoes";
+import {
+  calcularLimiteDesconto,
+  converterDescontoEntreUnidades,
+  formatarPercentual,
+  parseEntradaPercentual,
+  sanitizarEntradaPercentual,
+} from "@/lib/dominio/pdv/desconto-input";
 import {
   listarClientesPDV,
   listarProdutosPDV,
@@ -180,6 +188,8 @@ function PDVPageConteudo() {
     useState<ConfiguracaoPagamentosPDV | null>(null);
   const [carregandoResumoCaixa, setCarregandoResumoCaixa] = useState(false);
   const [precosEmEdicao, setPrecosEmEdicao] = useState<Record<string, string>>({});
+  const [descontoTextoEmEdicao, setDescontoTextoEmEdicao] = useState<string | null>(null);
+  const podeAplicarDescontoAcimaDoLimite = useTemPermissao("pdv.aplicar_desconto_acima_limite");
   const {
     itens,
     desconto,
@@ -374,6 +384,17 @@ function PDVPageConteudo() {
 
   const resumo = getResumo();
   const totalGeral = (pedidoOS?.valor ?? 0) + resumo.total;
+
+  // Preview do lado do cliente — meramente informativo. O servidor recalcula
+  // tudo de novo (calcularVendaPdv) e e quem realmente decide se o desconto
+  // pedido passa; ver processarVenda/processarVendaComOSNoPDV.
+  const limiteDesconto = calcularLimiteDesconto({
+    valor: desconto,
+    unidade: tipoDesconto === "PERCENTUAL" ? "PERCENTUAL" : "VALOR",
+    subtotal: resumo.subtotal,
+    limitePercentual: configuracaoPagamentosPdv?.descontoMaximoPDVPercentual ?? 100,
+  });
+  const descontoBloqueiaVenda = limiteDesconto.acimaDoLimite && !podeAplicarDescontoAcimaDoLimite;
   const clienteIniciais = clienteSelecionado
     ? clienteSelecionado.nomeRazaoSocial
         .split(" ")
@@ -1028,28 +1049,59 @@ function PDVPageConteudo() {
                     </div>
                     <div className="flex items-center gap-2">
                       <Input
-                        type="number"
-                        min={0}
-                        placeholder="Desconto"
-                        value={desconto || ""}
+                        type="text"
+                        inputMode="decimal"
+                        placeholder={tipoDesconto === "PERCENTUAL" ? "0,00" : "0,00"}
+                        value={
+                          descontoTextoEmEdicao ??
+                          (desconto > 0
+                            ? tipoDesconto === "PERCENTUAL"
+                              ? formatarPercentual(desconto)
+                              : formatarPrecoInput(desconto)
+                            : "")
+                        }
                         disabled={configuracaoPagamentosPdv ? !configuracaoPagamentosPdv.permitirDescontoPDV : false}
-                        onChange={(e) => {
-                          const valorDigitado = Number(e.target.value) || 0;
-                          const limitePercentual =
-                            configuracaoPagamentosPdv?.descontoMaximoPDVPercentual ?? 100;
-                          const valorAplicado =
-                            tipoDesconto === "PERCENTUAL"
-                              ? Math.min(limitePercentual, Math.max(0, valorDigitado))
-                              : Math.max(0, valorDigitado);
-                          setDesconto(valorAplicado);
+                        onFocus={() => {
+                          setDescontoTextoEmEdicao(
+                            desconto > 0
+                              ? tipoDesconto === "PERCENTUAL"
+                                ? formatarPercentual(desconto)
+                                : formatarPrecoInput(desconto)
+                              : ""
+                          );
                         }}
-                        className="h-9 flex-1 border-slate-300/80 bg-white/90 dark:border-slate-600/80 dark:bg-slate-900/40"
+                        onChange={(e) => {
+                          const sanitizado =
+                            tipoDesconto === "PERCENTUAL"
+                              ? sanitizarEntradaPercentual(e.target.value)
+                              : sanitizarPrecoInput(e.target.value);
+                          setDescontoTextoEmEdicao(sanitizado);
+                          setDesconto(
+                            tipoDesconto === "PERCENTUAL"
+                              ? parseEntradaPercentual(sanitizado)
+                              : parsePrecoInput(sanitizado)
+                          );
+                        }}
+                        onBlur={() => setDescontoTextoEmEdicao(null)}
+                        aria-invalid={descontoBloqueiaVenda}
+                        className={`h-9 flex-1 border-slate-300/80 bg-white/90 dark:border-slate-600/80 dark:bg-slate-900/40 ${
+                          descontoBloqueiaVenda ? "border-red-500 focus-visible:ring-red-500 dark:border-red-500" : ""
+                        }`}
                       />
                       <Select
                         value={tipoDesconto}
-                        onValueChange={(v) =>
-                          setTipoDesconto(v as "FIXO" | "PERCENTUAL")
-                        }
+                        onValueChange={(v) => {
+                          const novaUnidade = v as "FIXO" | "PERCENTUAL";
+                          const valorConvertido = converterDescontoEntreUnidades({
+                            valor: desconto,
+                            deUnidade: tipoDesconto === "PERCENTUAL" ? "PERCENTUAL" : "VALOR",
+                            paraUnidade: novaUnidade === "PERCENTUAL" ? "PERCENTUAL" : "VALOR",
+                            subtotal: resumo.subtotal,
+                          });
+                          setTipoDesconto(novaUnidade);
+                          setDesconto(valorConvertido);
+                          setDescontoTextoEmEdicao(null);
+                        }}
                       >
                         <SelectTrigger className="h-9 w-24 border-slate-300/80 bg-white/90 dark:border-slate-600/80 dark:bg-slate-900/40">
                           <SelectValue />
@@ -1060,6 +1112,30 @@ function PDVPageConteudo() {
                         </SelectContent>
                       </Select>
                     </div>
+
+                    {configuracaoPagamentosPdv?.permitirDescontoPDV && (
+                      <p
+                        className={`mt-1.5 text-[11px] ${
+                          descontoBloqueiaVenda
+                            ? "font-medium text-red-600 dark:text-red-400"
+                            : limiteDesconto.acimaDoLimite
+                              ? "text-amber-600 dark:text-amber-400"
+                              : "text-slate-500 dark:text-slate-400"
+                        }`}
+                      >
+                        {descontoBloqueiaVenda
+                          ? `Desconto acima do limite do seu cargo: ${formatarPercentual(
+                              configuracaoPagamentosPdv.descontoMaximoPDVPercentual
+                            )}% (até ${formatarMoeda(limiteDesconto.limiteReais)}). Reduza o desconto para finalizar.`
+                          : limiteDesconto.acimaDoLimite
+                            ? `Desconto acima do limite padrão (${formatarPercentual(
+                                configuracaoPagamentosPdv.descontoMaximoPDVPercentual
+                              )}%), permitido pela sua permissão especial.`
+                            : `Limite do seu cargo: ${formatarPercentual(
+                                configuracaoPagamentosPdv.descontoMaximoPDVPercentual
+                              )}% (até ${formatarMoeda(limiteDesconto.limiteReais)})`}
+                      </p>
+                    )}
                   </div>
 
                   <div className="space-y-1.5 rounded-lg border border-slate-200/80 bg-white/90 p-3 text-sm dark:border-slate-700/80 dark:bg-slate-900/50">
@@ -1091,7 +1167,7 @@ function PDVPageConteudo() {
 
                 <Button
                   className="h-11 w-full bg-blue-600 text-base font-semibold shadow-md shadow-blue-500/20 transition hover:bg-blue-700 disabled:bg-slate-300 disabled:text-slate-500 dark:disabled:bg-slate-700 dark:disabled:text-slate-400"
-                  disabled={(itens.length === 0 && !pedidoOS) || !clienteSelecionadoId}
+                  disabled={(itens.length === 0 && !pedidoOS) || !clienteSelecionadoId || descontoBloqueiaVenda}
                   onClick={finalizarVenda}
                 >
                   <CreditCard className="mr-2 h-4 w-4" />
