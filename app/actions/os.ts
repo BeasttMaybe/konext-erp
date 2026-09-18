@@ -160,6 +160,7 @@ function mapearOrdemServicoDashboard(order: RawOrdemServico, podeVerCustos: bool
     observacoesInternas: order.observacoes ? String(order.observacoes) : undefined,
     entregueSemServico: Boolean(order.entregueSemServico),
     motivoSemServico: order.motivoSemServico ? String(order.motivoSemServico) : undefined,
+    archivedAt: order.archivedAt ? normalizarDataISO(order.archivedAt) : null,
     dataCriacao: normalizarDataISO(order.criadoEm),
     dataAtualizacao: normalizarDataISO(order.atualizadoEm),
   };
@@ -461,7 +462,13 @@ export async function obterDadosDashboardOS(): Promise<DadosDashboardOS> {
         },
       }),
       ordemServicoDelegate.findMany({
+        // "Finalizadas e Entregues" e SO o que esta de fato completo: ENTREGUE
+        // *e* arquivada. Uma OS ENTREGUE sem archivedAt (o caso de "resgate")
+        // nao e finalizada — ela continua no quadro, coluna Entregue, onde a
+        // acao "Arquivar OS" da Parte 1 vive. Listar como "finalizada" uma OS
+        // que ainda precisa ser arquivada foi o erro corrigido na Parte 4.
         where: {
+          status: "ENTREGUE",
           archivedAt: {
             not: null,
           },

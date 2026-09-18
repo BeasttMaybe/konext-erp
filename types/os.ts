@@ -62,6 +62,8 @@ export interface OrdemServico {
   /** OS ENTREGUE sem nenhum item/serviço vinculado — ver finalizarSemServico. */
   entregueSemServico?: boolean;
   motivoSemServico?: string;
+  /** Preenchido só na entrega (finalizarOrdemServico/finalizarSemServico). null enquanto nao arquivada, mesmo com status ENTREGUE — o caso de "resgate". */
+  archivedAt?: string | null;
   dataCriacao: string;
   dataAtualizacao: string;
 }

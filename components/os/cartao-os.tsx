@@ -13,6 +13,7 @@ import {
   GripVertical,
   PackageCheck,
   RotateCcw,
+  Archive,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -30,10 +31,16 @@ interface CartaoOSProps {
   textoBotaoFinalizar?: string;
   desabilitarMoverAnterior?: boolean;
   desabilitarMoverProxima?: boolean;
+  /** Some o botao "Anterior" de vez (nao so desabilitado) — caso da OS ENTREGUE, que so sai pelo "Reabrir OS". */
+  esconderMoverAnterior?: boolean;
   /** Abre o dialogo de entrega (finalizacao). Ausente em OS ja entregue. */
   onEntregar?: () => void;
   /** Abre o dialogo de reabertura. Presente so em OS entregue e para ADMIN/GESTOR. */
   onReabrir?: () => void;
+  /** Completa o resgate (arquivar + garantia pendente) de uma OS ja ENTREGUE sem archivedAt. */
+  onArquivar?: () => void;
+  /** Linha curta explicando por que o cartao esta num estado incomum, ex.: "Entregue, falta arquivar". */
+  estadoExplicacao?: string;
 }
 
 export function CartaoOS({
@@ -49,8 +56,11 @@ export function CartaoOS({
   textoBotaoFinalizar = "Finalizar OS",
   desabilitarMoverAnterior = false,
   desabilitarMoverProxima = false,
+  esconderMoverAnterior = false,
   onEntregar,
   onReabrir,
+  onArquivar,
+  estadoExplicacao,
 }: CartaoOSProps) {
   const formatarMoeda = (valor: number) => {
     return new Intl.NumberFormat("pt-BR", {
@@ -179,6 +189,7 @@ export function CartaoOS({
               onMoverAnterior?.();
             }}
             disabled={desabilitarMoverAnterior}
+            hidden={esconderMoverAnterior}
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
             Anterior
@@ -204,6 +215,25 @@ export function CartaoOS({
             {!podeFinalizar && <ArrowRight className="ml-2 h-4 w-4" />}
           </Button>
         </div>
+
+        {estadoExplicacao ? (
+          <p className="text-xs font-medium text-amber-700 dark:text-amber-400">{estadoExplicacao}</p>
+        ) : null}
+
+        {onArquivar ? (
+          <Button
+            type="button"
+            size="sm"
+            className="w-full bg-amber-600 hover:bg-amber-700 text-white"
+            onClick={(event) => {
+              event.stopPropagation();
+              onArquivar();
+            }}
+          >
+            <Archive className="mr-2 h-4 w-4" />
+            Arquivar OS
+          </Button>
+        ) : null}
 
         {onEntregar ? (
           <Button

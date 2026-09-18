@@ -29,10 +29,12 @@ interface TabuleiroKanbanProps {
   onCartaoClick?: (os: OrdemServico) => void;
   onMoverOS?: (osId: string, novoStatus: StatusOS) => Promise<boolean>;
   onFinalizarOS?: (os: OrdemServico) => Promise<boolean>;
-  /** Abre o fluxo de entrega. Recebe a OS e devolve true quando concluiu. */
+  /** Abre o fluxo de entrega. Recebe a OS e devolve true quando concluiu. Tambem usado para o resgate (ver onArquivar abaixo) — mesmo caminho, nunca um segundo. */
   onEntregarOS?: (os: OrdemServico) => Promise<boolean>;
   /** Abre o fluxo de reabertura. Só é passado para ADMIN/GESTOR. */
   onReabrirOS?: (os: OrdemServico) => Promise<boolean>;
+  /** Permissao os.finalizar do usuario logado — controla so o botao "Arquivar OS" do resgate. */
+  podeArquivarOS?: boolean;
 }
 
 type AcaoOtimistaOS =
@@ -186,6 +188,7 @@ export function TabuleiroKanban({
   onFinalizarOS,
   onEntregarOS,
   onReabrirOS,
+  podeArquivarOS = false,
 }: TabuleiroKanbanProps) {
   const [, startTransition] = useTransition();
   // Guarda a OS em arraste para bloquear colunas invalidas em tempo real.
@@ -306,6 +309,32 @@ export function TabuleiroKanban({
         ordens: snapshotAnterior.filter((item) => item.id !== os.id),
       });
     });
+  };
+
+  /**
+   * Resgate: OS ja ENTREGUE, so falta archivedAt (e a garantia, se faltar).
+   * Reusa onEntregarOS de proposito — o mesmo finalizarOrdemServico que uma
+   * entrega normal chama, nunca um segundo caminho de arquivamento. So a
+   * origem do clique (botao "Arquivar OS", nao "Entregar e finalizar") e o
+   * card de onde sai (removido do quadro ao suceder, como finalizarOS acima)
+   * sao diferentes.
+   */
+  const arquivarOS = async (os: OrdemServico) => {
+    if (!onEntregarOS) {
+      return;
+    }
+
+    const snapshotAnterior = ordensEstado;
+    const sucesso = await onEntregarOS(os);
+
+    if (sucesso) {
+      startTransition(() => {
+        setOrdensEstado({
+          tipo: "SUBSTITUIR",
+          ordens: snapshotAnterior.filter((item) => item.id !== os.id),
+        });
+      });
+    }
   };
 
   const aoFinalizarDrag = async (resultado: DropResult) => {
@@ -455,6 +484,10 @@ export function TabuleiroKanban({
 
                       const retornoJaFinalizado = Boolean(os.retornoGarantiaFinalizadoEm);
                       const ehEntregue = os.status === "ENTREGUE";
+                      // Resgate: ENTREGUE sem archivedAt — a OS entregue que ainda aparece
+                      // no quadro porque falta so completar o arquivamento (e a garantia,
+                      // se faltar). Ver comentario de arquivarOS acima.
+                      const precisaArquivar = ehEntregue && !os.archivedAt;
                       const podeFinalizarRetorno =
                         Boolean(os.ehRetornoGarantia) && !retornoJaFinalizado && !ehEntregue;
                       // A entrega sai pelo dialogo de finalizacao; o botao do
@@ -497,12 +530,19 @@ export function TabuleiroKanban({
                                 textoBotaoFinalizar={textoBotaoFinalizar}
                                 desabilitarMoverAnterior={ehEntregue || !statusAnterior}
                                 desabilitarMoverProxima={ehEntregue || !statusSeguinte}
+                                esconderMoverAnterior={ehEntregue}
                                 onEntregar={
                                   ehEntregue || !onEntregarOS ? undefined : () => void onEntregarOS(os)
                                 }
                                 onReabrir={
                                   ehEntregue && onReabrirOS ? () => void onReabrirOS(os) : undefined
                                 }
+                                onArquivar={
+                                  precisaArquivar && podeArquivarOS && onEntregarOS
+                                    ? () => void arquivarOS(os)
+                                    : undefined
+                                }
+                                estadoExplicacao={precisaArquivar ? "Entregue, falta arquivar" : undefined}
                               />
                             </div>
                           )}
