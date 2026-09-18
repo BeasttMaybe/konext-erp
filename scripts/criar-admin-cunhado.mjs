@@ -33,6 +33,22 @@ function criarPrismaCentral(connectionString) {
   });
 }
 
+/**
+ * Cargo Administrador da empresa — ja deve existir (provisionar-tenant-*.mjs
+ * cria os 5 cargos padrao junto da empresa, Fase 1D-1). Nao cria nada aqui:
+ * se a empresa nao tiver o cargo (empresa provisionada antes da Fase 1D-1 e
+ * ainda nao migrada), o usuario e criado so com o RoleEmpresa legado, e um
+ * alerta e impresso — nunca falha a criacao do admin por causa disso.
+ */
+async function buscarCargoAdministrador(prismaCentral, empresaId) {
+  const cargo = await prismaCentral.cargo.findFirst({
+    where: { empresaId, nome: "Administrador" },
+    select: { id: true },
+  });
+
+  return cargo?.id ?? null;
+}
+
 async function carregarEmpresaTenant(prismaCentral) {
   const empresa = await prismaCentral.empresa.findUnique({
     where: { slug: EMPRESA_SLUG },
@@ -108,9 +124,10 @@ async function executar() {
                 empresaId: empresa.id,
               },
             },
-            select: { ativo: true, role: true },
+            select: { ativo: true, role: true, cargoId: true },
           })
         : null;
+      const cargoAdministradorId = await buscarCargoAdministrador(prismaCentral, empresa.id);
 
       console.log(JSON.stringify({
         modo: "dry-run",
@@ -130,10 +147,15 @@ async function executar() {
           versaoSchema: tenant.versaoSchema,
           connectionRef: tenant.connectionRef,
         },
+        cargoAdministrador: {
+          encontrado: Boolean(cargoAdministradorId),
+          id: cargoAdministradorId,
+        },
         vinculo: {
           existe: Boolean(vinculoExistente),
           ativo: vinculoExistente?.ativo ?? false,
           role: vinculoExistente?.role ?? "ADMIN",
+          cargoId: vinculoExistente?.cargoId ?? cargoAdministradorId,
         },
         senha: {
           envPresente: true,
@@ -143,6 +165,13 @@ async function executar() {
         escrita: false,
       }, null, 2));
       return;
+    }
+
+    const cargoAdministradorId = await buscarCargoAdministrador(prismaCentral, empresa.id);
+    if (!cargoAdministradorId) {
+      console.error(
+        `[criar-admin] ALERTA: cargo Administrador nao encontrado pra empresa "${empresa.slug}" — usuario criado so com o RoleEmpresa legado (sem cargoId). Rode o backfill de cargos desta empresa.`
+      );
     }
 
     const senhaHash = await bcrypt.hash(senhaTemporaria, CUSTO_HASH_SENHA);
@@ -176,16 +205,19 @@ async function executar() {
       },
       update: {
         role: "ADMIN",
+        cargoId: cargoAdministradorId,
         ativo: true,
       },
       create: {
         usuarioId: usuario.id,
         empresaId: empresa.id,
         role: "ADMIN",
+        cargoId: cargoAdministradorId,
         ativo: true,
       },
       select: {
         role: true,
+        cargoId: true,
         ativo: true,
       },
     });
@@ -209,6 +241,7 @@ async function executar() {
       },
       vinculo: {
         role: vinculo.role,
+        cargoId: vinculo.cargoId,
         ativo: vinculo.ativo,
       },
       senha: {

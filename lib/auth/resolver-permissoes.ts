@@ -36,6 +36,7 @@ export const resolverPermissoesEfetivas = cache(
           },
         },
         select: {
+          empresa: { select: { nome: true } },
           cargo: {
             select: {
               fixo: true,
@@ -48,11 +49,10 @@ export const resolverPermissoesEfetivas = cache(
       });
 
       if (!vinculo?.cargo) {
-        console.error("[permissoes] usuario sem cargo atribuido; usando matriz legada como fallback", {
-          usuarioCentralId,
-          empresaId,
-          papelLegado,
-        });
+        const nomeEmpresa = vinculo?.empresa?.nome ?? empresaId;
+        console.error(
+          `[permissoes] ALERTA: usuário sem cargo atribuído na empresa "${nomeEmpresa}" — usando a matriz legada (papel ${papelLegado}) até o cargo ser corrigido.`
+        );
         return permissoesDoPapel(papelLegado);
       }
 
@@ -66,13 +66,21 @@ export const resolverPermissoesEfetivas = cache(
 
       return new Set(permissoes);
     } catch (erro) {
-      console.error("[permissoes] falha ao resolver permissoes do cargo; usando matriz legada como fallback", {
-        usuarioCentralId,
-        empresaId,
-        papelLegado,
-        erro: erro instanceof Error ? erro.message : String(erro),
-      });
+      const nomeEmpresa = await obterNomeEmpresaParaLog(empresaId);
+      console.error(
+        `[permissoes] ALERTA: falha ao consultar o cargo do usuário na empresa "${nomeEmpresa}" — usando a matriz legada (papel ${papelLegado}). Erro: ${erro instanceof Error ? erro.message : String(erro)}`
+      );
       return permissoesDoPapel(papelLegado);
     }
   }
 );
+
+/** So pra deixar o log do catch legivel — se ate isso falhar, cai pro id mesmo. */
+async function obterNomeEmpresaParaLog(empresaId: string): Promise<string> {
+  try {
+    const empresa = await prismaCentral.empresa.findUnique({ where: { id: empresaId }, select: { nome: true } });
+    return empresa?.nome ?? empresaId;
+  } catch {
+    return empresaId;
+  }
+}

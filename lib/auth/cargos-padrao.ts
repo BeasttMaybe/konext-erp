@@ -1,4 +1,7 @@
-import { CATALOGO_PERMISSOES, type Permissao } from "@/lib/auth/permissoes";
+// Import relativo (nao "@/..."): lib/central/cargos-padrao.ts (Fase 1D-1,
+// fecho) importa este modulo direto de scripts .mjs via `node script.mjs`,
+// sem bundler nem resolucao de alias de tsconfig.
+import { CATALOGO_PERMISSOES, type Permissao } from "./permissoes.ts";
 
 /**
  * Os 5 cargos que toda empresa ganha na Fase 1D-1 (schema + backfill em

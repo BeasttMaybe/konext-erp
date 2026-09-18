@@ -8,6 +8,7 @@ import { PrismaNeon } from "@prisma/adapter-neon";
 import ws from "ws";
 import { CUSTO_HASH_SENHA } from "../lib/auth/senha.ts";
 import { executarComandoPrisma, obterUltimaMigracaoTenant } from "./lib/migracoes.mjs";
+import { criarCargosPadrao } from "../lib/central/cargos-padrao.ts";
 
 if (typeof WebSocket === "undefined") {
   neonConfig.webSocketConstructor = ws;
@@ -162,7 +163,30 @@ async function validarSchemaTenant(connectionString) {
   }
 }
 
-async function criarOuAtualizarUsuarioCentral(prismaCentral, empresaId) {
+/**
+ * Cargos padrao da empresa: cria os 5 (Fase 1D-1) se a empresa ainda nao
+ * tiver nenhum, ou devolve o mapa dos ja existentes (upsert de empresa e
+ * idempotente — reexecutar este script nao pode duplicar cargo). Sempre
+ * dentro da MESMA transacao que cria/atualiza Empresa e Tenant.
+ */
+async function obterOuCriarCargosPadrao(tx, empresaId) {
+  const existentes = await tx.cargo.findMany({
+    where: { empresaId },
+    select: { id: true, nome: true },
+  });
+
+  if (existentes.length > 0) {
+    const mapa = {};
+    for (const cargo of existentes) {
+      mapa[cargo.nome] = cargo.id;
+    }
+    return mapa;
+  }
+
+  return criarCargosPadrao(empresaId, tx);
+}
+
+async function criarOuAtualizarUsuarioCentral(prismaCentral, empresaId, cargoAdministradorId) {
   const nome = process.env.CUNHADO_USUARIO_NOME?.trim();
   const email = process.env.CUNHADO_USUARIO_EMAIL?.trim().toLowerCase();
 
@@ -171,6 +195,12 @@ async function criarOuAtualizarUsuarioCentral(prismaCentral, empresaId) {
       tratado: false,
       motivo: "CUNHADO_USUARIO_NOME e CUNHADO_USUARIO_EMAIL nao definidos.",
     };
+  }
+
+  if (!cargoAdministradorId) {
+    console.error(
+      `[provisionar-tenant] ALERTA: cargo Administrador nao encontrado pra empresa ${empresaId} — usuario criado so com o RoleEmpresa legado (sem cargoId).`
+    );
   }
 
   const senhaAleatoria = crypto.randomBytes(48).toString("hex");
@@ -200,12 +230,14 @@ async function criarOuAtualizarUsuarioCentral(prismaCentral, empresaId) {
     },
     update: {
       role: "ADMIN",
+      cargoId: cargoAdministradorId ?? null,
       ativo: true,
     },
     create: {
       usuarioId: usuario.id,
       empresaId,
       role: "ADMIN",
+      cargoId: cargoAdministradorId ?? null,
       ativo: true,
     },
   });
@@ -214,6 +246,7 @@ async function criarOuAtualizarUsuarioCentral(prismaCentral, empresaId) {
     tratado: true,
     ativo: usuario.ativo,
     senhaConhecida: false,
+    cargoAtribuido: Boolean(cargoAdministradorId),
   };
 }
 
@@ -251,10 +284,12 @@ async function executar() {
       plano: [
         "criar ou atualizar Empresa central slug cunhado",
         "criar ou atualizar Tenant central slug cunhado em PROVISIONANDO",
+        "criar os 5 cargos padrao (Fase 1D-1), se a empresa ainda nao tiver nenhum",
         "aplicar baseline operacional no banco vazio",
         "validar schema via Prisma operacional tenant",
         "criar Configuracao inicial com defaults do sistema",
         "ativar tenant com versaoSchema da baseline",
+        "atribuir o cargo Administrador ao usuario central inicial",
       ],
       usuarioCentral: {
         seraCriado: Boolean(process.env.CUNHADO_USUARIO_NOME && process.env.CUNHADO_USUARIO_EMAIL),
@@ -271,36 +306,45 @@ async function executar() {
   let tenantId = null;
 
   try {
-    const empresa = await prismaCentral.empresa.upsert({
-      where: { slug: EMPRESA_SLUG },
-      update: {
-        nome: process.env.CUNHADO_EMPRESA_NOME?.trim() || "Cliente Cunhado",
-        status: "ATIVA",
-      },
-      create: {
-        nome: process.env.CUNHADO_EMPRESA_NOME?.trim() || "Cliente Cunhado",
-        slug: EMPRESA_SLUG,
-        status: "ATIVA",
-      },
-      select: { id: true, slug: true, status: true },
-    });
+    // Empresa + Tenant + os 5 cargos padrao (Fase 1D-1) nascem juntos, na
+    // mesma transacao central — nenhuma empresa fica sem cargo, nem por um
+    // instante.
+    const { empresa, tenant, mapaCargos } = await prismaCentral.$transaction(async (tx) => {
+      const empresaCriada = await tx.empresa.upsert({
+        where: { slug: EMPRESA_SLUG },
+        update: {
+          nome: process.env.CUNHADO_EMPRESA_NOME?.trim() || "Cliente Cunhado",
+          status: "ATIVA",
+        },
+        create: {
+          nome: process.env.CUNHADO_EMPRESA_NOME?.trim() || "Cliente Cunhado",
+          slug: EMPRESA_SLUG,
+          status: "ATIVA",
+        },
+        select: { id: true, slug: true, status: true },
+      });
 
-    const tenant = await prismaCentral.tenant.upsert({
-      where: { slug: TENANT_SLUG },
-      update: {
-        empresaId: empresa.id,
-        status: "PROVISIONANDO",
-        versaoSchema: "provisionando",
-        connectionRef: CONNECTION_REF,
-      },
-      create: {
-        empresaId: empresa.id,
-        slug: TENANT_SLUG,
-        status: "PROVISIONANDO",
-        versaoSchema: "provisionando",
-        connectionRef: CONNECTION_REF,
-      },
-      select: { id: true, slug: true },
+      const tenantCriado = await tx.tenant.upsert({
+        where: { slug: TENANT_SLUG },
+        update: {
+          empresaId: empresaCriada.id,
+          status: "PROVISIONANDO",
+          versaoSchema: "provisionando",
+          connectionRef: CONNECTION_REF,
+        },
+        create: {
+          empresaId: empresaCriada.id,
+          slug: TENANT_SLUG,
+          status: "PROVISIONANDO",
+          versaoSchema: "provisionando",
+          connectionRef: CONNECTION_REF,
+        },
+        select: { id: true, slug: true },
+      });
+
+      const mapa = await obterOuCriarCargosPadrao(tx, empresaCriada.id);
+
+      return { empresa: empresaCriada, tenant: tenantCriado, mapaCargos: mapa };
     });
 
     tenantId = tenant.id;
@@ -317,7 +361,7 @@ async function executar() {
     }
 
     const schemaValidado = await validarSchemaTenant(tenantCunhadoDatabaseUrl);
-    const usuarioCentral = await criarOuAtualizarUsuarioCentral(prismaCentral, empresa.id);
+    const usuarioCentral = await criarOuAtualizarUsuarioCentral(prismaCentral, empresa.id, mapaCargos.Administrador);
 
     const tenantAtivo = await prismaCentral.tenant.update({
       where: { id: tenant.id },
