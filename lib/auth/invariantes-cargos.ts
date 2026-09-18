@@ -140,3 +140,70 @@ export function podeEditarPermissoesConsiderandoAutor(params: {
   }
   return PERMITIDO;
 }
+
+// ============================================================================
+// 5. A conta responsavel pela loja (Empresa.proprietarioUsuarioEmpresaId,
+//    Fase 1D-3) tem protecoes que nenhum outro admin tem: ninguem — nem ela
+//    mesma — consegue desativa-la, e so ela mesma consegue mudar o proprio
+//    cargo. A unica forma de tirar essas protecoes e transferir a
+//    titularidade pra outra conta primeiro.
+// ============================================================================
+
+const MOTIVO_PROPRIETARIO_NAO_DESATIVA =
+  "Esta é a conta responsável pela loja e não pode ser desativada. Transfira a titularidade antes.";
+
+/** A conta responsavel pela loja nunca pode ser desativada — nem por outro admin, nem por ela mesma. */
+export function podeDesativarUsuario(params: { usuarioAlvoEhProprietario: boolean }): ResultadoInvarianteCargo {
+  if (params.usuarioAlvoEhProprietario) {
+    return negado(MOTIVO_PROPRIETARIO_NAO_DESATIVA);
+  }
+  return PERMITIDO;
+}
+
+/**
+ * Decide quem pode alterar o cargo de `usuarioAlvo`. Pra conta responsavel
+ * pela loja a regra se inverte em relacao a `podeAtribuirCargoAoUsuario`:
+ * so ELA MESMA pode mudar o proprio cargo — mais ninguem, nem outro admin.
+ * Pra qualquer outro usuario, vale a regra normal (ninguem edita o proprio).
+ */
+export function podeAlterarCargoDoUsuario(params: {
+  autorUsuarioCentralId: string;
+  usuarioAlvoCentralId: string;
+  usuarioAlvoEhProprietario: boolean;
+}): ResultadoInvarianteCargo {
+  if (params.usuarioAlvoEhProprietario) {
+    if (params.autorUsuarioCentralId !== params.usuarioAlvoCentralId) {
+      return negado("Esta é a conta responsável pela loja: só ela mesma pode alterar o próprio cargo.");
+    }
+    return PERMITIDO;
+  }
+
+  return podeAtribuirCargoAoUsuario({
+    autorUsuarioCentralId: params.autorUsuarioCentralId,
+    usuarioAlvoCentralId: params.usuarioAlvoCentralId,
+  });
+}
+
+/** Só a conta responsável pela loja pode iniciar a transferência de titularidade. */
+export function podeTransferirPropriedade(params: {
+  autorUsuarioCentralId: string;
+  proprietarioAtualUsuarioCentralId: string | null;
+}): ResultadoInvarianteCargo {
+  if (params.autorUsuarioCentralId !== params.proprietarioAtualUsuarioCentralId) {
+    return negado("Só a conta responsável pela loja pode transferir a titularidade.");
+  }
+  return PERMITIDO;
+}
+
+/** O novo responsável precisa ser um usuário ativo com acesso a configurações e usuários. */
+export function podeReceberPropriedade(params: {
+  usuarioAlvo: { ativo: boolean; possuiConfiguracoesUsuarios: boolean };
+}): ResultadoInvarianteCargo {
+  if (!params.usuarioAlvo.ativo) {
+    return negado("O novo responsável precisa ser um usuário ativo.");
+  }
+  if (!params.usuarioAlvo.possuiConfiguracoesUsuarios) {
+    return negado("O novo responsável precisa ter acesso a configurações e usuários.");
+  }
+  return PERMITIDO;
+}

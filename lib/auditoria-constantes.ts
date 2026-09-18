@@ -34,6 +34,7 @@ export const ACOES_AUDITORIA = {
   // Fase 1D-3 — tela de Usuarios e Cargos.
   DESATIVAR_USUARIO: "DESATIVAR_USUARIO",
   REATIVAR_USUARIO: "REATIVAR_USUARIO",
+  TRANSFERIR_PROPRIEDADE: "TRANSFERIR_PROPRIEDADE",
 } as const;
 
 export const ENTIDADES_AUDITORIA = {
@@ -52,6 +53,8 @@ export const ENTIDADES_AUDITORIA = {
   // Fase 1D-1 — banco central.
   CARGO: "CARGO",
   USUARIO_EMPRESA: "USUARIO_EMPRESA",
+  // Fase 1D-3 — protecao do dono.
+  EMPRESA: "EMPRESA",
 } as const;
 
 export type AcaoAuditoria = (typeof ACOES_AUDITORIA)[keyof typeof ACOES_AUDITORIA];

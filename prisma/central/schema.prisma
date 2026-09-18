@@ -36,6 +36,15 @@ model Empresa {
   usuarios     UsuarioEmpresa[]
   cargos       Cargo[]
   logsAuditoria LogAuditoria[]
+  /**
+   * Conta responsavel pela loja (Fase 1D-3, protecao do dono) — a UsuarioEmpresa
+   * que criou a empresa, com protecoes que nenhum outro admin tem (ver
+   * lib/auth/invariantes-cargos.ts). NUNCA inferir "quem e o dono" por data de
+   * criacao em nenhum outro lugar do codigo — este campo e a unica fonte.
+   * So muda via transferirPropriedade (app/actions/usuarios.ts).
+   */
+  proprietarioUsuarioEmpresaId String?          @unique
+  proprietario                 UsuarioEmpresa?  @relation("EmpresaProprietario", fields: [proprietarioUsuarioEmpresaId], references: [id])
   criadoEm     DateTime         @default(now())
   atualizadoEm DateTime         @updatedAt
 }
@@ -101,6 +110,8 @@ model UsuarioEmpresa {
   ativo        Boolean        @default(true)
   criadoEm     DateTime       @default(now())
   atualizadoEm DateTime       @updatedAt
+  /** Lado inverso de Empresa.proprietario — presente so quando esta linha e a conta responsavel por alguma empresa. */
+  empresaComoProprietario Empresa? @relation("EmpresaProprietario")
 
   @@unique([usuarioId, empresaId])
   @@index([empresaId])

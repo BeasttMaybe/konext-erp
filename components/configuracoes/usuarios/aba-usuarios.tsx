@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ModalEditarUsuario } from "./modal-editar-usuario";
+import { ModalTransferirPropriedade } from "./modal-transferir-propriedade";
 
 function formatarUltimoAcesso(iso: string | null): string {
   if (!iso) return "Nunca acessou";
@@ -33,6 +34,7 @@ export function AbaUsuarios() {
   const [usuarios, setUsuarios] = useState<UsuarioListado[] | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [usuarioEmEdicao, setUsuarioEmEdicao] = useState<UsuarioListado | null>(null);
+  const [transferenciaAberta, setTransferenciaAberta] = useState(false);
 
   const recarregar = () => {
     setCarregando(true);
@@ -74,8 +76,15 @@ export function AbaUsuarios() {
               usuarios.map((usuario) => (
                 <TableRow key={usuario.usuarioEmpresaId}>
                   <TableCell className="font-medium text-foreground">
-                    {usuario.nome}
-                    {usuario.souEu && <span className="ml-2 text-xs text-muted-foreground">(você)</span>}
+                    <span className="inline-flex items-center gap-2">
+                      {usuario.nome}
+                      {usuario.souEu && <span className="text-xs text-muted-foreground">(você)</span>}
+                      {usuario.ehProprietario && (
+                        <Badge variant="outline" className="text-[10px] font-normal">
+                          Responsável pela loja
+                        </Badge>
+                      )}
+                    </span>
                   </TableCell>
                   <TableCell className="text-muted-foreground">{usuario.email}</TableCell>
                   <TableCell>
@@ -94,9 +103,17 @@ export function AbaUsuarios() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button type="button" variant="outline" size="sm" onClick={() => setUsuarioEmEdicao(usuario)}>
-                      Editar
-                    </Button>
+                    {usuario.ehProprietario ? (
+                      usuario.souEu && (
+                        <Button type="button" variant="outline" size="sm" onClick={() => setTransferenciaAberta(true)}>
+                          Transferir titularidade
+                        </Button>
+                      )
+                    ) : (
+                      <Button type="button" variant="outline" size="sm" onClick={() => setUsuarioEmEdicao(usuario)}>
+                        Editar
+                      </Button>
+                    )}
                   </TableCell>
                 </TableRow>
               ))
@@ -112,6 +129,19 @@ export function AbaUsuarios() {
           onFechar={() => setUsuarioEmEdicao(null)}
           onSalvo={() => {
             setUsuarioEmEdicao(null);
+            recarregar();
+          }}
+        />
+      )}
+
+      {transferenciaAberta && usuarios && (
+        <ModalTransferirPropriedade
+          usuarios={usuarios}
+          proprietarioAtualId={usuarios.find((usuario) => usuario.ehProprietario)?.usuarioEmpresaId ?? ""}
+          aberto
+          onFechar={() => setTransferenciaAberta(false)}
+          onTransferido={() => {
+            setTransferenciaAberta(false);
             recarregar();
           }}
         />

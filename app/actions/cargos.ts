@@ -4,7 +4,6 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import {
-  CATALOGO_PERMISSOES,
   ehPermissao,
   exigirPermissao,
   listarCatalogoAgrupado,
@@ -12,10 +11,11 @@ import {
   type PermissaoDisponivel,
 } from "@/lib/auth/permissoes";
 import { mapearCargoParaRoleLegado } from "@/lib/auth/mapear-cargo-legado";
+import { permissoesEfetivasDoCargo } from "@/lib/auth/permissoes-efetivas-cargo";
 import {
   contarAdminsAtivos,
+  podeAlterarCargoDoUsuario,
   podeArquivarCargo,
-  podeAtribuirCargoAoUsuario,
   podeConcederPermissoes,
   podeEditarPermissoesConsiderandoAutor,
   podeEditarPermissoesDoCargo,
@@ -102,14 +102,6 @@ type CargoComPermissoes = {
   arquivadoEm: Date | null;
   permissoes: { permissao: string }[];
 };
-
-/** Permissoes efetivas de um Cargo: catalogo inteiro se fixo, senao as linhas gravadas. */
-function permissoesEfetivasDoCargo(cargo: { fixo: boolean; permissoes: { permissao: string }[] }): Permissao[] {
-  if (cargo.fixo) {
-    return [...CATALOGO_PERMISSOES];
-  }
-  return cargo.permissoes.map((linha) => linha.permissao).filter(ehPermissao);
-}
 
 function primeiroErroZod(erro: z.ZodError): string {
   return erro.issues[0]?.message ?? "Dados inválidos.";
@@ -596,9 +588,15 @@ export async function atribuirCargoAoUsuario(
       return { sucesso: false, erro: "Usuário não encontrado nesta empresa." };
     }
 
-    const checagemSelf = podeAtribuirCargoAoUsuario({
+    const empresa = await prismaCentral.empresa.findUnique({
+      where: { id: contexto.empresaId },
+      select: { proprietarioUsuarioEmpresaId: true },
+    });
+
+    const checagemSelf = podeAlterarCargoDoUsuario({
       autorUsuarioCentralId: contexto.usuarioCentralId,
       usuarioAlvoCentralId: vinculoAlvo.usuarioId,
+      usuarioAlvoEhProprietario: vinculoAlvo.id === empresa?.proprietarioUsuarioEmpresaId,
     });
     if (!checagemSelf.permitido) {
       return { sucesso: false, erro: checagemSelf.motivo };

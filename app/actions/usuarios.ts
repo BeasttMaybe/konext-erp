@@ -4,12 +4,18 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { exigirPermissao } from "@/lib/auth/permissoes";
-import { podeRemoverAcessoAdminDoUsuario } from "@/lib/auth/invariantes-cargos";
+import {
+  podeDesativarUsuario,
+  podeReceberPropriedade,
+  podeRemoverAcessoAdminDoUsuario,
+  podeTransferirPropriedade,
+} from "@/lib/auth/invariantes-cargos";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { contextoAuditoriaCentralDoUsuario, registrarLogAuditoriaCentral } from "@/lib/auditoria-central";
 import { prismaCentral } from "@/lib/central/prisma-central";
 import { paraMensagemSegura } from "@/lib/erros";
 import { listarUsuariosComAcessoAdmin } from "@/app/actions/cargos";
+import { permissoesEfetivasDoCargo } from "@/lib/auth/permissoes-efetivas-cargo";
 
 export type UsuarioListado = {
   usuarioEmpresaId: string;
@@ -22,6 +28,10 @@ export type UsuarioListado = {
   ultimoAcessoEm: string | null;
   /** Verdadeiro quando esta linha é a do próprio usuário logado — a UI usa isso pra travar a edição do próprio cargo. */
   souEu: boolean;
+  /** Verdadeiro pra a conta responsável pela loja (Empresa.proprietarioUsuarioEmpresaId, Fase 1D-3). */
+  ehProprietario: boolean;
+  /** Efetivamente tem configuracoes.usuarios — usado pra montar a lista de candidatos a nova titularidade. */
+  possuiConfiguracoesUsuarios: boolean;
 };
 
 export async function listarUsuariosDaEmpresa(): Promise<
@@ -31,18 +41,24 @@ export async function listarUsuariosDaEmpresa(): Promise<
     const contexto = await exigirContextoTenant();
     exigirPermissao(contexto, "configuracoes.usuarios");
 
-    const vinculos = await prismaCentral.usuarioEmpresa.findMany({
-      where: { empresaId: contexto.empresaId },
-      select: {
-        id: true,
-        usuarioId: true,
-        ativo: true,
-        cargoId: true,
-        cargo: { select: { nome: true } },
-        usuario: { select: { nome: true, email: true } },
-      },
-      orderBy: { usuario: { nome: "asc" } },
-    });
+    const [empresa, vinculos] = await Promise.all([
+      prismaCentral.empresa.findUnique({
+        where: { id: contexto.empresaId },
+        select: { proprietarioUsuarioEmpresaId: true },
+      }),
+      prismaCentral.usuarioEmpresa.findMany({
+        where: { empresaId: contexto.empresaId },
+        select: {
+          id: true,
+          usuarioId: true,
+          ativo: true,
+          cargoId: true,
+          cargo: { select: { nome: true, fixo: true, permissoes: { select: { permissao: true } } } },
+          usuario: { select: { nome: true, email: true } },
+        },
+        orderBy: { usuario: { nome: "asc" } },
+      }),
+    ]);
 
     const idsUsuarios = vinculos.map((vinculo) => vinculo.usuarioId);
     const ultimosAcessos =
@@ -67,6 +83,10 @@ export async function listarUsuariosDaEmpresa(): Promise<
       ativo: vinculo.ativo,
       ultimoAcessoEm: ultimoAcessoPorUsuario.get(vinculo.usuarioId)?.toISOString() ?? null,
       souEu: vinculo.usuarioId === contexto.usuarioCentralId,
+      ehProprietario: vinculo.id === empresa?.proprietarioUsuarioEmpresaId,
+      possuiConfiguracoesUsuarios: vinculo.cargo
+        ? permissoesEfetivasDoCargo(vinculo.cargo).includes("configuracoes.usuarios")
+        : false,
     }));
 
     return { sucesso: true, dados };
@@ -93,15 +113,28 @@ export async function desativarUsuario(
       return { sucesso: false, erro: analise.error.issues[0]?.message ?? "Dados inválidos." };
     }
 
-    const vinculo = await prismaCentral.usuarioEmpresa.findUnique({
-      where: { id: analise.data.usuarioEmpresaId },
-      select: { id: true, usuarioId: true, empresaId: true, ativo: true },
-    });
+    const [empresa, vinculo] = await Promise.all([
+      prismaCentral.empresa.findUnique({
+        where: { id: contexto.empresaId },
+        select: { proprietarioUsuarioEmpresaId: true },
+      }),
+      prismaCentral.usuarioEmpresa.findUnique({
+        where: { id: analise.data.usuarioEmpresaId },
+        select: { id: true, usuarioId: true, empresaId: true, ativo: true },
+      }),
+    ]);
     if (!vinculo || vinculo.empresaId !== contexto.empresaId) {
       return { sucesso: false, erro: "Usuário não encontrado nesta empresa." };
     }
     if (!vinculo.ativo) {
       return { sucesso: false, erro: "Este usuário já está desativado." };
+    }
+
+    const checagemProprietario = podeDesativarUsuario({
+      usuarioAlvoEhProprietario: vinculo.id === empresa?.proprietarioUsuarioEmpresaId,
+    });
+    if (!checagemProprietario.permitido) {
+      return { sucesso: false, erro: checagemProprietario.motivo };
     }
 
     const todosUsuarios = await listarUsuariosComAcessoAdmin(contexto.empresaId);
@@ -168,6 +201,110 @@ export async function reativarUsuario(
           entidadeId: vinculo.id,
           dadosAntes: { ativo: false },
           dadosDepois: { ativo: true },
+        }
+      );
+    });
+
+    revalidatePath("/configuracoes");
+    return { sucesso: true };
+  } catch (erro) {
+    return { sucesso: false, erro: paraMensagemSegura(erro) };
+  }
+}
+
+const schemaTransferirPropriedade = z.object({
+  novoUsuarioEmpresaId: z.string().min(1, "Informe o novo responsável."),
+});
+
+/**
+ * So a conta responsavel pela loja pode chamar isto (podeTransferirPropriedade).
+ * O alvo precisa ser um usuario ATIVO desta empresa com configuracoes.usuarios
+ * (podeReceberPropriedade) — sem isso, a empresa ficaria com um "dono" que nem
+ * pode gerenciar usuarios, o que nao faz sentido.
+ */
+export async function transferirPropriedade(
+  input: z.infer<typeof schemaTransferirPropriedade>
+): Promise<ResultadoAcaoUsuario> {
+  try {
+    const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "configuracoes.usuarios");
+
+    const analise = schemaTransferirPropriedade.safeParse(input);
+    if (!analise.success) {
+      return { sucesso: false, erro: analise.error.issues[0]?.message ?? "Dados inválidos." };
+    }
+
+    const empresa = await prismaCentral.empresa.findUnique({
+      where: { id: contexto.empresaId },
+      select: { id: true, proprietarioUsuarioEmpresaId: true },
+    });
+    if (!empresa) {
+      return { sucesso: false, erro: "Empresa não encontrada." };
+    }
+
+    const proprietarioAtual = empresa.proprietarioUsuarioEmpresaId
+      ? await prismaCentral.usuarioEmpresa.findUnique({
+          where: { id: empresa.proprietarioUsuarioEmpresaId },
+          select: { usuarioId: true },
+        })
+      : null;
+
+    const checagemAutor = podeTransferirPropriedade({
+      autorUsuarioCentralId: contexto.usuarioCentralId,
+      proprietarioAtualUsuarioCentralId: proprietarioAtual?.usuarioId ?? null,
+    });
+    if (!checagemAutor.permitido) {
+      return { sucesso: false, erro: checagemAutor.motivo };
+    }
+
+    const alvo = await prismaCentral.usuarioEmpresa.findUnique({
+      where: { id: analise.data.novoUsuarioEmpresaId },
+      select: {
+        id: true,
+        empresaId: true,
+        ativo: true,
+        cargo: { select: { fixo: true, permissoes: { select: { permissao: true } } } },
+      },
+    });
+    if (!alvo || alvo.empresaId !== contexto.empresaId) {
+      return { sucesso: false, erro: "Usuário não encontrado nesta empresa." };
+    }
+
+    if (alvo.id === empresa.proprietarioUsuarioEmpresaId) {
+      return { sucesso: false, erro: "Este usuário já é o responsável pela loja." };
+    }
+
+    const checagemAlvo = podeReceberPropriedade({
+      usuarioAlvo: {
+        ativo: alvo.ativo,
+        possuiConfiguracoesUsuarios: alvo.cargo
+          ? permissoesEfetivasDoCargo(alvo.cargo).includes("configuracoes.usuarios")
+          : false,
+      },
+    });
+    if (!checagemAlvo.permitido) {
+      return { sucesso: false, erro: checagemAlvo.motivo };
+    }
+
+    await prismaCentral.$transaction(async (tx) => {
+      await tx.empresa.update({
+        where: { id: empresa.id },
+        data: { proprietarioUsuarioEmpresaId: alvo.id },
+      });
+
+      await registrarLogAuditoriaCentral(
+        tx,
+        contextoAuditoriaCentralDoUsuario(
+          { id: contexto.usuarioCentralId },
+          contexto.empresaId,
+          "app/actions/usuarios.ts:transferirPropriedade"
+        ),
+        {
+          acao: ACOES_AUDITORIA.TRANSFERIR_PROPRIEDADE,
+          entidade: ENTIDADES_AUDITORIA.EMPRESA,
+          entidadeId: empresa.id,
+          dadosAntes: { proprietarioUsuarioEmpresaId: empresa.proprietarioUsuarioEmpresaId },
+          dadosDepois: { proprietarioUsuarioEmpresaId: alvo.id },
         }
       );
     });
