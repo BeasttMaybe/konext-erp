@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { SecaoItensOS } from "@/components/os/secao-itens-os";
 import { AcaoEntregaOS } from "@/components/os/acao-entrega-os";
+import { AcaoExcluirOS } from "@/components/os/acao-excluir-os";
 import { BotaoGerarPedidoVenda } from "@/components/os/botao-gerar-pedido-venda";
 import { BotaoCopiarLinkRastreio } from "@/components/os/botao-copiar-link-rastreio";
 import { AcaoGarantiaOS } from "@/components/os/garantias/acao-garantia-os";
@@ -340,6 +341,7 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
                 Pedido de venda ja gerado
               </Badge>
             )}
+            <AcaoExcluirOS osId={idOs} numeroOs={numeroOsExibicao} />
           </div>
         </div>
       </div>

@@ -6,16 +6,6 @@ import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { TabuleiroKanban } from "@/components/os/tabuleiro-kanban";
 import { ModalReabrirOS, type ConfirmacaoReaberturaPayload } from "@/components/os/modal-reabrir-os";
 import type { PendenciaFinalizacao } from "@/lib/dominio/os/regras-finalizacao";
@@ -29,7 +19,6 @@ import {
 import { OrdemServico, OrdemServicoExcluida, StatusOS } from "@/types/os";
 import {
   criarOrdemServico,
-  excluirOrdemServico,
   finalizarOrdemServico,
   finalizarSemServico,
   reabrirOrdemServico,
@@ -38,10 +27,8 @@ import {
 import { finalizarRetornoGarantiaOS } from "@/app/actions/garantias";
 import { useTemPermissao } from "@/contextos/contexto-permissoes";
 import { SemPermissaoAcao } from "@/components/ui/sem-permissao-acao";
-import { Search, Plus, AlertCircle, ListChecks, KanbanSquare, Trash2, ArchiveX } from "lucide-react";
+import { Search, Plus, AlertCircle, ListChecks, KanbanSquare, ArchiveX, RotateCcw, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 
 interface DashboardOSProps {
   activeOrderServices: OrdemServico[];
@@ -71,9 +58,6 @@ export function DashboardOS({
   const [modalAberta, setModalAberta] = useState(Boolean(clienteIdInicial));
   const [buscaTexto, setBuscaTexto] = useState("");
   const [modoVisualizacao, setModoVisualizacao] = useState<"KANBAN" | "LISTA_FINALIZADAS" | "LISTA_EXCLUIDAS">(modoInicial);
-  const [osParaExcluir, setOsParaExcluir] = useState<OrdemServico | null>(null);
-  const [osExcluindoId, setOsExcluindoId] = useState<string | null>(null);
-  const [motivoExclusao, setMotivoExclusao] = useState("");
   const [osParaFinalizar, setOsParaFinalizar] = useState<OrdemServico | null>(null);
   const [osFinalizandoId, setOsFinalizandoId] = useState<string | null>(null);
   const [requerGarantiaFinalizacao, setRequerGarantiaFinalizacao] = useState(false);
@@ -90,7 +74,9 @@ export function DashboardOS({
   // Reabrir desfaz uma entrega: a mesma permissao "os.reabrir" checada no
   // servidor (por exigirPermissao). Ocultar o botao aqui e so cosmetico.
   const podeReabrirOS = useTemPermissao("os.reabrir");
-  const podeExcluirOS = useTemPermissao("os.excluir");
+  // "Arquivar OS" (resgate) chama finalizarOrdemServico, que exige os.finalizar
+  // no servidor — mesma permissao usada pra Entregar e finalizar normal.
+  const podeFinalizarOS = useTemPermissao("os.finalizar");
 
   const filteredActiveOrders = activeOrderServices.filter((os) =>
     os.numeroOS.toLowerCase().includes(buscaTexto.toLowerCase()) ||
@@ -114,7 +100,15 @@ export function DashboardOS({
   );
 
   const totalAbertas = filteredActiveOrders.filter((orderService) => orderService.status !== "ENTREGUE").length;
-  const deliveredOrdersCount = filteredArchivedOrders.length;
+  // ENTREGUE sem archivedAt ("resgate") continua no quadro (ver TabuleiroKanban),
+  // nunca na lista de Finalizadas — mas ja foi entregue de verdade, entao conta
+  // pro card "Entregues" e alimenta o aviso acima da lista (Fase 1C-2 follow-up,
+  // Parte 4: arquivar e um passo administrativo depois da entrega, nao muda se
+  // ela aconteceu).
+  const ordensEntreguesNaoArquivadas = filteredActiveOrders.filter(
+    (orderService) => orderService.status === "ENTREGUE" && !orderService.archivedAt
+  );
+  const deliveredOrdersCount = ordensEntreguesNaoArquivadas.length + filteredArchivedOrders.length;
 
   const handleSalvarNovaOS = async (dados: DadosNovaOS) => {
     try {
@@ -379,43 +373,6 @@ export function DashboardOS({
     router.push(`/os/${os.id}`);
   };
 
-  const handleExcluirOS = async () => {
-    if (!osParaExcluir || osExcluindoId) {
-      return;
-    }
-
-    try {
-      setOsExcluindoId(osParaExcluir.id);
-
-      const motivoNormalizado = motivoExclusao.trim();
-
-      if (motivoNormalizado.length < 5) {
-        toast.error("Informe o motivo da exclusão.");
-        return;
-      }
-
-      const resultado = await excluirOrdemServico({
-        osId: osParaExcluir.id,
-        motivoExclusao: motivoNormalizado,
-      });
-
-      if (!resultado.sucesso) {
-        toast.error(resultado.erro);
-        return;
-      }
-
-      toast.success(resultado.mensagem);
-      setOsParaExcluir(null);
-      setMotivoExclusao("");
-      router.push("/os?modo=excluidas");
-      router.refresh();
-    } catch {
-      toast.error("Não foi possível excluir a OS. Tente novamente.");
-    } finally {
-      setOsExcluindoId(null);
-    }
-  };
-
   const formatarMoeda = (valor: number) =>
     new Intl.NumberFormat("pt-BR", {
       style: "currency",
@@ -579,17 +536,35 @@ export function DashboardOS({
                   onFinalizarOS={handleFinalizarOS}
                   onEntregarOS={handleEntregarOS}
                   onReabrirOS={podeReabrirOS ? handleReabrirOS : undefined}
+                  podeArquivarOS={podeFinalizarOS}
                 />
-            </div>
-          ) : modoVisualizacao === "LISTA_FINALIZADAS" && filteredArchivedOrders.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <AlertCircle className="w-12 h-12 text-slate-300 mb-4" />
-              <p className="text-slate-500 font-medium">
-                Nenhuma OS finalizada ou entregue
-              </p>
             </div>
           ) : modoVisualizacao === "LISTA_FINALIZADAS" ? (
             <div className="overflow-x-auto">
+              {/* O filtro nunca pode depender do resultado que ele mesmo produz —
+                  renderizado sempre que a lista esta ativa, nunca condicionado a
+                  filteredArchivedOrders (Fase 1C-2 follow-up, Parte 3). Antes disso,
+                  marcar a caixa e zerar a lista escondia a propria caixa e travava
+                  o operador no filtro sem jeito de voltar. */}
+              {ordensEntreguesNaoArquivadas.length > 0 && (
+                <p className="mb-3 text-sm text-amber-700 dark:text-amber-400">
+                  {ordensEntreguesNaoArquivadas.length === 1
+                    ? "1 OS entregue ainda não arquivada"
+                    : `${ordensEntreguesNaoArquivadas.length} OS entregues ainda não arquivadas`}
+                  {" — "}
+                  <button
+                    type="button"
+                    className="underline underline-offset-2 hover:text-amber-900 dark:hover:text-amber-300"
+                    onClick={() => {
+                      setModoVisualizacao("KANBAN");
+                      router.push("/os?modo=kanban");
+                    }}
+                  >
+                    veja no quadro
+                  </button>
+                  .
+                </p>
+              )}
               <label className="mb-3 flex w-fit items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
                 <input
                   type="checkbox"
@@ -599,79 +574,97 @@ export function DashboardOS({
                 />
                 Mostrar só entregues sem serviço
               </label>
-              <table className="w-full min-w-[840px] text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 dark:border-slate-700 text-left text-slate-500 dark:text-slate-400">
-                    <th className="py-2 pr-3 font-medium">Nº OS</th>
-                    <th className="py-2 pr-3 font-medium">Cliente</th>
-                    <th className="py-2 pr-3 font-medium">Equipamento</th>
-                    <th className="py-2 pr-3 font-medium">Orçamento</th>
-                    <th className="py-2 pr-3 font-medium">Status</th>
-                    <th className="py-2 pr-3 font-medium">Atualizado em</th>
-                    <th className="py-2 pr-0 font-medium text-right">Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredArchivedOrders.map((os) => (
-                    <tr
-                      key={os.id}
-                      className="border-b border-slate-100 dark:border-slate-700/70 text-slate-700 dark:text-slate-200 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/30"
-                      onClick={() => handleAbrirDetalhesOS(os)}
+
+              {filteredArchivedOrders.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <AlertCircle className="w-12 h-12 text-slate-300 mb-4" />
+                  <p className="text-slate-500 font-medium">
+                    {somenteSemServico
+                      ? "Nenhuma OS entregue sem serviço neste período."
+                      : "Nenhuma OS finalizada ou entregue"}
+                  </p>
+                  {somenteSemServico && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="mt-4"
+                      onClick={() => setSomenteSemServico(false)}
                     >
-                      <td className="py-3 pr-3 font-semibold">{os.numeroOS}</td>
-                      <td className="py-3 pr-3">{os.nomeCliente}</td>
-                      <td className="py-3 pr-3">{os.equipamento}</td>
-                      <td className="py-3 pr-3">{formatarMoeda(os.totalOrcamento)}</td>
-                      <td className="py-3 pr-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Badge
-                            className={
-                              os.status === "ENTREGUE"
-                                ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300"
-                                : "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-                            }
-                          >
-                            Finalizada
-                          </Badge>
-                          {os.entregueSemServico && (
-                            <Badge
-                              variant="outline"
-                              className="border-amber-500 text-amber-700 dark:text-amber-300"
-                              title={os.motivoSemServico}
-                            >
-                              Entregue sem serviço
-                            </Badge>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-3 pr-3 text-slate-500 dark:text-slate-400">
-                        {formatarDataHora(os.dataAtualizacao)}
-                      </td>
-                      <td className="py-3 pr-0 text-right">
-                        {podeExcluirOS ? (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-8 border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-950/40"
-                            title="Excluir OS"
-                            aria-label="Excluir OS"
-                            disabled={Boolean(osExcluindoId)}
-                            onClick={(evento) => {
-                              evento.stopPropagation();
-                              setOsParaExcluir(os);
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        ) : (
-                          <SemPermissaoAcao />
-                        )}
-                      </td>
+                      <X className="w-4 h-4 mr-2" />
+                      Limpar filtro
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <table className="w-full min-w-[840px] text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-200 dark:border-slate-700 text-left text-slate-500 dark:text-slate-400">
+                      <th className="py-2 pr-3 font-medium">Nº OS</th>
+                      <th className="py-2 pr-3 font-medium">Cliente</th>
+                      <th className="py-2 pr-3 font-medium">Equipamento</th>
+                      <th className="py-2 pr-3 font-medium">Orçamento</th>
+                      <th className="py-2 pr-3 font-medium">Status</th>
+                      <th className="py-2 pr-3 font-medium">Atualizado em</th>
+                      <th className="py-2 pr-0 font-medium text-right">Ações</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {filteredArchivedOrders.map((os) => (
+                      <tr
+                        key={os.id}
+                        className="border-b border-slate-100 dark:border-slate-700/70 text-slate-700 dark:text-slate-200 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/30"
+                        onClick={() => handleAbrirDetalhesOS(os)}
+                      >
+                        <td className="py-3 pr-3 font-semibold">{os.numeroOS}</td>
+                        <td className="py-3 pr-3">{os.nomeCliente}</td>
+                        <td className="py-3 pr-3">{os.equipamento}</td>
+                        <td className="py-3 pr-3">{formatarMoeda(os.totalOrcamento)}</td>
+                        <td className="py-3 pr-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300">
+                              Finalizada
+                            </Badge>
+                            {os.entregueSemServico && (
+                              <Badge
+                                variant="outline"
+                                className="border-amber-500 text-amber-700 dark:text-amber-300"
+                                title={os.motivoSemServico}
+                              >
+                                Entregue sem serviço
+                              </Badge>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 pr-3 text-slate-500 dark:text-slate-400">
+                          {formatarDataHora(os.dataAtualizacao)}
+                        </td>
+                        <td className="py-3 pr-0 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {podeReabrirOS ? (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-8"
+                                onClick={(evento) => {
+                                  evento.stopPropagation();
+                                  void handleReabrirOS(os);
+                                }}
+                              >
+                                <RotateCcw className="h-4 w-4 mr-2" />
+                                Reabrir OS
+                              </Button>
+                            ) : (
+                              <SemPermissaoAcao />
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           ) : filteredDeletedOrders.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -792,54 +785,6 @@ export function DashboardOS({
         processando={Boolean(osReabrindoId)}
         onConfirmar={confirmarReaberturaOS}
       />
-
-      <AlertDialog
-        open={Boolean(osParaExcluir)}
-        onOpenChange={(aberto) => {
-          if (!aberto && !osExcluindoId) {
-            setOsParaExcluir(null);
-            setMotivoExclusao("");
-          }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Excluir ordem de serviço</AlertDialogTitle>
-            <AlertDialogDescription>
-              {`Tem certeza que deseja excluir a OS ${osParaExcluir?.numeroOS ?? "selecionada"}? Essa ação não poderá ser desfeita pela tela atual.`}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor="motivo-exclusao">Motivo da exclusão</Label>
-            <Textarea
-              id="motivo-exclusao"
-              value={motivoExclusao}
-              onChange={(evento) => setMotivoExclusao(evento.target.value)}
-              placeholder="Ex: OS criada em duplicidade, cliente cancelou, erro no cadastro..."
-              minLength={5}
-              maxLength={500}
-              disabled={Boolean(osExcluindoId)}
-            />
-            <p className="text-xs text-slate-500">
-              {motivoExclusao.trim().length}/500 caracteres
-            </p>
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={Boolean(osExcluindoId)}>
-              Cancelar
-            </AlertDialogCancel>
-            <AlertDialogAction
-              disabled={Boolean(osExcluindoId) || motivoExclusao.trim().length < 5}
-              onClick={(evento) => {
-                evento.preventDefault();
-                void handleExcluirOS();
-              }}
-            >
-              {osExcluindoId ? "Excluindo..." : "Excluir OS"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
