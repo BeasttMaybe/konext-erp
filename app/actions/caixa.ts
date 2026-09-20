@@ -306,6 +306,12 @@ export interface ItemHistoricoFechamento {
   totalVendas: number;
   /** Diferença entre valor informado e esperado (positivo = sobra, negativo = falta). */
   diferenca: number;
+  /**
+   * Nome de quem ABRIU a sessão — CaixaSession não guarda "quem fechou"
+   * separadamente, só abertoPorId, então é o único "quem" real que existe
+   * sem migração. Nulo em sessões antigas sem abertoPorId preenchido.
+   */
+  abertoPorNome: string | null;
 }
 
 /**
@@ -348,6 +354,7 @@ export async function obterHistoricoFechamentos(
       valorAbertura: number;
       valorFechamento: number;
       totalVendasSessao: number;
+      abertoPorNome: string | null;
     }>
   >`
     SELECT
@@ -355,13 +362,15 @@ export async function obterHistoricoFechamentos(
       c."dataFechamento",
       c."valorAbertura",
       COALESCE(c."valorFechamento", 0) AS "valorFechamento",
-      COALESCE(SUM(v."valorTotal"), 0) AS "totalVendasSessao"
+      COALESCE(SUM(v."valorTotal"), 0) AS "totalVendasSessao",
+      u.nome AS "abertoPorNome"
     FROM "CaixaSession" c
     LEFT JOIN "Venda" v ON v."caixaSessionId" = c.id
+    LEFT JOIN "Usuario" u ON u.id = c."abertoPorId"
     WHERE c.status::text = 'FECHADO'
       AND c."dataFechamento" IS NOT NULL
       ${filtroAutorSql}
-    GROUP BY c.id, c."dataFechamento", c."valorAbertura", c."valorFechamento"
+    GROUP BY c.id, c."dataFechamento", c."valorAbertura", c."valorFechamento", u.nome
     ORDER BY c."dataFechamento" DESC
     LIMIT ${limit} OFFSET ${offset}
   `;
@@ -378,6 +387,7 @@ export async function obterHistoricoFechamentos(
       valorFechamento: paraMoeda(valorFechamentoCentavos),
       totalVendas: paraMoeda(totalVendasCentavos),
       diferenca: paraMoeda(valorFechamentoCentavos - valorEsperadoCentavos),
+      abertoPorNome: row.abertoPorNome ?? null,
     };
   });
 

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { exigirPermissao } from "@/lib/auth/permissoes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
@@ -302,7 +303,144 @@ export async function obterResumoCaixaAbertoAtual(): Promise<ResumoCaixaAbertoAt
   return obterResumoCaixaAbertoAtualInterno(prismaAny);
 }
 
-export async function fecharCaixaSessionAtual(valorFechamento?: number | null) {
+// Soma de muitos valores em ponto flutuante (um por venda) acumula erro de
+// arredondamento (0.1 + 0.2 !== 0.3) — o suficiente pra "contagem bate
+// exatamente" nunca fechar em zero. Mesmo padrão centavos-inteiros de
+// app/actions/caixa.ts, duplicado aqui (não importado) porque os dois
+// arquivos são deliberadamente desacoplados nesta fase.
+const paraCentavos = (valor: number) => Math.round((valor + Number.EPSILON) * 100);
+const paraMoeda = (centavos: number) => centavos / 100;
+
+export interface FormaPagamentoResumoSessao {
+  formaPagamento: string;
+  total: number;
+}
+
+export interface MovimentoCaixaSessao {
+  id: string;
+  hora: string;
+  descricao: string;
+  valor: number;
+}
+
+export interface ResumoSessaoAbertaDetalhado extends ResumoCaixaAbertoAtual {
+  quantidadeVendas: number;
+  ticketMedio: number;
+  totalDinheiroSessao: number;
+  totalCartaoPixSessao: number;
+  dinheiroEsperadoGaveta: number;
+  porForma: FormaPagamentoResumoSessao[];
+  movimentos: MovimentoCaixaSessao[];
+}
+
+/**
+ * Detalhamento da sessão aberta pra tela de Caixa (Fase 3-2C): os 3 cartões
+ * (vendas do dia / dinheiro na gaveta / cartão e PIX), a régua "Entradas por
+ * forma" e a lista de movimentações. Mesma lógica de rateio por forma de
+ * pagamento de app/actions/caixa.ts (VendaPagamento quando a venda teve
+ * pagamento misto, senão o formaPagamento da própria Venda), só que
+ * recortada pela sessão de caixa aberta em vez do dia calendário — são
+ * escopos diferentes e não dá pra reaproveitar a consulta de lá.
+ */
+export async function obterResumoSessaoAbertaDetalhado(): Promise<ResumoSessaoAbertaDetalhado> {
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "pdv.vender");
+  const { prisma } = contexto;
+  const prismaAny = prisma as CaixaClient;
+
+  const resumoBase = await obterResumoCaixaAbertoAtualInterno(prismaAny);
+
+  const vendas = await prisma.venda.findMany({
+    where: { caixaSessionId: resumoBase.caixaId },
+    select: {
+      id: true,
+      criadoEm: true,
+      valorTotal: true,
+      formaPagamento: true,
+      cliente: { select: { nomeRazaoSocial: true } },
+    },
+    orderBy: { criadoEm: "desc" },
+  });
+
+  const idsVenda = vendas.map((venda) => venda.id);
+  let pagamentos: Array<{ vendaId: string; formaPagamento: string; valorBruto: number }> = [];
+
+  if (idsVenda.length > 0) {
+    try {
+      pagamentos = await prisma.$queryRaw<Array<{ vendaId: string; formaPagamento: string; valorBruto: number }>>`
+        SELECT vp."vendaId" AS "vendaId", vp."formaPagamento"::text AS "formaPagamento", vp."valorBruto" AS "valorBruto"
+        FROM "VendaPagamento" vp
+        WHERE vp."vendaId" IN (${Prisma.join(idsVenda)})
+      `;
+    } catch {
+      pagamentos = [];
+    }
+  }
+
+  const mapaPagamentosPorVenda = new Map<string, Array<{ formaPagamento: string; valorBruto: number }>>();
+  for (const pagamento of pagamentos) {
+    const lista = mapaPagamentosPorVenda.get(pagamento.vendaId) ?? [];
+    lista.push({ formaPagamento: pagamento.formaPagamento, valorBruto: Number(pagamento.valorBruto ?? 0) });
+    mapaPagamentosPorVenda.set(pagamento.vendaId, lista);
+  }
+
+  const mapaTotaisPorFormaCentavos = new Map<string, number>();
+  const registrarForma = (forma: string, valor: number) => {
+    mapaTotaisPorFormaCentavos.set(forma, (mapaTotaisPorFormaCentavos.get(forma) ?? 0) + paraCentavos(valor));
+  };
+
+  for (const venda of vendas) {
+    const pagamentosDaVenda = mapaPagamentosPorVenda.get(venda.id) ?? [];
+    if (pagamentosDaVenda.length > 0) {
+      for (const pagamento of pagamentosDaVenda) {
+        registrarForma(pagamento.formaPagamento || "NAO_INFORMADO", pagamento.valorBruto);
+      }
+    } else {
+      registrarForma(venda.formaPagamento || "NAO_INFORMADO", venda.valorTotal);
+    }
+  }
+
+  const porForma: FormaPagamentoResumoSessao[] = Array.from(mapaTotaisPorFormaCentavos.entries())
+    .map(([formaPagamento, totalCentavos]) => ({ formaPagamento, total: paraMoeda(totalCentavos) }))
+    .sort((a, b) => b.total - a.total);
+
+  const totalVendasSessaoCentavos = paraCentavos(resumoBase.totalVendasSessao);
+  const totalDinheiroCentavos = mapaTotaisPorFormaCentavos.get("DINHEIRO") ?? 0;
+  // Tudo que nao e dinheiro (cartao, PIX, boleto, crediario, empenho...) vira
+  // "Cartao e PIX" nos 3 cartoes — rotulo pragmatico pro balde de "nao esta
+  // na gaveta", nao uma enumeracao literal dos 10 valores de FormaPagamento.
+  const totalDinheiroSessao = paraMoeda(totalDinheiroCentavos);
+  const totalCartaoPixSessao = paraMoeda(Math.max(totalVendasSessaoCentavos - totalDinheiroCentavos, 0));
+  const quantidadeVendas = vendas.length;
+  const ticketMedio = quantidadeVendas > 0 ? resumoBase.totalVendasSessao / quantidadeVendas : 0;
+
+  const movimentos: MovimentoCaixaSessao[] = vendas.map((venda) => ({
+    id: venda.id,
+    hora: new Date(venda.criadoEm).toISOString(),
+    descricao: venda.cliente?.nomeRazaoSocial ?? "Cliente não identificado",
+    valor: venda.valorTotal,
+  }));
+
+  return {
+    ...resumoBase,
+    quantidadeVendas,
+    ticketMedio,
+    totalDinheiroSessao,
+    totalCartaoPixSessao,
+    // "Esperado na gaveta" = abertura + dinheiro da sessao. A referencia
+    // tambem subtrai sangrias e soma suprimentos, mas nenhum dos dois existe
+    // ainda (chegam com a reconstrucao do caixa — ver botoes desabilitados
+    // na tela) entao a formula fica so com os dois termos que sao reais hoje.
+    // Soma em centavos inteiros: em float puro, "abertura + dinheiro" as
+    // vezes fecha em 1409.8899999999999 em vez de 1409.89, e a contagem as
+    // cegas nunca bate mesmo quando o operador digita o valor certo.
+    dinheiroEsperadoGaveta: paraMoeda(paraCentavos(resumoBase.valorAbertura) + totalDinheiroCentavos),
+    porForma,
+    movimentos,
+  };
+}
+
+export async function fecharCaixaSessionAtual(valorFechamento?: number | null, observacao?: string | null) {
   // C1: exige sessao valida antes de fechar o caixa.
   const contexto = await exigirContextoTenant();
   exigirPermissao(contexto, "caixa.fechar");
@@ -345,6 +483,13 @@ export async function fecharCaixaSessionAtual(valorFechamento?: number | null) {
       resultado = await fecharCaixaViaSql(txAny, resumoAtual.caixaId, valorFinal);
     }
 
+    // CaixaSession nao tem campo de observacao (sem migração nesta fase) — o
+    // texto que o operador digita na contagem as cegas vai pro `motivo` do
+    // log de auditoria, que ja existe exatamente pra guardar contexto livre
+    // de uma acao. Nao aparece hoje em nenhuma tela de "Últimos fechamentos"
+    // (essas leem só a tabela CaixaSession), só no log de auditoria.
+    const observacaoNormalizada = observacao?.trim() || undefined;
+
     await registrarLogAuditoria(
       tx,
       contextoAuditoriaDoUsuario(contexto.usuarioOperacional, "app/actions/caixa-pdv.ts:fecharCaixaSessionAtual"),
@@ -352,6 +497,7 @@ export async function fecharCaixaSessionAtual(valorFechamento?: number | null) {
         acao: ACOES_AUDITORIA.FECHAR_CAIXA,
         entidade: ENTIDADES_AUDITORIA.CAIXA_SESSION,
         entidadeId: resultado.id,
+        motivo: observacaoNormalizada,
         dadosDepois: {
           valorAberturaCentavos: Math.round(resumoAtual.valorAbertura * 100),
           valorFechamentoCentavos: Math.round(resultado.valorFechamento * 100),

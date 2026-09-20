@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Search,
@@ -11,19 +12,10 @@ import {
   RefreshCw,
   Wallet,
   Lock,
-  TrendingUp,
-  Target,
-  Banknote,
-  BadgeDollarSign,
-  QrCode,
-  Receipt,
-  Building2,
   Wrench,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   ModalPagamento,
@@ -76,10 +68,8 @@ import {
   type DescontoPdvInput,
 } from "@/app/actions/pdv";
 import { obterResumoCaixaDiario, type ResumoCaixaDiario } from "@/app/actions/caixa";
-import { META_DIARIA_REAIS } from "@/types/fechamento-caixa";
 import {
   abrirNovaCaixaSession,
-  fecharCaixaSessionAtual,
   obterResumoCaixaAbertoAtual,
   verificarStatusCaixa,
 } from "@/app/actions/caixa-pdv";
@@ -142,20 +132,16 @@ function PDVPageConteudo() {
   const [carregandoClientes, setCarregandoClientes] = useState(false);
   const [modalPagamentoAberto, setModalPagamentoAberto] = useState(false);
   const [modalAbrirCaixaAberto, setModalAbrirCaixaAberto] = useState(false);
-  const [modalFecharCaixaAberto, setModalFecharCaixaAberto] = useState(false);
   const [pedidoOS, setPedidoOS] = useState<PedidoOSPDV | null>(null);
   const [carregandoPedidoOS, setCarregandoPedidoOS] = useState(false);
   const [sheetResumoAberto, setSheetResumoAberto] = useState(false);
   const [confirmarLimpezaAberto, setConfirmarLimpezaAberto] = useState(false);
   const [valorAberturaCaixa, setValorAberturaCaixa] = useState<string>("0");
-  const [valorFechamentoCaixa, setValorFechamentoCaixa] = useState<string>("0");
-  const [carregandoResumoFechamento, setCarregandoResumoFechamento] = useState(false);
   // Indica que o status do caixa ainda está sendo verificado ao carregar a página
   const [carregandoStatusCaixa, setCarregandoStatusCaixa] = useState(true);
   const [caixaAberto, setCaixaAberto] = useState(false);
   const [caixaAbertaDesde, setCaixaAbertaDesde] = useState<Date | null>(null);
   const [abrindoCaixa, setAbrindoCaixa] = useState(false);
-  const [fechandoCaixa, setFechandoCaixa] = useState(false);
   const [resumoCaixaDiario, setResumoCaixaDiario] = useState<ResumoCaixaDiario | null>(null);
   const [configuracaoPagamentosPdv, setConfiguracaoPagamentosPdv] =
     useState<ConfiguracaoPagamentosPDV | null>(null);
@@ -551,24 +537,6 @@ function PDVPageConteudo() {
     }
   };
 
-  const fecharCaixa = async () => {
-    const valor = Number(valorFechamentoCaixa || 0);
-
-    try {
-      setFechandoCaixa(true);
-      await fecharCaixaSessionAtual(Number.isFinite(valor) ? valor : null);
-      setCaixaAberto(false);
-      setCaixaAbertaDesde(null);
-      setModalFecharCaixaAberto(false);
-      toast.success("Caixa fechado com sucesso.");
-    } catch (error) {
-      const mensagem = error instanceof Error ? error.message : "Nao foi possivel fechar o caixa.";
-      toast.error(mensagem);
-    } finally {
-      setFechandoCaixa(false);
-    }
-  };
-
   return (
     <div
       // Altura travada por viewport, nao por herança de `h-full` (Fase 3-2C):
@@ -600,58 +568,33 @@ function PDVPageConteudo() {
             {caixaAberto ? "Caixa Aberto" : "Abrir Caixa"}
           </Button>
 
-          <Button
-            type="button"
-            variant="outline"
-            className="h-[42px] rounded-kx-botao"
-            onClick={async () => {
-              try {
-                setCarregandoResumoFechamento(true);
-                // Busca o resumo de fechamento e o consolidado diário em paralelo
-                // Contagem as cegas e a tela dedicada de Caixa (Parte 3 desta fase,
-                // ainda nao construida) sao o lugar certo pra essa mudanca — este
-                // modal aqui sai de cena quando ela chegar, entao mantem o
-                // comportamento original por enquanto.
-                const [resumoFechamento, resumoDiario] = await Promise.all([
-                  obterResumoCaixaAbertoAtual(),
-                  obterResumoCaixaDiario(),
-                ]);
-                setValorFechamentoCaixa(resumoFechamento.valorSugeridoFechamento.toFixed(2));
-                setResumoCaixaDiario(resumoDiario);
-                setModalFecharCaixaAberto(true);
-              } catch (erro) {
-                // Exibe o erro para diagnóstico no terminal e notifica o usuário via toast
-                console.error("[PDV] Falha ao preparar fechamento de caixa:", erro);
-                const mensagem =
-                  erro instanceof Error
-                    ? erro.message
-                    : "Não foi possível carregar o resumo de fechamento.";
-                toast.error("Erro ao fechar caixa", {
-                  description: mensagem,
-                });
-              } finally {
-                setCarregandoResumoFechamento(false);
-              }
-            }}
-            disabled={!caixaAberto || carregandoStatusCaixa || carregandoResumoFechamento}
-          >
-            {carregandoResumoFechamento ? (
-              <>
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                Preparando...
-              </>
-            ) : carregandoStatusCaixa ? (
-              <>
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                Verificando caixa...
-              </>
-            ) : (
-              <>
-                <Lock className="h-4 w-4 mr-2" />
-                Fechar Caixa
-              </>
-            )}
-          </Button>
+          {/* Substitui o antigo modal de "Fechamento de Caixa" (Fase 3-2C,
+              Parte 3): a contagem as cegas e o resumo do dia agora moram na
+              tela dedicada, que também é onde fica a visão "Caixa aberto"
+              (3 cartões + movimentações) que o modal nunca teve. */}
+          {caixaAberto && !carregandoStatusCaixa ? (
+            <Link
+              href="/pdv/caixa"
+              className="flex h-[42px] items-center rounded-kx-botao border border-kx-painel-borda px-4 text-sm font-semibold text-kx-texto hover:bg-kx-cartao"
+            >
+              <Lock className="h-4 w-4 mr-2" />
+              Caixa e fechamento
+            </Link>
+          ) : (
+            <Button type="button" variant="outline" className="h-[42px] rounded-kx-botao" disabled>
+              {carregandoStatusCaixa ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Verificando caixa...
+                </>
+              ) : (
+                <>
+                  <Lock className="h-4 w-4 mr-2" />
+                  Caixa e fechamento
+                </>
+              )}
+            </Button>
+          )}
 
           <Button
             type="button"
@@ -924,185 +867,6 @@ function PDVPageConteudo() {
             </Button>
             <Button type="button" onClick={abrirCaixa} disabled={abrindoCaixa}>
               {abrindoCaixa ? "Abrindo..." : "Confirmar Abertura"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={modalFecharCaixaAberto} onOpenChange={setModalFecharCaixaAberto}>
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Fechamento de Caixa</DialogTitle>
-            <DialogDescription>
-              Resumo financeiro do dia e encerramento da sessão atual.
-            </DialogDescription>
-          </DialogHeader>
-
-          {/* ── Relatório financeiro do dia ── */}
-          {resumoCaixaDiario && (() => {
-            const totalEntradas = resumoCaixaDiario.totalVendas;
-            const custoTotal    = resumoCaixaDiario.custoTotal;
-            const lucroBruto    = resumoCaixaDiario.lucroBruto;
-            const formas        = resumoCaixaDiario.totaisPorFormaPagamento;
-            const percentualMeta = Math.min((totalEntradas / META_DIARIA_REAIS) * 100, 100);
-            const metaAtingida  = totalEntradas >= META_DIARIA_REAIS;
-            const faltaMeta     = META_DIARIA_REAIS - totalEntradas;
-
-            // Configuração visual por forma de pagamento
-            const cfgForma: Record<string, { cor: string; corTexto: string; corBarra: string; Icone: React.ElementType }> = {
-              PIX:             { cor: "bg-teal-50 dark:bg-teal-950/30",     corTexto: "text-teal-700 dark:text-teal-300",      corBarra: "bg-teal-500",    Icone: QrCode          },
-              DINHEIRO:        { cor: "bg-emerald-50 dark:bg-emerald-950/30", corTexto: "text-emerald-700 dark:text-emerald-300", corBarra: "bg-emerald-500", Icone: Wallet          },
-              CARTAO_CREDITO:  { cor: "bg-violet-50 dark:bg-violet-950/30", corTexto: "text-violet-700 dark:text-violet-300",   corBarra: "bg-violet-500",  Icone: CreditCard      },
-              CARTAO_DEBITO:   { cor: "bg-blue-50 dark:bg-blue-950/30",     corTexto: "text-blue-700 dark:text-blue-300",      corBarra: "bg-blue-500",    Icone: CreditCard      },
-              BOLETO:          { cor: "bg-orange-50 dark:bg-orange-950/30", corTexto: "text-orange-700 dark:text-orange-300",  corBarra: "bg-orange-500",  Icone: Receipt         },
-              CREDIARIO:       { cor: "bg-amber-50 dark:bg-amber-950/30",   corTexto: "text-amber-700 dark:text-amber-300",    corBarra: "bg-amber-500",   Icone: BadgeDollarSign },
-              EMPENHO_PUBLICO: { cor: "bg-slate-50 dark:bg-slate-800/50",   corTexto: "text-slate-700 dark:text-slate-300",    corBarra: "bg-slate-500",   Icone: Building2       },
-            };
-            const fallbackCfg = { cor: "bg-slate-50 dark:bg-slate-800/50", corTexto: "text-slate-600 dark:text-slate-400", corBarra: "bg-slate-400", Icone: Banknote };
-
-            return (
-              <div className="space-y-5 pb-2">
-
-                {/* ── Meta Diária ── */}
-                <div className="rounded-xl border border-border bg-white dark:bg-slate-900 overflow-hidden">
-                  <div className="h-1 w-full bg-gradient-to-r from-blue-500 via-violet-500 to-emerald-500" />
-                  <div className="p-4 space-y-3">
-                    <div className="flex items-center justify-between flex-wrap gap-2">
-                      <span className="text-sm font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                        <Target className="h-4 w-4 text-blue-500" />
-                        Meta Diária — {formatarMoeda(META_DIARIA_REAIS)}
-                      </span>
-                      {metaAtingida ? (
-                        <Badge className="bg-emerald-100 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 font-semibold px-3">
-                          Meta Atingida! 🚀
-                        </Badge>
-                      ) : (
-                        <span className="text-sm font-semibold text-amber-600 dark:text-amber-400">
-                          Faltam {formatarMoeda(faltaMeta)} para a meta
-                        </span>
-                      )}
-                    </div>
-                    <Progress value={percentualMeta} className="h-3 rounded-full" />
-                    <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                      <span className="font-bold text-slate-800 dark:text-slate-100 tabular-nums">{formatarMoeda(totalEntradas)}</span>
-                      <span className="tabular-nums">{Math.round(percentualMeta)}% de {formatarMoeda(META_DIARIA_REAIS)}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* ── 3 Cartões de Resumo ── */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {/* Total de Entradas */}
-                  <div className="rounded-xl border-l-4 border-l-emerald-500 border border-border bg-white dark:bg-slate-900 p-4">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-1">Total de Entradas</p>
-                        <p className="text-xl font-extrabold tabular-nums text-emerald-600 dark:text-emerald-400">{formatarMoeda(totalEntradas)}</p>
-                      </div>
-                      <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 shrink-0">
-                        <TrendingUp className="h-4 w-4 text-emerald-600" />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Custo de Mercadoria */}
-                  <div className="rounded-xl border-l-4 border-l-rose-500 border border-border bg-white dark:bg-slate-900 p-4">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-1">Custo de Mercadoria / Peças</p>
-                        <p className="text-xl font-extrabold tabular-nums text-rose-600 dark:text-rose-400">{formatarMoeda(custoTotal)}</p>
-                      </div>
-                      <div className="p-2 rounded-xl bg-rose-50 dark:bg-rose-900/20 shrink-0">
-                        <Banknote className="h-4 w-4 text-rose-600" />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Lucro Bruto */}
-                  <div className="rounded-xl border-l-4 border-l-blue-500 border border-border bg-white dark:bg-slate-900 p-4">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-1">Lucro Bruto</p>
-                        <p className={`text-xl font-extrabold tabular-nums ${lucroBruto >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>{formatarMoeda(lucroBruto)}</p>
-                      </div>
-                      <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-900/20 shrink-0">
-                        <BadgeDollarSign className="h-4 w-4 text-blue-600" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* ── Detalhamento por Forma de Pagamento ── */}
-                <div className="rounded-xl border border-border bg-white dark:bg-slate-900">
-                  <div className="px-4 pt-4 pb-2 flex items-center gap-2">
-                    <CreditCard className="h-4 w-4 text-slate-500" />
-                    <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">Detalhamento por Forma de Pagamento</span>
-                  </div>
-                  <div className="px-4 pb-4 space-y-2">
-                    {formas.length > 0 ? (
-                      <>
-                        {formas.map((item) => {
-                          const cfg = cfgForma[item.formaPagamento] ?? fallbackCfg;
-                          const { Icone } = cfg;
-                          const pct = totalEntradas > 0 ? Math.round((item.total / totalEntradas) * 100) : 0;
-                          return (
-                            <div key={item.formaPagamento} className={`rounded-xl p-3 ${cfg.cor} flex items-center gap-3`}>
-                              <div className="shrink-0 w-8 h-8 rounded-lg bg-white dark:bg-slate-900/60 shadow-sm flex items-center justify-center">
-                                <Icone className={`w-4 h-4 ${cfg.corTexto}`} />
-                              </div>
-                              <div className="flex-1 min-w-0 space-y-1">
-                                <div className="flex items-center justify-between gap-2">
-                                  <span className={`text-sm font-semibold ${cfg.corTexto}`}>{formatarFormaPagamento(item.formaPagamento)}</span>
-                                  <span className={`text-sm font-bold tabular-nums ${cfg.corTexto}`}>{formatarMoeda(item.total)}</span>
-                                </div>
-                                <div className="w-full h-1.5 rounded-full bg-white/60 dark:bg-slate-900/40 overflow-hidden">
-                                  <div className={`h-full rounded-full ${cfg.corBarra} transition-all duration-500`} style={{ width: `${pct}%` }} />
-                                </div>
-                              </div>
-                              <span className={`shrink-0 text-xs font-bold tabular-nums w-8 text-right ${cfg.corTexto} opacity-70`}>{pct}%</span>
-                            </div>
-                          );
-                        })}
-                        {/* Linha de total geral */}
-                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                          <span className="text-sm font-semibold text-slate-600 dark:text-slate-400">Total Geral</span>
-                          <span className="text-sm font-extrabold tabular-nums text-slate-900 dark:text-slate-50">{formatarMoeda(totalEntradas)}</span>
-                        </div>
-                      </>
-                    ) : (
-                      <p className="text-sm text-slate-400 dark:text-slate-500 py-4 text-center">
-                        Nenhuma venda registrada nesta sessão.
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-              </div>
-            );
-          })()}
-
-          {/* ── Valor de fechamento ── */}
-          <div className="space-y-2">
-            <label htmlFor="valor-fechamento-caixa" className="text-sm font-medium text-kx-texto">
-              Valor Final (R$)
-            </label>
-            <Input
-              id="valor-fechamento-caixa"
-              type="number"
-              min="0"
-              step="0.01"
-              value={valorFechamentoCaixa}
-              onChange={(evento) => setValorFechamentoCaixa(evento.target.value)}
-              placeholder="0,00"
-            />
-          </div>
-
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setModalFecharCaixaAberto(false)}>
-              Cancelar
-            </Button>
-            <Button type="button" onClick={fecharCaixa} disabled={fechandoCaixa}>
-              {fechandoCaixa ? "Fechando..." : "Confirmar Fechamento"}
             </Button>
           </DialogFooter>
         </DialogContent>
