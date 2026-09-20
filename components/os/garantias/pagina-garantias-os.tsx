@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Card } from "@/components/ui/card";
+import { Aviso } from "@/components/ui/aviso";
+import { Table, TableBody, TabelaCarregando } from "@/components/ui/table";
 import { FiltrosGarantias } from "@/components/os/garantias/filtros-garantias";
 import { TabelaGarantias } from "@/components/os/garantias/tabela-garantias";
 import { DashboardGarantias } from "@/components/os/garantias/dashboard-garantias";
@@ -73,13 +74,15 @@ export function PaginaGarantiasOS({ dashboardInicial, linhasIniciais, erroInicia
       <FiltrosGarantias filtros={filtros} onChange={aoAtualizarFiltros} />
 
       {erro ? (
-        <Card className="p-4 border border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/30">
-          <p className="text-sm text-red-700 dark:text-red-200">{erro}</p>
-        </Card>
+        <Aviso variante="erro">{erro}</Aviso>
       ) : carregando ? (
-        <Card className="p-6">
-          <p className="text-sm text-slate-500 dark:text-slate-400">Carregando garantias...</p>
-        </Card>
+        <div className="overflow-hidden rounded-kx-painel border border-kx-painel-borda bg-kx-cartao">
+          <Table className="min-w-[1600px]">
+            <TableBody>
+              <TabelaCarregando colunas={19} />
+            </TableBody>
+          </Table>
+        </div>
       ) : (
         <TabelaGarantias linhas={linhas} onAtualizar={() => void carregar(filtros)} />
       )}

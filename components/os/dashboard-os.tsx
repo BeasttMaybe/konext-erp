@@ -43,8 +43,10 @@ import {
   PackageCheck,
   CheckCircle2,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { CartaoIndicador } from "@/components/ui/cartao-indicador";
+import { PilulaStatus } from "@/components/ui/pilula-status";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TabelaVazia } from "@/components/ui/table";
 
 interface DashboardOSProps {
   activeOrderServices: OrdemServico[];
@@ -436,7 +438,7 @@ export function DashboardOS({
       {/* Search and Action Bar */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-kx-legenda" />
           <Input
             placeholder="Buscar por nº OS, cliente ou equipamento..."
             className="pl-10 h-10"
@@ -444,109 +446,81 @@ export function DashboardOS({
             onChange={(e) => setBuscaTexto(e.target.value)}
           />
         </div>
-        <Button
-          onClick={() => setModalAberta(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white h-10 px-6 whitespace-nowrap"
-        >
+        <Button onClick={() => setModalAberta(true)} className="h-10 px-6 whitespace-nowrap">
           <Plus className="w-4 h-4 mr-2" />
           Nova Ordem de Serviço
         </Button>
       </div>
 
       {/* Abas: Kanban | Finalizadas | Garantia — Excluidas virou filtro (Fase 1C-3, Parte 5) */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          type="button"
-          variant={modoVisualizacao === "KANBAN" ? "default" : "outline"}
-          onClick={() => {
-            setModoVisualizacao("KANBAN");
-            router.push("/os?modo=kanban");
-          }}
-          className="h-9"
-        >
-          <KanbanSquare className="w-4 h-4 mr-2" />
-          Kanban
-        </Button>
-        <Button
-          type="button"
-          variant={modoVisualizacao === "LISTA_FINALIZADAS" ? "default" : "outline"}
-          onClick={() => {
-            setModoVisualizacao("LISTA_FINALIZADAS");
-            router.push("/os?modo=lista");
-          }}
-          className="h-9"
-        >
-          <ListChecks className="w-4 h-4 mr-2" />
-          Finalizadas e Entregues (Lista)
-        </Button>
-        <Button
-          type="button"
-          variant={modoVisualizacao === "GARANTIA" ? "default" : "outline"}
-          onClick={() => {
-            setModoVisualizacao("GARANTIA");
-            router.push("/os?modo=garantia");
-          }}
-          className="h-9"
-        >
-          Garantia
-        </Button>
-      </div>
+      <Tabs
+        value={modoVisualizacao}
+        onValueChange={(valor) => {
+          const modo = valor as "KANBAN" | "LISTA_FINALIZADAS" | "GARANTIA";
+          setModoVisualizacao(modo);
+          router.push(`/os?modo=${modo === "KANBAN" ? "kanban" : modo === "LISTA_FINALIZADAS" ? "lista" : "garantia"}`);
+        }}
+      >
+        <TabsList>
+          <TabsTrigger value="KANBAN">
+            <KanbanSquare className="w-4 h-4 mr-2" />
+            Kanban
+          </TabsTrigger>
+          <TabsTrigger value="LISTA_FINALIZADAS">
+            <ListChecks className="w-4 h-4 mr-2" />
+            Finalizadas e Entregues (Lista)
+          </TabsTrigger>
+          <TabsTrigger value="GARANTIA">Garantia</TabsTrigger>
+        </TabsList>
 
-      {/* Statistics Cards - segue as 4 etapas (Fase 1C-3, Parte 4) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-kx-4">
-        <CartaoIndicador
-          variante="alerta"
-          titulo={ROTULOS_ETAPA_OS.ORCAMENTO}
-          valor={filteredActiveOrders.filter((o) => o.etapa === "ORCAMENTO").length}
-          icone={<ClipboardList />}
-        />
-        <CartaoIndicador
-          variante="azul"
-          titulo={ROTULOS_ETAPA_OS.CONSERTO}
-          valor={filteredActiveOrders.filter((o) => o.etapa === "CONSERTO").length}
-          icone={<Wrench />}
-        />
-        <CartaoIndicador
-          variante="sucesso"
-          titulo={ROTULOS_ETAPA_OS.PRONTO}
-          valor={filteredActiveOrders.filter((o) => o.etapa === "PRONTO").length}
-          icone={<PackageCheck />}
-        />
-        <CartaoIndicador
-          variante="entregue"
-          titulo={ROTULOS_ETAPA_OS.ENTREGUE}
-          valor={deliveredOrdersCount}
-          icone={<CheckCircle2 />}
-        />
-      </div>
+        {/* Statistics Cards - segue as 4 etapas (Fase 1C-3, Parte 4) */}
+        <div className="mt-kx-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-kx-4">
+          <CartaoIndicador
+            variante="alerta"
+            titulo={ROTULOS_ETAPA_OS.ORCAMENTO}
+            valor={filteredActiveOrders.filter((o) => o.etapa === "ORCAMENTO").length}
+            icone={<ClipboardList />}
+          />
+          <CartaoIndicador
+            variante="azul"
+            titulo={ROTULOS_ETAPA_OS.CONSERTO}
+            valor={filteredActiveOrders.filter((o) => o.etapa === "CONSERTO").length}
+            icone={<Wrench />}
+          />
+          <CartaoIndicador
+            variante="sucesso"
+            titulo={ROTULOS_ETAPA_OS.PRONTO}
+            valor={filteredActiveOrders.filter((o) => o.etapa === "PRONTO").length}
+            icone={<PackageCheck />}
+          />
+          <CartaoIndicador
+            variante="entregue"
+            titulo={ROTULOS_ETAPA_OS.ENTREGUE}
+            valor={deliveredOrdersCount}
+            icone={<CheckCircle2 />}
+          />
+        </div>
 
-      {/* Kanban Board Container */}
-      <Card className="border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden">
-        <div className="p-4 sm:p-6">
-          <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-50 mb-6">
-            {modoVisualizacao === "KANBAN"
-              ? "Quadro de Ordens de Serviço"
-              : modoVisualizacao === "LISTA_FINALIZADAS"
-                ? mostrarExcluidas
-                  ? "Lista de Ordens de Serviço Excluídas"
-                  : "Lista de Finalizadas e Entregues"
-                : "Garantias"}
-          </h2>
+        {/* Conteúdo da aba ativa */}
+        <Card className="mt-kx-4 border border-kx-painel-borda bg-kx-cartao overflow-hidden">
+          <div className="p-4 sm:p-6">
+            <TabsContent value="KANBAN" className="mt-0">
+              <h2 className="text-lg sm:text-xl font-bold text-kx-texto mb-6">Quadro de Ordens de Serviço</h2>
 
-          {modoVisualizacao === "KANBAN" && filteredActiveOrders.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <AlertCircle className="w-12 h-12 text-slate-300 mb-4" />
-              <p className="text-slate-500 font-medium">
-                Nenhuma ordem de serviço encontrada
-              </p>
-              <p className="text-sm text-slate-400 mt-2">
-                {buscaTexto
-                  ? "Tente ajustar sua busca"
-                  : "Clique em 'Nova Ordem de Serviço' para começar"}
-              </p>
-            </div>
-          ) : modoVisualizacao === "KANBAN" ? (
-            <div className="px-0">
+              {filteredActiveOrders.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <AlertCircle className="w-12 h-12 text-kx-legenda mb-4" />
+                  <p className="text-kx-texto-2 font-medium">
+                    Nenhuma ordem de serviço encontrada
+                  </p>
+                  <p className="text-sm text-kx-legenda mt-2">
+                    {buscaTexto
+                      ? "Tente ajustar sua busca"
+                      : "Clique em 'Nova Ordem de Serviço' para começar"}
+                  </p>
+                </div>
+              ) : (
+                <div className="px-0">
                 <TabuleiroKanban
                   ordensServico={filteredActiveOrders}
                   onMoverOS={handleMoverOS}
@@ -558,23 +532,29 @@ export function DashboardOS({
                   podeArquivarOS={podeFinalizarOS}
                   podeEditarTecnicos={podeEditarTecnicos}
                 />
-            </div>
-          ) : modoVisualizacao === "LISTA_FINALIZADAS" ? (
-            <div className="overflow-x-auto">
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="LISTA_FINALIZADAS" className="mt-0">
+              <h2 className="text-lg sm:text-xl font-bold text-kx-texto mb-6">
+                {mostrarExcluidas ? "Lista de Ordens de Serviço Excluídas" : "Lista de Finalizadas e Entregues"}
+              </h2>
+
               {/* O filtro nunca pode depender do resultado que ele mesmo produz —
                   renderizado sempre que a lista esta ativa, nunca condicionado a
                   filteredArchivedOrders (Fase 1C-2 follow-up, Parte 3). Antes disso,
                   marcar a caixa e zerar a lista escondia a propria caixa e travava
                   o operador no filtro sem jeito de voltar. */}
               {ordensEntreguesNaoArquivadas.length > 0 && (
-                <p className="mb-3 text-sm text-amber-700 dark:text-amber-400">
+                <p className="mb-3 text-sm text-kx-alerta">
                   {ordensEntreguesNaoArquivadas.length === 1
                     ? "1 OS entregue ainda não arquivada"
                     : `${ordensEntreguesNaoArquivadas.length} OS entregues ainda não arquivadas`}
                   {" — "}
                   <button
                     type="button"
-                    className="underline underline-offset-2 hover:text-amber-900 dark:hover:text-amber-300"
+                    className="underline underline-offset-2 hover:opacity-80"
                     onClick={() => {
                       setModoVisualizacao("KANBAN");
                       router.push("/os?modo=kanban");
@@ -586,23 +566,23 @@ export function DashboardOS({
                 </p>
               )}
               <div className="mb-3 flex flex-wrap items-center gap-4">
-                <label className="flex w-fit items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                <label className="flex w-fit items-center gap-2 text-sm text-kx-texto-2">
                   <input
                     type="checkbox"
                     checked={mostrarExcluidas}
                     onChange={(evento) => setMostrarExcluidas(evento.target.checked)}
-                    className="h-4 w-4 rounded border-slate-300 dark:border-slate-600"
+                    className="h-4 w-4 rounded border-kx-campo-borda"
                   />
                   <ArchiveX className="h-4 w-4" />
                   Mostrar excluídas
                 </label>
                 {!mostrarExcluidas && (
-                  <label className="flex w-fit items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                  <label className="flex w-fit items-center gap-2 text-sm text-kx-texto-2">
                     <input
                       type="checkbox"
                       checked={somenteSemServico}
                       onChange={(evento) => setSomenteSemServico(evento.target.checked)}
-                      className="h-4 w-4 rounded border-slate-300 dark:border-slate-600"
+                      className="h-4 w-4 rounded border-kx-campo-borda"
                     />
                     Mostrar só entregues sem serviço
                   </label>
@@ -610,58 +590,54 @@ export function DashboardOS({
               </div>
 
               {mostrarExcluidas ? (
-                filteredDeletedOrders.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-16 text-center">
-                    <AlertCircle className="w-12 h-12 text-slate-300 mb-4" />
-                    <p className="text-slate-500 font-medium">
-                      Nenhuma ordem de serviço excluída encontrada.
-                    </p>
-                  </div>
-                ) : (
-                  <table className="w-full min-w-[1120px] text-sm">
-                    <thead>
-                      <tr className="border-b border-slate-200 dark:border-slate-700 text-left text-slate-500 dark:text-slate-400">
-                        <th className="py-2 pr-3 font-medium">Nº OS</th>
-                        <th className="py-2 pr-3 font-medium">Cliente</th>
-                        <th className="py-2 pr-3 font-medium">Equipamento</th>
-                        <th className="py-2 pr-3 font-medium">Orçamento</th>
-                        <th className="py-2 pr-3 font-medium">Status anterior</th>
-                        <th className="py-2 pr-3 font-medium">Excluída por</th>
-                        <th className="py-2 pr-3 font-medium">Motivo da exclusão</th>
-                        <th className="py-2 pr-3 font-medium">Excluída em</th>
-                        <th className="py-2 pr-0 font-medium text-right">Ações</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredDeletedOrders.map((os) => (
-                        <tr
-                          key={os.id}
-                          className="border-b border-slate-100 dark:border-slate-700/70 text-slate-700 dark:text-slate-200"
-                        >
-                          <td className="py-3 pr-3 font-semibold">{os.numeroOS}</td>
-                          <td className="py-3 pr-3">{os.nomeCliente}</td>
-                          <td className="py-3 pr-3">{os.equipamento}</td>
-                          <td className="py-3 pr-3">{formatarMoeda(os.totalOrcamento)}</td>
-                          <td className="py-3 pr-3">
-                            <Badge variant="outline">{os.statusAnterior}</Badge>
-                          </td>
-                          <td className="py-3 pr-3">{os.excluidaPor}</td>
-                          <td className="py-3 pr-3 max-w-[320px] truncate" title={os.motivoExclusao}>
-                            {os.motivoExclusao}
-                          </td>
-                          <td className="py-3 pr-3 text-slate-500 dark:text-slate-400">
-                            {formatarDataHora(os.excluidaEm)}
-                          </td>
-                          <td className="py-3 pr-0 text-right text-xs text-slate-500">Somente leitura</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )
+                <div className="overflow-hidden rounded-kx-painel border border-kx-painel-borda">
+                  <Table className="min-w-[1120px]">
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead>Nº OS</TableHead>
+                        <TableHead>Cliente</TableHead>
+                        <TableHead>Equipamento</TableHead>
+                        <TableHead className="text-right">Orçamento</TableHead>
+                        <TableHead>Status anterior</TableHead>
+                        <TableHead>Excluída por</TableHead>
+                        <TableHead>Motivo da exclusão</TableHead>
+                        <TableHead>Excluída em</TableHead>
+                        <TableHead className="text-right">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody zebra>
+                      {filteredDeletedOrders.length === 0 ? (
+                        <TabelaVazia
+                          colSpan={9}
+                          titulo="Nenhuma ordem de serviço excluída encontrada"
+                          icone={<ArchiveX className="h-8 w-8" aria-hidden="true" />}
+                        />
+                      ) : (
+                        filteredDeletedOrders.map((os) => (
+                          <TableRow key={os.id}>
+                            <TableCell className="font-semibold">{os.numeroOS}</TableCell>
+                            <TableCell>{os.nomeCliente}</TableCell>
+                            <TableCell>{os.equipamento}</TableCell>
+                            <TableCell numerico>{formatarMoeda(os.totalOrcamento)}</TableCell>
+                            <TableCell>
+                              <PilulaStatus variante="neutro">{os.statusAnterior}</PilulaStatus>
+                            </TableCell>
+                            <TableCell>{os.excluidaPor}</TableCell>
+                            <TableCell className="max-w-[320px] truncate" title={os.motivoExclusao}>
+                              {os.motivoExclusao}
+                            </TableCell>
+                            <TableCell className="text-kx-legenda">{formatarDataHora(os.excluidaEm)}</TableCell>
+                            <TableCell className="text-right text-xs text-kx-legenda">Somente leitura</TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
               ) : filteredArchivedOrders.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 text-center">
-                  <AlertCircle className="w-12 h-12 text-slate-300 mb-4" />
-                  <p className="text-slate-500 font-medium">
+                  <AlertCircle className="w-12 h-12 text-kx-legenda mb-4" />
+                  <p className="text-kx-texto-2 font-medium">
                     {somenteSemServico
                       ? "Nenhuma OS entregue sem serviço neste período."
                       : "Nenhuma OS finalizada ou entregue"}
@@ -680,82 +656,79 @@ export function DashboardOS({
                   )}
                 </div>
               ) : (
-                <table className="w-full min-w-[840px] text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-200 dark:border-slate-700 text-left text-slate-500 dark:text-slate-400">
-                      <th className="py-2 pr-3 font-medium">Nº OS</th>
-                      <th className="py-2 pr-3 font-medium">Cliente</th>
-                      <th className="py-2 pr-3 font-medium">Equipamento</th>
-                      <th className="py-2 pr-3 font-medium">Orçamento</th>
-                      <th className="py-2 pr-3 font-medium">Status</th>
-                      <th className="py-2 pr-3 font-medium">Atualizado em</th>
-                      {podeReabrirOS && <th className="py-2 pr-0 font-medium text-right">Ações</th>}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredArchivedOrders.map((os) => (
-                      <tr
-                        key={os.id}
-                        className="border-b border-slate-100 dark:border-slate-700/70 text-slate-700 dark:text-slate-200 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/30"
-                        onClick={() => handleAbrirDetalhesOS(os)}
-                      >
-                        <td className="py-3 pr-3 font-semibold">{os.numeroOS}</td>
-                        <td className="py-3 pr-3">{os.nomeCliente}</td>
-                        <td className="py-3 pr-3">{os.equipamento}</td>
-                        <td className="py-3 pr-3">{formatarMoeda(os.totalOrcamento)}</td>
-                        <td className="py-3 pr-3">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300">
-                              Finalizada
-                            </Badge>
-                            {os.entregueSemServico && (
-                              <Badge
-                                variant="outline"
-                                className="border-amber-500 text-amber-700 dark:text-amber-300"
-                                title={os.motivoSemServico}
-                              >
-                                Entregue sem serviço
-                              </Badge>
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-3 pr-3 text-slate-500 dark:text-slate-400">
-                          {formatarDataHora(os.dataAtualizacao)}
-                        </td>
-                        {podeReabrirOS && (
-                          <td className="py-3 pr-0 text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="h-8"
-                                onClick={(evento) => {
-                                  evento.stopPropagation();
-                                  void handleReabrirOS(os);
-                                }}
-                              >
-                                <RotateCcw className="h-4 w-4 mr-2" />
-                                Reabrir OS
-                              </Button>
+                <div className="overflow-hidden rounded-kx-painel border border-kx-painel-borda">
+                  <Table className="min-w-[840px]">
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead>Nº OS</TableHead>
+                        <TableHead>Cliente</TableHead>
+                        <TableHead>Equipamento</TableHead>
+                        <TableHead className="text-right">Orçamento</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Atualizado em</TableHead>
+                        {podeReabrirOS && <TableHead className="text-right">Ações</TableHead>}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody zebra>
+                      {filteredArchivedOrders.map((os) => (
+                        <TableRow
+                          key={os.id}
+                          className="cursor-pointer"
+                          onClick={() => handleAbrirDetalhesOS(os)}
+                        >
+                          <TableCell className="font-semibold">{os.numeroOS}</TableCell>
+                          <TableCell>{os.nomeCliente}</TableCell>
+                          <TableCell>{os.equipamento}</TableCell>
+                          <TableCell numerico>{formatarMoeda(os.totalOrcamento)}</TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <PilulaStatus variante="sucesso">Finalizada</PilulaStatus>
+                              {os.entregueSemServico && (
+                                <PilulaStatus variante="neutro" title={os.motivoSemServico}>
+                                  Entregue sem serviço
+                                </PilulaStatus>
+                              )}
                             </div>
-                          </td>
-                        )}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                          </TableCell>
+                          <TableCell className="text-kx-legenda">{formatarDataHora(os.dataAtualizacao)}</TableCell>
+                          {podeReabrirOS && (
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8"
+                                  onClick={(evento) => {
+                                    evento.stopPropagation();
+                                    void handleReabrirOS(os);
+                                  }}
+                                >
+                                  <RotateCcw className="h-4 w-4 mr-2" />
+                                  Reabrir OS
+                                </Button>
+                              </div>
+                            </TableCell>
+                          )}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
-            </div>
-          ) : (
-            <PaginaGarantiasOS
-              dashboardInicial={dashboardGarantiasInicial}
-              linhasIniciais={linhasGarantiasIniciais}
-              erroInicial={erroGarantiasInicial}
-            />
-          )}
-        </div>
-      </Card>
+            </TabsContent>
+
+            <TabsContent value="GARANTIA" className="mt-0">
+              <h2 className="text-lg sm:text-xl font-bold text-kx-texto mb-6">Garantias</h2>
+              <PaginaGarantiasOS
+                dashboardInicial={dashboardGarantiasInicial}
+                linhasIniciais={linhasGarantiasIniciais}
+                erroInicial={erroGarantiasInicial}
+              />
+            </TabsContent>
+          </div>
+        </Card>
+      </Tabs>
 
       {/* Modal Nova OS */}
       <ModalNovaOS

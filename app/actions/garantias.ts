@@ -128,6 +128,8 @@ export type DashboardGarantiasOS = {
   comRetorno: number;
   taxaRetorno: number;
   valorEmGarantia: number;
+  /** Retornos com a OS de retorno hoje em CONSERTO — ainda sendo re-reparada, não é a mesma coisa que "com retorno" (histórico). */
+  retornosEmConserto: number;
   principaisServicosEmRetorno: Array<{ nome: string; quantidade: number }>;
   pecasComMaisRetorno: Array<{ nome: string; quantidade: number }>;
 };
@@ -1242,7 +1244,7 @@ export async function obterDashboardGarantiasOS(): Promise<DashboardGarantiasOS>
       ? Prisma.empty
       : Prisma.sql`AND (os."criadoPorId" = ${usuarioIdAtual} OR EXISTS (SELECT 1 FROM "TecnicoOS" t WHERE t."osId" = os.id AND t."usuarioId" = ${usuarioIdAtual}))`;
 
-  const [ativas, vencem7, vencidas, comRetorno, totalBase, valorAtivoRaw, principaisServicos, principaisPecas] = await Promise.all([
+  const [ativas, vencem7, vencidas, comRetorno, retornosEmConserto, totalBase, valorAtivoRaw, principaisServicos, principaisPecas] = await Promise.all([
     prisma.termoGarantiaOS.count({
       where: {
         canceladaEm: null,
@@ -1269,6 +1271,11 @@ export async function obterDashboardGarantiasOS(): Promise<DashboardGarantiasOS>
         canceladaEm: null,
         os: { excluidaEm: null, ...escopoOS },
         retornos: { some: {} },
+      },
+    }),
+    prisma.retornoGarantiaOS.count({
+      where: {
+        osRetorno: { etapa: "CONSERTO", excluidaEm: null, ...escopoOS },
       },
     }),
     prisma.termoGarantiaOS.count({
@@ -1324,6 +1331,7 @@ export async function obterDashboardGarantiasOS(): Promise<DashboardGarantiasOS>
     comRetorno,
     taxaRetorno: totalBase > 0 ? Number(((comRetorno / totalBase) * 100).toFixed(2)) : 0,
     valorEmGarantia,
+    retornosEmConserto,
     principaisServicosEmRetorno: principaisServicos.map((item) => ({
       nome: normalizarTexto(item.nome) || "Servico nao informado",
       quantidade: Number(item.quantidade ?? 0),

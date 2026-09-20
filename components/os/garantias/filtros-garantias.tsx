@@ -39,7 +39,7 @@ export function FiltrosGarantias({ filtros, onChange }: FiltrosGarantiasProps) {
   const retornoAtual = useMemo(() => filtros.retorno ?? "TODAS", [filtros.retorno]);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-6 gap-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+    <div className="grid grid-cols-1 lg:grid-cols-6 gap-kx-4 rounded-kx-painel border border-kx-painel-borda bg-kx-cartao p-kx-4">
       <div className="lg:col-span-2 space-y-2">
         <Label htmlFor="busca-garantias">Buscar por cliente, OS, telefone, aparelho ou IMEI</Label>
         <Input

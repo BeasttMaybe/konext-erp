@@ -15,6 +15,7 @@ const DASHBOARD_GARANTIAS_VAZIO: DashboardGarantiasOS = {
   comRetorno: 0,
   taxaRetorno: 0,
   valorEmGarantia: 0,
+  retornosEmConserto: 0,
   principaisServicosEmRetorno: [],
   pecasComMaisRetorno: [],
 };
