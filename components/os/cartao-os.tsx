@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { OrdemServico, SituacaoOS } from "@/types/os";
 import { ROTULOS_SITUACAO_OS } from "@/lib/dominio/os/maquina-estados";
 import { SITUACOES_VALIDAS_POR_ETAPA } from "@/lib/dominio/os/etapas";
-import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { PilulaStatus } from "@/components/ui/pilula-status";
 import {
   Smartphone,
   DollarSign,
@@ -28,8 +28,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ResumoTecnicosOS } from "./resumo-tecnicos-os";
+import { ResumoTecnicosOS, iniciais } from "./resumo-tecnicos-os";
 import { ModalTecnicosOS } from "./modal-tecnicos-os";
+
+/** Acima disso, o tempo na etapa vira --kx-alerta — mesmo limiar de "parado" do dashboard (app/actions/dashboard.ts). */
+const DIAS_LIMITE_ETAPA = 7;
+
+function diasDesde(dataISO: string): number {
+  const diffMs = Date.now() - new Date(dataISO).getTime();
+  return Math.max(0, Math.floor(diffMs / 86_400_000));
+}
 
 interface CartaoOSProps {
   os: OrdemServico;
@@ -95,6 +103,12 @@ export function CartaoOS({
     });
   };
 
+  // "Tempo na etapa": proxy de dataAtualizacao, o unico carimbo de tempo que a
+  // OS tem hoje — nao e literalmente "desde que entrou nesta etapa" (qualquer
+  // edicao toca esse campo), mas e o melhor sinal disponivel sem mudar o schema.
+  const diasNaEtapa = diasDesde(os.dataAtualizacao);
+  const etapaEmAlerta = diasNaEtapa >= DIAS_LIMITE_ETAPA;
+
   return (
     <Card
       className={`group p-4 cursor-pointer transition-all duration-200 border border-border bg-background/90 ${
@@ -108,25 +122,21 @@ export function CartaoOS({
         {/* Header: Order Number & Status Badge */}
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2">
-            <GripVertical className="w-4 h-4 text-slate-400 dark:text-slate-500" />
-            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-50 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+            <GripVertical className="w-4 h-4 text-kx-legenda" />
+            <h3 className="text-sm font-bold text-kx-texto transition-colors group-hover:text-kx-link">
               {os.numeroOS}
             </h3>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-1">
             {os.situacao ? (
-              <Badge className="whitespace-nowrap bg-amber-100 text-amber-800 text-xs font-medium dark:bg-amber-950/50 dark:text-amber-300">
+              <PilulaStatus variante="alerta" className="whitespace-nowrap">
                 {ROTULOS_SITUACAO_OS[os.situacao]}
-              </Badge>
+              </PilulaStatus>
             ) : null}
             {os.entregueSemServico ? (
-              <Badge
-                variant="outline"
-                className="whitespace-nowrap border-amber-500 text-xs font-medium text-amber-700 dark:text-amber-300"
-                title={os.motivoSemServico}
-              >
+              <PilulaStatus variante="neutro" className="whitespace-nowrap" title={os.motivoSemServico}>
                 Sem serviço
-              </Badge>
+              </PilulaStatus>
             ) : null}
             {mostrarMenu ? (
               <DropdownMenu>
@@ -183,18 +193,20 @@ export function CartaoOS({
         {/* Client */}
         <div className="text-sm border-t border-border/60 pt-2">
           <p className="text-xs text-muted-foreground font-medium mb-1">Cliente</p>
-          <p className="font-medium text-foreground truncate">
-            {os.nomeCliente}
-          </p>
+          <div className="flex items-center gap-2 min-w-0">
+            <span
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[10px] font-semibold text-primary"
+              aria-hidden="true"
+            >
+              {iniciais(os.nomeCliente)}
+            </span>
+            <p className="font-medium text-foreground truncate">{os.nomeCliente}</p>
+          </div>
           {os.ehRetornoGarantia && (
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              <Badge className="bg-indigo-100 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300">
-                Garantia
-              </Badge>
+              <PilulaStatus variante="garantia">Garantia</PilulaStatus>
               {os.retornoGarantiaFinalizadoEm && (
-                <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
-                  Retorno finalizado
-                </Badge>
+                <PilulaStatus variante="sucesso">Retorno finalizado</PilulaStatus>
               )}
               {os.numeroOSOrigemGarantia && (
                 <span className="text-xs text-muted-foreground">Origem: {os.numeroOSOrigemGarantia}</span>
@@ -224,12 +236,12 @@ export function CartaoOS({
 
         {/* Budget Value - If Available */}
         {os.totalOrcamento > 0 && (
-          <div className="flex items-center justify-between p-2 rounded border border-emerald-200/70 bg-emerald-50/80 dark:border-emerald-900/60 dark:bg-emerald-950/30">
+          <div className="flex items-center justify-between p-2 rounded border border-kx-sucesso/30 bg-kx-sucesso-fundo">
             <div className="flex items-center gap-2">
-              <DollarSign className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <DollarSign className="w-4 h-4 text-kx-sucesso-texto" />
               <div>
-                <p className="text-xs text-emerald-700 dark:text-emerald-300 font-medium">Orçamento</p>
-                <p className="font-bold text-emerald-700 dark:text-emerald-300 text-sm">
+                <p className="text-xs text-kx-sucesso-texto font-medium">Orçamento</p>
+                <p className="font-bold text-kx-sucesso-texto text-sm">
                   {formatarMoeda(os.totalOrcamento)}
                 </p>
               </div>
@@ -237,10 +249,16 @@ export function CartaoOS({
           </div>
         )}
 
-        {/* Footer: Creation Date */}
-        <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2 border-t border-border/60">
+        {/* Footer: tempo na etapa */}
+        <div
+          className={`flex items-center gap-2 text-xs pt-2 border-t border-border/60 ${
+            etapaEmAlerta ? "font-medium text-kx-alerta" : "text-muted-foreground"
+          }`}
+        >
           <Clock className="w-3 h-3" />
           <span>{formatarData(os.dataAtualizacao)}</span>
+          <span aria-hidden="true">·</span>
+          <span>{diasNaEtapa === 0 ? "hoje" : diasNaEtapa === 1 ? "1 dia nesta etapa" : `${diasNaEtapa} dias nesta etapa`}</span>
         </div>
 
         {/* Ações rápidas de movimentação */}
@@ -283,14 +301,14 @@ export function CartaoOS({
         </div>
 
         {estadoExplicacao ? (
-          <p className="text-xs font-medium text-amber-700 dark:text-amber-400">{estadoExplicacao}</p>
+          <p className="text-xs font-medium text-kx-alerta">{estadoExplicacao}</p>
         ) : null}
 
         {onArquivar ? (
           <Button
             type="button"
             size="sm"
-            className="w-full bg-amber-600 hover:bg-amber-700 text-white"
+            className="w-full border border-kx-alerta/40 bg-kx-alerta-fundo text-kx-alerta-texto hover:opacity-90"
             onClick={(event) => {
               event.stopPropagation();
               onArquivar();

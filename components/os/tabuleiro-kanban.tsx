@@ -20,10 +20,22 @@ import {
   destinosPermitidosEtapa,
   ehEtapaOS,
   ehResgatePendente,
+  type VarianteEtapaOS,
 } from "@/lib/dominio/os/maquina-estados";
-import { Badge } from "@/components/ui/badge";
+import { PilulaStatus } from "@/components/ui/pilula-status";
 import { CartaoOS } from "./cartao-os";
 import { ListaColunaKanban } from "./lista-coluna-kanban";
+
+/** "Hoje" pro contador de entregas — mesmo fuso do navegador, só compara ano/mês/dia. */
+function ehHoje(dataISO: string): boolean {
+  const data = new Date(dataISO);
+  const agora = new Date();
+  return (
+    data.getFullYear() === agora.getFullYear() &&
+    data.getMonth() === agora.getMonth() &&
+    data.getDate() === agora.getDate()
+  );
+}
 
 interface TabuleiroKanbanProps {
   ordensServico: OrdemServico[];
@@ -65,21 +77,19 @@ function isEtapaKanban(etapa: EtapaOS): etapa is EtapaKanban {
   return ehEtapaOS(etapa);
 }
 
-const configuracaoEtapa: Record<
-  EtapaKanban,
-  { titulo: string; descricao: string; classe: string; borda: string; chip: string }
-> = Object.fromEntries(
+type ConfiguracaoColuna = { titulo: string; descricao: string; faixaTopo: string; variante: VarianteEtapaOS };
+
+const configuracaoEtapa: Record<EtapaKanban, ConfiguracaoColuna> = Object.fromEntries(
   ETAPA_OS_SEQUENCIA.map((etapa) => [
     etapa,
     {
       titulo: ROTULOS_ETAPA_OS[etapa],
       descricao: DESCRICOES_ETAPA_OS[etapa],
-      classe: CLASSES_ETAPA_OS[etapa].coluna,
-      borda: CLASSES_ETAPA_OS[etapa].borda,
-      chip: CLASSES_ETAPA_OS[etapa].chip,
+      faixaTopo: CLASSES_ETAPA_OS[etapa].faixaTopo,
+      variante: CLASSES_ETAPA_OS[etapa].variante,
     },
   ])
-) as Record<EtapaKanban, { titulo: string; descricao: string; classe: string; borda: string; chip: string }>;
+) as Record<EtapaKanban, ConfiguracaoColuna>;
 
 function classificarOrdens(ordens: OrdemServico[]) {
   const agrupadas = ETAPA_SEQUENCIA.reduce<Record<EtapaKanban, OrdemServico[]>>((acc, etapa) => {
@@ -450,12 +460,19 @@ export function TabuleiroKanban({
         {ETAPA_SEQUENCIA.map((etapa) => {
           const ordensFiltradas = ordensPorEtapa[etapa];
           const configuracao = configuracaoEtapa[etapa];
+          const ehColunaEntregue = etapa === "ENTREGUE";
+          // ENTREGUE está sempre em destinosDoArraste (ver comentário acima) e cartão
+          // entregue nunca é arrastável — essa coluna nunca aparece bloqueada de verdade,
+          // então o rótulo de "solte aqui" pode ficar fixo, sem alternar com o de bloqueio.
+          const entreguesHoje = ehColunaEntregue
+            ? ordensFiltradas.filter((os) => os.archivedAt && ehHoje(os.archivedAt)).length
+            : 0;
 
           return (
             <Droppable key={etapa} droppableId={etapa} isDropDisabled={colunaBloqueada(etapa)}>
               {(dropProvided, dropSnapshot) => (
                 <div
-                  className={`flex h-full min-h-0 w-[320px] shrink-0 flex-col overflow-hidden rounded-2xl border bg-gradient-to-b shadow-sm transition-all ${configuracao.classe} ${configuracao.borda} ${
+                  className={`flex h-full min-h-0 w-[320px] shrink-0 flex-col overflow-hidden rounded-kx-cartao border-x border-b border-x-kx-painel-borda border-b-kx-painel-borda bg-kx-painel shadow-sm transition-all ${configuracao.faixaTopo} ${
                     dropSnapshot.isDraggingOver ? "ring-2 ring-primary/30 shadow-lg" : ""
                   } ${colunaBloqueada(etapa) ? "opacity-40 saturate-50" : ""}`}
                 >
@@ -465,16 +482,29 @@ export function TabuleiroKanban({
                         <h3 className="font-bold text-foreground text-sm">{configuracao.titulo}</h3>
                         <p className="text-xs text-muted-foreground">{configuracao.descricao}</p>
                       </div>
-                      <Badge className={configuracao.chip} variant="secondary">{ordensFiltradas.length}</Badge>
+                      <PilulaStatus variante={configuracao.variante} comPonto>
+                        {ordensFiltradas.length}
+                      </PilulaStatus>
                     </div>
                     <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
                       <span>{ordensFiltradas.length === 1 ? "1 OS" : `${ordensFiltradas.length} OS`}</span>
                       <span>
-                        {colunaBloqueada(etapa)
-                          ? "Etapa indisponível para esta OS"
-                          : "Arraste para esta etapa"}
+                        {ehColunaEntregue
+                          ? "Solte aqui para entregar"
+                          : colunaBloqueada(etapa)
+                            ? "Etapa indisponível para esta OS"
+                            : "Arraste para esta etapa"}
                       </span>
                     </div>
+                    {ehColunaEntregue && (
+                      <p className="mt-1 text-xs font-medium text-kx-entregue-texto">
+                        {entreguesHoje === 0
+                          ? "Nenhuma entrega hoje ainda"
+                          : entreguesHoje === 1
+                            ? "1 entregue hoje"
+                            : `${entreguesHoje} entregues hoje`}
+                      </p>
+                    )}
                   </div>
 
                   <ListaColunaKanban

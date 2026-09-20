@@ -314,44 +314,26 @@ export const ROTULOS_SITUACAO_OS: Readonly<Record<SituacaoOS, string>> = {
   AGUARDANDO_PECA: "Aguardando peça",
 };
 
-/** Cores aprovadas pra Fase 1C-3 (ver prompt da fase) — uma por etapa, em hexadecimal puro. */
-export const HEX_ETAPA_OS: Readonly<Record<EtapaOS, string>> = {
-  ORCAMENTO: "#FBBF24",
-  CONSERTO: "#60A5FA",
-  PRONTO: "#34D399",
-  ENTREGUE: "#8B91FF",
-};
+export type VarianteEtapaOS = "orcamento" | "conserto" | "pronto" | "entregue";
 
 export type ClassesVisuaisEtapaOS = {
-  /** Gradiente do cabecalho da coluna do Kanban. */
-  readonly coluna: string;
-  /** Borda da coluna do Kanban. */
-  readonly borda: string;
-  /** Chip compacto usado no cartao e nas tabelas. */
-  readonly chip: string;
+  /** Faixa de 3px no topo da coluna do Kanban, na cor do indicador da etapa — a "regra de 3px". */
+  readonly faixaTopo: string;
+  /** Variante de PilulaStatus/CartaoIndicador pra essa etapa — nunca cor solta, sempre o par fundo/texto do token. */
+  readonly variante: VarianteEtapaOS;
 };
 
+/**
+ * Fase 3-2B: cor por etapa passa a vir só de --kx-* (ver docs/design/sistema-visual.md).
+ * Trocou o gradiente + borda colorida por fundo neutro (bg-kx-painel, igual pras 4 etapas)
+ * + uma faixa de 3px no topo — o "gradiente" era decoração sem token equivalente; a faixa
+ * de 3px é a identificação de etapa que sobra, mais legível nos dois temas.
+ */
 export const CLASSES_ETAPA_OS: Readonly<Record<EtapaOS, ClassesVisuaisEtapaOS>> = {
-  ORCAMENTO: {
-    coluna: "from-amber-50 via-white to-white dark:from-amber-950/40 dark:via-slate-900 dark:to-slate-900",
-    borda: "border-amber-300/80 dark:border-amber-900/60",
-    chip: "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300",
-  },
-  CONSERTO: {
-    coluna: "from-sky-50 via-white to-white dark:from-sky-950/40 dark:via-slate-900 dark:to-slate-900",
-    borda: "border-sky-300/80 dark:border-sky-900/60",
-    chip: "bg-sky-100 text-sky-700 dark:bg-sky-950/50 dark:text-sky-300",
-  },
-  PRONTO: {
-    coluna: "from-emerald-50 via-white to-white dark:from-emerald-950/40 dark:via-slate-900 dark:to-slate-900",
-    borda: "border-emerald-300/80 dark:border-emerald-900/60",
-    chip: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300",
-  },
-  ENTREGUE: {
-    coluna: "from-indigo-50 via-white to-white dark:from-indigo-950/40 dark:via-slate-900 dark:to-slate-900",
-    borda: "border-[#8B91FF]/50 dark:border-[#8B91FF]/40",
-    chip: "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300",
-  },
+  ORCAMENTO: { faixaTopo: "border-t-[3px] border-kx-orcamento", variante: "orcamento" },
+  CONSERTO: { faixaTopo: "border-t-[3px] border-kx-conserto", variante: "conserto" },
+  PRONTO: { faixaTopo: "border-t-[3px] border-kx-pronto", variante: "pronto" },
+  ENTREGUE: { faixaTopo: "border-t-[3px] border-kx-entregue", variante: "entregue" },
 };
 
 export function ehEtapaOS(valor: string): valor is EtapaOS {

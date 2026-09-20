@@ -2,7 +2,8 @@
 
 import type { TecnicoDaOS } from "@/types/os";
 
-function iniciais(nome: string): string {
+/** Duas letras a partir de um nome completo — reaproveitado pelo avatar de cliente do cartão de OS. */
+export function iniciais(nome: string): string {
   const partes = nome.trim().split(/\s+/).filter(Boolean);
   if (partes.length === 0) return "?";
   if (partes.length === 1) return partes[0].slice(0, 2).toUpperCase();

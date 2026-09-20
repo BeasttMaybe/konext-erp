@@ -81,7 +81,6 @@ const ARQUIVOS_COM_COR_LEGADA = [
   "components/os/acao-entrega-os.tsx",
   "components/os/acao-excluir-os.tsx",
   "components/os/botao-gerar-pedido-venda.tsx",
-  "components/os/cartao-os.tsx",
   "components/os/coluna-kanban.tsx",
   "components/os/dashboard-os.tsx",
   "components/os/garantias/acao-garantia-os.tsx",

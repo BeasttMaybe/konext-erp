@@ -27,10 +27,24 @@ import {
 } from "@/app/actions/os";
 import { finalizarRetornoGarantiaOS, type DashboardGarantiasOS, type LinhaGarantiaOS } from "@/app/actions/garantias";
 import { PaginaGarantiasOS } from "@/components/os/garantias/pagina-garantias-os";
-import { ehResgatePendente, HEX_ETAPA_OS, ROTULOS_ETAPA_OS } from "@/lib/dominio/os/maquina-estados";
+import { ehResgatePendente, ROTULOS_ETAPA_OS } from "@/lib/dominio/os/maquina-estados";
 import { useTemPermissao } from "@/contextos/contexto-permissoes";
-import { Search, Plus, AlertCircle, ListChecks, KanbanSquare, ArchiveX, RotateCcw, X } from "lucide-react";
+import {
+  Search,
+  Plus,
+  AlertCircle,
+  ListChecks,
+  KanbanSquare,
+  ArchiveX,
+  RotateCcw,
+  X,
+  ClipboardList,
+  Wrench,
+  PackageCheck,
+  CheckCircle2,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { CartaoIndicador } from "@/components/ui/cartao-indicador";
 
 interface DashboardOSProps {
   activeOrderServices: OrdemServico[];
@@ -479,42 +493,31 @@ export function DashboardOS({
       </div>
 
       {/* Statistics Cards - segue as 4 etapas (Fase 1C-3, Parte 4) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="p-4 sm:p-6 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:shadow-sm transition-shadow">
-          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 font-medium mb-2">
-            {ROTULOS_ETAPA_OS.ORCAMENTO}
-          </p>
-          <p className="text-2xl sm:text-3xl font-bold" style={{ color: HEX_ETAPA_OS.ORCAMENTO }}>
-            {filteredActiveOrders.filter((o) => o.etapa === "ORCAMENTO").length}
-          </p>
-        </Card>
-
-        <Card className="p-4 sm:p-6 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:shadow-sm transition-shadow">
-          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 font-medium mb-2">
-            {ROTULOS_ETAPA_OS.CONSERTO}
-          </p>
-          <p className="text-2xl sm:text-3xl font-bold" style={{ color: HEX_ETAPA_OS.CONSERTO }}>
-            {filteredActiveOrders.filter((o) => o.etapa === "CONSERTO").length}
-          </p>
-        </Card>
-
-        <Card className="p-4 sm:p-6 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:shadow-sm transition-shadow">
-          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 font-medium mb-2">
-            {ROTULOS_ETAPA_OS.PRONTO}
-          </p>
-          <p className="text-2xl sm:text-3xl font-bold" style={{ color: HEX_ETAPA_OS.PRONTO }}>
-            {filteredActiveOrders.filter((o) => o.etapa === "PRONTO").length}
-          </p>
-        </Card>
-
-        <Card className="p-4 sm:p-6 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:shadow-sm transition-shadow">
-          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 font-medium mb-2">
-            {ROTULOS_ETAPA_OS.ENTREGUE}
-          </p>
-          <p className="text-2xl sm:text-3xl font-bold" style={{ color: HEX_ETAPA_OS.ENTREGUE }}>
-            {deliveredOrdersCount}
-          </p>
-        </Card>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-kx-4">
+        <CartaoIndicador
+          variante="alerta"
+          titulo={ROTULOS_ETAPA_OS.ORCAMENTO}
+          valor={filteredActiveOrders.filter((o) => o.etapa === "ORCAMENTO").length}
+          icone={<ClipboardList />}
+        />
+        <CartaoIndicador
+          variante="azul"
+          titulo={ROTULOS_ETAPA_OS.CONSERTO}
+          valor={filteredActiveOrders.filter((o) => o.etapa === "CONSERTO").length}
+          icone={<Wrench />}
+        />
+        <CartaoIndicador
+          variante="sucesso"
+          titulo={ROTULOS_ETAPA_OS.PRONTO}
+          valor={filteredActiveOrders.filter((o) => o.etapa === "PRONTO").length}
+          icone={<PackageCheck />}
+        />
+        <CartaoIndicador
+          variante="entregue"
+          titulo={ROTULOS_ETAPA_OS.ENTREGUE}
+          valor={deliveredOrdersCount}
+          icone={<CheckCircle2 />}
+        />
       </div>
 
       {/* Kanban Board Container */}
