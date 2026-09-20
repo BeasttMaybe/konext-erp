@@ -25,7 +25,6 @@ import {
   Printer,
   QrCode,
   Trash2,
-  WalletCards,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -450,36 +449,29 @@ export function ModalPagamento({
     valorRecebidoDinheiro,
   });
 
-  const statusResumo =
-    estadoFechamento.tipo === "fechado"
-      ? { cor: "text-emerald-400", borda: "border-emerald-500/20", fundo: "bg-emerald-500/10" }
-      : estadoFechamento.tipo === "falta_pagar"
-        ? { cor: "text-amber-400", borda: "border-amber-500/20", fundo: "bg-amber-500/10" }
-        : { cor: "text-rose-400", borda: "border-rose-500/20", fundo: "bg-rose-500/10" };
-
   const resumoSaldo =
     estadoFechamento.tipo === "falta_pagar"
       ? {
           label: "Falta pagar",
           valor: formatarMoeda(Math.max(0, saldoCentavos) / 100),
-          cor: "text-amber-400",
+          cor: "text-kx-alerta-texto",
         }
       : estadoFechamento.tipo === "fechado" && totalDinheiro > 0 && troco > 0
         ? {
             label: "Troco",
             valor: formatarMoeda(troco),
-            cor: "text-emerald-400",
+            cor: "text-kx-sucesso-texto",
           }
         : estadoFechamento.tipo === "fechado"
           ? {
               label: "Saldo",
               valor: formatarMoeda(0),
-              cor: "text-slate-200",
+              cor: "text-kx-texto",
             }
           : {
               label: "Ajuste",
               valor: saldoCentavos < 0 ? formatarMoeda(Math.abs(saldoCentavos) / 100) : "Corrigir",
-              cor: "text-rose-400",
+              cor: "text-kx-erro-texto",
             };
 
   const podeConfirmar = total > 0 && estadoFechamento.podeConfirmar;
@@ -819,6 +811,70 @@ export function ModalPagamento({
 
   const urlRecibo = vendaIdGerada ? `/recibo/${vendaIdGerada}` : null;
 
+  // Detalhe da forma (taxa configurada + quando o dinheiro chega) pras
+  // "Formas rápidas" (referência: docs/design/referencia-pdv-pagamento.html).
+  // Taxa vem da configuração real do tenant (parametrosCalculo), não do
+  // percentualTaxaBase estático de CONFIG_PAGAMENTOS_PDV. Prazo de cartão
+  // não existe como dado hoje (só boleto/crediário têm diasVencimento) —
+  // por isso o texto pra cartão é sobre onde o dinheiro cai, não "em N
+  // dias", pra não inventar um prazo que o sistema não rastreia.
+  function detalheFormaRapida(forma: FormaPagamentoPdv): string {
+    if (forma === "PIX") return "Sem taxa · cai na hora";
+    if (forma === "DINHEIRO") return "Sem taxa · na gaveta";
+    if (forma === "CARTAO_DEBITO") return `Taxa ${parametrosCalculo.taxaCartaoDebitoPercentual.toFixed(2)}% · direto na conta`;
+    if (forma === "CARTAO_CREDITO") return `Taxa a partir de ${parametrosCalculo.taxaCartaoCreditoPorParcela[1].toFixed(2)}% · prazo da adquirente`;
+    if (forma === "BOLETO") return `Sem taxa · vence em ${configuracaoAtiva.prazoPadraoBoletoDias} dias`;
+    if (forma === "CREDIARIO") return `Sem taxa · vence em ${configuracaoAtiva.prazoPadraoCrediarioDias} dias`;
+    return "";
+  }
+
+  // "O que o sistema vai registrar" (referência): estoque, caixa, taxa,
+  // repasse esperado e parcelas — derivado só do que já está calculado
+  // acima, nenhuma logica nova de negocio.
+  const itensRegistro = useMemo(() => {
+    const itens: { texto: string; tom: "neutro" | "sucesso" | "alerta" }[] = [];
+
+    itens.push({
+      texto: "Baixa no estoque dos itens do carrinho (produtos vinculados a esta venda).",
+      tom: "neutro",
+    });
+
+    if (totalDinheiro > 0) {
+      itens.push({ texto: `${formatarMoeda(totalDinheiro)} somam ao dinheiro esperado na gaveta.`, tom: "sucesso" });
+    }
+
+    const formasNaoDinheiro = linhas.filter((linha) => linha.valorBruto > 0 && linha.formaPagamento !== "DINHEIRO");
+    for (const linha of formasNaoDinheiro) {
+      const calculado = pagamentosCalculadosPorLinha[linha.id];
+      if (!calculado) continue;
+      const rotulo = rotuloFormaPagamentoCurto(linha.formaPagamento);
+      if (calculado.valorTaxa > 0) {
+        itens.push({
+          texto: `${rotulo}: ${formatarMoeda(calculado.valorBruto)} bruto, taxa de ${formatarMoeda(calculado.valorTaxa)}, repasse líquido de ${formatarMoeda(calculado.valorLiquido)}.`,
+          tom: "alerta",
+        });
+      } else {
+        itens.push({ texto: `${rotulo}: ${formatarMoeda(calculado.valorBruto)}, sem taxa.`, tom: "neutro" });
+      }
+
+      if (linha.formaPagamento === "CARTAO_CREDITO" && linha.parcelas > 1) {
+        itens.push({ texto: `Parcelado em ${linha.parcelas}x de ${formatarMoeda(linha.valorBruto / linha.parcelas)}.`, tom: "neutro" });
+      }
+
+      if ((linha.formaPagamento === "BOLETO" || linha.formaPagamento === "CREDIARIO") && calculado.dataVencimento) {
+        itens.push({ texto: `Vencimento previsto: ${calculado.dataVencimento.toLocaleDateString("pt-BR")}.`, tom: "neutro" });
+      }
+    }
+
+    return itens;
+  }, [linhas, pagamentosCalculadosPorLinha, totalDinheiro]);
+
+  const corItemRegistro: Record<"neutro" | "sucesso" | "alerta", string> = {
+    neutro: "text-kx-legenda",
+    sucesso: "text-kx-sucesso-icone",
+    alerta: "text-kx-alerta-icone",
+  };
+
   return (
     <Dialog
       open={aberto}
@@ -826,32 +882,33 @@ export function ModalPagamento({
         if (!estado && !processando) handleFechar();
       }}
     >
-      <DialogContent className="flex max-h-[90vh] w-[92vw] max-w-[620px] flex-col overflow-hidden border border-slate-800 bg-slate-950 p-0 text-slate-100 shadow-[0_24px_80px_rgba(2,6,23,0.65)] transition-all duration-300">
+      <DialogContent
+        showCloseButton={false}
+        className="flex max-h-[90vh] w-[95vw] max-w-[980px] flex-col overflow-hidden rounded-[26px] border-kx-painel-borda bg-kx-painel p-0"
+      >
         {vendaFinalizada ? (
-          <div className="flex flex-col items-center justify-center py-4 px-6 text-center space-y-5 max-h-[90vh] overflow-y-auto">
-            <CheckCircle size={64} className="text-emerald-500 animate-pulse" />
+          <div className="flex max-h-[90vh] flex-col items-center justify-center space-y-5 overflow-y-auto px-6 py-4 text-center">
+            <DialogTitle className="sr-only">Venda finalizada com sucesso</DialogTitle>
+            <DialogDescription className="sr-only">
+              Resumo da venda concluída, com opções de imprimir ou enviar o recibo.
+            </DialogDescription>
+            <CheckCircle size={64} className="text-kx-sucesso-icone animate-pulse" />
 
             <div className="space-y-1">
-              <h3 className="text-2xl font-bold text-slate-900 dark:text-slate-50">
-                Venda Finalizada com Sucesso!
-              </h3>
-              <p className="text-slate-600 dark:text-slate-400">
-                Total da venda: <span className="font-semibold">{formatarMoeda(totalVendaFinalizada)}</span>
+              <h3 className="text-2xl font-bold text-kx-texto">Venda Finalizada com Sucesso!</h3>
+              <p className="text-kx-legenda">
+                Total da venda: <span className="font-semibold text-kx-texto">{formatarMoeda(totalVendaFinalizada)}</span>
               </p>
               {vendaIdGerada && (
-                <p className="text-slate-600 dark:text-slate-400">
-                  Comprovante: <span className="font-semibold">#{vendaIdGerada.slice(0, 8)}</span>
+                <p className="text-kx-legenda">
+                  Comprovante: <span className="font-semibold text-kx-texto">#{vendaIdGerada.slice(0, 8)}</span>
                 </p>
               )}
             </div>
 
             {urlRecibo && (
-              <div className="w-full rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden bg-white dark:bg-slate-900">
-                <iframe
-                  src={`${urlRecibo}?embed=1`}
-                  title="Preview do recibo"
-                  className="w-full h-72"
-                />
+              <div className="w-full overflow-hidden rounded-kx-cartao border border-kx-painel-borda bg-kx-cartao">
+                <iframe src={`${urlRecibo}?embed=1`} title="Preview do recibo" className="h-72 w-full" />
               </div>
             )}
 
@@ -873,7 +930,7 @@ export function ModalPagamento({
               <Button
                 type="button"
                 variant="outline"
-                className="w-full hover:bg-emerald-50 hover:text-emerald-700 dark:hover:bg-emerald-900/20"
+                className="w-full"
                 onClick={() =>
                   window.open(
                     `https://wa.me/?text=${encodeURIComponent(
@@ -889,71 +946,34 @@ export function ModalPagamento({
                 Enviar pelo WhatsApp
               </Button>
 
-              <Button
-                type="button"
-                variant="secondary"
-                className="w-full"
-                onClick={() =>
-                  toast("Módulo Fiscal (NF-e) em desenvolvimento.")
-                }
-              >
+              <Button type="button" variant="secondary" className="w-full" onClick={() => toast("Módulo Fiscal (NF-e) em desenvolvimento.")}>
                 <FileText className="h-4 w-4 mr-2" />
                 Gerar Nota Fiscal
               </Button>
             </div>
 
-            <div className="w-full border-t border-zinc-200 dark:border-zinc-800 pt-4">
-              <Button type="button" className="w-full h-12 text-base" onClick={handleNovaVenda}>
+            <div className="w-full border-t border-kx-painel-borda pt-4">
+              <Button type="button" className="h-12 w-full text-base" onClick={handleNovaVenda}>
                 Nova Venda
               </Button>
             </div>
           </div>
         ) : (
           <>
-            <DialogHeader className="shrink-0 border-b border-slate-800/80 px-5 pt-5 pb-3">
-              <DialogTitle className="text-lg font-semibold text-slate-50">Finalizar Venda</DialogTitle>
-              <DialogDescription className="text-slate-400">
-                Informe como o cliente vai pagar.
+            <DialogHeader className="shrink-0 px-6 pt-5">
+              <DialogTitle className="text-xl font-extrabold tracking-tight text-kx-texto">Pagamento</DialogTitle>
+              <DialogDescription className="text-[13px] text-kx-legenda">
+                Pode dividir em mais de uma forma. O total precisa fechar exatamente.
               </DialogDescription>
             </DialogHeader>
 
-            <div className="flex min-h-0 flex-1 flex-col px-5 pb-3">
-              <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1 pb-3">
-                <div className="rounded-2xl border border-blue-900/60 bg-gradient-to-r from-blue-950 via-blue-900 to-slate-900 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="min-w-0">
-                          <p className="text-[10px] uppercase tracking-[0.18em] text-blue-200/70">Total final</p>
-                          <p className="mt-1 text-2xl font-bold leading-none text-white sm:text-3xl">{formatarMoeda(total)}</p>
-                        </div>
-                        <div className="hidden rounded-2xl border border-white/10 bg-white/5 p-3 text-blue-100 sm:flex sm:h-16 sm:w-16 sm:items-center sm:justify-center">
-                          <WalletCards className="h-8 w-8" />
-                        </div>
-                      </div>
-                      <div className="mt-3 grid grid-cols-2 gap-3 border-t border-white/10 pt-3 sm:grid-cols-3">
-                        <div>
-                          <p className="text-[10px] uppercase tracking-[0.16em] text-blue-200/60">Total da venda</p>
-                          <p className="mt-1 text-sm font-semibold text-slate-100">{formatarMoeda(totalAntesDesconto)}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] uppercase tracking-[0.16em] text-blue-200/60">Desconto</p>
-                          <p className="mt-1 text-sm font-semibold text-slate-100">{formatarMoeda(descontoAplicado)}</p>
-                        </div>
-                        <div className="col-span-2 sm:col-span-1">
-                          <p className="text-[10px] uppercase tracking-[0.16em] text-blue-200/60">Fechamento</p>
-                          <p className="mt-1 text-sm font-semibold text-emerald-300">Pronto para conferir</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
+            <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto px-6 pb-5 pt-3 lg:grid-cols-[minmax(0,1fr)_360px] lg:overflow-hidden">
+              {/* Coluna principal: formas rápidas + pagamentos informados */}
+              <div className="flex min-h-0 flex-col gap-4 lg:overflow-y-auto lg:pr-1">
                 <div className="space-y-2">
-                  <Label className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Formas rápidas</Label>
-                  <div className="grid max-w-[420px] grid-cols-2 gap-2 sm:grid-cols-3">
+                  <Label className="text-xs font-bold uppercase tracking-wide text-kx-legenda">Formas rápidas</Label>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                     {formasPagamentoDisponiveis.map((opcao) => {
-                      const Icone = iconeFormaPagamento(opcao.formaPagamento);
                       const valorDaForma = valorInformadoPorForma(opcao.formaPagamento);
                       const estaAtiva = valorDaForma > 0;
 
@@ -962,31 +982,41 @@ export function ModalPagamento({
                           key={opcao.formaPagamento}
                           type="button"
                           onClick={() => aplicarFormaRapida(opcao.formaPagamento)}
-                          className={`flex aspect-square w-full max-w-[128px] justify-self-start flex-col justify-between rounded-2xl border px-2.5 py-2.5 text-left transition ${estaAtiva
-                            ? "border-blue-500/70 bg-blue-500/12 shadow-[0_0_0_1px_rgba(59,130,246,0.12)]"
-                            : "border-slate-800 bg-slate-900/70 hover:border-slate-700"
-                            }`}
+                          aria-pressed={estaAtiva}
+                          className={`flex min-h-[76px] flex-col justify-between gap-1.5 rounded-kx-cartao border px-3 py-3 text-left transition-colors ${
+                            estaAtiva ? "border-kx-primaria bg-kx-primaria/10" : "border-kx-painel-borda bg-kx-cartao hover:border-kx-destaque"
+                          }`}
                         >
-                          <div className="flex items-center justify-between gap-2">
-                            <div className={`rounded-xl p-2 ${estaAtiva ? "bg-blue-500/18 text-blue-200" : "bg-slate-800 text-slate-300"}`}>
-                              <Icone className="h-4 w-4" />
-                            </div>
-                          </div>
-                          <div>
-                            <span className="block text-xs font-semibold text-slate-100">{rotuloFormaPagamentoCurto(opcao.formaPagamento)}</span>
-                            <span className={`mt-1 block text-[11px] ${valorDaForma > 0 ? "text-blue-200" : "text-slate-500"}`}>
-                              {valorDaForma > 0 ? formatarMoeda(valorDaForma) : "Sem valor"}
-                            </span>
-                          </div>
+                          <span className="text-sm font-extrabold text-kx-texto">{rotuloFormaPagamentoCurto(opcao.formaPagamento)}</span>
+                          <span className={`text-[11px] tabular-nums ${estaAtiva ? "text-kx-destaque" : "text-kx-legenda"}`}>
+                            {estaAtiva ? formatarMoeda(valorDaForma) : detalheFormaRapida(opcao.formaPagamento)}
+                          </span>
                         </button>
                       );
                     })}
                   </div>
                 </div>
 
-                <div className="space-y-2">
+                {/* Preview desabilitado (Fase 3-2C): nao existe integracao real com
+                    maquininha ainda — so a UI pra quando existir. Lancamento
+                    manual (Formas rapidas acima) continua sendo o unico caminho
+                    real hoje. */}
+                <div
+                  title="Chega numa fase futura — integração com maquininha ainda não existe."
+                  className="flex items-center gap-3 rounded-kx-cartao border border-dashed border-kx-campo-borda bg-kx-superficie px-4 py-3 opacity-70"
+                >
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-kx-botao bg-kx-cartao text-kx-legenda">
+                    <CreditCard className="h-4 w-4" aria-hidden="true" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13px] font-bold text-kx-texto">Aguardando a maquininha…</p>
+                    <p className="truncate text-[11px] text-kx-legenda">Chega numa fase futura — use as formas rápidas para lançar manualmente.</p>
+                  </div>
+                </div>
+
+                <div className="flex min-h-0 flex-1 flex-col gap-2">
                   <div className="flex items-center justify-between gap-3">
-                    <Label className="text-sm font-semibold text-slate-100">Pagamentos</Label>
+                    <Label className="text-sm font-bold text-kx-texto">Pagamentos informados</Label>
                     <div className="flex items-center gap-2">
                       {(configuracaoAtiva.permitirPagamentoMisto ? linhas.length < 2 : formasPagamentoDisponiveis.length > 1) && (
                         <Popover open={seletorFormaAberto} onOpenChange={setSeletorFormaAberto}>
@@ -995,7 +1025,7 @@ export function ModalPagamento({
                               type="button"
                               variant="outline"
                               size="sm"
-                              className="h-8 rounded-lg border-slate-700 bg-slate-900 px-2 text-xs text-slate-200 hover:bg-slate-800 hover:text-white"
+                              className="h-8 rounded-kx-botao border-kx-campo-borda px-2 text-xs"
                               onClick={abrirSeletorNovaForma}
                             >
                               <Plus className="mr-1 h-3.5 w-3.5" />
@@ -1003,14 +1033,11 @@ export function ModalPagamento({
                               <span className="sm:hidden">Adicionar</span>
                             </Button>
                           </PopoverTrigger>
-                          <PopoverContent
-                            align="end"
-                            className="w-[280px] border-slate-800 bg-slate-950 p-3 text-slate-100 shadow-[0_24px_60px_rgba(2,6,23,0.55)]"
-                          >
+                          <PopoverContent align="end" className="w-[280px] border-kx-painel-borda bg-kx-painel p-3 text-kx-texto">
                             <div className="space-y-3">
                               <div>
-                                <p className="text-sm font-semibold text-slate-100">Escolher forma de pagamento</p>
-                                <p className="text-xs text-slate-500">Selecione a forma que deseja adicionar ao fechamento.</p>
+                                <p className="text-sm font-semibold text-kx-texto">Escolher forma de pagamento</p>
+                                <p className="text-xs text-kx-legenda">Selecione a forma que deseja adicionar ao fechamento.</p>
                               </div>
                               <div className="grid grid-cols-2 gap-2">
                                 {formasPagamentoDisponiveis.map((opcao) => {
@@ -1021,10 +1048,10 @@ export function ModalPagamento({
                                       key={`seletor-${opcao.formaPagamento}`}
                                       type="button"
                                       variant="outline"
-                                      className="h-auto min-h-16 flex-col items-start gap-2 border-slate-800 bg-slate-900 px-3 py-2 text-left text-slate-200 hover:bg-slate-800 hover:text-white"
+                                      className="h-auto min-h-16 flex-col items-start gap-2 border-kx-painel-borda bg-kx-cartao px-3 py-2 text-left text-kx-texto"
                                       onClick={() => adicionarNovoPagamento(opcao.formaPagamento)}
                                     >
-                                      <span className="rounded-lg bg-slate-800 p-2 text-blue-300">
+                                      <span className="rounded-kx-botao bg-kx-superficie p-2 text-kx-destaque">
                                         <IconeForma className="h-3.5 w-3.5" />
                                       </span>
                                       <span className="text-xs font-semibold leading-tight">{rotuloFormaPagamentoCurto(opcao.formaPagamento)}</span>
@@ -1037,7 +1064,7 @@ export function ModalPagamento({
                         </Popover>
                       )}
                       {(configuracaoAtiva.permitirPagamentoMisto || formasPagamentoDisponiveis.length > 1) && (
-                        <span className="hidden text-[11px] text-slate-500 lg:inline">
+                        <span className="hidden text-[11px] text-kx-legenda lg:inline">
                           {configuracaoAtiva.permitirPagamentoMisto
                             ? "Clique no item ou em Editar para ajustar"
                             : "Selecione outra forma para substituir o pagamento atual"}
@@ -1046,11 +1073,11 @@ export function ModalPagamento({
                     </div>
                   </div>
 
-                  <div className="hidden rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2 sm:grid sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1.4fr)_auto_auto] sm:items-center sm:gap-3">
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">Forma</span>
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">Detalhes</span>
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">Valor</span>
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">Ações</span>
+                  <div className="hidden grid-cols-[minmax(0,1.2fr)_minmax(0,1.4fr)_auto_auto] items-center gap-3 rounded-kx-botao bg-kx-superficie px-3 py-2 sm:grid">
+                    <span className="text-[10px] font-bold uppercase tracking-wide text-kx-legenda">Forma</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wide text-kx-legenda">Detalhes</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wide text-kx-legenda">Valor</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wide text-kx-legenda">Ações</span>
                   </div>
 
                   <div className="space-y-2">
@@ -1073,10 +1100,9 @@ export function ModalPagamento({
                       return (
                         <div
                           key={linha.id}
-                          className={`rounded-2xl border px-3 py-3 transition ${selecionada
-                            ? "border-blue-500/70 bg-blue-500/8 shadow-[0_0_0_1px_rgba(59,130,246,0.1)]"
-                            : "border-slate-800 bg-slate-900/80"
-                            }`}
+                          className={`rounded-kx-cartao border px-3 py-3 transition-colors ${
+                            selecionada ? "border-kx-primaria bg-kx-primaria/8" : "border-kx-painel-borda bg-kx-cartao"
+                          }`}
                         >
                           <div
                             role="button"
@@ -1091,22 +1117,20 @@ export function ModalPagamento({
                             className="space-y-2 text-left sm:space-y-0"
                           >
                             <div className="flex flex-col gap-2 sm:grid sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1.4fr)_auto_auto] sm:items-center sm:gap-3">
-                              <div className="min-w-0 flex items-center gap-2">
-                                <div className={`rounded-xl p-2 ${selecionada ? "bg-blue-500/15" : "bg-slate-800"}`}>
-                                  <IconeLinha className="h-4 w-4 text-blue-300" />
+                              <div className="flex min-w-0 items-center gap-2">
+                                <div className={`rounded-kx-botao p-2 ${selecionada ? "bg-kx-primaria/15" : "bg-kx-superficie"}`}>
+                                  <IconeLinha className="h-4 w-4 text-kx-destaque" />
                                 </div>
-                                <p className="truncate text-sm font-semibold text-slate-100">
-                                  {rotuloFormaPagamentoCurto(linha.formaPagamento)}
-                                </p>
+                                <p className="truncate text-sm font-semibold text-kx-texto">{rotuloFormaPagamentoCurto(linha.formaPagamento)}</p>
                               </div>
-                              <p className="truncate text-[11px] text-slate-400 sm:text-xs">{textoSecundario}</p>
-                              <p className="shrink-0 text-sm font-semibold text-slate-100 sm:text-right">{formatarMoeda(valorDaForma)}</p>
+                              <p className="truncate text-[11px] text-kx-legenda sm:text-xs">{textoSecundario}</p>
+                              <p className="shrink-0 text-sm font-semibold text-kx-texto sm:text-right">{formatarMoeda(valorDaForma)}</p>
                               <div className="flex shrink-0 items-center justify-end gap-1">
                                 <Button
                                   type="button"
                                   variant="ghost"
                                   size="sm"
-                                  className="h-7 px-2 text-xs text-slate-300 hover:bg-slate-800 hover:text-white"
+                                  className="h-7 px-2 text-xs text-kx-texto-2"
                                   onClick={(evento) => {
                                     evento.stopPropagation();
                                     abrirEditorLinha(linha);
@@ -1118,45 +1142,45 @@ export function ModalPagamento({
                                   type="button"
                                   variant="ghost"
                                   size="icon"
-                                  className="h-7 w-7 hover:bg-red-500/10"
+                                  className="h-7 w-7 hover:bg-kx-erro-fundo"
                                   onClick={(evento) => {
                                     evento.stopPropagation();
                                     removerPagamento(linha.id);
                                   }}
                                   disabled={linhas.length === 1}
                                 >
-                                  <Trash2 className="h-4 w-4 text-red-500" />
+                                  <Trash2 className="h-4 w-4 text-kx-erro-icone" />
                                 </Button>
                               </div>
                             </div>
                           </div>
 
                           {selecionada && (
-                            <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/80 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                            <div className="mt-3 rounded-kx-botao border border-kx-painel-borda bg-kx-superficie p-3">
                               <div className="mb-3 flex items-start justify-between gap-3">
                                 <div>
-                                  <p className="text-sm font-semibold text-slate-100">Adicionar pagamento - {rotuloFormaPagamentoCurto(linha.formaPagamento)}</p>
-                                  <p className="text-[11px] text-slate-500">Ajuste os dados deste pagamento antes de aplicar.</p>
+                                  <p className="text-sm font-semibold text-kx-texto">Adicionar pagamento - {rotuloFormaPagamentoCurto(linha.formaPagamento)}</p>
+                                  <p className="text-[11px] text-kx-legenda">Ajuste os dados deste pagamento antes de aplicar.</p>
                                 </div>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 px-2 text-xs text-slate-400 hover:bg-slate-800 hover:text-white"
-                                  onClick={fecharEditorLinha}
-                                >
+                                <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs text-kx-legenda" onClick={fecharEditorLinha}>
                                   Cancelar
                                 </Button>
                               </div>
 
                               <div className="space-y-3">
-                                <div className={`grid gap-2 ${linha.formaPagamento === "DINHEIRO" || linha.formaPagamento === "BOLETO" || linha.formaPagamento === "CREDIARIO" ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"}`}>
+                                <div
+                                  className={`grid gap-2 ${
+                                    linha.formaPagamento === "DINHEIRO" || linha.formaPagamento === "BOLETO" || linha.formaPagamento === "CREDIARIO"
+                                      ? "grid-cols-1 sm:grid-cols-2"
+                                      : "grid-cols-1"
+                                  }`}
+                                >
                                   <div className="space-y-1">
-                                    <Label className="text-[11px] uppercase tracking-wide text-slate-400">Valor</Label>
+                                    <Label className="text-[11px] uppercase tracking-wide text-kx-legenda">Valor</Label>
                                     <Input
                                       type="text"
                                       inputMode="decimal"
-                                      className="h-10 border-slate-800 bg-slate-950 text-slate-100"
+                                      className="h-10 border-kx-campo-borda bg-kx-painel text-kx-texto"
                                       value={valoresPagamentosEmEdicao[linha.id] ?? formatarDecimalPtBr(linha.valorBruto)}
                                       onChange={(e) => {
                                         const texto = sanitizarEntradaMonetaria(e.target.value);
@@ -1177,11 +1201,11 @@ export function ModalPagamento({
 
                                   {linha.formaPagamento === "DINHEIRO" && (
                                     <div className="space-y-1">
-                                      <Label className="text-[11px] uppercase tracking-wide text-slate-400">Valor recebido</Label>
+                                      <Label className="text-[11px] uppercase tracking-wide text-kx-legenda">Valor recebido</Label>
                                       <Input
                                         type="text"
                                         inputMode="decimal"
-                                        className="h-10 border-slate-800 bg-slate-950 text-slate-100"
+                                        className="h-10 border-kx-campo-borda bg-kx-painel text-kx-texto"
                                         value={valorRecebidoEmEdicao ?? formatarDecimalPtBr(valorRecebidoDinheiro)}
                                         onChange={(e) => {
                                           const texto = sanitizarEntradaMonetaria(e.target.value);
@@ -1197,12 +1221,12 @@ export function ModalPagamento({
 
                                   {(linha.formaPagamento === "BOLETO" || linha.formaPagamento === "CREDIARIO") && (
                                     <div className="space-y-1">
-                                      <Label className="text-[11px] uppercase tracking-wide text-slate-400">Dias para vencimento</Label>
+                                      <Label className="text-[11px] uppercase tracking-wide text-kx-legenda">Dias para vencimento</Label>
                                       <Input
                                         type="number"
                                         min={1}
                                         max={365}
-                                        className="h-10 border-slate-800 bg-slate-950 text-slate-100"
+                                        className="h-10 border-kx-campo-borda bg-kx-painel text-kx-texto"
                                         value={linha.diasVencimento}
                                         onChange={(e) => {
                                           const dias = Math.min(365, Math.max(1, Number(e.target.value) || 1));
@@ -1227,7 +1251,7 @@ export function ModalPagamento({
                                           type="button"
                                           variant="outline"
                                           size="sm"
-                                          className="h-8 border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800"
+                                          className="h-8 border-kx-campo-borda bg-kx-painel text-kx-texto-2"
                                           onClick={() => {
                                             setValorRecebidoDinheiro(atalho.valor);
                                             setValorRecebidoEmEdicao(formatarDecimalPtBr(atalho.valor));
@@ -1238,20 +1262,18 @@ export function ModalPagamento({
                                         </Button>
                                       ))}
                                     </div>
-                                    <div className="grid grid-cols-1 gap-2 rounded-xl border border-slate-800 bg-slate-900/70 p-2.5 text-xs sm:grid-cols-3">
+                                    <div className="grid grid-cols-1 gap-2 rounded-kx-botao border border-kx-painel-borda bg-kx-painel p-2.5 text-xs sm:grid-cols-3">
                                       <div>
-                                        <p className="text-slate-500">Valor da venda</p>
-                                        <p className="font-semibold text-slate-100">{formatarMoeda(totalDinheiro)}</p>
+                                        <p className="text-kx-legenda">Valor da venda</p>
+                                        <p className="font-semibold text-kx-texto">{formatarMoeda(totalDinheiro)}</p>
                                       </div>
                                       <div>
-                                        <p className="text-slate-500">Recebido</p>
-                                        <p className="font-semibold text-slate-100">{formatarMoeda(valorRecebidoDinheiro)}</p>
+                                        <p className="text-kx-legenda">Recebido</p>
+                                        <p className="font-semibold text-kx-texto">{formatarMoeda(valorRecebidoDinheiro)}</p>
                                       </div>
                                       <div>
-                                        <p className="text-slate-500">Troco</p>
-                                        <p className={`font-semibold ${troco > 0 ? "text-emerald-400" : "text-slate-100"}`}>
-                                          {formatarMoeda(troco)}
-                                        </p>
+                                        <p className="text-kx-legenda">Troco</p>
+                                        <p className={`font-semibold ${troco > 0 ? "text-kx-sucesso-texto" : "text-kx-texto"}`}>{formatarMoeda(troco)}</p>
                                       </div>
                                     </div>
                                   </div>
@@ -1260,63 +1282,60 @@ export function ModalPagamento({
                                 {linha.formaPagamento === "CARTAO_CREDITO" && (
                                   <div className="space-y-2">
                                     <div className="flex items-center justify-between">
-                                      <Label className="text-[11px] uppercase tracking-wide text-slate-400">Parcelas</Label>
-                                      <p className="text-xs text-slate-400">{linha.parcelas}x de {formatarMoeda(linha.valorBruto / Math.max(1, linha.parcelas))}</p>
+                                      <Label className="text-[11px] uppercase tracking-wide text-kx-legenda">Parcelas</Label>
+                                      <p className="text-xs text-kx-legenda">
+                                        {linha.parcelas}x de {formatarMoeda(linha.valorBruto / Math.max(1, linha.parcelas))}
+                                      </p>
                                     </div>
                                     <div>
-                                      <div className="flex w-fit items-center gap-2 rounded-xl bg-slate-900 p-1">
+                                      <div className="flex w-fit items-center gap-2 rounded-kx-botao bg-kx-painel p-1">
                                         <Button
                                           type="button"
                                           size="icon"
                                           variant="outline"
-                                          className="h-8 w-8 border-slate-700 bg-slate-950 text-slate-100 hover:bg-slate-800"
+                                          className="h-8 w-8 border-kx-campo-borda bg-kx-superficie text-kx-texto"
                                           onClick={() => editarPagamento(linha.id, { parcelas: Math.max(1, linha.parcelas - 1) })}
                                           disabled={linha.parcelas <= 1}
                                         >
                                           -
                                         </Button>
-                                        <div className="min-w-16 px-3 text-center text-sm font-semibold text-slate-100">
-                                          {linha.parcelas}x
-                                        </div>
+                                        <div className="min-w-16 px-3 text-center text-sm font-semibold text-kx-texto">{linha.parcelas}x</div>
                                         <Button
                                           type="button"
                                           size="icon"
                                           variant="outline"
-                                          className="h-8 w-8 border-slate-700 bg-slate-950 text-slate-100 hover:bg-slate-800"
-                                          onClick={() => editarPagamento(linha.id, { parcelas: Math.min(configuracaoAtiva.maxParcelasCartaoCredito, linha.parcelas + 1) })}
+                                          className="h-8 w-8 border-kx-campo-borda bg-kx-superficie text-kx-texto"
+                                          onClick={() =>
+                                            editarPagamento(linha.id, { parcelas: Math.min(configuracaoAtiva.maxParcelasCartaoCredito, linha.parcelas + 1) })
+                                          }
                                           disabled={linha.parcelas >= configuracaoAtiva.maxParcelasCartaoCredito}
                                         >
                                           +
                                         </Button>
                                       </div>
-                                      <p className="mt-2 text-xs text-slate-500">Taxa e valores liquidos sao exibidos no financeiro.</p>
+                                      <p className="mt-2 text-xs text-kx-legenda">Taxa e valores líquidos são exibidos no financeiro.</p>
                                     </div>
                                   </div>
                                 )}
 
                                 {(linha.formaPagamento === "BOLETO" || linha.formaPagamento === "CREDIARIO") && (
-                                  <div className="flex items-center justify-between gap-3 rounded-xl border border-dashed border-slate-800 px-3 py-2 text-sm">
-                                    <span className="text-slate-500">Vencimento previsto</span>
-                                    <span className="font-medium text-slate-100">{dataVencimento}</span>
+                                  <div className="flex items-center justify-between gap-3 rounded-kx-botao border border-dashed border-kx-campo-borda px-3 py-2 text-sm">
+                                    <span className="text-kx-legenda">Vencimento previsto</span>
+                                    <span className="font-medium text-kx-texto">{dataVencimento}</span>
                                   </div>
                                 )}
 
-                                <div className="flex flex-col gap-2 border-t border-slate-800 pt-3 sm:flex-row sm:items-center sm:justify-end">
+                                <div className="flex flex-col gap-2 border-t border-kx-painel-borda pt-3 sm:flex-row sm:items-center sm:justify-end">
                                   <Button
                                     type="button"
                                     variant="outline"
                                     size="sm"
-                                    className="h-9 border-slate-700 bg-transparent text-slate-200 hover:bg-slate-800 sm:w-auto"
+                                    className="h-9 border-kx-campo-borda bg-transparent text-kx-texto sm:w-auto"
                                     onClick={fecharEditorLinha}
                                   >
                                     Cancelar
                                   </Button>
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    className="h-9 w-full min-w-32 bg-blue-600 text-white hover:bg-blue-500 sm:w-auto"
-                                    onClick={fecharEditorLinha}
-                                  >
+                                  <Button type="button" size="sm" className="h-9 w-full min-w-32 sm:w-auto" onClick={fecharEditorLinha}>
                                     Adicionar pagamento
                                   </Button>
                                 </div>
@@ -1329,68 +1348,87 @@ export function ModalPagamento({
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-3 text-sm">
-                  <div className="grid grid-cols-2 gap-y-3 sm:grid-cols-4 sm:gap-2">
+                <div className="rounded-kx-cartao bg-kx-superficie p-3">
+                  <div className="grid grid-cols-2 gap-y-3 text-sm sm:grid-cols-3">
                     <div>
-                      <p className="text-[11px] text-slate-500">Total a pagar</p>
-                      <p className="font-semibold text-slate-100">{formatarMoeda(total)}</p>
+                      <p className="text-[11px] text-kx-legenda">Total da venda</p>
+                      <p className="font-semibold text-kx-texto">{formatarMoeda(totalAntesDesconto)}</p>
                     </div>
                     <div>
-                      <p className="text-[11px] text-slate-500">Total informado</p>
-                      <p className="font-semibold text-slate-100">{formatarMoeda(totalInformado)}</p>
+                      <p className="text-[11px] text-kx-legenda">Informado</p>
+                      <p className="font-semibold text-kx-texto">{formatarMoeda(totalInformado)}</p>
                     </div>
                     <div>
-                      <p className="text-[11px] text-slate-500">{resumoSaldo.label}</p>
+                      <p className="text-[11px] text-kx-legenda">{resumoSaldo.label}</p>
                       <p className={`font-semibold ${resumoSaldo.cor}`}>{resumoSaldo.valor}</p>
-                    </div>
-                    <div>
-                      <p className="text-[11px] text-slate-500">Status</p>
-                      <p className={`font-semibold ${statusResumo.cor}`}>{estadoFechamento.label}</p>
                     </div>
                   </div>
                   {estadoFechamento.tipo !== "fechado" && estadoFechamento.mensagem && (
-                    <p className="mt-2 text-xs text-rose-400">{estadoFechamento.mensagem}</p>
+                    <p className="mt-2 text-xs text-kx-erro-texto">{estadoFechamento.mensagem}</p>
                   )}
                   {totalDinheiro > 0 && troco > 0 && estadoFechamento.tipo === "fechado" && (
-                    <div className="mt-2 rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-2 text-xs">
-                      <p className="text-emerald-300">Troco para o cliente</p>
-                      <p className="text-base font-semibold text-emerald-200">{formatarMoeda(troco)}</p>
+                    <div className="mt-2 rounded-kx-botao bg-kx-sucesso-fundo px-2.5 py-2 text-xs">
+                      <p className="text-kx-sucesso-texto">Troco para o cliente</p>
+                      <p className="text-base font-semibold text-kx-sucesso-texto">{formatarMoeda(troco)}</p>
                     </div>
                   )}
                 </div>
 
-                <details className="rounded-2xl border border-slate-800 bg-slate-900/60 px-3 py-2">
-                  <summary className="cursor-pointer text-xs font-medium text-slate-400">
-                    Detalhes financeiros internos
-                  </summary>
+                <details className="rounded-kx-cartao bg-kx-superficie px-3 py-2">
+                  <summary className="cursor-pointer text-xs font-medium text-kx-legenda">Detalhes financeiros internos</summary>
                   <div className="mt-2 space-y-1.5 text-sm">
-                    <div className="flex justify-between text-slate-400">
+                    <div className="flex justify-between text-kx-legenda">
                       <span>Taxa estimada</span>
                       <span>{percentualTaxaEstimado.toFixed(2)}%</span>
                     </div>
-                    <div className="flex justify-between text-orange-400">
+                    <div className="flex justify-between text-kx-alerta-texto">
                       <span>Valor total de taxas</span>
                       <span>{formatarMoeda(totalTaxas)}</span>
                     </div>
-                    <div className="flex justify-between font-semibold text-slate-100">
+                    <div className="flex justify-between font-semibold text-kx-texto">
                       <span>Líquido estimado</span>
                       <span>{formatarMoeda(totalLiquido)}</span>
                     </div>
-                    <p className="pt-1 text-xs text-slate-500">
+                    <p className="pt-1 text-xs text-kx-legenda">
                       Esses valores são informativos para gestão e aparecem detalhados em Financeiro &gt; Inteligência.
                     </p>
                   </div>
                 </details>
               </div>
 
-              <div className="shrink-0 border-t border-slate-800 bg-slate-950/95 px-5 py-3 backdrop-blur-sm">
-                <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
+              {/* Coluna lateral: total, o que sera registrado, cupom e confirmar */}
+              <div className="flex min-h-0 flex-col gap-3.5 lg:overflow-y-auto lg:pl-1">
+                <div className="flex flex-col gap-1.5 rounded-kx-cartao bg-kx-entregue-fundo p-5">
+                  <span className="text-[13px] font-semibold text-kx-texto-2">Total a pagar</span>
+                  <span className="text-[32px] font-extrabold leading-none tracking-tight text-kx-texto">{formatarMoeda(total)}</span>
+                  <span className="text-[13px] text-kx-texto-2">
+                    Desconto de {formatarMoeda(descontoAplicado)}
+                  </span>
+                </div>
+
+                <div className="flex min-h-0 flex-1 flex-col gap-2.5 rounded-kx-cartao border border-kx-painel-borda bg-kx-painel p-4">
+                  <span className="text-sm font-bold text-kx-texto">O que o sistema vai registrar</span>
+                  <div className="flex flex-col gap-2 overflow-y-auto">
+                    {itensRegistro.map((item, indice) => (
+                      <div key={indice} className="flex items-start gap-2 text-[13px] leading-snug">
+                        <span className={`mt-0.5 font-bold ${corItemRegistro[item.tom]}`}>•</span>
+                        <span className="text-kx-texto-2">{item.texto}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-auto flex flex-col gap-0.5 rounded-kx-botao bg-kx-superficie px-3 py-2.5">
+                    <span className="text-xs text-kx-legenda">Cupom</span>
+                    <span className="text-[13px] font-semibold text-kx-texto">Imprimir e enviar por WhatsApp</span>
+                  </div>
+                </div>
+
+                <div className="flex gap-2.5">
                   <Button
                     type="button"
                     variant="outline"
                     onClick={handleFechar}
                     disabled={processando}
-                    className="h-10 w-full border-slate-700 bg-transparent text-slate-200 hover:bg-slate-800 hover:text-white sm:w-auto"
+                    className="h-[52px] flex-1 rounded-kx-botao border-kx-campo-borda"
                   >
                     Cancelar
                   </Button>
@@ -1398,7 +1436,7 @@ export function ModalPagamento({
                     type="button"
                     onClick={handleConfirmar}
                     disabled={processando || !podeConfirmar}
-                    className="h-10 w-full min-w-36 bg-blue-600 text-white hover:bg-blue-500 sm:w-auto"
+                    className="h-[52px] flex-[2] rounded-kx-botao text-base font-bold"
                   >
                     {processando ? (
                       <>
