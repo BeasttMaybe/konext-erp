@@ -70,6 +70,10 @@ export type MetasResumoDashboard = {
     titulo: string;
     progresso: number;
     status: string;
+    tipoValor: "DINHEIRO" | "QUANTIDADE" | "PERCENTUAL" | "CHECKLIST";
+    valorAtual: number;
+    valorAlvo: number | null;
+    unidade: string | null;
   }>;
 };
 
@@ -407,7 +411,7 @@ type LinhaValorAberto = {
 };
 
 const DIAS_LIMITE_PARADO = 7;
-const DIAS_LIMITE_RETIRADA = 2;
+const DIAS_LIMITE_RETIRADA = 7;
 const JANELA_TAXA_RETORNO_DIAS = 90;
 
 const ROTULO_STATUS_OS: Record<string, string> = {
@@ -971,6 +975,7 @@ export async function obterPainelOperacionalHome(
               tipoValor: true,
               valorAtual: true,
               valorAlvo: true,
+              unidade: true,
             },
             orderBy: [{ prioridade: "desc" }, { dataPrazo: "asc" }],
             take: 3,
@@ -1007,6 +1012,10 @@ export async function obterPainelOperacionalHome(
           valorAlvo: meta.valorAlvo,
         }),
         status: mapearStatusMovimentacao(meta.status),
+        tipoValor: meta.tipoValor,
+        valorAtual: Number(meta.valorAtual ?? 0),
+        valorAlvo: meta.valorAlvo,
+        unidade: meta.unidade,
       })),
     };
   }

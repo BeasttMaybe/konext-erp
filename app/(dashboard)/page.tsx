@@ -72,6 +72,8 @@ export default async function PaginaDashboard({ searchParams }: PropsPaginaDashb
     <div className="space-y-kx-4 py-3">
       <CabecalhoDashboard empresa={configuracoes.nomeFantasia} periodo={painel.periodo} />
 
+      <PendenciasHome itens={pendencias} />
+
       <KpisHome
         temFinanceiro={temFinanceiro}
         faturamento={faturamento}
@@ -81,7 +83,7 @@ export default async function PaginaDashboard({ searchParams }: PropsPaginaDashb
       />
 
       {temFinanceiro ? (
-        <div className="grid grid-cols-1 gap-kx-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+        <div className="grid grid-cols-1 items-start gap-kx-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
           {faturamento ? (
             <GraficoReceita serie={faturamento.serie} margemLiquidaPercentual={faturamento.margemLiquidaPercentual} />
           ) : (
@@ -96,15 +98,13 @@ export default async function PaginaDashboard({ searchParams }: PropsPaginaDashb
       )}
 
       {painel.metasResumo ? (
-        <div className="grid grid-cols-1 gap-kx-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+        <div className="grid grid-cols-1 items-start gap-kx-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
           <MovimentacoesHome itens={painel.ultimasMovimentacoes} />
           <MetasHome resumo={painel.metasResumo} />
         </div>
       ) : (
         <MovimentacoesHome itens={painel.ultimasMovimentacoes} />
       )}
-
-      <PendenciasHome itens={pendencias} />
     </div>
   );
 }

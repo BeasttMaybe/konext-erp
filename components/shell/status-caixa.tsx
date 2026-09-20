@@ -23,13 +23,16 @@ function formatarMoeda(valor: number): string {
  * versão "meu caixa está aberto" (documentado no relatório final da fase).
  * Some inteiro pra quem não tem pdv.vender — nunca mostra desabilitado.
  *
- * `expandido` é uma prop explícita, não `xl:` do Tailwind: este componente
- * também é usado dentro da gaveta mobile (`GavetaLateralMobile`), que
- * renderiza larga mesmo em viewport pequeno — uma media query de viewport
- * erraria lá (o breakpoint xl nunca bate num celular, mesmo com a gaveta
- * aberta e larga).
+ * `expandido` omitido (padrão) renderiza os dois blocos — compacto e
+ * completo — e deixa o CSS (`xl:`) escolher qual aparece, acompanhando o
+ * mesmo breakpoint que já governa a largura da barra lateral (Fase 3-2A:
+ * antes disso o compacto vinha hardcoded, então a barra lateral larga
+ * (xl:) ainda mostrava só a bolinha, órfã, sem o texto ao lado).
+ * `expandido={true}` força sempre o bloco completo — usado pela gaveta
+ * mobile (`GavetaLateralMobile`), que renderiza larga mesmo em viewport
+ * pequeno, onde o breakpoint `xl:` nunca bateria.
  */
-export function StatusCaixa({ expandido = true }: { expandido?: boolean }) {
+export function StatusCaixa({ expandido }: { expandido?: boolean } = {}) {
   const [estado, setEstado] = useState<Estado>({ tela: "carregando" });
 
   useEffect(() => {
@@ -53,24 +56,15 @@ export function StatusCaixa({ expandido = true }: { expandido?: boolean }) {
   const aberto = estado.tela === "aberto";
   const rotulo = aberto ? "Caixa aberto" : "Caixa fechado";
 
-  if (!expandido) {
-    return (
-      <Link
-        href="/pdv"
-        title={rotulo}
-        className="flex h-11 items-center justify-center rounded-kx-botao text-kx-texto-2 hover:bg-kx-superficie"
-      >
-        <span className={cn("h-2.5 w-2.5 rounded-full", aberto ? "bg-kx-sucesso" : "bg-kx-legenda")} aria-hidden="true" />
-        <span className="sr-only">{rotulo}</span>
-      </Link>
-    );
-  }
+  const blocoCompacto = (
+    <span className="flex h-11 items-center justify-center text-kx-texto-2">
+      <span className={cn("h-2.5 w-2.5 rounded-full", aberto ? "bg-kx-sucesso" : "bg-kx-legenda")} aria-hidden="true" />
+      <span className="sr-only">{rotulo}</span>
+    </span>
+  );
 
-  return (
-    <Link
-      href="/pdv"
-      className="flex items-center gap-2.5 rounded-kx-botao bg-kx-superficie px-3 py-2.5 text-xs transition-colors hover:bg-kx-cartao"
-    >
+  const blocoCompleto = (
+    <span className="flex items-center gap-2.5 bg-kx-superficie px-3 py-2.5 text-xs">
       <Wallet className="h-4 w-4 shrink-0 text-kx-texto-2" aria-hidden="true" />
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5">
@@ -83,6 +77,25 @@ export function StatusCaixa({ expandido = true }: { expandido?: boolean }) {
           </span>
         )}
       </span>
+    </span>
+  );
+
+  if (expandido) {
+    return (
+      <Link href="/pdv" className="block rounded-kx-botao transition-colors hover:bg-kx-cartao">
+        {blocoCompleto}
+      </Link>
+    );
+  }
+
+  return (
+    <Link
+      href="/pdv"
+      title={rotulo}
+      className="block rounded-kx-botao transition-colors hover:bg-kx-superficie xl:hover:bg-kx-cartao"
+    >
+      <span className="xl:hidden">{blocoCompacto}</span>
+      <span className="hidden xl:block">{blocoCompleto}</span>
     </Link>
   );
 }

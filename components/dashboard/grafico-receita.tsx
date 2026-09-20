@@ -73,12 +73,12 @@ export function GraficoReceita({ serie, margemLiquidaPercentual }: GraficoReceit
       />
 
       <div className="px-kx-4 pb-kx-4 pt-kx-3">
-        <p className="mb-kx-3 text-sm text-kx-legenda">
-          Margem líquida do período:{" "}
-          <span className="font-semibold text-kx-texto">
-            {margemLiquidaPercentual === null ? "—" : formatarPercentual(margemLiquidaPercentual)}
-          </span>
-        </p>
+        {margemLiquidaPercentual !== null && (
+          <p className="mb-kx-3 text-sm text-kx-legenda">
+            Margem líquida do período:{" "}
+            <span className="font-semibold text-kx-texto">{formatarPercentual(margemLiquidaPercentual)}</span>
+          </p>
+        )}
 
         {!temDado ? (
           <EstadoVazio

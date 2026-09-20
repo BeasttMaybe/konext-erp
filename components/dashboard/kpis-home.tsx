@@ -42,7 +42,7 @@ export function KpisHome({
           }
           descricao={
             faturamento.margemLiquidaPercentual === null
-              ? "Margem: —"
+              ? undefined
               : `Margem: ${formatarPercentual(faturamento.margemLiquidaPercentual)}`
           }
           icone={<DollarSign />}

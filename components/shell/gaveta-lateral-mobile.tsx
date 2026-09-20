@@ -93,7 +93,7 @@ export function GavetaLateralMobile() {
         </nav>
 
         <div className="shrink-0 space-y-2 border-t border-kx-painel-borda p-3">
-          <StatusCaixa />
+          <StatusCaixa expandido />
           <button
             type="button"
             onClick={() => void logout()}

@@ -43,6 +43,8 @@ export function BarraSuperior({ onAbrirBusca }: { onAbrirBusca: () => void }) {
   const [emailUsuario, setEmailUsuario] = useState("usuario@konext.local");
   const [fotoPerfilUrl, setFotoPerfilUrl] = useState<string | null>(null);
   const [nomeEmpresa, setNomeEmpresa] = useState("Konext");
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [falhaLogo, setFalhaLogo] = useState(false);
   const montado = useSyncExternalStore(
     () => () => {},
     () => true,
@@ -59,6 +61,7 @@ export function BarraSuperior({ onAbrirBusca }: { onAbrirBusca: () => void }) {
         setEmailUsuario(dados.usuario?.email || "usuario@konext.local");
         setFotoPerfilUrl(dados.usuario?.fotoPerfilUrl || null);
         setNomeEmpresa(dados.configuracao?.nomeFantasia || "Konext");
+        setLogoUrl(dados.configuracao?.logoUrl || null);
       })
       .catch(() => {
         // Mantém os valores padrão — a barra não pode quebrar a tela por causa do perfil.
@@ -73,7 +76,18 @@ export function BarraSuperior({ onAbrirBusca }: { onAbrirBusca: () => void }) {
     <header className="sticky top-0 z-kx-cabecalho flex h-16 shrink-0 items-center gap-3 border-b border-kx-painel-borda bg-kx-painel px-4 lg:px-6">
       <GavetaLateralMobile />
 
-      <span className="hidden shrink-0 text-sm font-semibold text-kx-texto lg:block">{nomeEmpresa}</span>
+      <span className="hidden shrink-0 items-center gap-2 lg:flex">
+        {logoUrl && !falhaLogo ? (
+          // eslint-disable-next-line @next/next/no-img-element -- URL de logo enviada pelo tenant, fora do domínio otimizado pelo next/image.
+          <img
+            src={logoUrl}
+            alt={`Logo ${nomeEmpresa}`}
+            className="h-8 w-8 shrink-0 rounded-kx-botao border border-kx-painel-borda bg-kx-superficie object-contain p-1"
+            onError={() => setFalhaLogo(true)}
+          />
+        ) : null}
+        <span className="text-sm font-semibold text-kx-texto">{nomeEmpresa}</span>
+      </span>
 
       <button
         type="button"
