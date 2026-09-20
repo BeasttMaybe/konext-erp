@@ -181,16 +181,23 @@ export async function revogarSessaoCentralAtual(): Promise<void> {
  * Sem sessao valida, redireciona para o login em vez de lancar (F-20): antes
  * a chamada lancava um Error puro que, sem `error.tsx`/tratamento, derrubava
  * a pagina inteira na tela de erro generica do Next em vez de mandar o
- * usuario para o login. O cookie invalido/expirado e sempre removido antes
- * do redirecionamento.
+ * usuario para o login.
+ *
+ * O redirecionamento passa por /api/auth/expirar-sessao (Route Handler) em
+ * vez de apagar o cookie aqui e ir direto pro /login: esta funcao e chamada
+ * tanto de dentro de Server Actions (onde apagar cookie e permitido) quanto
+ * — via exigirContextoTenant, de todo layout/pagina protegida — durante a
+ * renderizacao comum de Server Component, onde NAO e (o Next.js so deixa
+ * mutar cookie numa Server Action ou num Route Handler; fazia isso direto
+ * aqui e a pagina quebrava com "Cookies can only be modified..." em vez de
+ * mandar pro login). O Route Handler funciona nos dois casos por igual, sem
+ * a funcao precisar saber de onde foi chamada.
  */
 export async function exigirSessaoCentral(): Promise<SessaoCentralResolvida> {
   const sessao = await obterSessaoCentral();
 
   if (!sessao) {
-    const cookieStore = await cookies();
-    cookieStore.delete(COOKIE_SESSAO_CENTRAL);
-    redirect("/login?expirada=1");
+    redirect("/api/auth/expirar-sessao");
   }
 
   return sessao;
