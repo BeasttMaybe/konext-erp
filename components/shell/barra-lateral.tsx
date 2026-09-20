@@ -43,10 +43,13 @@ const ICONES: Record<string, LucideIcon> = {
  *
  * O item ativo "entalha" na área de conteúdo (Fase 3-2A, Spec B): fica
  * rente à borda direita da barra (por isso o `<nav>` só tem padding à
- * esquerda — cada item cuida da própria margem direita) com fundo
- * `--kx-fundo` (a mesma cor do conteúdo) e dois cantos côncavos de 20px
- * (`.kx-notch-ativo`, ver app/globals.css) por cima e por baixo, como se o
- * conteúdo entrasse pela barra lateral.
+ * esquerda — cada item cuida da própria margem direita), arredondado só à
+ * esquerda, com fundo `--kx-fundo` — a mesma cor do conteúdo, então os dois
+ * lêem como uma superfície contínua sem gap nem linha. Por isso a barra
+ * também não tem `border-r`: a separação de `--kx-painel` (barra) pra
+ * `--kx-fundo` (conteúdo) já é só a diferença de cor, mesmo padrão do
+ * painel de marca em `app/(auth)/layout.tsx` — uma borda aqui cruzaria
+ * bem no meio do item ativo e quebraria a superfície contínua.
  */
 export function BarraLateral() {
   const pathname = usePathname();
@@ -74,7 +77,7 @@ export function BarraLateral() {
   }, []);
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-kx-barra-lateral hidden w-[72px] flex-col border-r border-kx-painel-borda bg-kx-painel lg:flex xl:w-[248px]">
+    <aside className="fixed inset-y-0 left-0 z-kx-barra-lateral hidden w-[72px] flex-col bg-kx-painel lg:flex xl:w-[248px]">
       <div className="flex h-16 shrink-0 items-center justify-center gap-2.5 px-2 xl:justify-start xl:px-5">
         {logoUrl && !falhaLogo ? (
           // eslint-disable-next-line @next/next/no-img-element -- URL de logo enviada pelo tenant, fora do domínio otimizado pelo next/image.
@@ -113,7 +116,7 @@ export function BarraLateral() {
               className={cn(
                 "flex h-11 items-center justify-center gap-3 rounded-l-kx-cartao rounded-r-none px-0 text-sm font-medium transition-colors xl:justify-start xl:px-3",
                 ativo
-                  ? "kx-notch-ativo mr-0 bg-kx-fundo font-bold text-kx-texto"
+                  ? "mr-0 bg-kx-fundo font-bold text-kx-texto"
                   : "mr-3 text-kx-texto-2 hover:bg-kx-superficie hover:text-kx-texto"
               )}
             >
