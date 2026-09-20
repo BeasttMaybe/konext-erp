@@ -34,6 +34,9 @@ const ICONES: Record<string, LucideIcon> = {
   Metas: Flag,
 };
 
+/** Altura de cada item (h-12 = 48px) + o gap entre eles (space-y-1 = 4px) — a distância que o indicador percorre por posição. */
+const ALTURA_ITEM_COM_GAP = 52;
+
 /**
  * Barra lateral fixa (Fase 3-1, Parte 3) — 1024–1279px vira trilho de só
  * ícones, 1280px+ mostra rótulo, abaixo de 1024px some inteira (dá lugar à
@@ -43,17 +46,21 @@ const ICONES: Record<string, LucideIcon> = {
  *
  * O item ativo "entalha" na área de conteúdo (Fase 3-2A, Spec B — porte
  * fiel de `docs/design/referencia-menu-lateral.html`, a referência
- * aprovada): fica rente à borda direita da barra (por isso o `<nav>` só
- * tem padding à esquerda — cada item cuida da própria margem direita),
- * arredondado só à esquerda (`rounded-l-kx-cartao`/`rounded-r-none`), com
- * fundo `--kx-fundo` — a mesma cor do conteúdo, então os dois lêem como
- * uma superfície contínua sem gap nem linha — mais os dois cantos côncavos
- * de `.kx-notch-ativo` (app/globals.css, técnica idêntica à referência:
- * box-shadow, não gradiente). Por isso a barra também não tem `border-r`:
- * a separação de `--kx-painel` (barra) pra `--kx-fundo` (conteúdo) já é só
- * a diferença de cor, mesmo padrão do painel de marca em
- * `app/(auth)/layout.tsx` — uma borda aqui cruzaria bem no meio do item
- * ativo e quebraria a superfície contínua.
+ * aprovada) via um indicador ÚNICO, absolutamente posicionado, que desliza
+ * (`transform: translateY`) até a linha do item ativo em vez de cada item
+ * pintar o próprio fundo — navegação troca de página re-renderiza a barra
+ * inteira, então uma transição no item em si nunca animaria (ele já nasce
+ * no lugar final); só um elemento que PERSISTE entre renders pode animar
+ * posição. Fica rente à borda direita (por isso o `<nav>` só tem padding à
+ * esquerda), arredondado só à esquerda, com fundo `--kx-fundo` — a mesma
+ * cor do conteúdo — mais os dois cantos côncavos de `.kx-notch-ativo`
+ * (app/globals.css, técnica idêntica à referência: box-shadow, não
+ * gradiente). O `pt-kx-5`/`pb-kx-5` do `<nav>` (20px, não os 8px de antes)
+ * são de propósito: é exatamente o alcance do notch (20px pra cima/baixo),
+ * pra ele nunca ser cortado pelo `overflow-y-auto` quando o item ativo é o
+ * primeiro ou o último da lista. A barra não tem `border-r`: a separação
+ * de `--kx-painel` (barra) pra `--kx-fundo` (conteúdo) já é só a diferença
+ * de cor, mesmo padrão do painel de marca em `app/(auth)/layout.tsx`.
  */
 export function BarraLateral() {
   const pathname = usePathname();
@@ -65,6 +72,16 @@ export function BarraLateral() {
     () => (lista: readonly Permissao[]) => lista.some((permissao) => permissoes.has(permissao)),
     [permissoes]
   );
+
+  // Só os itens de fato renderizados (filtro de permissão já aplicado) —
+  // o índice do ativo tem que vir DAQUI, nunca do array bruto, senão um
+  // item escondido por permissão desalinha o indicador de uma posição.
+  const itensRenderizados = ITENS_NAVEGACAO.map((item) => ({
+    item,
+    filhos: filhosVisiveis(item, temAlgumaPermissao),
+  })).filter(({ item, filhos }) => !(item.filhos?.length && filhos.length === 0));
+
+  const indiceAtivo = itensRenderizados.findIndex(({ item }) => itemEstaAtivo(item, pathname, searchParams));
 
   useEffect(() => {
     let ativo = true;
@@ -102,33 +119,44 @@ export function BarraLateral() {
         </span>
       </div>
 
-      <nav aria-label="Navegação principal" className="flex-1 space-y-1 overflow-y-auto py-2 pl-3">
-        {ITENS_NAVEGACAO.map((item) => {
-          const filhos = filhosVisiveis(item, temAlgumaPermissao);
-          if (item.filhos?.length && filhos.length === 0) return null;
+      <nav aria-label="Navegação principal" className="relative flex-1 overflow-y-auto pb-kx-5 pl-3 pt-kx-5">
+        {indiceAtivo >= 0 && (
+          <div
+            aria-hidden="true"
+            style={{ transform: `translateY(${indiceAtivo * ALTURA_ITEM_COM_GAP}px)` }}
+            className="kx-notch-ativo pointer-events-none absolute inset-x-0 top-0 h-12 rounded-l-kx-cartao rounded-r-none bg-kx-fundo motion-safe:transition-transform motion-safe:duration-200 motion-safe:ease-in-out"
+          />
+        )}
 
-          const ativo = itemEstaAtivo(item, pathname, searchParams);
-          const caminho = caminhoDoItem(item, filhos);
-          const Icone = ICONES[item.iconKey] ?? LayoutDashboard;
+        <div className="space-y-1">
+          {itensRenderizados.map(({ item, filhos }, indice) => {
+            const ativo = indice === indiceAtivo;
+            const caminho = caminhoDoItem(item, filhos);
+            const Icone = ICONES[item.iconKey] ?? LayoutDashboard;
 
-          return (
-            <Link
-              key={item.path}
-              href={caminho}
-              aria-current={ativo ? "page" : undefined}
-              title={item.label}
-              className={cn(
-                "flex h-12 items-center justify-center gap-3 rounded-l-kx-cartao rounded-r-none px-0 text-sm font-medium transition-colors xl:justify-start xl:px-3",
-                ativo
-                  ? "kx-notch-ativo mr-0 bg-kx-fundo font-bold text-kx-texto"
-                  : "mr-3 text-kx-texto-2 hover:bg-kx-superficie hover:text-kx-texto"
-              )}
-            >
-              <Icone className={cn("h-5 w-5 shrink-0", ativo && "text-kx-destaque")} aria-hidden="true" />
-              <span className="hidden truncate xl:inline">{item.label}</span>
-            </Link>
-          );
-        })}
+            return (
+              <Link
+                key={item.path}
+                href={caminho}
+                aria-current={ativo ? "page" : undefined}
+                title={item.label}
+                className={cn(
+                  "kx-item-nav relative flex h-12 items-center justify-center gap-3 rounded-kx-botao px-0 text-sm font-medium xl:justify-start xl:px-3",
+                  ativo ? "font-bold text-kx-texto" : "text-kx-texto-2 hover:bg-kx-superficie/50 hover:text-kx-texto"
+                )}
+              >
+                <Icone
+                  className={cn(
+                    "h-5 w-5 shrink-0 transition-colors duration-200 ease-in-out",
+                    ativo && "text-kx-destaque"
+                  )}
+                  aria-hidden="true"
+                />
+                <span className="hidden truncate xl:inline">{item.label}</span>
+              </Link>
+            );
+          })}
+        </div>
       </nav>
 
       <div className="shrink-0 space-y-2 border-t border-kx-painel-borda p-2 xl:p-3">

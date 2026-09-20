@@ -310,20 +310,23 @@ input[type="number"] {
 }
 
 /*
- * Notch do item ativo na barra lateral (Fase 3-2A, Spec B) — porte fiel de
- * docs/design/referencia-menu-lateral.html (referência aprovada pelo
- * dono, aberta e comparada lado a lado antes deste porte). Mesma técnica
- * exata do arquivo de referência: box-shadow com spread, não gradiente.
- * Cada pseudo-elemento é um quadrado de 20×20 rente ao canto do item
- * (`right: 0`, colado no `top`/`bottom`); o próprio quadrado arredonda só
- * o canto que toca o item (20px) e o box-shadow, deslocado 8px pra fora
- * desse canto e com 8px de espalhamento, pinta --kx-fundo por cima — o
- * resultado é o mesmo entalhe côncavo da referência.
+ * Notch do indicador ativo da barra lateral (Fase 3-2A, Spec B — depois
+ * Spec de animação: o notch saiu do item em si e virou um indicador único
+ * que desliza entre posições, ver components/shell/barra-lateral.tsx).
+ * Porte fiel de docs/design/referencia-menu-lateral.html (referência
+ * aprovada pelo dono, aberta e comparada lado a lado antes deste porte).
+ * Mesma técnica exata do arquivo de referência: box-shadow com spread, não
+ * gradiente. Cada pseudo-elemento é um quadrado de 20×20 rente ao canto do
+ * indicador (`right: 0`, colado no `top`/`bottom`); o próprio quadrado
+ * arredonda só o canto que toca o indicador (20px) e o box-shadow,
+ * deslocado 8px pra fora desse canto e com 8px de espalhamento, pinta
+ * --kx-fundo por cima — o resultado é o mesmo entalhe côncavo da
+ * referência. `.kx-notch-ativo` em si não declara `position`: o indicador
+ * já nasce `absolute` via classe do Tailwind (precisa, pra deslizar com
+ * `transform`), e isso já é suficiente pra ser o container dos
+ * pseudo-elementos — declarar `position: relative` aqui de novo brigaria
+ * com o `absolute` do componente pela mesma propriedade.
  */
-.kx-notch-ativo {
-  position: relative;
-}
-
 .kx-notch-ativo::before {
   content: "";
   position: absolute;
@@ -346,4 +349,19 @@ input[type="number"] {
   border-top-right-radius: 20px;
   box-shadow: 8px -8px 0 8px var(--kx-fundo);
   pointer-events: none;
+}
+
+/*
+ * Item de nav da barra lateral: cor do texto/ícone (herdada pelos filhos
+ * sem cor própria) troca em 200ms — o mesmo tempo do indicador que desliza
+ * por baixo — e o fundo de hover troca em 120ms, mais rápido, porque não
+ * está preso à animação de troca de rota. Duas durações diferentes na
+ * mesma transição não dá pra expressar só com utilitário `transition-*`
+ * do Tailwind (uma única `duration-*` vale pra todas as propriedades
+ * listadas), daí a regra à parte.
+ */
+.kx-item-nav {
+  transition:
+    color 200ms cubic-bezier(0.4, 0, 0.2, 1),
+    background-color 120ms cubic-bezier(0.4, 0, 0.2, 1);
 }
