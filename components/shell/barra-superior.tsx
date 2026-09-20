@@ -45,7 +45,7 @@ function nomeOuEmail(nome: string | null | undefined, email: string): string {
  * Parte 2): isso já aparece na barra lateral e no cabeçalho da página.
  */
 export function BarraSuperior({ onAbrirBusca }: { onAbrirBusca: () => void }) {
-  const { theme, setTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme();
   const router = useRouter();
   const { papel } = usePermissoes();
   const podeVerConfiguracoes = useTemAlgumaPermissao(PERMISSOES_CONFIGURACOES);
@@ -102,10 +102,10 @@ export function BarraSuperior({ onAbrirBusca }: { onAbrirBusca: () => void }) {
           <Button
             variant="ghost"
             size="icon"
-            aria-label={theme === "light" ? "Ativar tema escuro" : "Ativar tema claro"}
-            onClick={() => setTheme(theme === "light" ? "dark" : "light")}
+            aria-label={resolvedTheme === "light" ? "Ativar tema escuro" : "Ativar tema claro"}
+            onClick={() => setTheme(resolvedTheme === "light" ? "dark" : "light")}
           >
-            {theme === "light" ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+            {resolvedTheme === "light" ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
           </Button>
         )}
 
