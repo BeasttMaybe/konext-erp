@@ -29,24 +29,29 @@ function iniciaisDoNome(nome: string): string {
   return `${partes[0]![0]}${partes[partes.length - 1]![0]}`.toUpperCase();
 }
 
+/** Nome do usuário para exibir; se não houver nome cadastrado, usa a parte
+ * local do e-mail — nunca o nome da empresa. */
+function nomeOuEmail(nome: string | null | undefined, email: string): string {
+  const nomeLimpo = nome?.trim();
+  if (nomeLimpo) return nomeLimpo;
+  const [parteLocal] = email.split("@");
+  return parteLocal || email;
+}
+
 /**
- * Barra superior do app shell (Fase 3-1, Parte 3) — nome da empresa, campo
- * de busca global (abre a paleta de comando via Ctrl+K, ver
- * paleta-comando.tsx), notificações e menu do usuário. Lógica de
- * logout/perfil/tema portada de components/layout/cabecalho.tsx (Fase 1B) —
- * mesmo comportamento, shell novo.
+ * Barra superior do app shell (Fase 3-1, Parte 3) — campo de busca global
+ * (abre a paleta de comando via Ctrl+K, ver paleta-comando.tsx), tema,
+ * notificações e menu do usuário. Sem marca/nome da empresa (Fase 3-2C,
+ * Parte 2): isso já aparece na barra lateral e no cabeçalho da página.
  */
 export function BarraSuperior({ onAbrirBusca }: { onAbrirBusca: () => void }) {
   const { theme, setTheme } = useTheme();
   const router = useRouter();
   const { papel } = usePermissoes();
   const podeVerConfiguracoes = useTemAlgumaPermissao(PERMISSOES_CONFIGURACOES);
-  const [nomeUsuario, setNomeUsuario] = useState("Usuario Konext");
-  const [emailUsuario, setEmailUsuario] = useState("usuario@konext.local");
+  const [nomeUsuario, setNomeUsuario] = useState("");
+  const [emailUsuario, setEmailUsuario] = useState("");
   const [fotoPerfilUrl, setFotoPerfilUrl] = useState<string | null>(null);
-  const [nomeEmpresa, setNomeEmpresa] = useState("Konext");
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
-  const [falhaLogo, setFalhaLogo] = useState(false);
   const montado = useSyncExternalStore(
     () => () => {},
     () => true,
@@ -59,11 +64,10 @@ export function BarraSuperior({ onAbrirBusca }: { onAbrirBusca: () => void }) {
     obterDadosPerfilConfiguracao()
       .then((dados) => {
         if (!ativo) return;
-        setNomeUsuario(dados.usuario?.nome || "Usuario Konext");
-        setEmailUsuario(dados.usuario?.email || "usuario@konext.local");
+        const email = dados.usuario?.email || "";
+        setNomeUsuario(nomeOuEmail(dados.usuario?.nome, email));
+        setEmailUsuario(email);
         setFotoPerfilUrl(dados.usuario?.fotoPerfilUrl || null);
-        setNomeEmpresa(dados.configuracao?.nomeFantasia || "Konext");
-        setLogoUrl(dados.configuracao?.logoUrl || null);
       })
       .catch(() => {
         // Mantém os valores padrão — a barra não pode quebrar a tela por causa do perfil.
@@ -78,27 +82,13 @@ export function BarraSuperior({ onAbrirBusca }: { onAbrirBusca: () => void }) {
     <header className="sticky top-0 z-kx-cabecalho flex h-[72px] shrink-0 items-center gap-3 border-b border-kx-painel-borda bg-kx-painel px-4 lg:px-6">
       <GavetaLateralMobile />
 
-      {/* Nome da empresa (dado do tenant, pode ser diferente de "Konext"):
-          só o texto, mais o logo QUANDO ele existir — nunca uma caixa vazia
-          no lugar dele. A marca "Konext" + tagline fica só na barra
-          lateral (Fase 3-2C, Parte 2). */}
-      <span className="hidden shrink-0 items-center gap-2 lg:flex">
-        {logoUrl && !falhaLogo ? (
-          // eslint-disable-next-line @next/next/no-img-element -- URL de logo enviada pelo tenant, fora do domínio otimizado pelo next/image.
-          <img
-            src={logoUrl}
-            alt={`Logo ${nomeEmpresa}`}
-            className="h-8 w-8 shrink-0 rounded-kx-botao border border-kx-painel-borda bg-kx-superficie object-contain p-1"
-            onError={() => setFalhaLogo(true)}
-          />
-        ) : null}
-        <span className="text-sm font-semibold text-kx-texto">{nomeEmpresa}</span>
-      </span>
-
+      {/* Sem marca/nome da empresa aqui — a empresa já é identificada pelo
+          cabeçalho da página (ex.: "Konext / 20 de setembro de 2026"), e a
+          marca do produto fica só na barra lateral (Fase 3-2C, Parte 2). */}
       <button
         type="button"
         onClick={onAbrirBusca}
-        className="ml-2 flex h-10 flex-1 max-w-[460px] items-center gap-2 rounded-kx-botao border border-kx-campo-borda bg-kx-superficie px-3 text-sm text-kx-placeholder transition-colors hover:border-kx-foco lg:ml-4"
+        className="flex h-10 flex-1 max-w-[460px] items-center gap-2 rounded-kx-botao border border-kx-campo-borda bg-kx-superficie px-3 text-sm text-kx-placeholder transition-colors hover:border-kx-foco"
       >
         <Search className="h-4 w-4 shrink-0" aria-hidden="true" />
         <span className="flex-1 text-left">Buscar OS, cliente...</span>
