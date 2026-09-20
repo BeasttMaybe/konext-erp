@@ -6,7 +6,8 @@ import { Moon, Search, Sun } from "lucide-react";
 import { obterDadosPerfilConfiguracao } from "@/app/actions/configuracoes";
 import { logout } from "@/app/actions/auth";
 import { useTheme } from "@/components/provedores/provedor-tema";
-import { useTemAlgumaPermissao } from "@/contextos/contexto-permissoes";
+import { useTemAlgumaPermissao, usePermissoes } from "@/contextos/contexto-permissoes";
+import { rotularPapel } from "@/lib/auth/permissoes";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,6 +39,7 @@ function iniciaisDoNome(nome: string): string {
 export function BarraSuperior({ onAbrirBusca }: { onAbrirBusca: () => void }) {
   const { theme, setTheme } = useTheme();
   const router = useRouter();
+  const { papel } = usePermissoes();
   const podeVerConfiguracoes = useTemAlgumaPermissao(PERMISSOES_CONFIGURACOES);
   const [nomeUsuario, setNomeUsuario] = useState("Usuario Konext");
   const [emailUsuario, setEmailUsuario] = useState("usuario@konext.local");
@@ -73,9 +75,13 @@ export function BarraSuperior({ onAbrirBusca }: { onAbrirBusca: () => void }) {
   }, []);
 
   return (
-    <header className="sticky top-0 z-kx-cabecalho flex h-16 shrink-0 items-center gap-3 border-b border-kx-painel-borda bg-kx-painel px-4 lg:px-6">
+    <header className="sticky top-0 z-kx-cabecalho flex h-[72px] shrink-0 items-center gap-3 border-b border-kx-painel-borda bg-kx-painel px-4 lg:px-6">
       <GavetaLateralMobile />
 
+      {/* Nome da empresa (dado do tenant, pode ser diferente de "Konext"):
+          só o texto, mais o logo QUANDO ele existir — nunca uma caixa vazia
+          no lugar dele. A marca "Konext" + tagline fica só na barra
+          lateral (Fase 3-2C, Parte 2). */}
       <span className="hidden shrink-0 items-center gap-2 lg:flex">
         {logoUrl && !falhaLogo ? (
           // eslint-disable-next-line @next/next/no-img-element -- URL de logo enviada pelo tenant, fora do domínio otimizado pelo next/image.
@@ -92,7 +98,7 @@ export function BarraSuperior({ onAbrirBusca }: { onAbrirBusca: () => void }) {
       <button
         type="button"
         onClick={onAbrirBusca}
-        className="flex h-10 flex-1 max-w-md items-center gap-2 rounded-kx-botao border border-kx-campo-borda bg-kx-superficie px-3 text-sm text-kx-placeholder transition-colors hover:border-kx-foco"
+        className="ml-2 flex h-10 flex-1 max-w-[460px] items-center gap-2 rounded-kx-botao border border-kx-campo-borda bg-kx-superficie px-3 text-sm text-kx-placeholder transition-colors hover:border-kx-foco lg:ml-4"
       >
         <Search className="h-4 w-4 shrink-0" aria-hidden="true" />
         <span className="flex-1 text-left">Buscar OS, cliente...</span>
@@ -117,12 +123,15 @@ export function BarraSuperior({ onAbrirBusca }: { onAbrirBusca: () => void }) {
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-10 gap-2 px-2">
-              <Avatar className="h-7 w-7">
+            <Button variant="ghost" className="h-auto gap-2 px-2 py-1.5">
+              <Avatar className="h-10 w-10">
                 <AvatarImage src={fotoPerfilUrl ?? undefined} alt={nomeUsuario} />
                 <AvatarFallback>{iniciaisDoNome(nomeUsuario)}</AvatarFallback>
               </Avatar>
-              <span className="hidden max-w-[10rem] truncate text-sm font-medium sm:inline-block">{nomeUsuario}</span>
+              <span className="hidden max-w-[10rem] flex-col items-start sm:flex">
+                <span className="truncate text-sm font-bold leading-tight text-kx-texto">{nomeUsuario}</span>
+                <span className="truncate text-xs leading-tight text-kx-legenda">{rotularPapel(papel)}</span>
+              </span>
             </Button>
           </DropdownMenuTrigger>
 
