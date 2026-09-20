@@ -8,7 +8,7 @@ import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditor
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 
 type CaixaDelegate = {
-  findFirst?: (args: unknown) => Promise<{ id?: string; valorAbertura?: number } | null>;
+  findFirst?: (args: unknown) => Promise<{ id?: string; valorAbertura?: number; dataAbertura?: Date } | null>;
   create?: (args: unknown) => Promise<{ id: string; valorAbertura: number; dataAbertura: Date }>;
   update?: (args: unknown) => Promise<{ id: string; valorFechamento?: number; dataFechamento?: Date | null }>;
 };
@@ -31,6 +31,7 @@ export interface ResumoCaixaAbertoAtual {
   valorAbertura: number;
   totalVendasSessao: number;
   valorSugeridoFechamento: number;
+  dataAbertura: string;
 }
 
 function obterCaixaDelegate(client: unknown): CaixaDelegate | undefined {
@@ -105,9 +106,9 @@ async function fecharCaixaViaSql(client: SqlExecutor, caixaId: string, valorFech
 
 async function obterResumoCaixaAbertoAtualViaSql(client: SqlExecutor): Promise<ResumoCaixaAbertoAtual> {
   const caixaAberto = await client.$queryRaw<
-    Array<{ id: string; valorAbertura: number }>
+    Array<{ id: string; valorAbertura: number; dataAbertura: Date }>
   >`
-    SELECT id, "valorAbertura"
+    SELECT id, "valorAbertura", "dataAbertura"
     FROM "CaixaSession"
     WHERE status::text = 'ABERTO'
     ORDER BY "dataAbertura" DESC
@@ -120,6 +121,7 @@ async function obterResumoCaixaAbertoAtualViaSql(client: SqlExecutor): Promise<R
 
   const caixaId = String(caixaAberto[0].id);
   const valorAbertura = Number(caixaAberto[0].valorAbertura ?? 0);
+  const dataAbertura = new Date(caixaAberto[0].dataAbertura).toISOString();
 
   const totaisVenda = await client.$queryRaw<Array<{ total: number }>>`
     SELECT COALESCE(SUM("valorTotal"), 0) AS total
@@ -134,6 +136,7 @@ async function obterResumoCaixaAbertoAtualViaSql(client: SqlExecutor): Promise<R
     valorAbertura,
     totalVendasSessao,
     valorSugeridoFechamento: valorAbertura + totalVendasSessao,
+    dataAbertura,
   };
 }
 
@@ -151,10 +154,11 @@ async function obterResumoCaixaAbertoAtualInterno(client: CaixaClient): Promise<
       select: {
         id: true,
         valorAbertura: true,
+        dataAbertura: true,
       },
     });
 
-    if (!caixaAberto?.id) {
+    if (!caixaAberto?.id || !caixaAberto.dataAbertura) {
       throw new Error("Nao existe caixa aberto para fechamento.");
     }
 
@@ -172,6 +176,7 @@ async function obterResumoCaixaAbertoAtualInterno(client: CaixaClient): Promise<
       valorAbertura,
       totalVendasSessao,
       valorSugeridoFechamento: valorAbertura + totalVendasSessao,
+      dataAbertura: new Date(caixaAberto.dataAbertura).toISOString(),
     };
   }
 

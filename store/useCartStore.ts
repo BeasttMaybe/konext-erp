@@ -5,6 +5,9 @@ export interface ProdutoPDV {
   nome: string;
   preco: number;
   imagemUrl?: string | null;
+  categoria?: string;
+  quantidadeEstoque?: number;
+  estoqueMinimo?: number;
 }
 
 export interface ItemCarrinho extends ProdutoPDV {
@@ -21,8 +24,6 @@ interface CartState {
   adicionarItem: (produto: ProdutoPDV) => void;
   removerItem: (id: string) => void;
   alterarQuantidade: (id: string, quantidade: number) => void;
-  // Permite editar o preço unitário de itens com preço variável
-  alterarPreco: (id: string, novoPreco: number) => void;
   setDesconto: (valor: number) => void;
   setTipoDesconto: (tipo: TipoDesconto) => void;
   limparCarrinho: () => void;
@@ -48,13 +49,6 @@ export const useCartStore = create<CartState>((set, get) => ({
   }),
   removerItem: (id) => set((state) => ({
     itens: state.itens.filter(i => i.id !== id)
-  })),
-  alterarPreco: (id, novoPreco) => set((state) => ({
-    itens: state.itens.map(i =>
-      i.id === id
-        ? { ...i, preco: Math.max(0, novoPreco), subtotal: Math.max(0, novoPreco) * i.quantidade }
-        : i
-    )
   })),
   alterarQuantidade: (id, qtd) => set((state) => ({
     itens: state.itens.map(i => i.id === id ? { ...i, quantidade: Math.max(1, qtd), subtotal: Math.max(1, qtd) * i.preco } : i)

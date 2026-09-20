@@ -43,6 +43,9 @@ export interface ProdutoPDVBanco {
   nome: string;
   preco: number;
   imagemUrl: string | null;
+  categoria: string;
+  quantidadeEstoque: number;
+  estoqueMinimo: number;
 }
 
 /**
@@ -80,7 +83,7 @@ export interface OrderServicePdvItem {
 
 export type FormaPagamento = FormaPagamentoPdv;
 
-export interface PagamentoPdvInput extends EntradaPagamentoPdv {}
+export type PagamentoPdvInput = EntradaPagamentoPdv;
 
 export type ConfiguracaoPagamentosPDV = ConfiguracaoPdvPagamentos;
 
@@ -787,6 +790,9 @@ export async function listarProdutosPDV(): Promise<ProdutoPDVBanco[]> {
       nome: true,
       precoVenda: true,
       imagemUrl: true,
+      categoria: true,
+      quantidadeEstoque: true,
+      estoqueMinimo: true,
     },
     orderBy: {
       nome: "asc",
@@ -798,6 +804,9 @@ export async function listarProdutosPDV(): Promise<ProdutoPDVBanco[]> {
     nome: produto.nome,
     preco: produto.precoVenda,
     imagemUrl: produto.imagemUrl,
+    categoria: produto.categoria,
+    quantidadeEstoque: produto.quantidadeEstoque,
+    estoqueMinimo: produto.estoqueMinimo,
   }));
 }
 
