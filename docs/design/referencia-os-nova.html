@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Konext — referência: nova OS em 3 passos</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+  <style>
+    body { margin: 0; font-family: "Plus Jakarta Sans", "Segoe UI", system-ui, sans-serif; background: #1B1D38; color: #EEF0FB; }
+    a { color: #A5AAFF; text-decoration: none; } a:hover { color: #C7CAFF; }
+    .num { font-variant-numeric: tabular-nums; }
+    .nav-ativo { position: relative; }
+    .nav-ativo::before { content: ""; position: absolute; right: 0; top: -20px; width: 20px; height: 20px; border-bottom-right-radius: 20px; box-shadow: 8px 8px 0 8px #1B1D38; }
+    .nav-ativo::after { content: ""; position: absolute; right: 0; bottom: -20px; width: 20px; height: 20px; border-top-right-radius: 20px; box-shadow: 8px -8px 0 8px #1B1D38; }
+  </style>
+</head>
+<body>
+<!--
+  Konext — referência: nova OS em 3 passos
+  REFERÊNCIA VISUAL APROVADA PELO DONO. Abra no navegador e compare lado a lado com a tela real.
+  Observação: o passo a passo interativo pode não rodar isolado; o que vale é o LAYOUT de cada passo (descritos no prompt).
+  A barra lateral foi removida deste arquivo de propósito: ela já existe no app.
+  As cores aqui são os mesmos valores dos tokens --kx-*; no código use SEMPRE o token, nunca o hex.
+  Os dados são fictícios.
+-->
+
+<div style="width: 1440px; height: 900px; display: flex; background: #1B1D38; overflow: hidden;">
+
+  <main style="flex-grow: 1; position: relative; display: flex; padding: 28px; box-sizing: border-box; min-width: 0;">
+    <div style="position: absolute; inset: 0; background: #0E0F20; opacity: 0.72;"></div>
+
+    <div role="dialog" aria-label="Nova ordem de serviço" style="position: relative; width: 980px; max-height: 820px; margin: auto; border-radius: 26px; background: #2A2C50; border: 1px solid #353862; display: flex; flex-direction: column; overflow: hidden;">
+      <header style="padding: 22px 26px 0 26px; display: flex; flex-direction: column; gap: 16px;">
+        <div style="display: flex; align-items: flex-start; gap: 16px;">
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <span style="font-size: 20px; font-weight: 800; letter-spacing: -0.02em;">Nova ordem de serviço</span>
+            <span style="font-size: 13px; color: #A7AACE;">O número da OS é gerado ao salvar.</span>
+          </div>
+          <button type="button" aria-label="Fechar" style="margin-left: auto; width: 38px; height: 38px; border-radius: 10px; border: 1px solid #45487A; background: transparent; color: #C3C6E4; font-size: 16px; cursor: pointer;">✕</button>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0;">
+          <sc-for list="{{passos}}" as="p" hint-placeholder-count="3">
+            <button type="button" onClick="{{p.escolher}}" aria-current="{{p.atual}}" style="flex-grow: 1; display: flex; align-items: center; gap: 10px; padding: 0 12px 14px 12px; border: none; border-bottom: 2px solid {{p.linha}}; background: transparent; color: {{p.cor}}; font: inherit; text-align: left; cursor: pointer;">
+              <span style="width: 26px; height: 26px; flex-shrink: 0; border-radius: 50%; background: {{p.bolaFundo}}; color: {{p.bolaTexto}}; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800;">{{p.numero}}</span>
+              <span style="display: flex; flex-direction: column; min-width: 0;">
+                <span style="font-size: 14px; font-weight: 700;">{{p.titulo}}</span>
+                <span style="font-size: 11px; color: #A7AACE;">{{p.descricao}}</span>
+              </span>
+            </button>
+          </sc-for>
+        </div>
+      </header>
+
+      <div style="flex-grow: 1; min-height: 0; padding: 20px 26px; display: flex; flex-direction: column; gap: 16px; overflow: hidden;">
+        <sc-if value="{{passo1}}" hint-placeholder-val="{{ true }}">
+          <div style="display: flex; flex-direction: column; gap: 16px;">
+            <div style="padding: 16px 18px; border-radius: 18px; background: #23254A; display: flex; flex-direction: column; gap: 12px;">
+              <span style="font-size: 15px; font-weight: 700;">Cliente</span>
+              <label style="display: flex; flex-direction: column; gap: 6px;">
+                <span style="font-size: 13px; font-weight: 700;">Buscar cliente <span style="color: #FCA5A5;">*</span></span>
+                <input placeholder="Nome, CPF/CNPJ ou telefone" style="height: 46px; border-radius: 12px; background: #23254A; border: 1px solid #383B66; padding: 0 14px; color: #EEF0FB; font: inherit; font-size: 14px; box-sizing: border-box; width: 100%;">
+              </label>
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 12px; color: #A7AACE;">Não encontrou?</span>
+                <button type="button" style="height: 44px; padding: 0 16px; border-radius: 12px; border: 1px solid #45487A; background: transparent; color: #EEF0FB; font: inherit; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; cursor: pointer; height: 34px; font-size: 13px;">Cadastrar novo cliente</button>
+              </div>
+            </div>
+
+            <div style="padding: 16px 18px; border-radius: 18px; background: #23254A; display: flex; flex-direction: column; gap: 14px;">
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 15px; font-weight: 700;">Aparelho</span>
+                <div style="margin-left: auto; display: flex; gap: 6px;">
+                  <sc-for list="{{tipos}}" as="t" hint-placeholder-count="4">
+                    <button type="button" aria-pressed="{{t.ativo}}" onClick="{{t.escolher}}" style="height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid {{t.borda}}; background: {{t.fundo}}; color: {{t.cor}}; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer;">{{t.nome}}</button>
+                  </sc-for>
+                </div>
+              </div>
+              <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">
+            <label style="display: flex; flex-direction: column; gap: 6px;">
+              <span style="font-size: 13px; font-weight: 700;">Marca</span>
+              <input placeholder="Ex.: Samsung, Apple, Motorola" style="height: 46px; border-radius: 12px; background: #23254A; border: 1px solid #383B66; padding: 0 14px; color: #EEF0FB; font: inherit; font-size: 14px; box-sizing: border-box; width: 100%;">
+              
+            </label>
+            <label style="display: flex; flex-direction: column; gap: 6px;">
+              <span style="font-size: 13px; font-weight: 700;">Modelo</span>
+              <input placeholder="Ex.: Galaxy A54" style="height: 46px; border-radius: 12px; background: #23254A; border: 1px solid #383B66; padding: 0 14px; color: #EEF0FB; font: inherit; font-size: 14px; box-sizing: border-box; width: 100%;">
+              
+            </label>
+            <label style="display: flex; flex-direction: column; gap: 6px;">
+              <span style="font-size: 13px; font-weight: 700;">IMEI / Nº de série</span>
+              <input placeholder="Só números" style="height: 46px; border-radius: 12px; background: #23254A; border: 1px solid #383B66; padding: 0 14px; color: #EEF0FB; font: inherit; font-size: 14px; box-sizing: border-box; width: 100%;">
+              <span style="font-size: 11px; color: #A7AACE;">O sistema valida o formato antes de salvar.</span>
+            </label>
+            <label style="display: flex; flex-direction: column; gap: 6px;">
+              <span style="font-size: 13px; font-weight: 700;">Senha do aparelho</span>
+              <input placeholder="Opcional" style="height: 46px; border-radius: 12px; background: #23254A; border: 1px solid #383B66; padding: 0 14px; color: #EEF0FB; font: inherit; font-size: 14px; box-sizing: border-box; width: 100%;">
+              <span style="font-size: 11px; color: #A7AACE;">Guardada de forma protegida; quem vê fica registrado.</span>
+            </label>
+              </div>
+              <div style="display: flex; align-items: center; gap: 16px; padding: 12px 14px; border-radius: 12px; background: #2E3158;">
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                  <span style="font-size: 13px; font-weight: 700;">Senha de desenho</span>
+                  <span style="font-size: 11px; color: #A7AACE;">Toque nos pontos na ordem do cliente</span>
+                </div>
+                <div style="margin-left: auto; display: grid; grid-template-columns: repeat(3, 20px); gap: 10px;">
+                  <sc-for list="{{pontos}}" as="pt" hint-placeholder-count="9">
+                    <span style="width: 20px; height: 20px; border-radius: 50%; border: 2px solid {{pt.borda}}; background: {{pt.fundo}};"></span>
+                  </sc-for>
+                </div>
+                <button type="button" style="height: 44px; padding: 0 16px; border-radius: 12px; border: 1px solid #45487A; background: transparent; color: #EEF0FB; font: inherit; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; cursor: pointer; height: 34px; font-size: 13px;">Limpar</button>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{passo2}}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; flex-direction: column; gap: 16px;">
+            <div style="padding: 16px 18px; border-radius: 18px; background: #23254A; display: flex; flex-direction: column; gap: 12px;">
+              <span style="font-size: 15px; font-weight: 700;">Como o aparelho chegou</span>
+              <label style="display: flex; flex-direction: column; gap: 6px;">
+                <span style="font-size: 13px; font-weight: 700;">Relato do cliente <span style="color: #FCA5A5;">*</span></span>
+                <textarea placeholder="O que o cliente informou sobre o problema" style="height: 46px; border-radius: 12px; background: #23254A; border: 1px solid #383B66; padding: 0 14px; color: #EEF0FB; font: inherit; font-size: 14px; box-sizing: border-box; width: 100%; height: 88px; padding: 12px 14px; resize: none;"></textarea>
+              </label>
+              <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">
+            <label style="display: flex; flex-direction: column; gap: 6px;">
+              <span style="font-size: 13px; font-weight: 700;">Condição física</span>
+              <input placeholder="Arranhões, trincos, marcas" style="height: 46px; border-radius: 12px; background: #23254A; border: 1px solid #383B66; padding: 0 14px; color: #EEF0FB; font: inherit; font-size: 14px; box-sizing: border-box; width: 100%;">
+              
+            </label>
+            <label style="display: flex; flex-direction: column; gap: 6px;">
+              <span style="font-size: 13px; font-weight: 700;">Acessórios deixados</span>
+              <input placeholder="Carregador, capa, cartão" style="height: 46px; border-radius: 12px; background: #23254A; border: 1px solid #383B66; padding: 0 14px; color: #EEF0FB; font: inherit; font-size: 14px; box-sizing: border-box; width: 100%;">
+              
+            </label>
+              </div>
+            </div>
+            <div style="padding: 16px 18px; border-radius: 18px; background: #23254A; display: flex; flex-direction: column; gap: 12px;">
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 15px; font-weight: 700;">Fotos da entrada</span>
+                <span style="font-size: 12px; color: #A7AACE;">Recomendado: registre o estado do aparelho</span>
+              </div>
+              <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px;">
+                <sc-for list="{{fotosEntrada}}" as="f" hint-placeholder-count="5">
+                  <div style="aspect-ratio: 1; border-radius: 12px; background: {{f.fundo}}; border: 1px {{f.borda}} #3A3D6A; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;">
+                    <span style="font-size: 18px;">{{f.icone}}</span>
+                    <span style="font-size: 10px; color: #A7AACE; text-align: center;">{{f.rotulo}}</span>
+                  </div>
+                </sc-for>
+              </div>
+              <span style="font-size: 12px; color: #A7AACE;">Pelo celular: abra a OS no aparelho ou use o QR Code depois de salvar.</span>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{passo3}}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; flex-direction: column; gap: 16px;">
+            <div style="padding: 16px 18px; border-radius: 18px; background: #23254A; display: flex; flex-direction: column; gap: 12px;">
+              <span style="font-size: 15px; font-weight: 700;">Orçamento inicial</span>
+              <span style="font-size: 12px; color: #A7AACE;">Opcional agora. As peças e serviços podem ser lançados depois, na tela da OS.</span>
+              <div style="display: grid; grid-template-columns: minmax(0, 1.6fr) 140px 140px auto; gap: 10px; align-items: flex-end;">
+            <label style="display: flex; flex-direction: column; gap: 6px;">
+              <span style="font-size: 13px; font-weight: 700;">Descrição</span>
+              <input placeholder="Ex.: troca de tela" style="height: 46px; border-radius: 12px; background: #23254A; border: 1px solid #383B66; padding: 0 14px; color: #EEF0FB; font: inherit; font-size: 14px; box-sizing: border-box; width: 100%;">
+              
+            </label>
+            <label style="display: flex; flex-direction: column; gap: 6px;">
+              <span style="font-size: 13px; font-weight: 700;">Custo da peça</span>
+              <input placeholder="R$ 0,00" style="height: 46px; border-radius: 12px; background: #23254A; border: 1px solid #383B66; padding: 0 14px; color: #EEF0FB; font: inherit; font-size: 14px; box-sizing: border-box; width: 100%;">
+              
+            </label>
+            <label style="display: flex; flex-direction: column; gap: 6px;">
+              <span style="font-size: 13px; font-weight: 700;">Valor ao cliente</span>
+              <input placeholder="R$ 0,00" style="height: 46px; border-radius: 12px; background: #23254A; border: 1px solid #383B66; padding: 0 14px; color: #EEF0FB; font: inherit; font-size: 14px; box-sizing: border-box; width: 100%;">
+              
+            </label>
+                <button type="button" style="height: 44px; padding: 0 16px; border-radius: 12px; border: 1px solid #45487A; background: transparent; color: #EEF0FB; font: inherit; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; cursor: pointer;">Adicionar</button>
+              </div>
+            </div>
+            <div style="padding: 16px 18px; border-radius: 18px; background: #23254A; display: flex; align-items: center; gap: 16px;">
+              <div style="display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; font-weight: 700;">Prazo de garantia</span>
+                <span style="font-size: 11px; color: #A7AACE;">Começa a contar na entrega</span>
+              </div>
+              <input value="90 dias" style="height: 46px; border-radius: 12px; background: #23254A; border: 1px solid #383B66; padding: 0 14px; color: #EEF0FB; font: inherit; font-size: 14px; box-sizing: border-box; width: 100%; width: 140px; margin-left: auto;">
+            </div>
+            <div style="padding: 16px 18px; border-radius: 18px; background: #2E3158; display: flex; flex-direction: column; gap: 8px;">
+              <span style="font-size: 13px; font-weight: 700;">Resumo</span>
+              <div style="display: flex; justify-content: space-between; font-size: 13px; color: #C3C6E4;"><span>Cliente</span><span>[Nome do cliente]</span></div>
+              <div style="display: flex; justify-content: space-between; font-size: 13px; color: #C3C6E4;"><span>Aparelho</span><span>Celular · Samsung Galaxy A54</span></div>
+              <div style="display: flex; justify-content: space-between; font-size: 13px; color: #C3C6E4;"><span>Entra em</span><span>Orçamento</span></div>
+              <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: 800;"><span>Valor previsto</span><span class="num">R$ 0,00</span></div>
+            </div>
+          </div>
+        </sc-if>
+      </div>
+
+      <footer style="padding: 16px 26px; border-top: 1px solid #353862; display: flex; align-items: center; gap: 12px;">
+        <span style="font-size: 12px; color: #A7AACE;">{{dicaRodape}}</span>
+        <div style="margin-left: auto; display: flex; gap: 10px;">
+          <button type="button" style="height: 44px; padding: 0 16px; border-radius: 12px; border: 1px solid #45487A; background: transparent; color: #EEF0FB; font: inherit; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; cursor: pointer;">Cancelar</button>
+          <button type="button" onClick="{{voltar}}" disabled="{{semVoltar}}" style="height: 44px; padding: 0 16px; border-radius: 12px; border: 1px solid #45487A; background: transparent; color: #EEF0FB; font: inherit; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; cursor: pointer; opacity: {{opacidadeVoltar}};">Voltar</button>
+          <button type="button" onClick="{{avancar}}" style="height: 44px; padding: 0 18px; border-radius: 12px; border: none; background: #5A5FE0; color: #FFFFFF; font: inherit; font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 8px; cursor: pointer;">{{rotuloAvancar}}</button>
+        </div>
+      </footer>
+    </div>
+  </main>
+</div>
+
+<script type="module">
+// Lógica da prévia (equivalente ao componente): apenas para o arquivo abrir sozinho.
+
+</script>
+</body>
+</html>

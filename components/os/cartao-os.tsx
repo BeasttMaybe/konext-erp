@@ -106,6 +106,8 @@ export function CartaoOS({
   // "Tempo na etapa": proxy de dataAtualizacao, o unico carimbo de tempo que a
   // OS tem hoje — nao e literalmente "desde que entrou nesta etapa" (qualquer
   // edicao toca esse campo), mas e o melhor sinal disponivel sem mudar o schema.
+  // Confirmado pelo dono (Fase 3-2B): aproximacao aceita por enquanto — uma
+  // fase futura adiciona um carimbo de "entrou nesta etapa em".
   const diasNaEtapa = diasDesde(os.dataAtualizacao);
   const etapaEmAlerta = diasNaEtapa >= DIAS_LIMITE_ETAPA;
 

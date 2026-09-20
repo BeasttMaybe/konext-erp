@@ -102,7 +102,7 @@ export function AcaoEntregaOS({
 
   return (
     <>
-      <Button type="button" size="sm" className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={abrirEntrega}>
+      <Button type="button" size="sm" className="h-[42px]" onClick={abrirEntrega}>
         <PackageCheck className="mr-2 h-4 w-4" />
         Entregar e finalizar
       </Button>

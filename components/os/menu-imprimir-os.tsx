@@ -24,7 +24,7 @@ export function MenuImprimirOS({ osId, modeloPadrao }: PropsMenuImprimirOS) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button type="button" variant="outline" size="sm" className="h-9">
+        <Button type="button" variant="outline" size="sm" className="h-[42px]">
           <Printer className="h-4 w-4 mr-2" />
           Imprimir
           <ChevronDown className="h-3.5 w-3.5 ml-2" />

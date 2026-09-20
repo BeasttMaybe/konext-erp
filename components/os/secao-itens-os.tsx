@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import type { TipoPeca } from "@prisma/client";
-import { Pencil, Trash2 } from "lucide-react";
+import { MoreVertical, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { adicionarItemOS, atualizarItemOS, removerItemOS } from "@/app/actions/os-itens";
 import {
@@ -16,9 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -27,6 +25,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -36,14 +40,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 
 type ItemOSTabela = {
   id: string;
@@ -72,10 +68,9 @@ const opcoesTipoPeca: Array<{ value: TipoPeca; label: string }> = [
 ];
 
 const formatarMoeda = (valor: number) =>
-  new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  }).format(valor);
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(valor);
+
+const COLUNAS_GRID = "grid-cols-[minmax(0,1.6fr)_100px_100px_100px_40px]";
 
 export function SecaoItensOS({ osId, numeroOs, itens, desabilitarCadastro = false }: PropsSecaoItensOS) {
   const router = useRouter();
@@ -83,6 +78,7 @@ export function SecaoItensOS({ osId, numeroOs, itens, desabilitarCadastro = fals
   const [isPendingEditar, startTransitionEditar] = useTransition();
   const [isPendingRemover, startTransitionRemover] = useTransition();
 
+  const [dialogoAdicionarAberto, setDialogoAdicionarAberto] = useState(false);
   const [tipoPeca, setTipoPeca] = useState<TipoPeca>("TELA");
   const [descricao, setDescricao] = useState("");
   const [custoPeca, setCustoPeca] = useState<string>("");
@@ -98,12 +94,8 @@ export function SecaoItensOS({ osId, numeroOs, itens, desabilitarCadastro = fals
   const custoPecaNumero = Number(custoPeca || 0);
   const valorManualNumero = Number(valorManual || 0);
 
-  // O valor cobrado ao cliente é sempre o valor manual informado — sem cálculo automático de markup.
-  const valorPreview = valorManualNumero;
-
-  const totalOS = useMemo(() => {
-    return itens.reduce((total, item) => total + item.valorCobrado, 0);
-  }, [itens]);
+  const totalOS = useMemo(() => itens.reduce((total, item) => total + item.valorCobrado, 0), [itens]);
+  const mostraCusto = itens.length === 0 || itens.some((item) => item.custoPeca !== null);
 
   const limparFormulario = () => {
     setDescricao("");
@@ -151,6 +143,7 @@ export function SecaoItensOS({ osId, numeroOs, itens, desabilitarCadastro = fals
 
         toast.success("Item adicionado com sucesso na ordem de servico.");
         limparFormulario();
+        setDialogoAdicionarAberto(false);
         router.refresh();
       } catch (error) {
         const mensagem = error instanceof Error ? error.message : "Erro ao adicionar item na ordem de servico.";
@@ -230,29 +223,100 @@ export function SecaoItensOS({ osId, numeroOs, itens, desabilitarCadastro = fals
   };
 
   return (
-    <div className="space-y-6">
-      <Card className="border-zinc-200 dark:border-zinc-800 bg-white dark:bg-slate-800 p-5">
-        <div className="space-y-1">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-            Adicionar Peca/Servico
-          </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            OS #{numeroOs} — Informe o valor cobrado ao cliente manualmente.
-          </p>
-        </div>
+    <div className="p-kx-4 rounded-kx-painel border border-kx-painel-borda bg-kx-painel flex flex-1 min-h-0 flex-col gap-2 overflow-hidden">
+      <div className="flex items-center gap-2.5">
+        <span className="text-sm font-bold text-kx-texto">Peças e serviços</span>
+        <Button
+          type="button"
+          size="sm"
+          className="ml-auto h-[34px] text-xs"
+          onClick={() => setDialogoAdicionarAberto(true)}
+          disabled={desabilitarCadastro}
+        >
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          Adicionar
+        </Button>
+      </div>
 
-        <form onSubmit={aoSubmeter} className="mt-4 space-y-0">
+      <div className={`grid ${COLUNAS_GRID} gap-2.5 px-2.5 text-xs font-semibold text-kx-legenda`}>
+        <span>Descrição</span>
+        <span>Tipo</span>
+        {mostraCusto && <span className="text-right">Custo</span>}
+        <span className="text-right">Cobrado</span>
+        <span />
+      </div>
 
-          {/* Grade de campos — 12 colunas para distribuição precisa */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-4 md:items-end">
+      <div className="flex-1 min-h-0 overflow-y-auto rounded-kx-cartao">
+        {itens.length === 0 ? (
+          <p className="py-8 text-center text-sm text-kx-legenda">Nenhum item adicionado nesta OS.</p>
+        ) : (
+          <div className="flex flex-col gap-1.5">
+            {itens.map((item) => (
+              <div
+                key={item.id}
+                className={`grid ${COLUNAS_GRID} items-center gap-2.5 rounded-kx-cartao bg-kx-cartao px-2.5 py-2.5 text-sm`}
+              >
+                <span className="truncate font-medium text-kx-texto">{item.descricao}</span>
+                <span className="w-fit truncate rounded-kx-pilula bg-kx-superficie px-2.5 py-0.5 text-xs font-bold text-kx-texto-2">
+                  {item.tipoPeca.replaceAll("_", " ")}
+                </span>
+                {mostraCusto && (
+                  <span className="text-right tabular-nums text-kx-erro-icone">
+                    {item.custoPeca === null ? "—" : formatarMoeda(item.custoPeca)}
+                  </span>
+                )}
+                <span className="text-right font-bold tabular-nums text-kx-texto">{formatarMoeda(item.valorCobrado)}</span>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className="ml-auto flex h-7 w-7 items-center justify-center rounded-kx-botao text-kx-legenda hover:bg-kx-superficie hover:text-kx-texto"
+                    >
+                      <MoreVertical className="h-4 w-4" aria-hidden="true" />
+                      <span className="sr-only">Ações do item</span>
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {item.custoPeca !== null && (
+                      <DropdownMenuItem
+                        onClick={() => abrirEdicao(item)}
+                        disabled={desabilitarCadastro || isPendingEditar || isPendingRemover}
+                      >
+                        Editar
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem
+                      onClick={() => setItemParaRemover(item)}
+                      disabled={desabilitarCadastro || isPendingEditar || isPendingRemover}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      Remover
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
-            {/* Tipo da Peça — 3 colunas */}
-            <div className="md:col-span-3 flex flex-col gap-1.5">
-              <Label htmlFor="tipo-peca" className="text-sm text-slate-600 dark:text-slate-400">
-                Tipo da Peça
-              </Label>
+      <div className="mt-auto flex items-center justify-between border-t border-kx-painel-borda px-2.5 pt-2.5">
+        <span className="text-xs text-kx-legenda">{itens.length === 1 ? "1 item" : `${itens.length} itens`}</span>
+        <span className="text-base font-extrabold tabular-nums text-kx-texto">Total: {formatarMoeda(totalOS)}</span>
+      </div>
+
+      <Dialog open={dialogoAdicionarAberto} onOpenChange={setDialogoAdicionarAberto}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Adicionar peça/serviço</DialogTitle>
+            <DialogDescription>OS #{numeroOs} — informe o valor cobrado ao cliente manualmente.</DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={aoSubmeter} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="tipo-peca">Tipo da Peça</Label>
               <Select value={tipoPeca} onValueChange={(valor) => setTipoPeca(valor as TipoPeca)}>
-                <SelectTrigger id="tipo-peca" className="h-10">
+                <SelectTrigger id="tipo-peca">
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
                 <SelectContent>
@@ -265,153 +329,60 @@ export function SecaoItensOS({ osId, numeroOs, itens, desabilitarCadastro = fals
               </Select>
             </div>
 
-            {/* Descrição — 5 colunas */}
-            <div className="md:col-span-5 flex flex-col gap-1.5">
-              <Label htmlFor="descricao-item" className="text-sm text-slate-600 dark:text-slate-400">
-                Descrição
-              </Label>
+            <div className="space-y-2">
+              <Label htmlFor="descricao-item">Descrição</Label>
               <Input
                 id="descricao-item"
-                className="h-10"
                 value={descricao}
                 onChange={(evento) => setDescricao(evento.target.value)}
                 placeholder="Ex: Troca de tela OLED"
               />
             </div>
 
-            {/* Custo da Peça — 2 colunas */}
-            <div className="md:col-span-2 flex flex-col gap-1.5">
-              <Label htmlFor="custo-peca" className="text-sm text-slate-600 dark:text-slate-400">
-                Custo (R$)
-              </Label>
-              <Input
-                id="custo-peca"
-                className="h-10"
-                type="number"
-                min="0"
-                step="0.01"
-                value={custoPeca}
-                onChange={(evento) => setCustoPeca(evento.target.value)}
-                placeholder="0,00"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="custo-peca">Custo (R$)</Label>
+                <Input
+                  id="custo-peca"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={custoPeca}
+                  onChange={(evento) => setCustoPeca(evento.target.value)}
+                  placeholder="0,00"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="valor-manual">Cobrado (R$)</Label>
+                <Input
+                  id="valor-manual"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={valorManual}
+                  onChange={(evento) => setValorManual(evento.target.value)}
+                  placeholder="0,00"
+                />
+              </div>
             </div>
 
-            {/* Valor Cobrado ao Cliente — 2 colunas */}
-            <div className="md:col-span-2 flex flex-col gap-1.5">
-              <Label htmlFor="valor-manual" className="text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap">
-                Cobrado (R$)
-              </Label>
-              <Input
-                id="valor-manual"
-                className="h-10"
-                type="number"
-                min="0"
-                step="0.01"
-                value={valorManual}
-                onChange={(evento) => setValorManual(evento.target.value)}
-                placeholder="0,00"
-              />
-            </div>
-          </div>
-
-          {/* Linha de ação — separada visualmente do grid de campos */}
-          <div className="flex items-center gap-6 mt-6 pt-4 border-t border-zinc-200 dark:border-zinc-700/50">
-            <Button type="submit" disabled={isPendingAdicionar || desabilitarCadastro}>
-              {isPendingAdicionar ? "Adicionando..." : "Adicionar Item"}
-            </Button>
-            <Badge variant="secondary" className="text-sm">
-              Valor para o Cliente: {formatarMoeda(valorPreview)}
-            </Badge>
-          </div>
-
-          {/* Aviso quando OS está em modo visualização */}
-          {desabilitarCadastro && (
-            <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
-              Cadastro de itens indisponível nesta OS porque ela não foi carregada do banco de dados.
-            </p>
-          )}
-        </form>
-      </Card>
-
-      <Card className="border-zinc-200 dark:border-zinc-800 bg-white dark:bg-slate-800 p-0">
-        <div className="p-5 border-b border-zinc-200 dark:border-zinc-700">
-          <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Itens da Ordem de Servico</h3>
-        </div>
-
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Descricao</TableHead>
-              <TableHead>Tipo</TableHead>
-              <TableHead className="text-right">Custo</TableHead>
-              <TableHead className="text-right">Valor Cobrado</TableHead>
-              <TableHead className="text-right">Criado em</TableHead>
-              <TableHead className="text-right">Acoes</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {itens.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center text-slate-500 py-8">
-                  Nenhum item adicionado nesta OS.
-                </TableCell>
-              </TableRow>
-            )}
-
-            {itens.map((item) => (
-              <TableRow key={item.id}>
-                <TableCell>{item.descricao}</TableCell>
-                <TableCell>{item.tipoPeca.replaceAll("_", " ")}</TableCell>
-                <TableCell className="text-right">
-                  {item.custoPeca === null ? "—" : formatarMoeda(item.custoPeca)}
-                </TableCell>
-                <TableCell className="text-right font-semibold">{formatarMoeda(item.valorCobrado)}</TableCell>
-                <TableCell className="text-right text-slate-500">
-                  {new Date(item.criadoEm).toLocaleDateString("pt-BR")}
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="inline-flex items-center gap-2">
-                    {item.custoPeca !== null && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8"
-                        onClick={() => abrirEdicao(item)}
-                        disabled={desabilitarCadastro || isPendingEditar || isPendingRemover}
-                      >
-                        <Pencil className="h-3.5 w-3.5 mr-1" />
-                        Editar
-                      </Button>
-                    )}
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      className="h-8"
-                      onClick={() => setItemParaRemover(item)}
-                      disabled={desabilitarCadastro || isPendingEditar || isPendingRemover}
-                    >
-                      <Trash2 className="h-3.5 w-3.5 mr-1" />
-                      Remover
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-
-        <div className="p-5 border-t border-zinc-200 dark:border-zinc-700 flex items-center justify-end">
-          <p className="text-lg font-bold text-emerald-600">Total da OS: {formatarMoeda(totalOS)}</p>
-        </div>
-      </Card>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setDialogoAdicionarAberto(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={isPendingAdicionar}>
+                {isPendingAdicionar ? "Adicionando..." : "Adicionar Item"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={Boolean(itemEmEdicao)} onOpenChange={(aberto) => !aberto && setItemEmEdicao(null)}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Editar item da OS</DialogTitle>
-            <DialogDescription>
-              Atualize tipo, descricao, custo e valor cobrado ao cliente.
-            </DialogDescription>
+            <DialogDescription>Atualize tipo, descricao, custo e valor cobrado ao cliente.</DialogDescription>
           </DialogHeader>
 
           <div className="grid grid-cols-1 gap-4">
@@ -453,7 +424,6 @@ export function SecaoItensOS({ osId, numeroOs, itens, desabilitarCadastro = fals
                   onChange={(evento) => setCustoPecaEdicao(evento.target.value)}
                 />
               </div>
-
               <div className="space-y-2">
                 <Label htmlFor="valor-edicao">Cobrado (R$)</Label>
                 <Input

@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Konext — referência: detalhe da OS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+  <style>
+    body { margin: 0; font-family: "Plus Jakarta Sans", "Segoe UI", system-ui, sans-serif; background: #1B1D38; color: #EEF0FB; }
+    a { color: #A5AAFF; text-decoration: none; } a:hover { color: #C7CAFF; }
+    .num { font-variant-numeric: tabular-nums; }
+    .nav-ativo { position: relative; }
+    .nav-ativo::before { content: ""; position: absolute; right: 0; top: -20px; width: 20px; height: 20px; border-bottom-right-radius: 20px; box-shadow: 8px 8px 0 8px #1B1D38; }
+    .nav-ativo::after { content: ""; position: absolute; right: 0; bottom: -20px; width: 20px; height: 20px; border-top-right-radius: 20px; box-shadow: 8px -8px 0 8px #1B1D38; }
+  </style>
+</head>
+<body>
+<!--
+  Konext — referência: detalhe da OS
+  REFERÊNCIA VISUAL APROVADA PELO DONO. Abra no navegador e compare lado a lado com a tela real.
+  Observação: a lógica interativa (mostrar/ocultar senha) está no bloco <script> no fim e pode não rodar isolada; o que vale é o LAYOUT.
+  A barra lateral foi removida deste arquivo de propósito: ela já existe no app.
+  As cores aqui são os mesmos valores dos tokens --kx-*; no código use SEMPRE o token, nunca o hex.
+  Os dados são fictícios.
+-->
+
+<div style="width: 1440px; height: 900px; display: flex; background: #1B1D38; overflow: hidden;">
+
+  <main style="flex-grow: 1; display: flex; flex-direction: column; padding: 22px 28px 26px 28px; box-sizing: border-box; gap: 16px; min-width: 0;">
+    <header style="display: flex; align-items: center; gap: 16px; min-height: 48px;">
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <a href="OrdensServico.dc.html" style="font-size: 12px; color: #A7AACE;">‹ Ordens de Serviço</a>
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <span style="font-size: 22px; font-weight: 800; letter-spacing: -0.02em;">OS 0036</span>
+          <span style="padding: 4px 12px; border-radius: 999px; background: #233A60; color: #93C5FD; font-size: 12px; font-weight: 700;">Conserto</span>
+          <span style="padding: 4px 12px; border-radius: 999px; background: #4A3A22; color: #FDBA74; font-size: 12px; font-weight: 700;">Aguardando peça</span>
+        </div>
+      </div>
+      <div style="margin-left: auto; display: flex; align-items: center; gap: 10px;">
+        <button type="button" style="height: 42px; padding: 0 14px; border-radius: 12px; border: 1px solid #45487A; background: transparent; color: #EEF0FB; font: inherit; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; cursor: pointer;">Imprimir</button>
+        <button type="button" style="height: 42px; padding: 0 14px; border-radius: 12px; border: 1px solid #45487A; background: transparent; color: #EEF0FB; font: inherit; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; cursor: pointer;">Enviar ao cliente</button>
+        <button type="button" style="height: 42px; padding: 0 16px; border-radius: 12px; border: none; background: #5A5FE0; color: #FFFFFF; font: inherit; font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 8px; cursor: pointer;">Entregar e finalizar</button>
+        <button type="button" aria-label="Mais ações" style="width: 42px; height: 42px; border-radius: 12px; border: 1px solid #45487A; background: transparent; color: #C3C6E4; font-size: 18px; cursor: pointer;">⋮</button>
+      </div>
+    </header>
+    <section style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px;">
+      <div style="padding: 14px 18px; border-radius: 18px; background: #233A60; display: flex; flex-direction: column; gap: 4px;">
+        <span style="font-size: 12px; color: #D3D5F2; font-weight: 600;">Etapa</span>
+        <span style="font-size: 18px; font-weight: 800;">Conserto</span>
+        <span style="font-size: 12px; color: #FDBA74; font-weight: 600;">Aguardando peça há 3 dias</span>
+      </div>
+      <div style="padding: 14px 18px; border-radius: 18px; background: #34377A; display: flex; flex-direction: column; gap: 4px;">
+        <span style="font-size: 12px; color: #D3D5F2; font-weight: 600;">Total da OS</span>
+        <span class="num" style="font-size: 18px; font-weight: 800;">R$ 420,00</span>
+        <span class="num" style="font-size: 12px; color: #C3C6E4;">Peça R$ 150,00 · sobra R$ 270,00</span>
+      </div>
+      <div style="padding: 14px 18px; border-radius: 18px; background: #4A2B52; display: flex; flex-direction: column; gap: 4px;">
+        <span style="font-size: 12px; color: #D3D5F2; font-weight: 600;">Garantia</span>
+        <span style="font-size: 18px; font-weight: 800;">90 dias</span>
+        <span style="font-size: 12px; color: #F9A8D4;">Conta a partir da entrega</span>
+      </div>
+      <div style="padding: 14px 18px; border-radius: 18px; background: #1E4540; display: flex; flex-direction: column; gap: 4px;">
+        <span style="font-size: 12px; color: #D3D5F2; font-weight: 600;">Pagamento</span>
+        <span style="font-size: 18px; font-weight: 800;">Em aberto</span>
+        <span style="font-size: 12px; color: #C3C6E4;">Gere o pedido no PDV</span>
+      </div>
+    </section>
+
+    <section style="flex-grow: 1; min-height: 0; display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 16px; overflow: hidden;">
+      <div style="display: flex; flex-direction: column; gap: 14px; min-height: 0; overflow: hidden;">
+        <div style="padding: 16px 18px; border-radius: 22px; background: #2A2C50; border: 1px solid #353862; display: flex; flex-direction: column; gap: 10px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="width: 36px; height: 36px; border-radius: 50%; background: #3A3D6A; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800;">LC</span>
+            <div style="display: flex; flex-direction: column; min-width: 0;">
+              <span style="font-size: 15px; font-weight: 700;">[Nome do cliente]</span>
+              <span class="num" style="font-size: 12px; color: #A7AACE;">(11) 9****-****</span>
+            </div>
+            <button type="button" aria-label="Falar no WhatsApp" style="margin-left: auto; width: 36px; height: 36px; border-radius: 10px; border: 1px solid #45487A; background: transparent; color: #6EE7B7; cursor: pointer;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin: 0 auto;"><path d="M21 12a9 9 0 0 1-13.2 8L3 21l1.1-4.6A9 9 0 1 1 21 12z"></path></svg>
+            </button>
+          </div>
+          <a href="#" style="font-size: 13px; font-weight: 600;">Ver histórico do cliente ›</a>
+        </div>
+
+        <div style="padding: 16px 18px; border-radius: 22px; background: #2A2C50; border: 1px solid #353862; display: flex; flex-direction: column; gap: 12px;">
+          <span style="font-size: 15px; font-weight: 700;">Aparelho</span>
+          <dl style="margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 10px; column-gap: 10px; font-size: 13px;">
+            <div><dt style="color: #A7AACE; font-size: 12px;">Tipo</dt><dd style="margin: 0; font-weight: 700;">Celular</dd></div>
+            <div><dt style="color: #A7AACE; font-size: 12px;">Marca</dt><dd style="margin: 0; font-weight: 700;">Xiaomi</dd></div>
+            <div><dt style="color: #A7AACE; font-size: 12px;">Modelo</dt><dd style="margin: 0; font-weight: 700;">Poco X5</dd></div>
+            <div><dt style="color: #A7AACE; font-size: 12px;">IMEI</dt><dd class="num" style="margin: 0; font-weight: 700;">35812304523••••</dd></div>
+          </dl>
+          <div style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; background: #23254A;">
+            <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px;">
+              <span style="font-size: 12px; color: #A7AACE;">Senha do aparelho</span>
+              <span class="num" style="font-size: 15px; font-weight: 800; letter-spacing: 0.18em;">••••</span>
+            </div>
+            <button type="button" onClick="{{alternarSenha}}" aria-pressed="{{senhaVisivelTexto}}" style="height: 34px; padding: 0 12px; border-radius: 10px; border: 1px solid #45487A; background: transparent; color: #C3C6E4; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer;">{{rotuloSenha}}</button>
+          </div>
+          <sc-if value="{{senhaVisivel}}" hint-placeholder-val="{{ false }}">
+            <span style="font-size: 11px; color: #FDBA74;">Visualização registrada na auditoria.</span>
+          </sc-if>
+        </div>
+
+        <div style="flex-grow: 1; min-height: 0; padding: 16px 18px; border-radius: 22px; background: #2A2C50; border: 1px solid #353862; display: flex; flex-direction: column; gap: 10px; overflow: hidden;">
+          <span style="font-size: 15px; font-weight: 700;">Entrada</span>
+          <div style="display: flex; flex-direction: column; gap: 3px;">
+            <span style="font-size: 12px; color: #A7AACE;">Relato do cliente</span>
+            <span style="font-size: 13px; line-height: 1.45;">Derrubou e a tela quebrou; toque funcionando.</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 3px;">
+            <span style="font-size: 12px; color: #A7AACE;">Condição física</span>
+            <span style="font-size: 13px;">Marcas de uso nas laterais</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 3px;">
+            <span style="font-size: 12px; color: #A7AACE;">Acessórios deixados</span>
+            <span style="font-size: 13px; color: #A7AACE;">Nenhum</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 14px; min-height: 0; overflow: hidden;">
+        <div style="padding: 16px 18px; border-radius: 22px; background: #2A2C50; border: 1px solid #353862; display: flex; flex-direction: column; gap: 12px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 15px; font-weight: 700;">Fotos do aparelho</span>
+            <span class="num" style="padding: 2px 8px; border-radius: 999px; background: #33365F; font-size: 11px; font-weight: 700;">4</span>
+            <div style="margin-left: auto; display: flex; gap: 8px;">
+              <button type="button" style="height: 42px; padding: 0 14px; border-radius: 12px; border: 1px solid #45487A; background: transparent; color: #EEF0FB; font: inherit; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; cursor: pointer; height: 34px; font-size: 13px;">Enviar pelo celular</button>
+              <button type="button" style="height: 42px; padding: 0 14px; border-radius: 12px; border: 1px solid #45487A; background: transparent; color: #EEF0FB; font: inherit; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; cursor: pointer; height: 34px; font-size: 13px;">Adicionar</button>
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px;">
+            <sc-for list="{{fotos}}" as="f" hint-placeholder-count="5">
+              <div style="aspect-ratio: 1; border-radius: 12px; background: {{f.fundo}}; border: 1px {{f.borda}} #3A3D6A; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;">
+                <span style="font-size: 20px;">{{f.icone}}</span>
+                <span style="font-size: 10px; color: #A7AACE; text-align: center; line-height: 1.2;">{{f.rotulo}}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="padding: 16px 18px; border-radius: 22px; background: #2A2C50; border: 1px solid #353862; display: flex; flex-direction: column; gap: 10px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 15px; font-weight: 700;">Técnicos</span>
+            <button type="button" style="margin-left: auto; height: 42px; padding: 0 14px; border-radius: 12px; border: 1px solid #45487A; background: transparent; color: #EEF0FB; font: inherit; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; cursor: pointer; height: 34px; font-size: 13px;">Editar</button>
+          </div>
+          <div style="display: flex; gap: 10px;">
+            <sc-for list="{{tecnicos}}" as="t" hint-placeholder-count="2">
+              <div style="display: flex; align-items: center; gap: 10px; padding: 8px 14px 8px 8px; border-radius: 12px; background: #313460;">
+                <span style="width: 32px; height: 32px; border-radius: 50%; background: {{t.cor}}; color: #1B1D38; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800;">{{t.iniciais}}</span>
+                <div style="display: flex; flex-direction: column;">
+                  <span style="font-size: 13px; font-weight: 700;">{{t.nome}}</span>
+                  <span class="num" style="font-size: 11px; color: #A7AACE;">{{t.papel}}</span>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="flex-grow: 1; min-height: 0; padding: 16px 18px; border-radius: 22px; background: #2A2C50; border: 1px solid #353862; display: flex; flex-direction: column; gap: 8px; overflow: hidden;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 15px; font-weight: 700;">Peças e serviços</span>
+            <button type="button" style="margin-left: auto; height: 42px; padding: 0 16px; border-radius: 12px; border: none; background: #5A5FE0; color: #FFFFFF; font: inherit; font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 8px; cursor: pointer; height: 34px; font-size: 13px;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+              Adicionar
+            </button>
+          </div>
+          <div style="display: grid; grid-template-columns: minmax(0, 1.6fr) 110px 110px 110px 70px; gap: 10px; padding: 0 10px; font-size: 12px; color: #A7AACE; font-weight: 600;">
+            <span>Descrição</span><span>Tipo</span><span style="text-align: right;">Custo</span><span style="text-align: right;">Cobrado</span><span></span>
+          </div>
+          <sc-for list="{{itens}}" as="i" hint-placeholder-count="2">
+            <div style="display: grid; grid-template-columns: minmax(0, 1.6fr) 110px 110px 110px 70px; gap: 10px; align-items: center; min-height: 46px; padding: 0 10px; border-radius: 12px; background: {{i.fundo}}; font-size: 14px;">
+              <span style="font-weight: 600;">{{i.descricao}}</span>
+              <span style="justify-self: start; padding: 3px 10px; border-radius: 999px; background: #33365F; color: #C3C6E4; font-size: 12px; font-weight: 700;">{{i.tipo}}</span>
+              <span class="num" style="text-align: right; color: #FCA5A5;">{{i.custo}}</span>
+              <span class="num" style="text-align: right; font-weight: 700;">{{i.cobrado}}</span>
+              <span style="justify-self: end;"><a href="#" style="font-size: 13px; font-weight: 700;">Editar</a></span>
+            </div>
+          </sc-for>
+          <div style="margin-top: auto; display: flex; align-items: center; justify-content: space-between; padding: 10px 10px 0 10px; border-top: 1px solid #353862;">
+            <span style="font-size: 13px; color: #A7AACE;">2 itens</span>
+            <span class="num" style="font-size: 16px; font-weight: 800;">Total: R$ 420,00</span>
+          </div>
+        </div>
+
+        <div style="padding: 14px 18px; border-radius: 22px; background: #2A2C50; border: 1px solid #353862; display: flex; align-items: center; gap: 14px; overflow: hidden;">
+          <span style="font-size: 15px; font-weight: 700; flex-shrink: 0;">Histórico</span>
+          <div style="flex-grow: 1; min-width: 0; display: flex; align-items: center; gap: 8px; overflow: hidden;">
+            <sc-for list="{{historico}}" as="h" hint-placeholder-count="4">
+              <span style="display: flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; background: #313460; font-size: 12px; white-space: nowrap;">
+                <span style="width: 7px; height: 7px; border-radius: 50%; background: {{h.cor}};"></span>
+                <span style="font-weight: 700;">{{h.evento}}</span>
+                <span class="num" style="color: #A7AACE;">{{h.quando}}</span>
+              </span>
+            </sc-for>
+          </div>
+          <a href="#" style="font-size: 13px; font-weight: 700; flex-shrink: 0;">Ver tudo</a>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script type="module">
+// Lógica da prévia (equivalente ao componente): apenas para o arquivo abrir sozinho.
+
+</script>
+</body>
+</html>

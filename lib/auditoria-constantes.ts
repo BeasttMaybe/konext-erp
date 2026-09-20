@@ -22,6 +22,8 @@ export const ACOES_AUDITORIA = {
   ALTERAR_SENHA: "ALTERAR_SENHA",
   ABRIR_CAIXA: "ABRIR_CAIXA",
   FECHAR_CAIXA: "FECHAR_CAIXA",
+  // Fase 3-2B — detalhe da OS.
+  VISUALIZAR_SENHA: "VISUALIZAR_SENHA",
   // Fase 1D-1 — cargos e permissoes (banco central).
   CRIAR_CARGO: "CRIAR_CARGO",
   RENOMEAR_CARGO: "RENOMEAR_CARGO",

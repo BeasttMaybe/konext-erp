@@ -1,21 +1,20 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft } from "lucide-react";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { temPermissao } from "@/lib/auth/permissoes";
 import { escopoOrdemServico } from "@/lib/auth/escopos";
 import { obterConfiguracoes } from "@/app/actions/configuracoes";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
+import { obterHistoricoOS } from "@/app/actions/os";
 import { SecaoItensOS } from "@/components/os/secao-itens-os";
-import { AcaoEntregaOS } from "@/components/os/acao-entrega-os";
-import { AcaoExcluirOS } from "@/components/os/acao-excluir-os";
-import { BotaoGerarPedidoVenda } from "@/components/os/botao-gerar-pedido-venda";
-import { BotaoCopiarLinkRastreio } from "@/components/os/botao-copiar-link-rastreio";
-import { AcaoGarantiaOS } from "@/components/os/garantias/acao-garantia-os";
-import { MenuImprimirOS } from "@/components/os/menu-imprimir-os";
 import { SecaoTecnicosOS } from "@/components/os/secao-tecnicos-os";
-import type { TecnicoDaOS } from "@/types/os";
+import { AcaoGarantiaOS } from "@/components/os/garantias/acao-garantia-os";
+import { CabecalhoOS } from "@/components/os/detalhe/cabecalho-os";
+import { CartoesResumoOS } from "@/components/os/detalhe/cartoes-resumo-os";
+import { CartaoClienteOS } from "@/components/os/detalhe/cartao-cliente-os";
+import { CartaoAparelhoOS } from "@/components/os/detalhe/cartao-aparelho-os";
+import { CartaoEntradaOS } from "@/components/os/detalhe/cartao-entrada-os";
+import { SecaoFotosOS } from "@/components/os/detalhe/secao-fotos-os";
+import { HistoricoOS } from "@/components/os/detalhe/historico-os";
+import type { EtapaOS, SituacaoOS, TecnicoDaOS } from "@/types/os";
 
 type PropsPaginaDetalheOS = {
   params: Promise<{
@@ -42,30 +41,28 @@ type OrdemServicoDetalhe = {
   id: string;
   numeroOs: number;
   status: string;
+  etapa: string;
+  situacao?: string | null;
   equipamento?: string | null;
   marca?: string | null;
   modelo?: string | null;
   imei?: string | null;
-  numeroSerieImei?: string | null;
   senha?: string | null;
-  senhaAcesso?: string | null;
   senhaDesenho?: string | null;
-  padraoDesenho?: string | null;
   relatoCliente?: string | null;
   condicaoFisica?: string | null;
   acessorios?: string | null;
-  acessoriosDeixados?: string | null;
   criadoEm?: Date | string | null;
+  atualizadoEm?: Date | string | null;
   excluidaEm?: Date | string | null;
   ehRetornoGarantia?: boolean | null;
   entregueSemServico?: boolean | null;
   motivoSemServico?: string | null;
-  cliente?: { nomeRazaoSocial?: string | null } | null;
+  cliente?: { id?: string | null; nomeRazaoSocial?: string | null; telefone?: string | null; isWhatsapp?: boolean | null } | null;
   itens?: Array<{
     id: string;
     descricao?: string | null;
     tipoPeca?: string | null;
-    tipo?: string | null;
     custoPeca?: number | null;
     valorCobrado?: number | null;
     criadoEm?: Date | string | null;
@@ -75,16 +72,9 @@ type OrdemServicoDetalhe = {
     origem?: string | null;
     valor?: number | null;
     status?: string | null;
-    formaRecebimento?: string | null;
-    dataRecebimento?: Date | string | null;
-    venda?: {
-      id?: string | null;
-      valorTotal?: number | null;
-      formaPagamento?: string | null;
-      criadoEm?: Date | string | null;
-    } | null;
+    venda?: { id?: string | null; valorTotal?: number | null } | null;
   }>;
-  termoGarantia?: { id?: string | null } | null;
+  termoGarantia?: { id?: string | null; prazoGarantiaDias?: number | null } | null;
   tecnicos?: Array<{
     usuarioId?: string | null;
     participacaoPercentual?: unknown;
@@ -92,36 +82,6 @@ type OrdemServicoDetalhe = {
     usuario?: { nome?: string | null } | null;
   }>;
 };
-
-const mapaStatusLabel: Record<string, string> = {
-  AGUARDANDO_ORCAMENTO: "Aguardando Orcamento",
-  AGUARDANDO_APROVACAO: "Aguardando Aprovacao",
-  APROVADO: "Aprovado",
-  AGUARDANDO_PECA: "Aguardando Peca",
-  EM_MANUTENCAO: "Em Manutencao",
-  GARANTIA_RETORNO: "Garantia / Retorno",
-  PRONTO: "Pronto",
-  ENTREGUE: "Entregue",
-};
-
-const mapaStatusClasse: Record<string, string> = {
-  AGUARDANDO_ORCAMENTO: "bg-slate-700 text-slate-100 border-slate-600",
-  AGUARDANDO_APROVACAO: "bg-amber-500/20 text-amber-300 border-amber-400/40",
-  APROVADO: "bg-blue-500/20 text-blue-300 border-blue-400/40",
-  AGUARDANDO_PECA: "bg-orange-500/20 text-orange-300 border-orange-400/40",
-  EM_MANUTENCAO: "bg-violet-500/20 text-violet-300 border-violet-400/40",
-  GARANTIA_RETORNO: "bg-indigo-500/20 text-indigo-300 border-indigo-400/40",
-  PRONTO: "bg-emerald-500/20 text-emerald-300 border-emerald-400/40",
-  ENTREGUE: "bg-green-500/20 text-green-300 border-green-400/40",
-};
-
-function extrairPontosDesenho(valor: string | null | undefined): number[] {
-  if (!valor) return [];
-  return valor
-    .split(/[^0-9]+/)
-    .map((item) => Number(item))
-    .filter((item) => Number.isInteger(item) && item >= 1 && item <= 9);
-}
 
 function extrairNumeroOsDoSlug(entrada: string): number | null {
   const slug = entrada.trim().toLowerCase();
@@ -132,10 +92,58 @@ function extrairNumeroOsDoSlug(entrada: string): number | null {
   return Number.isFinite(numero) ? numero : null;
 }
 
+/** Mesma aproximação do cartão do Kanban (components/os/cartao-os.tsx): sem carimbo de "entrou nesta etapa em" no schema ainda. */
+function diasDesde(dataISO: string): number {
+  const diffMs = Date.now() - new Date(dataISO).getTime();
+  return Math.max(0, Math.floor(diffMs / 86_400_000));
+}
+
+const INCLUDE_DETALHE_OS = {
+  cliente: {
+    select: {
+      id: true,
+      nomeRazaoSocial: true,
+      telefone: true,
+      isWhatsapp: true,
+    },
+  },
+  itens: true,
+  termoGarantia: {
+    select: {
+      id: true,
+      prazoGarantiaDias: true,
+    },
+  },
+  transacoes: {
+    select: {
+      vendaId: true,
+      origem: true,
+      valor: true,
+      status: true,
+      venda: {
+        select: {
+          id: true,
+          valorTotal: true,
+        },
+      },
+    },
+  },
+  tecnicos: {
+    select: {
+      usuarioId: true,
+      participacaoPercentual: true,
+      principal: true,
+      usuario: { select: { nome: true } },
+    },
+  },
+} as const;
+
 export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) {
   const { id } = await params;
   const contexto = await exigirContextoTenant();
   const podeVerCustos = temPermissao(contexto, "os.ver_custos");
+  const podeEditarOS = temPermissao(contexto, "os.editar");
+  const podeExcluirOS = temPermissao(contexto, "os.excluir");
   const prisma = contexto.prisma;
   const prismaAny = prisma as typeof prisma & {
     ordemServico?: OrdemServicoDetalheDelegate;
@@ -154,49 +162,8 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
   const escopoOS = escopoOrdemServico(contexto);
 
   let osBanco = await delegateOrdemServico.findUnique({
-    where: {
-      id,
-      ...escopoOS,
-    },
-    include: {
-      cliente: {
-        select: {
-          nomeRazaoSocial: true,
-        },
-      },
-      itens: true,
-      termoGarantia: {
-        select: {
-          id: true,
-        },
-      },
-      transacoes: {
-        select: {
-          vendaId: true,
-          origem: true,
-          valor: true,
-          status: true,
-          formaRecebimento: true,
-          dataRecebimento: true,
-          venda: {
-            select: {
-              id: true,
-              valorTotal: true,
-              formaPagamento: true,
-              criadoEm: true,
-            },
-          },
-        },
-      },
-      tecnicos: {
-        select: {
-          usuarioId: true,
-          participacaoPercentual: true,
-          principal: true,
-          usuario: { select: { nome: true } },
-        },
-      },
-    },
+    where: { id, ...escopoOS },
+    include: INCLUDE_DETALHE_OS,
   });
 
   if (!osBanco) {
@@ -204,93 +171,46 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
 
     if (numeroOsSlug !== null && delegateOrdemServico.findFirst) {
       osBanco = await delegateOrdemServico.findFirst({
-        where: {
-          numeroOs: numeroOsSlug,
-          ...escopoOS,
-        },
-        include: {
-          cliente: {
-            select: {
-              nomeRazaoSocial: true,
-            },
-          },
-          itens: true,
-          termoGarantia: {
-            select: {
-              id: true,
-            },
-          },
-          transacoes: {
-            select: {
-              vendaId: true,
-              origem: true,
-              valor: true,
-              status: true,
-              formaRecebimento: true,
-              dataRecebimento: true,
-              venda: {
-                select: {
-                  id: true,
-                  valorTotal: true,
-                  formaPagamento: true,
-                  criadoEm: true,
-                },
-              },
-            },
-          },
-          tecnicos: {
-            select: {
-              usuarioId: true,
-              participacaoPercentual: true,
-              principal: true,
-              usuario: { select: { nome: true } },
-            },
-          },
-        },
+        where: { numeroOs: numeroOsSlug, ...escopoOS },
+        include: INCLUDE_DETALHE_OS,
       });
     }
   }
 
-  if (!osBanco) {
-    notFound();
-  }
-
-  if (osBanco.excluidaEm) {
+  if (!osBanco || osBanco.excluidaEm) {
     notFound();
   }
 
   const config = await obterConfiguracoes();
 
-  const itensDoBanco = (osBanco?.itens ?? []).map((item) => ({
-    id: String(item.id),
-    descricao: String(item.descricao ?? ""),
-    tipoPeca: String(item.tipoPeca ?? "OUTROS") as ItemOSCarregado["tipoPeca"],
-    // F-41: custo/margem só vai para o cliente com os.ver_custos.
-    custoPeca: podeVerCustos ? Number(item.custoPeca ?? 0) : null,
-    valorCobrado: Number(item.valorCobrado ?? 0),
-    criadoEm: new Date(item.criadoEm ?? osBanco?.criadoEm ?? new Date()).toISOString(),
-  }));
-
-  const itensNormalizados: ItemOSCarregado[] = itensDoBanco
-    .sort((a: ItemOSCarregado, b: ItemOSCarregado) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime());
+  const itensNormalizados: ItemOSCarregado[] = (osBanco.itens ?? [])
+    .map((item) => ({
+      id: String(item.id),
+      descricao: String(item.descricao ?? ""),
+      tipoPeca: String(item.tipoPeca ?? "OUTROS") as ItemOSCarregado["tipoPeca"],
+      // F-41: custo/margem só vai para o cliente com os.ver_custos.
+      custoPeca: podeVerCustos ? Number(item.custoPeca ?? 0) : null,
+      valorCobrado: Number(item.valorCobrado ?? 0),
+      criadoEm: new Date(item.criadoEm ?? osBanco?.criadoEm ?? new Date()).toISOString(),
+    }))
+    .sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime());
 
   const statusAtual = String(osBanco.status);
-  const labelStatus = mapaStatusLabel[statusAtual] ?? statusAtual.replaceAll("_", " ");
-  const classeStatus = mapaStatusClasse[statusAtual] ?? "bg-slate-700 text-slate-100 border-slate-600";
-  const imei = String(osBanco.imei ?? "Nao informado");
-  const senha = String(osBanco.senha ?? "Nao informada");
-  const senhaDesenho = String(osBanco.senhaDesenho ?? "");
-  const pontosDesenho = extrairPontosDesenho(senhaDesenho);
-  const relatoCliente = String(osBanco.relatoCliente ?? "Nao informado");
-  const condicaoFisica = String(osBanco.condicaoFisica ?? "Nao informada");
-  const acessorios = String(osBanco.acessorios ?? "Nao informado");
-  const numeroOs = Number(osBanco.numeroOs);
+  const etapa = String(osBanco.etapa) as EtapaOS;
+  const situacao = (osBanco.situacao ? String(osBanco.situacao) : null) as SituacaoOS | null;
+  const imei = osBanco.imei ? String(osBanco.imei) : null;
+  const senha = osBanco.senha ? String(osBanco.senha) : null;
+  const senhaDesenho = osBanco.senhaDesenho ? String(osBanco.senhaDesenho) : null;
+  const relatoCliente = String(osBanco.relatoCliente ?? "Não informado");
+  const condicaoFisica = String(osBanco.condicaoFisica ?? "");
+  const acessorios = String(osBanco.acessorios ?? "");
   const numeroOsExibicao = String(osBanco.numeroOs);
-  const nomeCliente = String(osBanco.cliente?.nomeRazaoSocial ?? "Nao informado");
-  const equipamento = String(osBanco.equipamento ?? "Nao informado");
-  const marca = String(osBanco.marca ?? "Nao informada");
-  const modelo = String(osBanco.modelo ?? "Nao informado");
-  const criadoEm = new Date(osBanco.criadoEm ?? new Date()).toISOString();
+  const nomeCliente = String(osBanco.cliente?.nomeRazaoSocial ?? "Não informado");
+  const clienteTelefone = osBanco.cliente?.telefone ? String(osBanco.cliente.telefone) : null;
+  const clienteAceitaWhatsapp = osBanco.cliente?.isWhatsapp !== false;
+  const marca = osBanco.marca ? String(osBanco.marca) : null;
+  const modelo = osBanco.modelo ? String(osBanco.modelo) : null;
+  const dataAtualizacao = new Date(osBanco.atualizadoEm ?? osBanco.criadoEm ?? new Date()).toISOString();
   const idOs = String(osBanco.id);
   const possuiItens = itensNormalizados.length > 0;
   const possuiTermoGarantia = Boolean(osBanco.termoGarantia?.id);
@@ -305,238 +225,90 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
       participacaoPercentual: Number(tecnico.participacaoPercentual ?? 0),
       principal: Boolean(tecnico.principal),
     }));
-  const podeEditarOS = temPermissao(contexto, "os.editar");
-  const transacaoPdvVinculada = (osBanco.transacoes ?? []).find((transacao) => {
-    return transacao?.vendaId && String(transacao.origem) === "ORDEM_SERVICO";
-  });
+  const transacaoPdvVinculada = (osBanco.transacoes ?? []).find(
+    (transacao) => transacao?.vendaId && String(transacao.origem) === "ORDEM_SERVICO"
+  );
   const possuiPedidoVenda = Boolean(transacaoPdvVinculada);
   const podeEnviarAoPdv = statusAtual === "PRONTO" && !possuiPedidoVenda;
   const podeGerarPedidoVenda = podeEnviarAoPdv && possuiItens;
-  const vendaVinculadaId = String(transacaoPdvVinculada?.venda?.id ?? transacaoPdvVinculada?.vendaId ?? "");
   const valorVendaVinculada =
     typeof transacaoPdvVinculada?.venda?.valorTotal === "number"
       ? transacaoPdvVinculada.venda.valorTotal
       : Number(transacaoPdvVinculada?.valor ?? 0);
-  const statusVendaVinculada = String(transacaoPdvVinculada?.status ?? "PENDENTE");
+
+  const totalOS = itensNormalizados.reduce((total, item) => total + item.valorCobrado, 0);
+  const custoTotalOS = podeVerCustos
+    ? itensNormalizados.reduce((total, item) => total + (item.custoPeca ?? 0), 0)
+    : null;
+  const garantiaDias = osBanco.termoGarantia?.prazoGarantiaDias ?? config.prazoGarantiaPadraoDias;
+
+  const historico = await obterHistoricoOS(idOs, 50);
 
   return (
-    <div className="w-full min-h-full flex flex-col bg-slate-100 dark:bg-slate-950">
-      <div className="px-6 lg:px-8 py-6 border-b border-border bg-white dark:bg-slate-900">
-        <div className="max-w-7xl mx-auto w-full space-y-2">
-          <Link
-            href="/os"
-            className="inline-flex items-center text-sm text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 transition-colors"
-          >
-            <ChevronLeft className="h-4 w-4 mr-1" />
-            Voltar
-          </Link>
+    <div className="w-full min-h-full bg-kx-fundo">
+      <div className="max-w-[1600px] mx-auto flex flex-col gap-kx-4 px-4 py-kx-5 sm:px-6 lg:px-8">
+        <CabecalhoOS
+          osId={idOs}
+          numeroOs={numeroOsExibicao}
+          etapa={etapa}
+          situacao={situacao}
+          entregueSemServico={entregueSemServico}
+          motivoSemServico={motivoSemServico}
+          modeloImpressaoPadrao={config.modeloImpressaoOSPadrao}
+          clienteTelefone={clienteTelefone}
+          clienteAceitaWhatsapp={clienteAceitaWhatsapp}
+          statusEhEntregue={statusAtual === "ENTREGUE"}
+          ehRetornoGarantia={ehRetornoGarantia}
+          possuiItens={possuiItens}
+          prazoGarantiaPadraoDias={config.prazoGarantiaPadraoDias}
+          prazoMinimoGarantiaDias={config.prazoMinimoGarantiaDias}
+          prazoMaximoGarantiaDias={config.prazoMaximoGarantiaDias}
+          podeEnviarAoPdv={podeEnviarAoPdv}
+          podeGerarPedidoVenda={podeGerarPedidoVenda}
+          possuiPedidoVenda={possuiPedidoVenda}
+          podeExcluir={podeExcluirOS}
+        />
 
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-50">
-              Ordem de Servico #{numeroOsExibicao}
-            </h1>
-            <Badge className={`border ${classeStatus}`}>{labelStatus}</Badge>
-            {entregueSemServico && (
-              <Badge
-                className="border-amber-500 text-amber-700 dark:text-amber-300"
-                variant="outline"
-                title={motivoSemServico ?? undefined}
-              >
-                Entregue sem serviço
-              </Badge>
-            )}
-            <MenuImprimirOS osId={idOs} modeloPadrao={config.modeloImpressaoOSPadrao} />
-            <AcaoGarantiaOS
+        <CartoesResumoOS
+          etapa={etapa}
+          situacao={situacao}
+          diasNaEtapa={diasDesde(dataAtualizacao)}
+          totalOS={totalOS}
+          custoTotal={custoTotalOS}
+          garantiaDias={garantiaDias}
+          garantiaAtiva={possuiTermoGarantia}
+          pagamentoConcluido={possuiPedidoVenda}
+          valorPago={possuiPedidoVenda ? valorVendaVinculada : null}
+        />
+
+        {!possuiTermoGarantia && statusAtual !== "ENTREGUE" && (
+          <AcaoGarantiaOS
+            osId={idOs}
+            statusOS={statusAtual}
+            possuiTermoGarantia={possuiTermoGarantia}
+            possuiItens={possuiItens}
+          />
+        )}
+
+        <section className="grid grid-cols-1 lg:grid-cols-[340px_minmax(0,1fr)] gap-kx-4 items-start">
+          <div className="flex flex-col gap-kx-4">
+            <CartaoClienteOS
               osId={idOs}
-              statusOS={statusAtual}
-              possuiTermoGarantia={possuiTermoGarantia}
-              possuiItens={possuiItens}
-              mostrarTextoBloqueio
+              nome={nomeCliente}
+              telefone={clienteTelefone}
+              aceitaWhatsapp={clienteAceitaWhatsapp}
             />
-            <BotaoCopiarLinkRastreio osId={idOs} />
-            {statusAtual !== "ENTREGUE" && (
-              <AcaoEntregaOS
-                osId={idOs}
-                numeroOs={numeroOsExibicao}
-                ehRetornoGarantia={ehRetornoGarantia}
-                possuiItens={possuiItens}
-                prazoGarantiaPadraoDias={config.prazoGarantiaPadraoDias}
-                prazoMinimoGarantiaDias={config.prazoMinimoGarantiaDias}
-                prazoMaximoGarantiaDias={config.prazoMaximoGarantiaDias}
-              />
-            )}
-            {podeGerarPedidoVenda && <BotaoGerarPedidoVenda osId={idOs} />}
-            {podeEnviarAoPdv && !possuiItens && (
-              <div className="relative flex items-center">
-                <BotaoGerarPedidoVenda
-                  osId={idOs}
-                  desabilitado
-                  mensagemBloqueio="Cadastre uma peca ou servico antes de enviar a OS ao PDV."
-                />
-                <p className="absolute left-0 top-full mt-1 whitespace-nowrap text-xs text-slate-500">
-                  Cadastre uma peca ou servico antes de enviar a OS ao PDV.
-                </p>
-              </div>
-            )}
-            {!podeGerarPedidoVenda && possuiPedidoVenda && (
-              <Badge variant="outline" className="border-emerald-500 text-emerald-600">
-                Pedido de venda ja gerado
-              </Badge>
-            )}
-            <AcaoExcluirOS osId={idOs} numeroOs={numeroOsExibicao} />
-          </div>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto px-6 lg:px-8 py-6">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="space-y-6">
-            <Card className="border-border bg-white dark:bg-slate-900 p-5">
-              <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">Cliente</h2>
-              <div className="space-y-2 text-sm">
-                <p className="text-slate-500 dark:text-slate-400">Nome</p>
-                <p className="font-semibold text-slate-900 dark:text-slate-100">
-                  {nomeCliente}
-                </p>
-              </div>
-            </Card>
-
-            <Card className="border-border bg-white dark:bg-slate-900 p-5">
-              <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">Aparelho</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-slate-500 dark:text-slate-400">Equipamento</p>
-                  <p className="font-semibold text-slate-900 dark:text-slate-100">{equipamento}</p>
-                </div>
-                <div>
-                  <p className="text-slate-500 dark:text-slate-400">Marca</p>
-                  <p className="font-semibold text-slate-900 dark:text-slate-100">{marca}</p>
-                </div>
-                <div>
-                  <p className="text-slate-500 dark:text-slate-400">Modelo</p>
-                  <p className="font-semibold text-slate-900 dark:text-slate-100">{modelo}</p>
-                </div>
-                <div>
-                  <p className="text-slate-500 dark:text-slate-400">IMEI</p>
-                  <p className="font-semibold text-slate-900 dark:text-slate-100">{imei}</p>
-                </div>
-              </div>
-            </Card>
-
-            <Card className="border-border bg-white dark:bg-slate-900 p-5">
-              <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">Seguranca</h2>
-              <div className="space-y-4 text-sm">
-                <div>
-                  <p className="text-slate-500 dark:text-slate-400">Senha</p>
-                  <p className="font-semibold text-slate-900 dark:text-slate-100">{senha}</p>
-                </div>
-
-                <div>
-                  <p className="text-slate-500 dark:text-slate-400 mb-3">Senha de desenho</p>
-                  <div className="grid grid-cols-3 gap-3 w-[180px]">
-                    {Array.from({ length: 9 }, (_, indice) => {
-                      const ponto = indice + 1;
-                      const ordem = pontosDesenho.indexOf(ponto) + 1;
-                      const ativo = ordem > 0;
-
-                      return (
-                        <div
-                          key={ponto}
-                          className={`relative h-12 w-12 rounded-full border ${
-                            ativo
-                              ? "bg-emerald-500/30 border-emerald-400/70"
-                              : "bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700"
-                          }`}
-                        >
-                          {ativo && (
-                            <span className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-emerald-600 text-[10px] leading-5 text-white text-center font-bold">
-                              {ordem}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-3">
-                    Sequencia registrada: {pontosDesenho.length > 0 ? pontosDesenho.join("-") : "Nao definida"}
-                  </p>
-                </div>
-              </div>
-            </Card>
-
-            <Card className="border-border bg-white dark:bg-slate-900 p-5">
-              <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">Checklist de entrada</h2>
-              <div className="space-y-4 text-sm">
-                <div>
-                  <p className="text-slate-500 dark:text-slate-400">Relato do cliente</p>
-                  <p className="font-medium text-slate-900 dark:text-slate-100 whitespace-pre-wrap">{relatoCliente}</p>
-                </div>
-                <div>
-                  <p className="text-slate-500 dark:text-slate-400">Condicao fisica</p>
-                  <p className="font-medium text-slate-900 dark:text-slate-100 whitespace-pre-wrap">{condicaoFisica}</p>
-                </div>
-                <div>
-                  <p className="text-slate-500 dark:text-slate-400">Acessorios</p>
-                  <p className="font-medium text-slate-900 dark:text-slate-100 whitespace-pre-wrap">{acessorios}</p>
-                </div>
-              </div>
-            </Card>
+            <CartaoAparelhoOS osId={idOs} marca={marca} modelo={modelo} imei={imei} senha={senha} senhaDesenho={senhaDesenho} />
+            <CartaoEntradaOS relatoCliente={relatoCliente} condicaoFisica={condicaoFisica} acessorios={acessorios} />
           </div>
 
-          <div className="space-y-6">
-            {possuiPedidoVenda && (
-              <Card className="border-emerald-300 bg-emerald-50/70 dark:border-emerald-800 dark:bg-emerald-950/20 p-5">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">
-                      Pedido no PDV gerado
-                    </p>
-                    <p className="text-xs text-emerald-700/80 dark:text-emerald-400/80 mt-1">
-                      Venda vinculada e persistida para esta OS.
-                    </p>
-                  </div>
-                  <Badge variant="outline" className="border-emerald-500 text-emerald-700 dark:text-emerald-300">
-                    {statusVendaVinculada}
-                  </Badge>
-                </div>
-                <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-                  <div>
-                    <p className="text-emerald-700/80 dark:text-emerald-400/80">Venda vinculada</p>
-                    <p className="font-semibold text-emerald-900 dark:text-emerald-200">
-                      {vendaVinculadaId ? `#${vendaVinculadaId.slice(0, 8)}` : "Nao informada"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-emerald-700/80 dark:text-emerald-400/80">Valor</p>
-                    <p className="font-semibold text-emerald-900 dark:text-emerald-200">
-                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
-                        Number.isFinite(valorVendaVinculada) ? valorVendaVinculada : 0
-                      )}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-emerald-700/80 dark:text-emerald-400/80">Origem</p>
-                    <p className="font-semibold text-emerald-900 dark:text-emerald-200">PDV</p>
-                  </div>
-                </div>
-              </Card>
-            )}
-
-            <SecaoTecnicosOS
-              osId={idOs}
-              numeroOs={numeroOsExibicao}
-              tecnicos={tecnicosNormalizados}
-              podeEditar={podeEditarOS}
-            />
-            <SecaoItensOS osId={idOs} numeroOs={numeroOs} itens={itensNormalizados} />
-            <Card className="border-border bg-white dark:bg-slate-900 p-5">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Criada em</p>
-              <p className="font-semibold text-slate-900 dark:text-slate-100 mt-1">
-                {new Date(criadoEm).toLocaleDateString("pt-BR")}
-              </p>
-            </Card>
+          <div className="flex flex-col gap-kx-4">
+            <SecaoFotosOS />
+            <SecaoTecnicosOS osId={idOs} numeroOs={numeroOsExibicao} tecnicos={tecnicosNormalizados} podeEditar={podeEditarOS} />
+            <SecaoItensOS osId={idOs} numeroOs={Number(osBanco.numeroOs)} itens={itensNormalizados} />
+            <HistoricoOS linhas={historico} />
           </div>
-        </div>
+        </section>
       </div>
     </div>
   );

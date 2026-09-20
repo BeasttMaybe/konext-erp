@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -78,16 +78,16 @@ export function AcaoExcluirOS({ osId, numeroOs }: PropsAcaoExcluirOS) {
 
   return (
     <>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="h-9 border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-950/40"
-        onClick={() => setAberto(true)}
+      <DropdownMenuItem
+        onSelect={(evento) => {
+          evento.preventDefault();
+          setAberto(true);
+        }}
+        className="text-destructive focus:text-destructive"
       >
         <Trash2 className="mr-2 h-4 w-4" />
         Excluir OS
-      </Button>
+      </DropdownMenuItem>
 
       <AlertDialog
         open={aberto}
@@ -116,7 +116,7 @@ export function AcaoExcluirOS({ osId, numeroOs }: PropsAcaoExcluirOS) {
               maxLength={500}
               disabled={excluindo}
             />
-            <p className="text-xs text-slate-500">{motivo.trim().length}/500 caracteres</p>
+            <p className="text-xs text-kx-legenda">{motivo.trim().length}/500 caracteres</p>
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={excluindo}>Cancelar</AlertDialogCancel>

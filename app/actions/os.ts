@@ -2176,3 +2176,102 @@ export async function gerarPedidoVendaPorOS(osId: string) {
 
   return resultado;
 }
+
+/**
+ * Fase 3-2B — chamado quando o usuario clica "Mostrar" na senha do aparelho
+ * na tela de detalhe. So grava a trilha (quem + quando + qual OS); o valor
+ * da senha nunca entra no payload — mesmo que entrasse, sanitizarValor()
+ * (lib/auditoria.ts) redige qualquer campo chamado "senha". Best-effort
+ * fora de transacao de negocio (ver OpcoesRegistroAuditoria.melhorEsforco):
+ * uma falha aqui nao pode impedir o usuario de ver a senha que ja tem
+ * permissao de ver.
+ */
+export async function registrarVisualizacaoSenhaOS(osId: string): Promise<void> {
+  const contexto = await exigirContextoTenant();
+  const prisma = contexto.prisma;
+  const idNormalizado = String(osId ?? "").trim();
+
+  if (!idNormalizado) return;
+
+  // Confere que a OS existe no escopo de visibilidade do usuario antes de
+  // gravar — mesma regra de acesso da pagina de detalhe (lib/auth/escopos.ts).
+  const escopoOS = escopoOrdemServico(contexto);
+  const osNoEscopo = await prisma.ordemServico.findFirst({
+    where: { id: idNormalizado, ...escopoOS },
+    select: { id: true },
+  });
+
+  if (!osNoEscopo) return;
+
+  await registrarLogAuditoria(
+    prisma,
+    contextoAuditoriaDoUsuario(contexto.usuarioOperacional, "app/actions/os.ts:registrarVisualizacaoSenhaOS"),
+    {
+      acao: ACOES_AUDITORIA.VISUALIZAR_SENHA,
+      entidade: ENTIDADES_AUDITORIA.ORDEM_SERVICO,
+      entidadeId: idNormalizado,
+    },
+    { melhorEsforco: true }
+  );
+}
+
+export type LinhaHistoricoOS = {
+  id: string;
+  acao: string;
+  rotulo: string;
+  quando: string;
+  autor: string | null;
+};
+
+const ROTULO_ACAO_HISTORICO: Partial<Record<string, string>> = {
+  CRIAR: "OS criada",
+  ATUALIZAR_STATUS: "Etapa alterada",
+  FINALIZAR: "Entregue e finalizada",
+  EXCLUIR_LOGICO: "OS excluída",
+  VISUALIZAR_SENHA: "Senha visualizada",
+};
+
+/**
+ * Historico compacto da OS (Fase 3-2B, Parte 3) — le direto de LogAuditoria,
+ * sem tabela nova. So os eventos gravados com entidade=ORDEM_SERVICO e
+ * entidadeId=osId (criacao, troca de etapa, finalizacao, exclusao,
+ * visualizacao de senha) — adicionar/editar/remover item e gerar termo de
+ * garantia gravam contra ITEM_OS/TERMO_GARANTIA_OS (o proprio id do item/
+ * termo, nao o da OS) e ficam de fora desta lista compacta de propósito:
+ * cruzar as duas fontes é um passo maior que esta fase de restilo cobre.
+ */
+export async function obterHistoricoOS(osId: string, limite = 8): Promise<LinhaHistoricoOS[]> {
+  const contexto = await exigirContextoTenant();
+  const prisma = contexto.prisma;
+  const idNormalizado = String(osId ?? "").trim();
+
+  if (!idNormalizado) return [];
+
+  const escopoOS = escopoOrdemServico(contexto);
+  const osNoEscopo = await prisma.ordemServico.findFirst({
+    where: { id: idNormalizado, ...escopoOS },
+    select: { id: true },
+  });
+
+  if (!osNoEscopo) return [];
+
+  const registros = await prisma.logAuditoria.findMany({
+    where: { entidade: ENTIDADES_AUDITORIA.ORDEM_SERVICO, entidadeId: idNormalizado },
+    orderBy: { criadoEm: "desc" },
+    take: Math.max(1, Math.min(limite, 50)),
+    select: {
+      id: true,
+      acao: true,
+      criadoEm: true,
+      usuario: { select: { nome: true } },
+    },
+  });
+
+  return registros.map((registro) => ({
+    id: String(registro.id),
+    acao: String(registro.acao),
+    rotulo: ROTULO_ACAO_HISTORICO[String(registro.acao)] ?? String(registro.acao).replaceAll("_", " ").toLowerCase(),
+    quando: registro.criadoEm.toISOString(),
+    autor: registro.usuario?.nome ? String(registro.usuario.nome) : null,
+  }));
+}

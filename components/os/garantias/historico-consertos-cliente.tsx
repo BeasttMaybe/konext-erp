@@ -46,26 +46,24 @@ export function HistoricoConsertosCliente({ osId }: HistoricoConsertosClientePro
   }, [osId]);
 
   return (
-    <Card className="p-4 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
-      <h3 className="font-semibold text-slate-900 dark:text-slate-100">Histórico de consertos</h3>
+    <Card className="p-kx-4 border-kx-painel-borda bg-kx-painel">
+      <h3 className="font-semibold text-kx-texto">Histórico de consertos</h3>
 
       {carregando ? (
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-3">Carregando histórico...</p>
+        <p className="text-sm text-kx-legenda mt-3">Carregando histórico...</p>
       ) : linhas.length === 0 ? (
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-3">Nenhum histórico disponível.</p>
+        <p className="text-sm text-kx-legenda mt-3">Nenhum histórico disponível.</p>
       ) : (
         <div className="mt-3 space-y-3">
           {linhas.map((linha) => (
-            <div key={linha.osId} className="rounded-md border border-slate-200 dark:border-slate-700 p-3">
+            <div key={linha.osId} className="rounded-kx-cartao border border-kx-painel-borda p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="font-medium text-slate-900 dark:text-slate-100">{linha.numeroOS}</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {new Date(linha.data).toLocaleDateString("pt-BR")}
-                </p>
+                <p className="font-medium text-kx-texto">{linha.numeroOS}</p>
+                <p className="text-xs text-kx-legenda">{new Date(linha.data).toLocaleDateString("pt-BR")}</p>
               </div>
-              <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">{linha.equipamento}</p>
-              <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">{linha.defeitoRelatado}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+              <p className="text-sm text-kx-texto-2 mt-1">{linha.equipamento}</p>
+              <p className="text-sm text-kx-texto-2 mt-1">{linha.defeitoRelatado}</p>
+              <p className="text-xs text-kx-legenda mt-2">
                 Valor: {formatarMoeda(linha.valorCobrado)} | Status: {linha.statusFinal.replaceAll("_", " ")}
               </p>
             </div>

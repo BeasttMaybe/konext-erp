@@ -17,13 +17,7 @@ export function BotaoGerarPedidoVenda({
 }: PropsBotaoGerarPedidoVenda) {
   if (desabilitado) {
     return (
-      <Button
-        type="button"
-        size="sm"
-        disabled
-        className="h-9 bg-emerald-600 text-white"
-        title={mensagemBloqueio}
-      >
+      <Button type="button" variant="outline" size="sm" disabled className="h-[42px]" title={mensagemBloqueio}>
         <ShoppingCart className="h-4 w-4 mr-2" />
         Enviar para o PDV
       </Button>
@@ -31,12 +25,7 @@ export function BotaoGerarPedidoVenda({
   }
 
   return (
-    <Button
-      asChild
-      type="button"
-      size="sm"
-      className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white"
-    >
+    <Button asChild type="button" variant="outline" size="sm" className="h-[42px]">
       <Link href={`/pdv?osId=${encodeURIComponent(osId)}`}>
         <ShoppingCart className="h-4 w-4 mr-2" />
         Enviar para o PDV
