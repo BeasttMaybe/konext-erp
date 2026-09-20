@@ -27,6 +27,7 @@ import { normalizarSituacao, paraEstagio, paraStatusLegado, type EtapaOS, type S
 import { encontrarEntregaAuditada } from "@/lib/dominio/os/entrega-auditada";
 import { ErroPermissao, exigirPermissao, temPermissao } from "@/lib/auth/permissoes";
 import { escopoOrdemServico } from "@/lib/auth/escopos";
+import { ID_CLIENTE_CONSUMIDOR_FINAL, ehClienteConsumidorFinal } from "@/lib/dominio/crm/consumidor-final";
 import {
   avaliarFinalizacao,
   avaliarFinalizacaoSemServico,
@@ -354,6 +355,10 @@ export async function buscarClientesOS(termoBusca: string): Promise<ClienteBusca
   const clientes = await clienteDelegate.findMany({
     where: {
       papel: "CLIENTE",
+      // Consumidor Final e automatico do sistema e nunca pode ser o cliente
+      // de uma OS (criarOrdemServico tem a mesma trava) — nao faz sentido
+      // aparecer como opcao de busca aqui.
+      id: { not: ID_CLIENTE_CONSUMIDOR_FINAL },
       OR: [
         {
           nomeRazaoSocial: {
@@ -408,6 +413,8 @@ export async function buscarClientePorId(clienteId: string): Promise<ClienteBusc
   const clienteDelegate = prismaAny.cliente ?? prismaAny.Cliente;
 
   if (!clienteDelegate?.findFirst) return null;
+
+  if (ehClienteConsumidorFinal(clienteId)) return null;
 
   const cliente = await clienteDelegate.findFirst({
     where: { id: clienteId, papel: "CLIENTE" },
@@ -586,6 +593,10 @@ export async function criarOrdemServico(dados: DadosNovaOS) {
 
   if (!dados?.clienteId) {
     throw new Error("Selecione um cliente para criar a ordem de servico.");
+  }
+
+  if (ehClienteConsumidorFinal(dados.clienteId)) {
+    throw new Error("O cliente Consumidor Final é automático do sistema e não pode ser vinculado a uma Ordem de Serviço.");
   }
 
   if (!dados?.equipamento?.trim()) {

@@ -30,9 +30,11 @@ import { toast } from "sonner";
 import {
   calcularPagamentoPdv,
   CONFIG_PAGAMENTOS_PDV,
+  ehPagamentoPrazo,
   type EntradaPagamentoPdv,
   type FormaPagamentoPdv,
 } from "@/lib/pdv/pagamentos";
+import { exigeClienteRealParaFinalizarVenda } from "@/lib/dominio/crm/consumidor-final";
 import { obterDefaultsConfiguracaoPdv, type ConfiguracaoPdvPagamentos } from "@/lib/configuracoes-pdv";
 import type { ConfiguracaoPagamentosPDV } from "@/app/actions/pdv";
 
@@ -225,21 +227,30 @@ interface PropsModalPagamento {
   total: number;
   descontoAplicado?: number;
   configuracaoPagamento: ConfiguracaoPagamentosPDV | null;
+  /** Fase 3-2C — consumidor final: false quando a venda vai cair no Consumidor Final. */
+  temClienteSelecionado: boolean;
   aoFechar: () => void;
   aoConfirmar: (
     dados: DadosPagamento
   ) => Promise<{ sucesso: boolean; mensagem?: string; vendaId?: string }>;
   aoNovaVenda: () => void;
+  /** Boleto/crediário sem cliente: fecha o modal (sem resetar) e foca a busca de cliente na página. */
+  aoPrecisarDeCliente: () => void;
 }
+
+const MENSAGEM_CLIENTE_OBRIGATORIO_PARA_PRAZO =
+  "Selecione um cliente para continuar: vendas com boleto ou crediário geram uma conta a receber, e não é possível cobrar do Consumidor Final.";
 
 export function ModalPagamento({
   aberto,
   total,
   descontoAplicado = 0,
   configuracaoPagamento,
+  temClienteSelecionado,
   aoFechar,
   aoConfirmar,
   aoNovaVenda,
+  aoPrecisarDeCliente,
 }: PropsModalPagamento) {
   const configuracaoAtiva = useMemo<ConfiguracaoPdvPagamentos>(() => {
     return configuracaoPagamento ?? obterDefaultsConfiguracaoPdv();
@@ -763,6 +774,14 @@ export function ModalPagamento({
   const handleConfirmar = async () => {
     if (!estadoFechamento.podeConfirmar) {
       toast.error(estadoFechamento.mensagem ?? "Ajuste os pagamentos para continuar.");
+      return;
+    }
+
+    // Checagem proativa no cliente (o servidor tem a mesma trava, autoritativa
+    // — ver processarVenda): evita a ida e volta e já foca o campo certo.
+    if (!temClienteSelecionado && exigeClienteRealParaFinalizarVenda(linhas, ehPagamentoPrazo)) {
+      toast.error(MENSAGEM_CLIENTE_OBRIGATORIO_PARA_PRAZO);
+      aoPrecisarDeCliente();
       return;
     }
 

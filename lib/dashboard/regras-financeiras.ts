@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { ID_CLIENTE_CONSUMIDOR_FINAL } from "@/lib/dominio/crm/consumidor-final";
 
 type LinhaMesReceita = {
   mes: Date;
@@ -323,6 +324,7 @@ export async function obterReceitaPorClientePadrao(
             LEFT JOIN "RetornoGarantiaOS" rg ON rg.id = os."retornoGarantiaId"
             WHERE v."criadoEm" >= ${inicio}
               AND v."criadoEm" <= ${fim}
+              AND (v."clienteId" IS NULL OR v."clienteId" != ${ID_CLIENTE_CONSUMIDOR_FINAL})
               AND (os.id IS NULL OR (os."excluidaEm" IS NULL AND os."entregueSemServico" = false))
               AND (
                 os.id IS NULL
@@ -340,6 +342,7 @@ export async function obterReceitaPorClientePadrao(
             LEFT JOIN "RetornoGarantiaOS" rg ON rg.id = os."retornoGarantiaId"
             WHERE cr.status::text = 'RECEBIDO'
               AND cr."vendaId" IS NULL
+              AND (cr."clienteId" IS NULL OR cr."clienteId" != ${ID_CLIENTE_CONSUMIDOR_FINAL})
               AND COALESCE(cr."dataRecebimento", cr."criadoEm") >= ${inicio}
               AND COALESCE(cr."dataRecebimento", cr."criadoEm") <= ${fim}
               AND (os.id IS NULL OR (os."excluidaEm" IS NULL AND os."entregueSemServico" = false))
@@ -364,6 +367,7 @@ export async function obterReceitaPorClientePadrao(
             LEFT JOIN "OrdemServico" os ON os.id = cr."ordemServicoId"
             WHERE v."criadoEm" >= ${inicio}
               AND v."criadoEm" <= ${fim}
+              AND (v."clienteId" IS NULL OR v."clienteId" != ${ID_CLIENTE_CONSUMIDOR_FINAL})
               AND (os.id IS NULL OR (os."excluidaEm" IS NULL AND os."entregueSemServico" = false))
 
             UNION ALL
@@ -374,6 +378,7 @@ export async function obterReceitaPorClientePadrao(
             LEFT JOIN "OrdemServico" os ON os.id = cr."ordemServicoId"
             WHERE cr.status::text = 'RECEBIDO'
               AND cr."vendaId" IS NULL
+              AND (cr."clienteId" IS NULL OR cr."clienteId" != ${ID_CLIENTE_CONSUMIDOR_FINAL})
               AND COALESCE(cr."dataRecebimento", cr."criadoEm") >= ${inicio}
               AND COALESCE(cr."dataRecebimento", cr."criadoEm") <= ${fim}
               AND (os.id IS NULL OR (os."excluidaEm" IS NULL AND os."entregueSemServico" = false))

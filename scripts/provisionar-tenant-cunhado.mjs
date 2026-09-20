@@ -9,6 +9,7 @@ import ws from "ws";
 import { CUSTO_HASH_SENHA } from "../lib/auth/senha.ts";
 import { executarComandoPrisma, obterUltimaMigracaoTenant } from "./lib/migracoes.mjs";
 import { criarCargosPadrao } from "../lib/central/cargos-padrao.ts";
+import { garantirClienteConsumidorFinal } from "../lib/dominio/crm/consumidor-final.ts";
 
 if (typeof WebSocket === "undefined") {
   neonConfig.webSocketConstructor = ws;
@@ -146,6 +147,17 @@ async function criarConfiguracaoInicial(prismaTenant) {
   });
 
   return { criada: true, idPresente: Boolean(configuracao.id) };
+}
+
+/**
+ * Cliente "Consumidor Final" (Fase 3-2C — consumidor final): id fixo, criado
+ * uma vez no banco operacional do tenant — irmã de criarConfiguracaoInicial
+ * acima, mesmo padrão idempotente. Precisa da baseline já aplicada (roda
+ * DEPOIS de aplicarBaseline), já que a tabela Cliente ainda não existe antes
+ * disso.
+ */
+async function criarClienteConsumidorFinalInicial(prismaTenant) {
+  return garantirClienteConsumidorFinal(prismaTenant);
 }
 
 async function validarSchemaTenant(connectionString) {
@@ -288,6 +300,7 @@ async function executar() {
         "aplicar baseline operacional no banco vazio",
         "validar schema via Prisma operacional tenant",
         "criar Configuracao inicial com defaults do sistema",
+        "criar cliente Consumidor Final (id fixo, se ainda nao existir)",
         "ativar tenant com versaoSchema da baseline",
         "atribuir o cargo Administrador ao usuario central inicial",
       ],
@@ -353,9 +366,11 @@ async function executar() {
 
     const prismaTenant = criarPrismaOperacional(tenantCunhadoDatabaseUrl);
     let configuracaoInicial;
+    let clienteConsumidorFinal;
 
     try {
       configuracaoInicial = await criarConfiguracaoInicial(prismaTenant);
+      clienteConsumidorFinal = await criarClienteConsumidorFinalInicial(prismaTenant);
     } finally {
       await prismaTenant.$disconnect();
     }
@@ -396,6 +411,7 @@ async function executar() {
         configuracoes: schemaValidado.configuracoes,
       },
       configuracaoInicial,
+      clienteConsumidorFinal,
       usuarioCentral,
     }, null, 2));
   } catch (erro) {

@@ -1,5 +1,6 @@
 import { NewSalesOrderWizard } from "@/components/vendas/new-sales-order-wizard";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
+import { ID_CLIENTE_CONSUMIDOR_FINAL } from "@/lib/dominio/crm/consumidor-final";
 
 interface PageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -27,6 +28,7 @@ export default async function NewSalesOrderPage({ searchParams }: PageProps) {
     prisma.cliente.findMany({
       where: {
         papel: "CLIENTE",
+        id: { not: ID_CLIENTE_CONSUMIDOR_FINAL },
       },
       orderBy: {
         nomeRazaoSocial: "asc",

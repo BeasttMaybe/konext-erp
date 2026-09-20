@@ -7,6 +7,7 @@ import { formClienteSchema, type FormCliente } from "@/lib/validations/crm";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { exigirPermissao } from "@/lib/auth/permissoes";
 import { mensagemDeErroConhecido } from "@/lib/erros";
+import { ID_CLIENTE_CONSUMIDOR_FINAL, podeEditarCliente, podeExcluirCliente } from "@/lib/dominio/crm/consumidor-final";
 
 type ResultadoCriarCliente =
   | {
@@ -294,6 +295,12 @@ export async function excluirCliente(
   try {
     const contextoTenant = await exigirContextoTenant();
     exigirPermissao(contextoTenant, "crm.excluir");
+
+    const invariante = podeExcluirCliente(clienteId);
+    if (!invariante.permitido) {
+      return { sucesso: false, mensagem: invariante.motivo ?? "Não é possível excluir este cliente." };
+    }
+
     const prisma = contextoTenant.prisma;
     await prisma.cliente.delete({
       where: { id: clienteId },
@@ -353,6 +360,12 @@ export async function atualizarCliente(
   try {
     const contextoTenant = await exigirContextoTenant();
     exigirPermissao(contextoTenant, "crm.editar");
+
+    const invariante = podeEditarCliente(clienteId);
+    if (!invariante.permitido) {
+      return { sucesso: false, mensagem: invariante.motivo ?? "Não é possível editar este cliente." };
+    }
+
     const prisma = contextoTenant.prisma;
     const dadosValidados = formClienteSchema.parse(dados);
     const papelNormalizado = dadosValidados.papel;
@@ -435,6 +448,9 @@ export async function listarClientes() {
   const prisma = contextoTenant.prisma;
 
   return prisma.cliente.findMany({
+    where: {
+      id: { not: ID_CLIENTE_CONSUMIDOR_FINAL },
+    },
     orderBy: {
       nomeRazaoSocial: "asc",
     },
@@ -472,7 +488,10 @@ function montarFiltroClientes(
   categoria?: string,
   papel?: PapelFiltroContato
 ): Prisma.ClienteWhereInput {
-  const where: Prisma.ClienteWhereInput = {};
+  // Consumidor Final e automatico do sistema: nunca aparece na lista do CRM
+  // nem entra nas contagens de "clientes"/"fornecedores"/"empresas" abaixo
+  // (todas derivadas deste mesmo where via prisma.cliente.count).
+  const where: Prisma.ClienteWhereInput = { id: { not: ID_CLIENTE_CONSUMIDOR_FINAL } };
 
   if (categoria && categoria !== "TODOS") {
     where.categoria = categoria as "CLIENTE_FINAL" | "EMPRESA" | "ORGAO_PUBLICO";
@@ -626,6 +645,7 @@ export async function buscarClientesCRM(
 
     const where: Prisma.ClienteWhereInput = {
       OR: whereConditions,
+      id: { not: ID_CLIENTE_CONSUMIDOR_FINAL },
     };
 
     if (papel !== "TODOS") {

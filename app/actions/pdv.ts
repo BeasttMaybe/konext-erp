@@ -30,6 +30,12 @@ import {
 } from "@/lib/dominio/pdv/calcular-venda";
 import { registrarLogAuditoria, contextoAuditoriaDoUsuario } from "@/lib/auditoria";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
+import {
+  ID_CLIENTE_CONSUMIDOR_FINAL,
+  ehClienteConsumidorFinal,
+  exigeClienteRealParaFinalizarVenda,
+  resolverClienteEfetivoPdv,
+} from "@/lib/dominio/crm/consumidor-final";
 
 export interface ClientePDV {
   id: string;
@@ -760,6 +766,10 @@ export async function listarClientesPDV(): Promise<ClientePDV[]> {
   const clientes = await prisma.cliente.findMany({
     where: {
       papel: "CLIENTE",
+      // Consumidor Final ja e o destino implicito de deixar o campo vazio
+      // (ver processarVenda) — mostra-lo tambem como resultado de busca so
+      // duplicaria a mesma acao de duas formas diferentes.
+      id: { not: ID_CLIENTE_CONSUMIDOR_FINAL },
     },
     select: {
       id: true,
@@ -994,6 +1004,11 @@ export async function processarVenda(
   const sessionUser = contexto.usuarioOperacional;
   const clienteId = opcoes?.clienteId;
   const desconto = opcoes?.desconto ?? null;
+  // Venda de balcao sem cliente selecionado vai pro Consumidor Final, nunca
+  // fica com clienteId nulo (fase 3-2C — consumidor final). clienteId (o
+  // valor cru informado) continua guardado a parte, porque a trava de
+  // credidario/boleto abaixo precisa saber se um cliente REAL foi escolhido.
+  const clienteIdEfetivo = resolverClienteEfetivoPdv(clienteId);
 
   if (itens.length === 0) {
     throw new Error("Carrinho vazio para processamento da venda.");
@@ -1022,6 +1037,17 @@ export async function processarVenda(
 
       const pagamentosProcessados = normalizarPagamentosEntrada(pagamentos, configuracaoPdv);
       validarTotalPagamentos(pagamentosProcessados, resultadoCalculo.totalCentavos);
+
+      // Boleto/crediario/empenho publico geram uma ContaReceber — uma
+      // divida em aberto nao pode ficar em nome do Consumidor Final, nao
+      // tem como cobrar dele. Cliente aqui e o valor CRU informado (nao o
+      // efetivo): so um cliente de verdade libera essas formas.
+      if (!clienteId && exigeClienteRealParaFinalizarVenda(pagamentosProcessados, ehPagamentoPrazo)) {
+        throw new Error(
+          "Selecione um cliente para continuar: vendas com boleto ou crediário geram uma conta a receber, e não é possível cobrar do Consumidor Final."
+        );
+      }
+
       const formaPagamentoPrincipal = obterFormaPrincipal(pagamentosProcessados);
       const formaPagamentoBanco = mapearFormaPagamento(formaPagamentoPrincipal);
 
@@ -1038,15 +1064,11 @@ export async function processarVenda(
       );
 
       const dadosVendaBase = {
-        ...(clienteId
-          ? {
-              cliente: {
-                connect: {
-                  id: clienteId,
-                },
-              },
-            }
-          : {}),
+        cliente: {
+          connect: {
+            id: clienteIdEfetivo,
+          },
+        },
         valorTotal: paraMoeda(resultadoCalculo.totalCentavos),
         desconto: paraMoeda(resultadoCalculo.descontoCentavos),
       };
@@ -1141,7 +1163,7 @@ export async function processarVenda(
 
       await createSalesHistoryMirror(tx, {
         vendaId,
-        clienteId,
+        clienteId: clienteIdEfetivo,
         vendedor: sessionUser.nome,
         total: paraMoeda(resultadoCalculo.totalCentavos),
         formaPagamento: formaPagamentoBanco,
@@ -1164,7 +1186,8 @@ export async function processarVenda(
           dadosDepois: {
             totalCentavos: resultadoCalculo.totalCentavos,
             descontoCentavos: resultadoCalculo.descontoCentavos,
-            clienteId: clienteId ?? null,
+            clienteId: clienteIdEfetivo,
+            clienteConsumidorFinal: ehClienteConsumidorFinal(clienteIdEfetivo),
             caixaSessionId: caixaAberto.id,
             itens: resultadoCalculo.itens.map((item) => ({
               produtoId: item.produtoId,

@@ -121,6 +121,7 @@ function PDVPageConteudo() {
   const searchParams = useSearchParams();
   const osIdNaUrl = searchParams.get("osId") ?? "";
   const buscaProdutoRef = useRef<HTMLInputElement>(null);
+  const buscaClienteRef = useRef<HTMLInputElement>(null);
 
   const [busca, setBusca] = useState("");
   const [categoriaAtiva, setCategoriaAtiva] = useState<string | null>(null);
@@ -392,12 +393,17 @@ function PDVPageConteudo() {
       return;
     }
 
-    if (!clienteSelecionadoId) {
-      toast.error("Selecione um cliente antes de finalizar a venda.");
-      return;
-    }
-
+    // Cliente volta a ser opcional (Fase 3-2C — consumidor final): sem
+    // selecao, a venda cai no Consumidor Final — ver o resumo do carrinho
+    // logo acima do botao e a trava de credidario/boleto dentro do modal.
     setModalPagamentoAberto(true);
+  };
+
+  const focarBuscaCliente = () => {
+    setModalPagamentoAberto(false);
+    // Um instante pro modal fechar antes de mover o foco, senao o
+    // focus-trap do Dialog ainda ativo rouba o foco de volta.
+    setTimeout(() => buscaClienteRef.current?.focus(), 80);
   };
 
   const finalizarVendaRef = useRef(finalizarVenda);
@@ -708,12 +714,19 @@ function PDVPageConteudo() {
           <div className="flex items-center gap-2.5 rounded-kx-cartao bg-kx-superficie px-3.5 py-3">
             <Search className="h-[18px] w-[18px] shrink-0 text-kx-legenda" aria-hidden="true" />
             <input
-              placeholder="Cliente (nome, CPF ou telefone)"
+              ref={buscaClienteRef}
+              placeholder="Cliente (opcional) — nome, CPF ou telefone"
               value={buscaCliente}
               onChange={(evento) => setBuscaCliente(evento.target.value)}
               className="flex-1 bg-transparent text-[13px] text-kx-texto outline-none placeholder:text-kx-legenda"
             />
           </div>
+
+          {!clienteSelecionado && !buscaCliente.trim() && (
+            <p className="text-xs text-kx-legenda">
+              Sem cliente selecionado — a venda será registrada para <strong className="text-kx-texto-2">Consumidor Final</strong>.
+            </p>
+          )}
 
           {!clienteSelecionado && !!buscaCliente.trim() && (
             <div className="max-h-36 overflow-y-auto rounded-kx-botao border border-kx-painel-borda bg-kx-painel">
@@ -815,7 +828,7 @@ function PDVPageConteudo() {
 
             <Button
               className="h-[52px] w-full rounded-kx-botao text-base font-bold"
-              disabled={(itens.length === 0 && !pedidoOS) || !clienteSelecionadoId || descontoBloqueiaVenda}
+              disabled={(itens.length === 0 && !pedidoOS) || descontoBloqueiaVenda}
               onClick={finalizarVenda}
             >
               <CreditCard className="mr-2 h-4 w-4" />
@@ -832,9 +845,11 @@ function PDVPageConteudo() {
         total={totalGeral}
         descontoAplicado={resumo.descontoAplicado}
         configuracaoPagamento={configuracaoPagamentosPdv}
+        temClienteSelecionado={Boolean(clienteSelecionadoId)}
         aoFechar={() => setModalPagamentoAberto(false)}
         aoConfirmar={aoConfirmarPagamento}
         aoNovaVenda={aoNovaVenda}
+        aoPrecisarDeCliente={focarBuscaCliente}
       />
 
       <Dialog open={modalAbrirCaixaAberto} onOpenChange={setModalAbrirCaixaAberto}>
