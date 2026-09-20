@@ -19,7 +19,18 @@ export type ItemNavegacao = {
 export const ITENS_NAVEGACAO: readonly ItemNavegacao[] = [
   { label: "Dashboard", path: "/", iconKey: "Dashboard" },
   {
-    label: "CRM",
+    label: "Ordens de Serviço",
+    path: "/os",
+    iconKey: "OS",
+    filhos: [
+      { label: "Hub Central", path: "/os" },
+      { label: "Kanban", path: "/os?modo=kanban" },
+      { label: "Finalizadas", path: "/os?modo=lista" },
+      { label: "Garantias", path: "/os?modo=garantia" },
+    ],
+  },
+  {
+    label: "Clientes (CRM)",
     path: "/crm",
     iconKey: "CRM",
     filhos: [
@@ -41,17 +52,6 @@ export const ITENS_NAVEGACAO: readonly ItemNavegacao[] = [
     ],
   },
   { label: "Estoque", path: "/estoque", iconKey: "Estoque" },
-  {
-    label: "Ordens de Serviço",
-    path: "/os",
-    iconKey: "OS",
-    filhos: [
-      { label: "Hub Central", path: "/os" },
-      { label: "Kanban", path: "/os?modo=kanban" },
-      { label: "Finalizadas", path: "/os?modo=lista" },
-      { label: "Garantias", path: "/os?modo=garantia" },
-    ],
-  },
   {
     label: "Financeiro",
     path: "/financeiro",

@@ -121,6 +121,17 @@ const eslintConfig = defineConfig([
       "konext/sem-cor-tailwind-solta": "error",
     },
   },
+  // Regra de z-index (Fase 3-2A): nasce sem lista de exceção — a auditoria
+  // que corrigiu o bug de empilhamento sobre a barra superior já limpou
+  // toda ocorrência solta em app/**/components/**, então qualquer violação
+  // daqui pra frente é regressão nova, não legado.
+  {
+    files: ["app/**/*.{ts,tsx}", "components/**/*.{ts,tsx}"],
+    plugins: { konext: konextRegrasCor },
+    rules: {
+      "konext/sem-z-index-solto": "error",
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

@@ -80,12 +80,42 @@ Mais dois tokens sem variação por tema (fazem sentido fixos nos dois):
 --kx-raio-painel   24px    --kx-raio-cartao  16px
 --kx-raio-botao    12px    --kx-raio-pilula  999px
 --kx-sombra-cartao / --kx-sombra-painel / --kx-sombra-flutuante
---kx-z-base(0) --kx-z-sticky(20) --kx-z-cabecalho(30) --kx-z-barra-lateral(35)
---kx-z-sobreposicao(40) --kx-z-dialogo(50) --kx-z-popover(60) --kx-z-toast(70)
+--kx-z-base(0) --kx-z-sticky(20) --kx-z-cabecalho(30) --kx-z-barra-lateral(30)
+--kx-z-dropdown(40) --kx-z-drawer(50) --kx-z-dialogo(60) --kx-z-toast(70)
 ```
 
 Todos expostos como utilitário Tailwind (`p-kx-6`, `rounded-kx-cartao`,
-`shadow-kx-painel`, `z-kx-dialogo`) via `@theme inline` em `app/globals.css`.
+`shadow-kx-painel`, `z-kx-dialogo`) via `@theme inline` em `app/globals.css` —
+inclusive o z-index, que precisa da própria ponte (`--z-index-kx-*`) porque o
+Tailwind v4 só reconhece um utilitário `z-kx-*` se existir uma variável de
+tema com esse nome; sem ela a classe é ignorada silenciosamente (era
+exatamente o bug do conteúdo passando por cima da barra superior, corrigido
+na Fase 3-2A — a barra tinha `z-kx-cabecalho` no JSX, mas nenhum CSS saía
+dali).
+
+#### Ordem de camadas (Fase 3-2A)
+
+Uma escala só, pra nunca duas telas brigarem por número solto — cada nível é
+estritamente MAIOR que o anterior, então a lista abaixo também é a ordem
+visual de baixo pra cima (a de baixo nunca cobre a de cima):
+
+```
+conteúdo (base/sticky)  <  barra lateral / barra superior  <  dropdown,
+popover, select, autocomplete  <  gaveta (Sheet)  <  diálogo/alert-dialog
+<  toast
+```
+
+A barra superior fica **sempre** acima do conteúdo da página — é
+`position: sticky` com `z-kx-cabecalho` e fundo opaco (`bg-kx-painel`, sólido
+nos dois temas, nunca translúcido), então nenhum painel ou card de KPI da
+página consegue desenhar por cima dela mesmo com `position: sticky`/`relative`
+próprio. A barra lateral fixa usa o mesmo nível (`z-kx-barra-lateral`,
+mesmo valor de `z-kx-cabecalho`) — as duas são "casca" do app, nunca
+conteúdo de página.
+
+`--kx-z-sticky` é só pra cabeçalho de tabela sticky *dentro* de um painel
+(ex.: uma tabela rolável) — fica abaixo da casca do app de propósito, pra
+nunca cobrir a barra superior ao rolar.
 
 ### 2.5 Como a ponte pro shadcn funciona
 
@@ -234,6 +264,15 @@ deve encolher, nunca crescer. Nenhum arquivo tocado nesta fase (tokens,
 componentes novos, shell) está na lista — os únicos ajustes de cor feitos
 em código pré-existente foram os 7 primitivos do §4.2, já corrigidos, não
 grandfathered.
+
+**Z-index (Fase 3-2A)**: `konext/sem-z-index-solto`, mesmo arquivo de regras,
+bane `z-50`/`z-20`/`z-[100]` etc. soltos — sempre um `z-kx-*` (§2.4). Nasceu
+**sem** lista de grandfather: a auditoria que corrigiu o bug do conteúdo
+passando por cima da barra superior já substituiu toda ocorrência solta em
+`app/**`/`components/**` (`dialog.tsx`, `alert-dialog.tsx`, `sheet.tsx`,
+`popover.tsx`, `select.tsx`, `dropdown-menu.tsx`, `seletor-cliente-crm.tsx`,
+`financeiro/inteligencia/page.tsx`, `crm/propostas/nova/page.tsx`), então
+qualquer violação daqui pra frente é regressão nova, não legado a tolerar.
 
 ## 7. Regras pra uma tela nova (Fase 3-2 em diante)
 

@@ -117,14 +117,18 @@
      peça física neutra, não texto nem superfície do app. */
   --kx-controle-bolinha: #ffffff;
 
-  /* ---- Z-index (uma escala só, pra nunca duas camadas brigarem por número solto) ---- */
+  /* ---- Z-index (uma escala só, pra nunca duas camadas brigarem por número solto)
+     Ordem de camadas (a de baixo nunca cobre a de cima): conteúdo < cabeçalho
+     sticky de tabela < barra lateral/superior fixas < dropdown/popover/select
+     < gaveta (Sheet) < diálogo/alert-dialog < toast. A barra superior fica
+     sempre acima do conteúdo da página — ver docs/design/sistema-visual.md. ---- */
   --kx-z-base: 0;
   --kx-z-sticky: 20;
   --kx-z-cabecalho: 30;
-  --kx-z-barra-lateral: 35;
-  --kx-z-sobreposicao: 40;
-  --kx-z-dialogo: 50;
-  --kx-z-popover: 60;
+  --kx-z-barra-lateral: 30;
+  --kx-z-dropdown: 40;
+  --kx-z-drawer: 50;
+  --kx-z-dialogo: 60;
   --kx-z-toast: 70;
 
   color-scheme: dark;

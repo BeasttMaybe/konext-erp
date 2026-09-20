@@ -18,6 +18,12 @@
 // eslint.config.mjs, não aqui — cor de gráfico (`--receita`/`--despesa`/
 // `--lucro`, Fase 1A) é uma família à parte, documentada, com contraste
 // próprio pra marca de gráfico vs. texto.
+//
+// Terceira regra (correção do bug de empilhamento sobre a barra superior,
+// Fase 3-2A): `konext/sem-z-index-solto` bane `z-<número>`/`z-[...]` solto —
+// camada tem que vir de `--kx-z-*` (app/tokens-konext.css), senão duas
+// telas voltam a brigar por número sem relação nenhuma entre si. Ver a
+// ordem de camadas documentada em docs/design/sistema-visual.md.
 
 const PADRAO_HEX = /#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?(?:[0-9a-fA-F]{2})?\b/;
 
@@ -72,10 +78,20 @@ const semCorTailwindSolta = criarRegraTexto(
   "Utilitário de cor padrão do Tailwind (fora do catálogo Konext) — use bg-kx-*/text-primary/etc., nunca a paleta crua do Tailwind."
 );
 
+// `z-50`, `-z-10`, `z-[100]` — qualquer z-index numérico ou arbitrário solto.
+// Não bane `z-kx-*` (o token) nem `z-auto`.
+const PADRAO_Z_INDEX_SOLTO = /-?\bz-(?:\[[^\]]+\]|[0-9]+)\b/;
+
+const semZIndexSolto = criarRegraTexto(
+  PADRAO_Z_INDEX_SOLTO,
+  "Z-index numérico solto — use um token z-kx-* (app/tokens-konext.css) em vez de um número sem relação com as outras camadas."
+);
+
 const konextRegrasCor = {
   rules: {
     "sem-hex-hardcoded": semHexHardcoded,
     "sem-cor-tailwind-solta": semCorTailwindSolta,
+    "sem-z-index-solto": semZIndexSolto,
   },
 };
 

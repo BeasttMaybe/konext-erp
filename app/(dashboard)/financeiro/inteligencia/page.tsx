@@ -223,7 +223,7 @@ export default function FinanceiroInteligenciaPage() {
         </div>
       </div>
 
-      <div className="sticky top-0 z-20 border-b border-zinc-200/70 bg-white/70 px-6 py-3 backdrop-blur-md dark:border-zinc-800/70 dark:bg-slate-900/55 lg:px-8">
+      <div className="sticky top-0 z-kx-sticky border-b border-zinc-200/70 bg-white/70 px-6 py-3 backdrop-blur-md dark:border-zinc-800/70 dark:bg-slate-900/55 lg:px-8">
         <div className="max-w-7xl mx-auto flex flex-col lg:flex-row lg:items-end gap-3">
           <div className="w-full lg:w-52">
             <Label className="text-xs text-muted-foreground">Intervalo</Label>

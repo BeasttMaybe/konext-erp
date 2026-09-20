@@ -386,7 +386,7 @@ export default function NovaPropostaPage() {
 
   return (
     <form className="w-full min-h-full flex flex-col bg-transparent" onSubmit={(e) => e.preventDefault()}>
-      <div className="sticky top-0 z-20 border-b border-white/10 bg-slate-950/70 px-6 py-4 backdrop-blur-xl lg:px-8">
+      <div className="sticky top-0 z-kx-sticky border-b border-white/10 bg-slate-950/70 px-6 py-4 backdrop-blur-xl lg:px-8">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4">
           <div className="flex items-center gap-4 min-w-0">
             <Button
@@ -464,7 +464,7 @@ export default function NovaPropostaPage() {
                     />
 
                     {clienteDropdownOpen && clientesFiltrados.length > 0 && (
-                      <div className="absolute z-40 mt-1 w-full rounded-xl border border-white/10 bg-slate-900/95 p-1 shadow-xl backdrop-blur-sm">
+                      <div className="absolute z-kx-dropdown mt-1 w-full rounded-xl border border-white/10 bg-slate-900/95 p-1 shadow-xl backdrop-blur-sm">
                         {clientesFiltrados.map((cliente) => (
                           <button
                             key={cliente.id}

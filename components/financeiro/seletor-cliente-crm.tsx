@@ -87,7 +87,7 @@ export function SeletorClienteCRM({
         {erro && <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">{erro}</p>}
 
         {!carregando && termoBusca.trim().length >= 1 && resultados.length > 0 && (
-          <div className="absolute top-full left-0 right-0 mt-1 z-50 max-h-60 overflow-y-auto rounded-md border border-border bg-popover shadow-lg">
+          <div className="absolute top-full left-0 right-0 mt-1 z-kx-dropdown max-h-60 overflow-y-auto rounded-md border border-border bg-popover shadow-lg">
             {resultados.map((cliente) => (
               <button
                 key={cliente.id}
