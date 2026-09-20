@@ -5,22 +5,20 @@ import { FormProvider, useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AbaEntradaEquipamento } from "./abas/aba-entrada-equipamento";
-import { AbaOrcamento } from "./abas/aba-orcamento";
-import { AbaHistoricoStatus } from "./abas/aba-historico-status";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { AssistenteNovaOS } from "./nova-os/assistente-nova-os";
+import { validarFormatoImei } from "@/lib/dominio/os/validacao-imei";
 
 // Validação com Zod
 const esquemaNovaOS = z.object({
   clienteId: z.string().min(1, "Cliente é obrigatório"),
-  
+
   // Equipamento
   marca: z.string().optional(),
   modelo: z.string().optional(),
-  imei: z.string().optional(),
+  imei: z.string().optional().refine((valor) => validarFormatoImei(valor).valido, {
+    message: "IMEI/nº de série deve conter apenas letras, números, espaço ou hífen.",
+  }),
   senha: z.string().optional(),
   senhaDesenho: z.string().optional(),
   
@@ -77,9 +75,8 @@ export function ModalNovaOS({
   onSalvar,
   clienteIdInicial,
 }: ModalNovaOSProps) {
-  const [abaAtiva, setAbaAtiva] = useState("entrada");
   const [salvando, setSalvando] = useState(false);
-  
+
   const formulario = useForm<DadosNovaOS>({
     resolver: zodResolver(esquemaNovaOS) as unknown as Resolver<DadosNovaOS>,
     mode: "onChange",
@@ -131,58 +128,22 @@ export function ModalNovaOS({
 
   return (
     <Dialog open={aberta} onOpenChange={onAbrirMudar}>
-      <DialogContent className="max-w-6xl max-h-[92vh] overflow-y-auto border-zinc-200/70 bg-background p-0 shadow-2xl">
-        <DialogHeader>
-          <div className="rounded-t-lg border-b border-border bg-gradient-to-r from-slate-50 via-white to-slate-50 px-6 py-5 dark:from-slate-900 dark:via-slate-950 dark:to-slate-900">
-            <DialogTitle className="text-xl font-semibold tracking-tight">Nova Ordem de Serviço</DialogTitle>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Preencha os dados de entrada, orçamento e status para registrar a OS com segurança.
-            </p>
-          </div>
-        </DialogHeader>
-
+      <DialogContent
+        showCloseButton={false}
+        className="flex max-h-[90vh] w-full max-w-[980px] flex-col overflow-hidden rounded-[26px] border-kx-painel-borda bg-kx-painel p-0"
+      >
+        <DialogTitle className="sr-only">Nova ordem de serviço</DialogTitle>
+        <DialogDescription className="sr-only">
+          Assistente de 3 passos para cadastrar uma nova ordem de serviço: cliente e aparelho, entrada e orçamento.
+        </DialogDescription>
         <FormProvider {...formulario}>
-          <form onSubmit={formulario.handleSubmit(handleSalvar)} className="space-y-5 px-6 pb-6">
-            <Tabs value={abaAtiva} onValueChange={setAbaAtiva} className="w-full">
-              <TabsList className="grid h-11 w-full grid-cols-3 rounded-xl bg-muted/60 p-1">
-                <TabsTrigger value="entrada">
-                  Entrada de Equipamento
-                </TabsTrigger>
-                <TabsTrigger value="orcamento">
-                  Orçamento & Precificação
-                </TabsTrigger>
-                <TabsTrigger value="historico">
-                  Histórico & Status
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="entrada" className="mt-4 data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:slide-in-from-bottom-1 data-[state=active]:duration-200">
-                <Card className="border-border/70 bg-background/70 p-4 shadow-sm transition-all duration-200 sm:p-5">
-                  <AbaEntradaEquipamento clienteIdInicial={clienteIdInicial} />
-                </Card>
-              </TabsContent>
-
-              <TabsContent value="orcamento" className="mt-4 data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:slide-in-from-bottom-1 data-[state=active]:duration-200">
-                <Card className="border-border/70 bg-background/70 p-4 shadow-sm transition-all duration-200 sm:p-5">
-                  <AbaOrcamento />
-                </Card>
-              </TabsContent>
-
-              <TabsContent value="historico" className="mt-4 data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:slide-in-from-bottom-1 data-[state=active]:duration-200">
-                <Card className="border-border/70 bg-background/70 p-4 shadow-sm transition-all duration-200 sm:p-5">
-                  <AbaHistoricoStatus />
-                </Card>
-              </TabsContent>
-            </Tabs>
-
-            <div className="flex justify-end gap-2 border-t border-border pt-4">
-              <Button variant="outline" onClick={handleFechar}>
-                Cancelar
-              </Button>
-              <Button type="submit" className="bg-blue-600 hover:bg-blue-700" disabled={salvando}>
-                {salvando ? "Salvando..." : "Salvar Ordem de Serviço"}
-              </Button>
-            </div>
+          <form onSubmit={formulario.handleSubmit(handleSalvar)} className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-6">
+            <AssistenteNovaOS
+              onCancelar={handleFechar}
+              onSalvarClick={formulario.handleSubmit(handleSalvar)}
+              salvando={salvando}
+              clienteIdInicial={clienteIdInicial}
+            />
           </form>
         </FormProvider>
       </DialogContent>

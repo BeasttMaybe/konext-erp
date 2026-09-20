@@ -7,19 +7,17 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AbaEntradaEquipamento } from "@/components/os/abas/aba-entrada-equipamento";
-import { AbaHistoricoStatus } from "@/components/os/abas/aba-historico-status";
-import { AbaOrcamento } from "@/components/os/abas/aba-orcamento";
+import { AssistenteNovaOS } from "@/components/os/nova-os/assistente-nova-os";
 import { buscarClientesOS, criarOrdemServico } from "@/app/actions/os";
+import { validarFormatoImei } from "@/lib/dominio/os/validacao-imei";
 
 const newServiceOrderSchema = z.object({
   clienteId: z.string().min(1, "Cliente é obrigatório"),
   marca: z.string().optional(),
   modelo: z.string().optional(),
-  imei: z.string().optional(),
+  imei: z.string().optional().refine((valor) => validarFormatoImei(valor).valido, {
+    message: "IMEI/nº de série deve conter apenas letras, números, espaço ou hífen.",
+  }),
   senha: z.string().optional(),
   senhaDesenho: z.string().optional(),
   relatoCliente: z.string().min(1, "Relato do cliente é obrigatório"),
@@ -74,7 +72,6 @@ interface OrdemServicoFormProps {
 
 export function OrdemServicoForm({ initialData = null }: OrdemServicoFormProps) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState("entrada");
   const [isSaving, setIsSaving] = useState(false);
   const [clientSearchInitialValue, setClientSearchInitialValue] = useState(initialData?.clientName ?? "");
 
@@ -186,73 +183,25 @@ export function OrdemServicoForm({ initialData = null }: OrdemServicoFormProps) 
   };
 
   return (
-    <div className="w-full h-full flex flex-col overflow-hidden bg-transparent">
-      <div className="border-b border-slate-200/70 bg-white/75 px-6 py-6 backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/50 lg:px-8">
-        <div className="max-w-7xl">
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-50">Nova Ordem de Serviço</h1>
-          <p className="text-slate-600 dark:text-slate-400 mt-2 text-sm">
-            Preencha os dados de entrada, orçamento e status para registrar a OS.
-          </p>
-          {initialData && (
-            <Badge variant="secondary" className="mt-3">
-              OS pré-preenchida a partir da Proposta #{initialData.proposalId.slice(0, 8).toUpperCase()}
-            </Badge>
-          )}
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto">
-        <div className="px-6 lg:px-8 py-6">
-          <div className="max-w-7xl mx-auto">
-            <FormProvider {...form}>
-              <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-5">
-                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                  <TabsList className="grid h-11 w-full grid-cols-3 rounded-xl bg-muted/60 p-1">
-                    <TabsTrigger value="entrada">Entrada de Equipamento</TabsTrigger>
-                    <TabsTrigger value="orcamento">Orçamento & Precificação</TabsTrigger>
-                    <TabsTrigger value="historico">Histórico & Status</TabsTrigger>
-                  </TabsList>
-
-                  <TabsContent
-                    value="entrada"
-                    className="mt-4 data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:slide-in-from-bottom-1 data-[state=active]:duration-200"
-                  >
-                    <Card className="border-border/70 bg-background/70 p-4 shadow-sm transition-all duration-200 sm:p-5">
-                      <AbaEntradaEquipamento clienteNomeInicial={clientSearchInitialValue} />
-                    </Card>
-                  </TabsContent>
-
-                  <TabsContent
-                    value="orcamento"
-                    className="mt-4 data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:slide-in-from-bottom-1 data-[state=active]:duration-200"
-                  >
-                    <Card className="border-border/70 bg-background/70 p-4 shadow-sm transition-all duration-200 sm:p-5">
-                      <AbaOrcamento />
-                    </Card>
-                  </TabsContent>
-
-                  <TabsContent
-                    value="historico"
-                    className="mt-4 data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:slide-in-from-bottom-1 data-[state=active]:duration-200"
-                  >
-                    <Card className="border-border/70 bg-background/70 p-4 shadow-sm transition-all duration-200 sm:p-5">
-                      <AbaHistoricoStatus />
-                    </Card>
-                  </TabsContent>
-                </Tabs>
-
-                <div className="flex justify-end gap-2 border-t border-border pt-4">
-                  <Button type="button" variant="outline" onClick={handleCancel}>
-                    Cancelar
-                  </Button>
-                  <Button type="submit" className="bg-blue-600 hover:bg-blue-700" disabled={isSaving}>
-                    {isSaving ? "Salvando..." : "Salvar Ordem de Serviço"}
-                  </Button>
-                </div>
-              </form>
-            </FormProvider>
-          </div>
-        </div>
+    <div className="flex h-full w-full items-start justify-center overflow-y-auto bg-kx-fundo p-6">
+      <div className="flex w-full max-w-[980px] flex-col gap-4 rounded-[26px] border border-kx-painel-borda bg-kx-painel p-6">
+        <FormProvider {...form}>
+          <form onSubmit={form.handleSubmit(handleSubmit)}>
+            <AssistenteNovaOS
+              onCancelar={handleCancel}
+              onSalvarClick={form.handleSubmit(handleSubmit)}
+              salvando={isSaving}
+              clienteNomeInicial={clientSearchInitialValue}
+              tituloExtra={
+                initialData && (
+                  <Badge variant="secondary" className="mt-1 w-fit">
+                    OS pré-preenchida a partir da Proposta #{initialData.proposalId.slice(0, 8).toUpperCase()}
+                  </Badge>
+                )
+              }
+            />
+          </form>
+        </FormProvider>
       </div>
     </div>
   );
