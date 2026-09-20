@@ -41,15 +41,19 @@ const ICONES: Record<string, LucideIcon> = {
  * detectar breakpoint em JS, pra não arriscar descompasso entre servidor e
  * cliente na primeira renderização.
  *
- * O item ativo "entalha" na área de conteúdo (Fase 3-2A, Spec B): fica
- * rente à borda direita da barra (por isso o `<nav>` só tem padding à
- * esquerda — cada item cuida da própria margem direita), arredondado só à
- * esquerda, com fundo `--kx-fundo` — a mesma cor do conteúdo, então os dois
- * lêem como uma superfície contínua sem gap nem linha. Por isso a barra
- * também não tem `border-r`: a separação de `--kx-painel` (barra) pra
- * `--kx-fundo` (conteúdo) já é só a diferença de cor, mesmo padrão do
- * painel de marca em `app/(auth)/layout.tsx` — uma borda aqui cruzaria
- * bem no meio do item ativo e quebraria a superfície contínua.
+ * O item ativo "entalha" na área de conteúdo (Fase 3-2A, Spec B — porte
+ * fiel de `docs/design/referencia-menu-lateral.html`, a referência
+ * aprovada): fica rente à borda direita da barra (por isso o `<nav>` só
+ * tem padding à esquerda — cada item cuida da própria margem direita),
+ * arredondado só à esquerda (`rounded-l-kx-cartao`/`rounded-r-none`), com
+ * fundo `--kx-fundo` — a mesma cor do conteúdo, então os dois lêem como
+ * uma superfície contínua sem gap nem linha — mais os dois cantos côncavos
+ * de `.kx-notch-ativo` (app/globals.css, técnica idêntica à referência:
+ * box-shadow, não gradiente). Por isso a barra também não tem `border-r`:
+ * a separação de `--kx-painel` (barra) pra `--kx-fundo` (conteúdo) já é só
+ * a diferença de cor, mesmo padrão do painel de marca em
+ * `app/(auth)/layout.tsx` — uma borda aqui cruzaria bem no meio do item
+ * ativo e quebraria a superfície contínua.
  */
 export function BarraLateral() {
   const pathname = usePathname();
@@ -114,13 +118,13 @@ export function BarraLateral() {
               aria-current={ativo ? "page" : undefined}
               title={item.label}
               className={cn(
-                "flex h-11 items-center justify-center gap-3 rounded-l-kx-cartao rounded-r-none px-0 text-sm font-medium transition-colors xl:justify-start xl:px-3",
+                "flex h-12 items-center justify-center gap-3 rounded-l-kx-cartao rounded-r-none px-0 text-sm font-medium transition-colors xl:justify-start xl:px-3",
                 ativo
-                  ? "mr-0 bg-kx-fundo font-bold text-kx-texto"
+                  ? "kx-notch-ativo mr-0 bg-kx-fundo font-bold text-kx-texto"
                   : "mr-3 text-kx-texto-2 hover:bg-kx-superficie hover:text-kx-texto"
               )}
             >
-              <Icone className={cn("h-[18px] w-[18px] shrink-0", ativo && "text-kx-destaque")} aria-hidden="true" />
+              <Icone className={cn("h-5 w-5 shrink-0", ativo && "text-kx-destaque")} aria-hidden="true" />
               <span className="hidden truncate xl:inline">{item.label}</span>
             </Link>
           );

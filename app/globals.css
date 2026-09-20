@@ -308,3 +308,42 @@ input[type="number"] {
   -moz-appearance: textfield;
   appearance: textfield;
 }
+
+/*
+ * Notch do item ativo na barra lateral (Fase 3-2A, Spec B) — porte fiel de
+ * docs/design/referencia-menu-lateral.html (referência aprovada pelo
+ * dono, aberta e comparada lado a lado antes deste porte). Mesma técnica
+ * exata do arquivo de referência: box-shadow com spread, não gradiente.
+ * Cada pseudo-elemento é um quadrado de 20×20 rente ao canto do item
+ * (`right: 0`, colado no `top`/`bottom`); o próprio quadrado arredonda só
+ * o canto que toca o item (20px) e o box-shadow, deslocado 8px pra fora
+ * desse canto e com 8px de espalhamento, pinta --kx-fundo por cima — o
+ * resultado é o mesmo entalhe côncavo da referência.
+ */
+.kx-notch-ativo {
+  position: relative;
+}
+
+.kx-notch-ativo::before {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: -20px;
+  width: 20px;
+  height: 20px;
+  border-bottom-right-radius: 20px;
+  box-shadow: 8px 8px 0 8px var(--kx-fundo);
+  pointer-events: none;
+}
+
+.kx-notch-ativo::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: -20px;
+  width: 20px;
+  height: 20px;
+  border-top-right-radius: 20px;
+  box-shadow: 8px -8px 0 8px var(--kx-fundo);
+  pointer-events: none;
+}
