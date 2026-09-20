@@ -319,6 +319,8 @@ export interface FiltrosPagar {
   mes?: string;
   ano?: string;
   categoriaCliente?: string;
+  /** Ignora a janela de mes/ano — todas as parcelas, de qualquer periodo (Fase 3-2D). */
+  todoPeriodo?: boolean;
 }
 
 export interface ResumoPagar {
@@ -349,20 +351,24 @@ export async function listarParcelasPagarFiltradas(
   const where: Record<string, unknown> = {};
 
   // Usa os valores da URL quando presentes; caso contrário, adota o mês/ano atual.
-  const hoje = new Date();
-  const mesFiltro = filtros?.mes ? parseInt(filtros.mes, 10) : hoje.getMonth() + 1;
-  const anoFiltro = filtros?.ano ? parseInt(filtros.ano, 10) : hoje.getFullYear();
+  // todoPeriodo pula a janela inteira — usado pelos indicadores "em aberto"
+  // da Visão geral (Fase 3-2D), que somam parcelas pendentes de qualquer mês.
+  if (!filtros?.todoPeriodo) {
+    const hoje = new Date();
+    const mesFiltro = filtros?.mes ? parseInt(filtros.mes, 10) : hoje.getMonth() + 1;
+    const anoFiltro = filtros?.ano ? parseInt(filtros.ano, 10) : hoje.getFullYear();
 
-  if (!Number.isNaN(mesFiltro) && !Number.isNaN(anoFiltro)) {
-    // Início: primeiro dia do mês às 00:00:00.000
-    const dataInicio = new Date(anoFiltro, mesFiltro - 1, 1);
-    // Fim: último dia do mês às 23:59:59.999 (dia 0 do mês seguinte = último dia do atual)
-    const dataFim = new Date(anoFiltro, mesFiltro, 0, 23, 59, 59, 999);
+    if (!Number.isNaN(mesFiltro) && !Number.isNaN(anoFiltro)) {
+      // Início: primeiro dia do mês às 00:00:00.000
+      const dataInicio = new Date(anoFiltro, mesFiltro - 1, 1);
+      // Fim: último dia do mês às 23:59:59.999 (dia 0 do mês seguinte = último dia do atual)
+      const dataFim = new Date(anoFiltro, mesFiltro, 0, 23, 59, 59, 999);
 
-    where.dataVencimento = {
-      gte: dataInicio,
-      lte: dataFim,
-    };
+      where.dataVencimento = {
+        gte: dataInicio,
+        lte: dataFim,
+      };
+    }
   }
 
   // Escopo de visibilidade (Fase 1D-2) + filtro por categoria de cliente,

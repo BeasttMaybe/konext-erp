@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Konext — referência: Financeiro a pagar e recorrências</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+  <style>
+    body { margin: 0; font-family: "Plus Jakarta Sans", "Segoe UI", system-ui, sans-serif; background: #1B1D38; color: #EEF0FB; }
+    a { color: #A5AAFF; text-decoration: none; } a:hover { color: #C7CAFF; }
+    .num { font-variant-numeric: tabular-nums; }
+    .nav-ativo { position: relative; }
+    .nav-ativo::before { content: ""; position: absolute; right: 0; top: -20px; width: 20px; height: 20px; border-bottom-right-radius: 20px; box-shadow: 8px 8px 0 8px #1B1D38; }
+    .nav-ativo::after { content: ""; position: absolute; right: 0; bottom: -20px; width: 20px; height: 20px; border-top-right-radius: 20px; box-shadow: 8px -8px 0 8px #1B1D38; }
+  </style>
+</head>
+<body>
+<!--
+  Konext — referência: Financeiro a pagar e recorrências
+  REFERÊNCIA VISUAL APROVADA PELO DONO. Abra no navegador e compare lado a lado com a tela real.
+  A barra lateral foi removida de propósito: ela já existe no app.
+  As cores são os valores literais dos tokens --kx-*; no código use SEMPRE o token, nunca o hex.
+  A lógica interativa pode não rodar isolada — o que vale é o LAYOUT. Dados fictícios.
+-->
+
+<div style="width: 1440px; height: 900px; display: flex; background: #1B1D38; overflow: hidden;">
+
+  <main style="flex-grow: 1; display: flex; flex-direction: column; padding: 24px 32px 28px 32px; box-sizing: border-box; gap: 18px; min-width: 0;">
+    <header style="display: flex; align-items: center; gap: 20px; height: 48px;">
+      <div style="display: flex; flex-direction: column;">
+        <span style="font-size: 12px; color: #A7AACE;">Financeiro</span>
+        <span style="font-size: 22px; font-weight: 800; letter-spacing: -0.02em;">Contas a pagar</span>
+      </div>
+      <div style="margin-left: auto; display: flex; align-items: center; gap: 12px;">
+        <button type="button" style="height: 42px; padding: 0 16px; border-radius: 12px; border: none; background: #5A5FE0; color: #FFFFFF; font: inherit; font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 8px; cursor: pointer;">Nova despesa</button>
+        <div style="display: flex; align-items: center; gap: 10px; padding-left: 4px;">
+          <div style="width: 42px; height: 42px; border-radius: 50%; background: #F5B83D; color: #1B1D38; display: flex; align-items: center; justify-content: center; font-weight: 800;">KT</div>
+          <div style="display: flex; flex-direction: column;">
+            <span style="font-size: 14px; font-weight: 700;">[Seu nome]</span>
+            <span style="font-size: 12px; color: #A7AACE;">Administrador</span>
+          </div>
+        </div>
+      </div>
+    </header>
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <nav aria-label="Seções do financeiro" style="display: flex; gap: 4px; padding: 4px; border-radius: 14px; background: #2A2C50; border: 1px solid #353862;">
+        <a href="Financeiro.dc.html" style="height: 40px; padding: 0 16px; border-radius: 10px; color: #C3C6E4; font-size: 14px; font-weight: 700; display: flex; align-items: center;">Visão geral</a>
+        <a href="FinanceiroReceber.dc.html" style="height: 40px; padding: 0 16px; border-radius: 10px; color: #C3C6E4; font-size: 14px; font-weight: 700; display: flex; align-items: center;">A receber</a>
+        <a href="FinanceiroPagar.dc.html" aria-current="page" style="height: 40px; padding: 0 16px; border-radius: 10px; background: #5A5FE0; color: #FFFFFF; font-size: 14px; font-weight: 700; display: flex; align-items: center;">A pagar</a>
+        <a href="#" style="height: 40px; padding: 0 16px; border-radius: 10px; color: #C3C6E4; font-size: 14px; font-weight: 700; display: flex; align-items: center;">Fluxo e relatórios</a>
+        <a href="#" style="height: 40px; padding: 0 16px; border-radius: 10px; color: #C3C6E4; font-size: 14px; font-weight: 700; display: flex; align-items: center;">Notas fiscais</a>
+      </nav>
+      <div style="margin-left: auto; display: flex; gap: 10px;">
+        <button type="button" style="height: 42px; padding: 0 14px; border-radius: 12px; border: 1px solid #45487A; background: transparent; color: #EEF0FB; font: inherit; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; cursor: pointer;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18M8 3v4M16 3v4"></path></svg>
+          Setembro 2026
+        </button>
+        <button type="button" style="height: 42px; padding: 0 14px; border-radius: 12px; border: 1px solid #45487A; background: transparent; color: #EEF0FB; font: inherit; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; cursor: pointer;">Todas as contas</button>
+      </div>
+    </div>
+    <section style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px;">
+        <div style="padding: 18px 20px; border-radius: 20px; background: #4A2B35; display: flex; flex-direction: column; gap: 8px;">
+          <span style="font-size: 13px; color: #D3D5F2; font-weight: 600;">Em atraso</span>
+          <span class="num" style="font-size: 27px; font-weight: 800; letter-spacing: -0.02em;">R$ 1.971,54</span>
+          <span class="num" style="font-size: 12px; color: #FCA5A5; font-weight: 600;">5 contas</span>
+        </div>
+        <div style="padding: 18px 20px; border-radius: 20px; background: #4A3A22; display: flex; flex-direction: column; gap: 8px;">
+          <span style="font-size: 13px; color: #D3D5F2; font-weight: 600;">Vence em até 7 dias</span>
+          <span class="num" style="font-size: 27px; font-weight: 800; letter-spacing: -0.02em;">R$ 79,90</span>
+          <span class="num" style="font-size: 12px; color: #FDBA74; font-weight: 600;">1 conta</span>
+        </div>
+        <div style="padding: 18px 20px; border-radius: 20px; background: #34377A; display: flex; flex-direction: column; gap: 8px;">
+          <span style="font-size: 13px; color: #D3D5F2; font-weight: 600;">Pago no mês</span>
+          <span class="num" style="font-size: 27px; font-weight: 800; letter-spacing: -0.02em;">R$ 79,90</span>
+          <span class="num" style="font-size: 12px; color: #C3C6E4; font-weight: 600;">1 conta</span>
+        </div>
+        <div style="padding: 18px 20px; border-radius: 20px; background: #233A60; display: flex; flex-direction: column; gap: 8px;">
+          <span style="font-size: 13px; color: #D3D5F2; font-weight: 600;">Recorrências ativas</span>
+          <span class="num" style="font-size: 27px; font-weight: 800; letter-spacing: -0.02em;">4</span>
+          <span class="num" style="font-size: 12px; color: #C3C6E4; font-weight: 600;">Somam R$ 1.180,00 por mês</span>
+        </div>
+    </section>
+
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <sc-for list="{{abasLista}}" as="t" hint-placeholder-count="2">
+        <button type="button" aria-pressed="{{t.ativo}}" onClick="{{t.escolher}}" style="height: 36px; padding: 0 16px; border-radius: 999px; border: 1px solid {{t.borda}}; background: {{t.fundo}}; color: {{t.cor}}; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;">{{t.rotulo}}</button>
+      </sc-for>
+      <div style="margin-left: auto; display: flex; gap: 8px;">
+        <button type="button" style="height: 42px; padding: 0 14px; border-radius: 12px; border: 1px solid #45487A; background: transparent; color: #EEF0FB; font: inherit; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; cursor: pointer; height: 36px;">Categoria: todas</button>
+        <button type="button" style="height: 42px; padding: 0 14px; border-radius: 12px; border: 1px solid #45487A; background: transparent; color: #EEF0FB; font: inherit; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; cursor: pointer; height: 36px;">Exportar</button>
+      </div>
+    </div>
+
+    <sc-if value="{{verParcelas}}" hint-placeholder-val="{{ true }}">
+      <section style="flex-grow: 1; min-height: 0; padding: 16px 20px; border-radius: 24px; background: #2A2C50; border: 1px solid #353862; display: flex; flex-direction: column; gap: 6px; overflow: hidden;">
+        <div style="display: grid; grid-template-columns: minmax(0, 1.5fr) 150px 90px 120px 120px 130px; gap: 12px; padding: 4px 10px; font-size: 12px; color: #A7AACE; font-weight: 600;">
+          <span>Fornecedor / descrição</span><span>Categoria</span><span>Parcela</span><span>Vencimento</span><span style="text-align: right;">Valor</span><span style="text-align: right;">Situação</span>
+        </div>
+        <sc-for list="{{contas}}" as="c" hint-placeholder-count="7">
+          <div style="display: grid; grid-template-columns: minmax(0, 1.5fr) 150px 90px 120px 120px 130px; gap: 12px; align-items: center; min-height: 56px; padding: 0 10px; border-radius: 14px; background: {{c.fundo}}; font-size: 14px;">
+            <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
+              <span style="width: 30px; height: 30px; flex-shrink: 0; border-radius: 9px; background: {{c.iconeFundo}}; color: {{c.iconeCor}}; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800;">{{c.inicial}}</span>
+              <div style="display: flex; flex-direction: column; min-width: 0;">
+                <span style="font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{c.fornecedor}}</span>
+                <span style="font-size: 12px; color: #A7AACE; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{c.descricao}}</span>
+              </div>
+            </div>
+            <span style="justify-self: start; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; background: #33365F; color: #C3C6E4;">{{c.categoria}}</span>
+            <span class="num" style="color: #C3C6E4;">{{c.parcela}}</span>
+            <span class="num">{{c.vencimento}}</span>
+            <span class="num" style="text-align: right; font-weight: 800;">{{c.valor}}</span>
+            <span style="justify-self: end; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; background: {{c.pilulaFundo}}; color: {{c.pilulaTexto}};">{{c.situacao}}</span>
+          </div>
+        </sc-for>
+        <div style="margin-top: auto; display: flex; align-items: center; justify-content: space-between; padding: 10px 10px 0 10px; border-top: 1px solid #353862; font-size: 13px;">
+          <span style="color: #A7AACE;">7 contas no período</span>
+          <span class="num" style="font-weight: 800;">Total: R$ 2.051,44</span>
+        </div>
+      </section>
+    </sc-if>
+
+    <sc-if value="{{verRecorrencias}}" hint-placeholder-val="{{ false }}">
+      <section style="flex-grow: 1; min-height: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: min-content; gap: 16px; overflow: hidden;">
+        <sc-for list="{{recorrencias}}" as="r" hint-placeholder-count="4">
+          <div style="padding: 18px 20px; border-radius: 24px; background: #2A2C50; border: 1px solid #353862; display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="font-size: 16px; font-weight: 800;">{{r.nome}}</span>
+              <span style="padding: 3px 10px; border-radius: 999px; background: #33365F; color: #C3C6E4; font-size: 12px; font-weight: 700;">{{r.categoria}}</span>
+              <span class="num" style="margin-left: auto; font-size: 16px; font-weight: 800;">{{r.valor}}</span>
+            </div>
+            <span style="font-size: 13px; color: #C3C6E4;">{{r.regra}}</span>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="font-size: 12px; color: #A7AACE;">Próxima: <span class="num">{{r.proxima}}</span></span>
+              <span style="margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: #6EE7B7;"><span style="width: 8px; height: 8px; border-radius: 50%; background: #34D399;"></span>Ativa</span>
+            </div>
+          </div>
+        </sc-for>
+      </section>
+    </sc-if>
+  </main>
+</div>
+
+<script type="module">
+
+</script>
+</body>
+</html>

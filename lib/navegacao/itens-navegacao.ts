@@ -57,10 +57,10 @@ export const ITENS_NAVEGACAO: readonly ItemNavegacao[] = [
     path: "/financeiro",
     iconKey: "Financeiro",
     filhos: [
-      { label: "Hub Financeiro", path: "/financeiro", permissoesRequeridas: ["financeiro.ver"] },
+      { label: "Visão Geral", path: "/financeiro", permissoesRequeridas: ["financeiro.ver"] },
       { label: "Contas a Receber", path: "/financeiro/receber", permissoesRequeridas: ["financeiro.ver"] },
       { label: "Contas a Pagar", path: "/financeiro/pagar", permissoesRequeridas: ["financeiro.ver"] },
-      { label: "Inteligência", path: "/financeiro/inteligencia", permissoesRequeridas: ["dashboard.financeiro"] },
+      { label: "Fluxo e Relatórios", path: "/financeiro/fluxo", permissoesRequeridas: ["dashboard.financeiro"] },
       { label: "Notas Fiscais", path: "/financeiro/notas-fiscais", permissoesRequeridas: ["financeiro.ver"] },
     ],
   },
