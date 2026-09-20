@@ -162,6 +162,7 @@
   --color-ring: var(--ring);
 
   /* Cores Konext expostas como utilitarios Tailwind (bg-kx-primaria, text-kx-legenda, etc.) */
+  --color-kx-fora: var(--kx-fora);
   --color-kx-fundo: var(--kx-fundo);
   --color-kx-painel: var(--kx-painel);
   --color-kx-painel-borda: var(--kx-painel-borda);

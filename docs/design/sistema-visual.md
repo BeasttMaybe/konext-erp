@@ -27,7 +27,8 @@ Nenhum mecanismo de tema novo foi criado.
 
 | Token | Escuro | Claro | Uso |
 |---|---|---|---|
-| `--kx-fundo` | `#1B1D38` | `#F5F6FB` | Fundo da página |
+| `--kx-fora` | `#101124` | `#DFE1EE` | Fundo da JANELA, fora do cartão flutuante do app (Fase 3-2C) — nunca atrás de texto |
+| `--kx-fundo` | `#1B1D38` | `#F5F6FB` | Fundo do conteúdo, dentro do cartão do app |
 | `--kx-painel` | `#2A2C50` | `#FFFFFF` | Barra lateral, painéis grandes |
 | `--kx-painel-borda` | `#353862` | `#E2E4F3` | Divisor decorativo entre painéis (não precisa 3:1 — não é fronteira de componente interativo) |
 | `--kx-campo-borda` | `#7B80BD` ¹ | `#7B7FB8` ¹ | Fronteira de campo/input — **precisa** de 3:1 (WCAG 1.4.11) |

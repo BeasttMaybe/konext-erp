@@ -25,6 +25,11 @@
 
 :root {
   /* ---- Cor: superfícies ---- */
+  /* Fundo da PÁGINA (fora do cartão flutuante do app, Fase 3-2C) — mais
+     escuro que --kx-fundo de propósito, pra o app inteiro (sidebar + barra
+     superior + conteúdo) ler como um painel flutuando sobre um fundo mais
+     escuro, não colado no viewport. Nunca aparece atrás de texto. */
+  --kx-fora: #101124;
   --kx-fundo: #1b1d38;
   --kx-painel: #2a2c50;
   --kx-painel-borda: #353862;
@@ -136,6 +141,7 @@
 
 :root:not(.dark) {
   /* ---- Cor: superfícies ---- */
+  --kx-fora: #dfe1ee;
   --kx-fundo: #f5f6fb;
   --kx-painel: #ffffff;
   --kx-painel-borda: #e2e4f3;

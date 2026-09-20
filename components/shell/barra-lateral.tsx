@@ -41,11 +41,16 @@ const ICONES: Record<string, LucideIcon> = {
 const useEfeitoDeLayout = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 /**
- * Barra lateral fixa (Fase 3-1, Parte 3) — 1024–1279px vira trilho de só
+ * Barra lateral (Fase 3-1, Parte 3) — 1024–1279px vira trilho de só
  * ícones, 1280px+ mostra rótulo, abaixo de 1024px some inteira (dá lugar à
  * `GavetaLateralMobile`). Tudo por classe responsiva do Tailwind — sem
  * detectar breakpoint em JS, pra não arriscar descompasso entre servidor e
  * cliente na primeira renderização.
+ *
+ * Não é mais `fixed` (Fase 3-2C): é um item flex normal dentro da linha do
+ * cartão flutuante do app (`ShellDashboard`), com a altura vindo do
+ * `stretch` padrão do flex — o cartão que a contém já tem `overflow-hidden`
+ * e altura travada, então não precisa mais se ancorar no viewport sozinha.
  *
  * O item ativo "entalha" na área de conteúdo (Fase 3-2A, Spec B — porte
  * fiel de `docs/design/referencia-menu-lateral.html`, a referência
@@ -128,7 +133,7 @@ export function BarraLateral() {
   }, []);
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-kx-barra-lateral hidden w-[72px] flex-col bg-kx-painel lg:flex xl:w-[248px]">
+    <aside className="hidden w-[72px] shrink-0 flex-col bg-kx-painel lg:flex xl:w-[248px]">
       <div className="flex h-16 shrink-0 items-center justify-center gap-2.5 px-2 xl:justify-start xl:px-5">
         {logoUrl && !falhaLogo ? (
           // eslint-disable-next-line @next/next/no-img-element -- URL de logo enviada pelo tenant, fora do domínio otimizado pelo next/image.
