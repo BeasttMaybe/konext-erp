@@ -326,7 +326,16 @@ input[type="number"] {
  * `transform`), e isso já é suficiente pra ser o container dos
  * pseudo-elementos — declarar `position: relative` aqui de novo brigaria
  * com o `absolute` do componente pela mesma propriedade.
+ *
+ * z-index explícito (derivado de --kx-z-base, nunca um número solto — a
+ * regra de lint local nem deixaria) em vez de depender só da ordem no DOM:
+ * o indicador tem que ficar ATRÁS de todo item de menu de forma garantida,
+ * não "por enquanto ele nasce antes no HTML".
  */
+.kx-notch-ativo {
+  z-index: calc(var(--kx-z-base) - 1);
+}
+
 .kx-notch-ativo::before {
   content: "";
   position: absolute;
@@ -358,9 +367,12 @@ input[type="number"] {
  * está preso à animação de troca de rota. Duas durações diferentes na
  * mesma transição não dá pra expressar só com utilitário `transition-*`
  * do Tailwind (uma única `duration-*` vale pra todas as propriedades
- * listadas), daí a regra à parte.
+ * listadas), daí a regra à parte. z-index explícito no nível base — acima
+ * do indicador (--kx-z-base menos 1, ver .kx-notch-ativo), garantido, não
+ * por ordem de DOM.
  */
 .kx-item-nav {
+  z-index: var(--kx-z-base);
   transition:
     color 200ms cubic-bezier(0.4, 0, 0.2, 1),
     background-color 120ms cubic-bezier(0.4, 0, 0.2, 1);

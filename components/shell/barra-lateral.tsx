@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
@@ -34,8 +34,11 @@ const ICONES: Record<string, LucideIcon> = {
   Metas: Flag,
 };
 
-/** Altura de cada item (h-12 = 48px) + o gap entre eles (space-y-1 = 4px) — a distância que o indicador percorre por posição. */
-const ALTURA_ITEM_COM_GAP = 52;
+// useLayoutEffect avisa no console durante SSR (não existe DOM lá pra medir) —
+// no cliente é exatamente o que queremos (mede e aplica ANTES do paint, sem
+// flash de 1 frame na posição errada); no servidor cai pra useEffect, que
+// simplesmente não roda nada (não há efeito nenhum a rodar do lado do servidor).
+const useEfeitoDeLayout = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 /**
  * Barra lateral fixa (Fase 3-1, Parte 3) — 1024–1279px vira trilho de só
@@ -51,16 +54,27 @@ const ALTURA_ITEM_COM_GAP = 52;
  * pintar o próprio fundo — navegação troca de página re-renderiza a barra
  * inteira, então uma transição no item em si nunca animaria (ele já nasce
  * no lugar final); só um elemento que PERSISTE entre renders pode animar
- * posição. Fica rente à borda direita (por isso o `<nav>` só tem padding à
+ * posição.
+ *
+ * A posição do indicador vem de medir o item ativo de verdade
+ * (`offsetTop`, em `useLayoutEffect`), nunca de índice × constante — um
+ * cálculo fixo desalinha assim que um item some por permissão ou qualquer
+ * altura acima do `<nav>` muda, porque ele não sabe nada sobre o layout
+ * real, só assume uma grade uniforme. Medir o DOM está sempre certo,
+ * independente de quantos itens existem ou do que veio antes deles.
+ *
+ * Fica rente à borda direita (por isso o `<nav>` só tem padding à
  * esquerda), arredondado só à esquerda, com fundo `--kx-fundo` — a mesma
  * cor do conteúdo — mais os dois cantos côncavos de `.kx-notch-ativo`
  * (app/globals.css, técnica idêntica à referência: box-shadow, não
- * gradiente). O `pt-kx-5`/`pb-kx-5` do `<nav>` (20px, não os 8px de antes)
- * são de propósito: é exatamente o alcance do notch (20px pra cima/baixo),
- * pra ele nunca ser cortado pelo `overflow-y-auto` quando o item ativo é o
- * primeiro ou o último da lista. A barra não tem `border-r`: a separação
- * de `--kx-painel` (barra) pra `--kx-fundo` (conteúdo) já é só a diferença
- * de cor, mesmo padrão do painel de marca em `app/(auth)/layout.tsx`.
+ * gradiente, com z-index explícito ATRÁS de `.kx-item-nav` — garantido por
+ * token, não por ordem de DOM). O `pt-kx-5`/`pb-kx-5` do `<nav>` (20px, não
+ * os 8px de antes) são de propósito: é exatamente o alcance do notch (20px
+ * pra cima/baixo), pra ele nunca ser cortado pelo `overflow-y-auto` quando
+ * o item ativo é o primeiro ou o último da lista. A barra não tem
+ * `border-r`: a separação de `--kx-painel` (barra) pra `--kx-fundo`
+ * (conteúdo) já é só a diferença de cor, mesmo padrão do painel de marca em
+ * `app/(auth)/layout.tsx`.
  */
 export function BarraLateral() {
   const pathname = usePathname();
@@ -68,6 +82,8 @@ export function BarraLateral() {
   const { permissoes } = usePermissoes();
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [falhaLogo, setFalhaLogo] = useState(false);
+  const [topoIndicador, setTopoIndicador] = useState<number | null>(null);
+  const refsItens = useRef<Array<HTMLAnchorElement | null>>([]);
   const temAlgumaPermissao = useMemo(
     () => (lista: readonly Permissao[]) => lista.some((permissao) => permissoes.has(permissao)),
     [permissoes]
@@ -82,6 +98,20 @@ export function BarraLateral() {
   })).filter(({ item, filhos }) => !(item.filhos?.length && filhos.length === 0));
 
   const indiceAtivo = itensRenderizados.findIndex(({ item }) => itemEstaAtivo(item, pathname, searchParams));
+
+  // Mede a posição real do item ativo a cada troca de rota ou de lista
+  // (permissão carregando de forma assíncrona pode mudar quantos itens
+  // aparecem) — nunca calcula, sempre lê do elemento de verdade.
+  useEfeitoDeLayout(() => {
+    if (indiceAtivo < 0) {
+      setTopoIndicador(null);
+      return;
+    }
+    const elementoAtivo = refsItens.current[indiceAtivo];
+    if (elementoAtivo) {
+      setTopoIndicador(elementoAtivo.offsetTop);
+    }
+  }, [indiceAtivo, itensRenderizados.length]);
 
   useEffect(() => {
     let ativo = true;
@@ -120,10 +150,10 @@ export function BarraLateral() {
       </div>
 
       <nav aria-label="Navegação principal" className="relative flex-1 overflow-y-auto pb-kx-5 pl-3 pt-kx-5">
-        {indiceAtivo >= 0 && (
+        {topoIndicador !== null && (
           <div
             aria-hidden="true"
-            style={{ transform: `translateY(${indiceAtivo * ALTURA_ITEM_COM_GAP}px)` }}
+            style={{ transform: `translateY(${topoIndicador}px)` }}
             className="kx-notch-ativo pointer-events-none absolute inset-x-0 top-0 h-12 rounded-l-kx-cartao rounded-r-none bg-kx-fundo motion-safe:transition-transform motion-safe:duration-200 motion-safe:ease-in-out"
           />
         )}
@@ -137,6 +167,9 @@ export function BarraLateral() {
             return (
               <Link
                 key={item.path}
+                ref={(elemento) => {
+                  refsItens.current[indice] = elemento;
+                }}
                 href={caminho}
                 aria-current={ativo ? "page" : undefined}
                 title={item.label}
