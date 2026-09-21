@@ -294,7 +294,64 @@ qualquer violação daqui pra frente é regressão nova, não legado a tolerar.
    Fase 1D-2, "esconder, não explicar") — continua valendo pra toda tela
    nova do shell.
 
-## 8. Telas que ficam visualmente inconsistentes até a Fase 3-2
+## 9. Rolagem — a página rola, painel nenhum divide a viewport (Fase 3-3)
+
+Causa raiz do bug corrigido nesta fase: os artboards aprovados (referência de
+design) são composições de **tamanho fixo** (1440×900). O layout desses
+artboards — "preenche a altura da tela e divide o que sobra entre os
+painéis" — foi copiado literalmente para várias telas do app. Um artboard é
+uma foto; o app é uma janela de tamanho variável. Em telas menores
+(1280×720, notebook comum), o resultado era: cabeçalho + KPIs + filtros
+comiam um pedaço fixo da viewport, e o painel de baixo (quase sempre a
+lista) ficava com poucos pixels de altura — daí `overflow-y-auto` numa
+caixa de ~80px, inutilizável.
+
+**A regra**: a área de conteúdo (`<main>` do shell, ver §5) é o único nível
+que rola. Uma página dentro dela:
+
+- **Nunca** tem `h-screen`/`h-[calc(100vh-Npx)]`/`min-h-screen` combinado
+  com `overflow-hidden` no elemento raiz — isso trava a página no tamanho da
+  janela e empurra a divisão de espaço pros filhos.
+- **Nunca** usa `flex-1` + `min-h-0` + `overflow-y-auto` num painel
+  filho só para caber no que sobrou da viewport. Um painel assume a altura
+  natural do próprio conteúdo; se isso deixa a página mais alta que a tela,
+  a página rola — e ela pode e deve poder ser mais alta que a viewport.
+- Elemento `sticky top-0` dentro do conteúdo de página gruda certo abaixo da
+  barra superior sem cálculo de offset: `<main>` é quem rola (não a janela),
+  e a barra superior fica fora dele — `top: 0` de qualquer sticky ali já é
+  logo abaixo dela.
+
+**Exceção real, não desculpa**: um `<Dialog>`/`<Sheet>`/`<AlertDialog>` é uma
+sobreposição com o próprio tamanho de tela — rolar o conteúdo *dele* por
+dentro (`overflow-y-auto` num Dialog alto) é o padrão certo, não o bug. Um
+documento de impressão (`app/(printer)/**`, tamanho A4 fixo) também não
+segue essa regra — ele é uma folha, não uma tela de trabalho. Um quadro
+Kanban (`TabuleiroKanban`, `FunilVendasKanban`) é um "canvas" de colunas,
+não uma lista de página: cada coluna tem altura própria e fixa
+(`max-h-[640px]`, não mais medida via `window.innerHeight` nem
+`calc(100vh-Npx)`) e rola por dentro, enquanto a página ao redor do quadro
+continua rolando normalmente — a diferença pro bug original é que a coluna
+não tenta ocupar "o que sobra da tela", ela tem um teto fixo.
+
+**Grids de KPI** (`CartaoIndicador` em linha) usam
+`grid-cols-[repeat(auto-fit,minmax(220px,1fr))]` em vez de
+`grid-cols-2 ... min-[1400px]:grid-cols-4`: os cartões quebram pra uma
+segunda linha em telas estreitas em vez de encolher e espremer o texto.
+
+## 10. Listas longas — cabeçalho sticky, sem caixa de rolagem espremida
+
+Uma lista mostra todas as linhas no fluxo normal da página (que rola) ou
+pagina — nunca uma caixa de altura fixa com `overflow-y-auto` tentando
+caber acima da dobra. Pra listas operacionais longas (A receber, A pagar,
+OS finalizadas, garantias, estoque, histórico de vendas), o cabeçalho da
+tabela fica `sticky top-0 z-kx-sticky` com fundo opaco igual ao do
+container (`bg-kx-painel`/`bg-kx-cartao`, nunca transparente) — sem isso o
+conteúdo que passa por baixo durante a rolagem fica ilegível atravessando o
+texto do cabeçalho. Onde já existe seleção em lote (A receber, A pagar —
+`BarraAcaoLote`), ela entra no mesmo wrapper sticky, acima do cabeçalho da
+tabela, pra não precisar de cálculo de offset entre os dois.
+
+## 11. Telas que ficam visualmente inconsistentes até a Fase 3-2
 
 Todo o **conteúdo** de cada módulo (Dashboard, CRM, PDV, Vendas, Estoque,
 OS, Financeiro, Metas, Configurações) continua com o visual antigo — só a
