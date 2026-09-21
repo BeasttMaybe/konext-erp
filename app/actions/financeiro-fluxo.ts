@@ -461,11 +461,22 @@ export interface DadosResultadoPeriodo {
   sobraPorOS: QuantoSobrouPorOS;
 }
 
-export async function obterDadosResultadoPeriodo(): Promise<DadosResultadoPeriodo> {
+/**
+ * `referencia` (Fase 2A-1, `FiltroPeriodo`): qualquer dia dentro do mês que
+ * as três sub-consultas devem resumir — `resultado`/`servicoXProduto`/
+ * `sobraPorOS` são todas "resumo do MÊS que contém `referencia`"
+ * (`inicioFimDoMes`, acima), nunca um intervalo arbitrário de dias. Quem
+ * chama (a page de Fluxo e relatórios) usa o início do intervalo escolhido
+ * no `FiltroPeriodo` como essa referência — o relatório sempre resume o mês
+ * inteiro que contém o dia escolhido, não só os dias exatos do intervalo.
+ */
+export async function obterDadosResultadoPeriodo(
+  referencia: Date = new Date()
+): Promise<DadosResultadoPeriodo> {
   const [resultado, servicoXProduto, sobraPorOS] = await Promise.all([
-    obterResultadoDoPeriodo(),
-    obterServicoXProduto(),
-    obterQuantoSobrouPorOS(),
+    obterResultadoDoPeriodo(referencia),
+    obterServicoXProduto(referencia),
+    obterQuantoSobrouPorOS(referencia),
   ]);
 
   return { resultado, servicoXProduto, sobraPorOS };
