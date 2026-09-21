@@ -4,6 +4,8 @@ import {
   obterPainelOperacionalHomeSeguro,
   type PeriodoDashboard,
 } from "@/app/actions/dashboard";
+import { dataDeCalendario } from "@/lib/datas";
+import { validarIntervalo } from "@/lib/filtro-periodo";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { temPermissao } from "@/lib/auth/permissoes";
 import { CabecalhoDashboard } from "@/components/dashboard/cabecalho-dashboard";
@@ -19,11 +21,15 @@ export const dynamic = "force-dynamic";
 function normalizarPeriodo(valor: string | string[] | undefined): PeriodoDashboard {
   const bruto = Array.isArray(valor) ? valor[0] : valor;
 
-  if (bruto === "7d" || bruto === "30d" || bruto === "mes") {
+  if (bruto === "7d" || bruto === "30d" || bruto === "mes" || bruto === "custom") {
     return bruto;
   }
 
   return "hoje";
+}
+
+function obterParamUnico(valor: string | string[] | undefined): string | undefined {
+  return Array.isArray(valor) ? valor[0] : valor;
 }
 
 type PropsPaginaDashboard = {
@@ -45,9 +51,22 @@ export default async function PaginaDashboard({ searchParams }: PropsPaginaDashb
   const contexto = await exigirContextoTenant();
   const temFinanceiro = temPermissao(contexto, "dashboard.financeiro");
 
+  // Pill "Personalizado" (Fase 2A-1, `FiltroPeriodo`) — só tem efeito quando
+  // periodo === "custom" E os dois lados (inicio/fim) são datas válidas;
+  // caso contrário `resolverIntervaloPeriodo` (app/actions/dashboard.ts) cai
+  // no mesmo intervalo de "hoje", nunca fica sem janela.
+  const inicioCustomTexto = obterParamUnico(query.inicio);
+  const fimCustomTexto = obterParamUnico(query.fim);
+  const inicioCustom = inicioCustomTexto ? dataDeCalendario(inicioCustomTexto) : null;
+  const fimCustom = fimCustomTexto ? dataDeCalendario(fimCustomTexto) : null;
+  const intervaloCustom =
+    inicioCustom && fimCustom && validarIntervalo(inicioCustom, fimCustom).valido
+      ? { inicio: inicioCustom, fim: fimCustom }
+      : undefined;
+
   const [resultadoOperacional, resultadoFaturamento, configuracoes] = await Promise.all([
-    obterPainelOperacionalHomeSeguro(periodo),
-    temFinanceiro ? obterFaturamentoHomeSeguro(periodo) : Promise.resolve(null),
+    obterPainelOperacionalHomeSeguro(periodo, intervaloCustom),
+    temFinanceiro ? obterFaturamentoHomeSeguro(periodo, intervaloCustom) : Promise.resolve(null),
     obterConfiguracoes(),
   ]);
 

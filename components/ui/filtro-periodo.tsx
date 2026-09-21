@@ -136,6 +136,16 @@ export interface FiltroPeriodoProps {
   intervaloPadrao?: IntervaloPeriodo;
   /** Nomes dos search params — só pra evitar colisão se uma mesma tela precisar de duas instâncias. */
   nomesParams?: NomesParamsPeriodo;
+  /**
+   * Outros search params pra escrever na MESMA navegação que grava
+   * `inicio`/`fim` ao clicar "Filtrar" — ex. a home marca `periodo=custom`
+   * junto (ver `components/dashboard/cabecalho-dashboard.tsx`). Usar isto
+   * em vez de um `router.push` separado dentro de `aoFiltrar`: senão duas
+   * navegações concorrentes disputam qual "ganha" (a segunda pode ler
+   * `searchParams` ainda desatualizado e sobrescrever o `inicio`/`fim` que
+   * a primeira acabou de gravar).
+   */
+  paramsAdicionais?: Record<string, string>;
   /** Chamado além da atualização da URL, ao clicar "Filtrar". */
   aoFiltrar?: (resultado: { campo: string | undefined; intervalo: IntervaloPeriodo }) => void;
   className?: string;
@@ -147,6 +157,7 @@ export function FiltroPeriodo({
   fusoHorario = FUSO_HORARIO_PADRAO,
   intervaloPadrao,
   nomesParams = NOMES_PARAMS_PERIODO_PADRAO,
+  paramsAdicionais,
   aoFiltrar,
   className,
 }: FiltroPeriodoProps) {
@@ -199,6 +210,11 @@ export function FiltroPeriodo({
 
   function aoConfirmar(resultado: { campo: string | undefined; intervalo: IntervaloPeriodo }) {
     const params = paraSearchParams(resultado.intervalo, resultado.campo, searchParams, nomesParams);
+    if (paramsAdicionais) {
+      for (const [chave, valor] of Object.entries(paramsAdicionais)) {
+        params.set(chave, valor);
+      }
+    }
     router.push(`${pathname}?${params.toString()}`);
     aoFiltrar?.(resultado);
     setAberto(false);

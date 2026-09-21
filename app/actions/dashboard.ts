@@ -16,7 +16,8 @@ import {
   somarDias,
 } from "@/lib/datas";
 
-export type PeriodoDashboard = "hoje" | "7d" | "30d" | "mes";
+/** "custom" (Fase 2A-1): período livre escolhido no `FiltroPeriodo` — só a pill "Personalizado" da home escreve isso na URL; exige `intervaloCustom` (ver `resolverIntervaloPeriodo`) pra ter efeito, senão cai no mesmo comportamento de "hoje". */
+export type PeriodoDashboard = "hoje" | "7d" | "30d" | "mes" | "custom";
 
 export type LinhaFilaOS = {
   status: string;
@@ -475,11 +476,28 @@ function diferencaEmDias(inicio: Date, fim: Date): number {
   return Math.max(0, Math.floor((fim.getTime() - inicio.getTime()) / (24 * 60 * 60 * 1000)));
 }
 
+/**
+ * `intervaloCustom` (Fase 2A-1, pill "Personalizado" do `FiltroPeriodo"):
+ * datas de CALENDÁRIO (meia-noite UTC — o que o `FiltroPeriodo` produz),
+ * viram fronteira de INSTANTE no fuso da loja (`inicioDoDia`/`fimDoDia`)
+ * antes de virar o intervalo desta função — mesma convenção dos outros
+ * ramos abaixo (`fimDoDia`/`inicioDoDia` sobre `agora`). Sem `intervaloCustom`,
+ * `periodo === "custom"` cai no mesmo intervalo de "hoje" — nunca fica sem
+ * janela nenhuma.
+ */
 function resolverIntervaloPeriodo(
   periodo: PeriodoDashboard,
   agora: Date,
-  fusoHorario: string = FUSO_HORARIO_PADRAO
+  fusoHorario: string = FUSO_HORARIO_PADRAO,
+  intervaloCustom?: { inicio: Date; fim: Date }
 ): { inicio: Date; fim: Date } {
+  if (periodo === "custom" && intervaloCustom) {
+    return {
+      inicio: inicioDoDia(intervaloCustom.inicio, fusoHorario),
+      fim: fimDoDia(intervaloCustom.fim, fusoHorario),
+    };
+  }
+
   const fim = fimDoDia(agora, fusoHorario);
 
   if (periodo === "mes") {
@@ -680,7 +698,8 @@ function calcularProgressoMeta(parametros: {
  * buscado quando o usuário tem `metas.ver`.
  */
 export async function obterPainelOperacionalHome(
-  periodo: PeriodoDashboard = "hoje"
+  periodo: PeriodoDashboard = "hoje",
+  intervaloCustom?: { inicio: Date; fim: Date }
 ): Promise<PainelOperacionalHome> {
   const contexto = await exigirContextoTenant();
   const prisma = contexto.prisma;
@@ -690,7 +709,7 @@ export async function obterPainelOperacionalHome(
 
   const agora = agoraNaLoja(contexto.fusoHorario);
   const inicioHoje = inicioDoDia(agora, contexto.fusoHorario);
-  const intervaloPeriodo = resolverIntervaloPeriodo(periodo, agora, contexto.fusoHorario);
+  const intervaloPeriodo = resolverIntervaloPeriodo(periodo, agora, contexto.fusoHorario, intervaloCustom);
   const limiteParado = somarDias(inicioHoje, -DIAS_LIMITE_PARADO, contexto.fusoHorario);
   const limiteRetirada = somarDias(inicioHoje, -DIAS_LIMITE_RETIRADA, contexto.fusoHorario);
   const inicioJanelaRetorno = inicioDoDia(
@@ -1051,10 +1070,11 @@ export async function obterPainelOperacionalHome(
 }
 
 export async function obterPainelOperacionalHomeSeguro(
-  periodo: PeriodoDashboard = "hoje"
+  periodo: PeriodoDashboard = "hoje",
+  intervaloCustom?: { inicio: Date; fim: Date }
 ): Promise<ResultadoPainelOperacionalHome> {
   try {
-    const dados = await obterPainelOperacionalHome(periodo);
+    const dados = await obterPainelOperacionalHome(periodo, intervaloCustom);
     return {
       sucesso: true,
       dados,
@@ -1077,7 +1097,10 @@ export async function obterPainelOperacionalHomeSeguro(
  * depois de `temPermissao` ja ter confirmado a permissao (mesmo padrao de
  * `obterDashboardExecutivo`, que sempre exigiu a permissao internamente).
  */
-async function obterFaturamentoHome(periodo: PeriodoDashboard = "hoje"): Promise<FaturamentoHome> {
+async function obterFaturamentoHome(
+  periodo: PeriodoDashboard = "hoje",
+  intervaloCustom?: { inicio: Date; fim: Date }
+): Promise<FaturamentoHome> {
   const contexto = await exigirContextoTenant();
   exigirPermissao(contexto, "dashboard.financeiro");
   const prisma = contexto.prisma;
@@ -1088,7 +1111,7 @@ async function obterFaturamentoHome(periodo: PeriodoDashboard = "hoje"): Promise
   // "hoje" pra comparar com ela precisa da mesma convenção (meia-noite UTC),
   // não meia-noite do fuso da loja como instante. Ver lib/datas.ts.
   const hojeCalendario = comoDataDeCalendario(agora, contexto.fusoHorario);
-  const intervaloPeriodo = resolverIntervaloPeriodo(periodo, agora, contexto.fusoHorario);
+  const intervaloPeriodo = resolverIntervaloPeriodo(periodo, agora, contexto.fusoHorario, intervaloCustom);
   const duracaoPeriodo = intervaloPeriodo.fim.getTime() - intervaloPeriodo.inicio.getTime();
   const intervaloAnterior = {
     inicio: new Date(intervaloPeriodo.inicio.getTime() - duracaoPeriodo - 1),
@@ -1206,10 +1229,11 @@ async function obterFaturamentoHome(periodo: PeriodoDashboard = "hoje"): Promise
 }
 
 export async function obterFaturamentoHomeSeguro(
-  periodo: PeriodoDashboard = "hoje"
+  periodo: PeriodoDashboard = "hoje",
+  intervaloCustom?: { inicio: Date; fim: Date }
 ): Promise<ResultadoFaturamentoHome> {
   try {
-    const dados = await obterFaturamentoHome(periodo);
+    const dados = await obterFaturamentoHome(periodo, intervaloCustom);
     return {
       sucesso: true,
       dados,
