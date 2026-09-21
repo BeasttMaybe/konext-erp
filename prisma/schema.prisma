@@ -24,8 +24,8 @@ model Usuario {
   caixaSessionsAbertas CaixaSession[] @relation("CaixaSessionAbertaPor")
   contasReceberCriadas ContaReceber[] @relation("ContaReceberCriadaPor")
   despesasCriadas Despesa[] @relation("DespesaCriadaPor")
-  criadoEm      DateTime    @default(now())
-  atualizadoEm  DateTime    @updatedAt
+  criadoEm      DateTime    @default(now()) @db.Timestamptz(3)
+  atualizadoEm  DateTime    @updatedAt @db.Timestamptz(3)
 }
 
 model LogAuditoria {
@@ -45,7 +45,7 @@ model LogAuditoria {
   motivo     String?
   origem     String?
 
-  criadoEm   DateTime @default(now())
+  criadoEm   DateTime @default(now()) @db.Timestamptz(3)
 
   @@index([usuarioId])
   @@index([empresaId])
@@ -141,8 +141,8 @@ model Configuracao {
    * requisicao em lib/tenant/exigir-contexto-tenant.ts.
    */
   fusoHorario                String   @default("America/Sao_Paulo")
-  criadoEm                  DateTime @default(now())
-  atualizadoEm              DateTime @updatedAt
+  criadoEm                  DateTime @default(now()) @db.Timestamptz(3)
+  atualizadoEm              DateTime @updatedAt @db.Timestamptz(3)
 }
 
 // ==========================================
@@ -178,8 +178,8 @@ model Cliente {
   contas        Conta[]
   oportunidades Oportunidade[]
 
-  criadoEm     DateTime @default(now())
-  atualizadoEm DateTime @updatedAt
+  criadoEm     DateTime @default(now()) @db.Timestamptz(3)
+  atualizadoEm DateTime @updatedAt @db.Timestamptz(3)
 }
 
 enum TipoPessoa {
@@ -211,8 +211,8 @@ model Oportunidade {
   clienteId String
   cliente   Cliente @relation(fields: [clienteId], references: [id])
 
-  criadoEm     DateTime @default(now())
-  atualizadoEm DateTime @updatedAt
+  criadoEm     DateTime @default(now()) @db.Timestamptz(3)
+  atualizadoEm DateTime @updatedAt @db.Timestamptz(3)
 
   @@index([clienteId])
   @@index([estagio])
@@ -251,8 +251,8 @@ model PropostaComercial {
   descontoTotal       Float
   valorTotal          Float
   status              StatusPropostaComercial @default(RASCUNHO)
-  criadoEm            DateTime                @default(now())
-  atualizadoEm        DateTime                @updatedAt
+  criadoEm            DateTime                @default(now()) @db.Timestamptz(3)
+  atualizadoEm        DateTime                @updatedAt @db.Timestamptz(3)
 
   itens PropostaItem[]
 
@@ -269,8 +269,8 @@ model PropostaItem {
   precoUnitario     Float
   descontoPercentual Float
   subtotal          Float
-  criadoEm          DateTime          @default(now())
-  atualizadoEm      DateTime          @updatedAt
+  criadoEm          DateTime          @default(now()) @db.Timestamptz(3)
+  atualizadoEm      DateTime          @updatedAt @db.Timestamptz(3)
 
   @@index([propostaId])
 }
@@ -306,10 +306,10 @@ model OrdemServico {
   retornoGarantiaId String? @unique
   retornoGarantia RetornoGarantiaOS? @relation("RetornoGarantiaDaOS", fields: [retornoGarantiaId], references: [id])
   observacoes String?
-  archivedAt  DateTime?
+  archivedAt  DateTime? @db.Timestamptz(3)
   entregueSemServico Boolean @default(false)
   motivoSemServico String?
-  excluidaEm DateTime?
+  excluidaEm DateTime? @db.Timestamptz(3)
   excluidaPorId String?
   excluidaPor Usuario? @relation("OrdemServicoExcluidaPor", fields: [excluidaPorId], references: [id])
   motivoExclusao String?
@@ -331,8 +331,8 @@ model OrdemServico {
   retornosGarantiaRegistros RetornoGarantiaOS[] @relation("RetornoGarantiaOsOrigem")
   tecnicos   TecnicoOS[]
 
-  criadoEm     DateTime @default(now())
-  atualizadoEm DateTime @updatedAt
+  criadoEm     DateTime @default(now()) @db.Timestamptz(3)
+  atualizadoEm DateTime @updatedAt @db.Timestamptz(3)
 
   @@index([excluidaEm])
   @@index([excluidaPorId])
@@ -357,7 +357,7 @@ model TecnicoOS {
   usuario      Usuario      @relation("TecnicosDaOS", fields: [usuarioId], references: [id])
   participacaoPercentual Decimal @default(0) @db.Decimal(5, 2)
   principal    Boolean      @default(false)
-  criadoEm     DateTime     @default(now())
+  criadoEm     DateTime     @default(now()) @db.Timestamptz(3)
 
   @@unique([osId, usuarioId])
   @@index([usuarioId])
@@ -368,16 +368,16 @@ model TermoGarantiaOS {
   osId               String       @unique
   os                 OrdemServico @relation(fields: [osId], references: [id], onDelete: Cascade)
   prazoGarantiaDias  Int          @default(90)
-  dataInicioGarantia DateTime
-  dataFimGarantia    DateTime
+  dataInicioGarantia DateTime @db.Timestamptz(3)
+  dataFimGarantia    DateTime @db.Timestamptz(3)
   textoGarantia      String
   criadoPorId        String?
   criadoPor          Usuario?     @relation("TermoGarantiaCriadoPor", fields: [criadoPorId], references: [id])
-  canceladaEm        DateTime?
+  canceladaEm        DateTime? @db.Timestamptz(3)
   motivoCancelamento String?
   retornos           RetornoGarantiaOS[]
-  criadoEm           DateTime     @default(now())
-  atualizadoEm       DateTime     @updatedAt
+  criadoEm           DateTime     @default(now()) @db.Timestamptz(3)
+  atualizadoEm       DateTime     @updatedAt @db.Timestamptz(3)
 
   @@index([dataFimGarantia])
   @@index([dataInicioGarantia])
@@ -403,12 +403,12 @@ model RetornoGarantiaOS {
   houveCobranca  Boolean                  @default(false)
   valorAdicional Decimal?
   observacoesTecnicas String?
-  finalizadoEm   DateTime?
+  finalizadoEm   DateTime? @db.Timestamptz(3)
   finalizadoPorId String?
   criadoPorId    String?
   criadoPor      Usuario?                 @relation("RetornoGarantiaCriadoPor", fields: [criadoPorId], references: [id])
-  criadoEm       DateTime                 @default(now())
-  atualizadoEm   DateTime                 @default(now()) @updatedAt
+  criadoEm       DateTime                 @default(now()) @db.Timestamptz(3)
+  atualizadoEm   DateTime                 @default(now()) @updatedAt @db.Timestamptz(3)
 
   @@index([termoGarantiaId])
   @@index([osOrigemId])
@@ -436,7 +436,7 @@ model ItemOS {
   tipoPeca     TipoPeca
   custoPeca    Float
   valorCobrado Float
-  criadoEm     DateTime @default(now())
+  criadoEm     DateTime @default(now()) @db.Timestamptz(3)
 }
 
 enum StatusOS {
@@ -493,7 +493,7 @@ model ContaReceber {
   totalParcelas  Int     @default(1)
 
   dataInicio      DateTime?
-  dataFinalizacao DateTime?
+  dataFinalizacao DateTime? @db.Timestamptz(3)
 
   clienteId String?
   cliente   Cliente? @relation(fields: [clienteId], references: [id])
@@ -511,7 +511,7 @@ model ContaReceber {
   vendaPagamento   VendaPagamento? @relation(fields: [vendaPagamentoId], references: [id])
 
   dataVencimento  DateTime
-  dataRecebimento DateTime?
+  dataRecebimento DateTime? @db.Timestamptz(3)
 
   status           StatusPagamento @default(PENDENTE)
   formaPagamento   FormaPagamento?
@@ -524,8 +524,8 @@ model ContaReceber {
   criadoPorId String?
   criadoPor   Usuario? @relation("ContaReceberCriadaPor", fields: [criadoPorId], references: [id])
 
-  criadoEm     DateTime @default(now())
-  atualizadoEm DateTime @updatedAt
+  criadoEm     DateTime @default(now()) @db.Timestamptz(3)
+  atualizadoEm DateTime @updatedAt @db.Timestamptz(3)
 
   @@index([parcelamentoId])
   @@index([pedidoId])
@@ -580,8 +580,8 @@ model Despesa {
   criadoPorId String?
   criadoPor   Usuario? @relation("DespesaCriadaPor", fields: [criadoPorId], references: [id])
 
-  criadoEm     DateTime    @default(now())
-  atualizadoEm DateTime    @updatedAt
+  criadoEm     DateTime    @default(now()) @db.Timestamptz(3)
+  atualizadoEm DateTime    @updatedAt @db.Timestamptz(3)
 
   parcelas ParcelaDespesa[]
 
@@ -595,10 +595,10 @@ model ParcelaDespesa {
   numeroParcela  Int
   valor          Float
   dataVencimento DateTime
-  dataPagamento  DateTime?
+  dataPagamento  DateTime? @db.Timestamptz(3)
   status         StatusParcelaDespesa @default(PENDENTE)
   valorPago      Float?
-  criadoEm       DateTime             @default(now())
+  criadoEm       DateTime             @default(now()) @db.Timestamptz(3)
 }
 
 enum TipoDespesa {
@@ -626,7 +626,7 @@ model NotaFiscal {
   clienteId String?
   cliente   Cliente? @relation(fields: [clienteId], references: [id])
 
-  criadoEm DateTime @default(now())
+  criadoEm DateTime @default(now()) @db.Timestamptz(3)
 }
 
 enum StatusNotaFiscal {
@@ -657,8 +657,8 @@ model Produto {
   estoqueMinimo     Int @default(3) // Alerta quando estiver acabando
 
   ativo Boolean @default(true)
-  criadoEm     DateTime @default(now())
-  atualizadoEm DateTime @updatedAt
+  criadoEm     DateTime @default(now()) @db.Timestamptz(3)
+  atualizadoEm DateTime @updatedAt @db.Timestamptz(3)
 }
 
 // ==========================================
@@ -681,8 +681,8 @@ model Conta {
   clienteId   String?
   cliente     Cliente? @relation(fields: [clienteId], references: [id])
   
-  criadoEm    DateTime @default(now())
-  atualizadoEm DateTime @updatedAt
+  criadoEm    DateTime @default(now()) @db.Timestamptz(3)
+  atualizadoEm DateTime @updatedAt @db.Timestamptz(3)
 }
 
 enum CategoriaProduto {
@@ -724,7 +724,7 @@ model PedidoVenda {
   total          Float
   origem         OrigemPedido    @default(VENDAS)
   formaPagamento FormaPagamento?
-  dataCriacao    DateTime @default(now())
+  dataCriacao    DateTime @default(now()) @db.Timestamptz(3)
 
   itens         PedidoVendaItem[]
   parcelas      PedidoVendaParcela[]
@@ -751,8 +751,8 @@ model PedidoVendaItem {
   descontoPorcentagem  Float @default(0)
   subtotal             Float
 
-  criadoEm     DateTime @default(now())
-  atualizadoEm DateTime @updatedAt
+  criadoEm     DateTime @default(now()) @db.Timestamptz(3)
+  atualizadoEm DateTime @updatedAt @db.Timestamptz(3)
 
   @@index([pedidoId])
   @@index([produtoId])
@@ -767,8 +767,8 @@ model PedidoVendaParcela {
   valor          Float
   dataVencimento DateTime
 
-  criadoEm     DateTime @default(now())
-  atualizadoEm DateTime @updatedAt
+  criadoEm     DateTime @default(now()) @db.Timestamptz(3)
+  atualizadoEm DateTime @updatedAt @db.Timestamptz(3)
 
   @@index([pedidoId])
   @@index([dataVencimento])
@@ -790,7 +790,7 @@ model Venda {
   valorTotal     Float
   desconto       Float          @default(0)
 
-  criadoEm       DateTime      @default(now())
+  criadoEm       DateTime      @default(now()) @db.Timestamptz(3)
   caixaSession   CaixaSession? @relation(fields: [caixaSessionId], references: [id])
   caixaSessionId String?
 }
@@ -811,8 +811,8 @@ model VendaPagamento {
 
   contaReceber   ContaReceber?
 
-  criadoEm       DateTime       @default(now())
-  atualizadoEm   DateTime       @updatedAt
+  criadoEm       DateTime       @default(now()) @db.Timestamptz(3)
+  atualizadoEm   DateTime       @updatedAt @db.Timestamptz(3)
 
   @@index([vendaId])
   @@index([formaPagamento])
@@ -847,8 +847,8 @@ model CaixaSession {
   valorAbertura   Float // Saldo inicial/troco
   valorFechamento Float? // Saldo final conferido
 
-  dataAbertura   DateTime  @default(now())
-  dataFechamento DateTime?
+  dataAbertura   DateTime  @default(now()) @db.Timestamptz(3)
+  dataFechamento DateTime? @db.Timestamptz(3)
 
   vendas Venda[] // Vincula as vendas feitas nesta sessão
 
@@ -856,8 +856,8 @@ model CaixaSession {
   abertoPorId String?
   abertoPor   Usuario? @relation("CaixaSessionAbertaPor", fields: [abertoPorId], references: [id])
 
-  criadoEm     DateTime @default(now())
-  atualizadoEm DateTime @updatedAt
+  criadoEm     DateTime @default(now()) @db.Timestamptz(3)
+  atualizadoEm DateTime @updatedAt @db.Timestamptz(3)
 
   @@index([abertoPorId])
 }
@@ -875,7 +875,7 @@ model Notificacao {
   titulo   String
   mensagem String
   lida     Boolean  @default(false)
-  criadoEm DateTime @default(now())
+  criadoEm DateTime @default(now()) @db.Timestamptz(3)
 }
 
 // ==========================================
@@ -897,7 +897,7 @@ model Meta {
   unidade     String?
   dataInicio  DateTime?
   dataPrazo   DateTime?
-  ultimaSincronizacaoEm DateTime?
+  ultimaSincronizacaoEm DateTime? @db.Timestamptz(3)
   erroSincronizacao String?
   prioridade  PrioridadeMeta @default(MEDIA)
   status      StatusMeta     @default(EM_ANDAMENTO)
@@ -905,16 +905,16 @@ model Meta {
   criadoPorId String?
   criadoPor   Usuario?       @relation("MetasCriadasPor", fields: [criadoPorId], references: [id])
 
-  excluidaEm    DateTime?
+  excluidaEm    DateTime? @db.Timestamptz(3)
   excluidaPorId String?
-  concluidaEm   DateTime?
-  canceladaEm   DateTime?
+  concluidaEm   DateTime? @db.Timestamptz(3)
+  canceladaEm   DateTime? @db.Timestamptz(3)
 
   itensChecklist ItemChecklistMeta[]
   historicos     HistoricoMeta[]
 
-  criadoEm     DateTime @default(now())
-  atualizadoEm DateTime @updatedAt
+  criadoEm     DateTime @default(now()) @db.Timestamptz(3)
+  atualizadoEm DateTime @updatedAt @db.Timestamptz(3)
 
   @@index([status])
   @@index([categoria])
@@ -935,9 +935,9 @@ model ItemChecklistMeta {
   titulo  String
   concluido    Boolean  @default(false)
   ordem        Int      @default(0)
-  concluidoEm  DateTime?
-  criadoEm     DateTime @default(now())
-  atualizadoEm DateTime @updatedAt
+  concluidoEm  DateTime? @db.Timestamptz(3)
+  criadoEm     DateTime @default(now()) @db.Timestamptz(3)
+  atualizadoEm DateTime @updatedAt @db.Timestamptz(3)
 
   @@index([metaId])
 }
@@ -951,7 +951,7 @@ model HistoricoMeta {
   valorAnterior  Float?
   valorNovo      Float?
   criadoPorId    String?
-  criadoEm       DateTime          @default(now())
+  criadoEm       DateTime          @default(now()) @db.Timestamptz(3)
 
   @@index([metaId])
   @@index([tipo])

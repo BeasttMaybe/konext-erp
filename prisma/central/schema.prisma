@@ -45,8 +45,8 @@ model Empresa {
    */
   proprietarioUsuarioEmpresaId String?          @unique
   proprietario                 UsuarioEmpresa?  @relation("EmpresaProprietario", fields: [proprietarioUsuarioEmpresaId], references: [id])
-  criadoEm     DateTime         @default(now())
-  atualizadoEm DateTime         @updatedAt
+  criadoEm     DateTime         @default(now()) @db.Timestamptz(3)
+  atualizadoEm DateTime         @updatedAt @db.Timestamptz(3)
 }
 
 model Tenant {
@@ -57,8 +57,8 @@ model Tenant {
   status        StatusTenant @default(PROVISIONANDO)
   versaoSchema  String
   connectionRef String?
-  criadoEm      DateTime     @default(now())
-  atualizadoEm  DateTime     @updatedAt
+  criadoEm      DateTime     @default(now()) @db.Timestamptz(3)
+  atualizadoEm  DateTime     @updatedAt @db.Timestamptz(3)
 
   @@index([empresaId])
   @@index([status])
@@ -72,8 +72,8 @@ model UsuarioCentral {
   ativo        Boolean          @default(true)
   empresas     UsuarioEmpresa[]
   logsAuditoria LogAuditoria[]
-  criadoEm     DateTime         @default(now())
-  atualizadoEm DateTime         @updatedAt
+  criadoEm     DateTime         @default(now()) @db.Timestamptz(3)
+  atualizadoEm DateTime         @updatedAt @db.Timestamptz(3)
 }
 
 model SessaoCentral {
@@ -83,11 +83,11 @@ model SessaoCentral {
   empresaId        String
   tenantId         String
   role             RoleEmpresa
-  expiraEm         DateTime
-  revogadaEm       DateTime?
-  ultimoUsoEm      DateTime?
-  criadoEm         DateTime    @default(now())
-  atualizadoEm     DateTime    @updatedAt
+  expiraEm         DateTime @db.Timestamptz(3)
+  revogadaEm       DateTime? @db.Timestamptz(3)
+  ultimoUsoEm      DateTime? @db.Timestamptz(3)
+  criadoEm         DateTime    @default(now()) @db.Timestamptz(3)
+  atualizadoEm     DateTime    @updatedAt @db.Timestamptz(3)
 
   @@index([usuarioCentralId])
   @@index([empresaId])
@@ -108,8 +108,8 @@ model UsuarioEmpresa {
   cargoId      String?
   cargo        Cargo?         @relation(fields: [cargoId], references: [id])
   ativo        Boolean        @default(true)
-  criadoEm     DateTime       @default(now())
-  atualizadoEm DateTime       @updatedAt
+  criadoEm     DateTime       @default(now()) @db.Timestamptz(3)
+  atualizadoEm DateTime       @updatedAt @db.Timestamptz(3)
   /** Lado inverso de Empresa.proprietario — presente so quando esta linha e a conta responsavel por alguma empresa. */
   empresaComoProprietario Empresa? @relation("EmpresaProprietario")
 
@@ -134,11 +134,11 @@ model Cargo {
   descricao    String?
   fixo         Boolean          @default(false)
   /** Soft delete — cargo em uso nao pode ser arquivado (ver invariantes). */
-  arquivadoEm  DateTime?
+  arquivadoEm  DateTime? @db.Timestamptz(3)
   permissoes   CargoPermissao[]
   usuarios     UsuarioEmpresa[]
-  criadoEm     DateTime         @default(now())
-  atualizadoEm DateTime         @updatedAt
+  criadoEm     DateTime         @default(now()) @db.Timestamptz(3)
+  atualizadoEm DateTime         @updatedAt @db.Timestamptz(3)
 
   @@unique([empresaId, nome])
   @@index([empresaId])
@@ -177,7 +177,7 @@ model LogAuditoria {
   dadosDepois Json?
   motivo      String?
   origem      String?
-  criadoEm    DateTime        @default(now())
+  criadoEm    DateTime        @default(now()) @db.Timestamptz(3)
 
   @@index([empresaId])
   @@index([usuarioId])
