@@ -1,8 +1,7 @@
 import Link from "next/link";
 import type { PeriodoDashboard } from "@/app/actions/dashboard";
 import { agoraNaLoja, FUSO_HORARIO_PADRAO } from "@/lib/datas";
-import { calcularPresetEsteMes } from "@/lib/filtro-periodo";
-import { FiltroPeriodo } from "@/components/ui/filtro-periodo";
+import { FiltroPeriodoPagina } from "@/components/ui/filtro-periodo-pagina";
 import { cn } from "@/lib/utils";
 
 const OPCOES_PERIODO: Array<{ valor: PeriodoDashboard; rotulo: string }> = [
@@ -64,18 +63,22 @@ export function CabecalhoDashboard({ empresa, periodo, fusoHorario }: CabecalhoD
           que inicio/fim, pra "Personalizado" ficar destacado (aria-current)
           já no primeiro carregamento depois de filtrar — sem isso a pill
           ficaria "apagada" mesmo com um período customizado ativo.
+
+          Fase 2A-1 follow-up ("adoção idêntica ao Dashboard"): passa a
+          usar `FiltroPeriodoPagina` — o mesmo wrapper que as outras 6
+          telas usam agora — em vez de montar `FiltroPeriodo` direto com
+          sua própria configuração solta. `variante="pill"` é a única
+          diferença visual permitida (o chip transparente que se integra à
+          barra de navegação de período, em vez do botão contornado avulso
+          das outras telas) — nunca uma prop de layout/tamanho do painel,
+          que continua 100% fixo dentro de `FiltroPeriodo`.
         */}
-        <FiltroPeriodo
-          rotulo="Personalizado"
+        <FiltroPeriodoPagina
+          campos={[{ valor: "personalizado", rotulo: "Personalizado" }]}
           fusoHorario={fusoHorario}
-          intervaloPadrao={calcularPresetEsteMes(fusoHorario)}
           paramsAdicionais={{ periodo: "custom" }}
-          className={cn(
-            "h-11 gap-1.5 rounded-kx-botao border-transparent bg-transparent px-3 text-sm font-medium",
-            periodo === "custom"
-              ? "bg-kx-primaria/15 text-kx-primaria"
-              : "text-kx-legenda hover:bg-transparent hover:text-kx-texto"
-          )}
+          variante="pill"
+          ativo={periodo === "custom"}
         />
       </nav>
     </div>

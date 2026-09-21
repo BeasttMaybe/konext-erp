@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { FiltroPeriodo } from "@/components/ui/filtro-periodo";
+import { FiltroPeriodoPagina } from "@/components/ui/filtro-periodo-pagina";
 import { calcularPresetEsteMes, validarIntervalo } from "@/lib/filtro-periodo";
 import { dataDeCalendario, fimDoDia, FUSO_HORARIO_PADRAO, inicioDoDia } from "@/lib/datas";
 import { TabuleiroKanban } from "@/components/os/tabuleiro-kanban";
@@ -605,10 +605,9 @@ export function DashboardOS({
               )}
               <div className="mb-3 flex flex-wrap items-center gap-4">
                 {!mostrarExcluidas && (
-                  <FiltroPeriodo
-                    rotulo="Finalizadas em"
+                  <FiltroPeriodoPagina
+                    campos={[{ valor: "finalizadas-em", rotulo: "Finalizadas em" }]}
                     fusoHorario={fusoHorario}
-                    intervaloPadrao={intervaloPadraoFinalizadas}
                   />
                 )}
                 <label className="flex w-fit items-center gap-2 text-sm text-kx-texto-2">

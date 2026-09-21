@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { obterDadosFluxoDeCaixa, obterDadosResultadoPeriodo } from "@/app/actions/financeiro-fluxo";
 import { NavFinanceiro } from "@/components/financeiro/nav-financeiro";
 import { ConteudoFluxo } from "./components/ConteudoFluxo";
-import { FiltroPeriodo } from "@/components/ui/filtro-periodo";
+import { FiltroPeriodoPagina } from "@/components/ui/filtro-periodo-pagina";
 import { calcularPresetEsteMes, validarIntervalo } from "@/lib/filtro-periodo";
 import { dataDeCalendario } from "@/lib/datas";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
@@ -71,10 +71,9 @@ export default async function FinanceiroFluxoPage({ searchParams }: PageProps) {
       <NavFinanceiro />
 
       <Suspense fallback={<div className="h-11 shrink-0 animate-pulse rounded-kx-botao bg-kx-superficie" />}>
-        <FiltroPeriodo
-          rotulo="Período (Resultado/Relatórios)"
+        <FiltroPeriodoPagina
+          campos={[{ valor: "referencia", rotulo: "Período (Resultado/Relatórios)" }]}
           fusoHorario={contexto.fusoHorario}
-          intervaloPadrao={intervaloPadrao}
         />
       </Suspense>
 

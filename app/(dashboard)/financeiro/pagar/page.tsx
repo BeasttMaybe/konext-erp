@@ -7,8 +7,7 @@ import {
 import { NavFinanceiro } from "@/components/financeiro/nav-financeiro";
 import { ConteudoPagar } from "./components/ConteudoPagar";
 import { CartaoIndicador } from "@/components/ui/cartao-indicador";
-import { FiltroPeriodo } from "@/components/ui/filtro-periodo";
-import { calcularPresetEsteMes } from "@/lib/filtro-periodo";
+import { FiltroPeriodoPagina } from "@/components/ui/filtro-periodo-pagina";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { temPermissao } from "@/lib/auth/permissoes";
 import { AcessoNegado } from "@/components/ui/acesso-negado";
@@ -82,10 +81,9 @@ export default async function FinanceiroPagarPage({ searchParams }: PageProps) {
       </div>
 
       <Suspense fallback={<div className="h-11 shrink-0 animate-pulse rounded-kx-botao bg-kx-superficie" />}>
-        <FiltroPeriodo
-          rotulo="Vencimento"
+        <FiltroPeriodoPagina
+          campos={[{ valor: "vencimento", rotulo: "Vencimento" }]}
           fusoHorario={contexto.fusoHorario}
-          intervaloPadrao={calcularPresetEsteMes(contexto.fusoHorario)}
         />
       </Suspense>
 

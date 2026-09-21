@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { AbasCaixa, type AbaCaixa } from "@/components/pdv/caixa/abas-caixa";
 import { PainelCaixaAberto } from "@/components/pdv/caixa/painel-caixa-aberto";
 import { PainelFecharCaixa } from "@/components/pdv/caixa/painel-fechar-caixa";
-import { FiltroPeriodo } from "@/components/ui/filtro-periodo";
+import { FiltroPeriodoPagina } from "@/components/ui/filtro-periodo-pagina";
 import { calcularPresetEsteMes, validarIntervalo, type IntervaloPeriodo } from "@/lib/filtro-periodo";
 import { dataDeCalendario } from "@/lib/datas";
 import {
@@ -220,7 +220,7 @@ export default function PDVCaixaPage() {
           onObservacaoChange={setObservacaoTexto}
           confirmando={confirmando}
           onConfirmar={confirmarFechamento}
-          filtroPeriodo={<FiltroPeriodo rotulo="Período" intervaloPadrao={intervaloPadraoFechamentos} />}
+          filtroPeriodo={<FiltroPeriodoPagina campos={[{ valor: "fechamento", rotulo: "Período" }]} />}
         />
       )}
     </div>

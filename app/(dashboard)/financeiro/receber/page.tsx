@@ -7,8 +7,7 @@ import { NavFinanceiro } from "@/components/financeiro/nav-financeiro";
 import { FiltrosReceber } from "./components/FiltrosReceber";
 import { ConteudoReceber } from "./components/ConteudoReceber";
 import { CartaoIndicador } from "@/components/ui/cartao-indicador";
-import { FiltroPeriodo } from "@/components/ui/filtro-periodo";
-import { calcularPresetEsteMes } from "@/lib/filtro-periodo";
+import { FiltroPeriodoPagina } from "@/components/ui/filtro-periodo-pagina";
 import { Wallet, AlertTriangle, CheckCircle2, TrendingUp } from "lucide-react";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { temPermissao } from "@/lib/auth/permissoes";
@@ -90,10 +89,9 @@ export default async function FinanceiroReceberPage({ searchParams }: PageProps)
 
       <Suspense fallback={<div className="h-11 shrink-0 animate-pulse rounded-kx-botao bg-kx-superficie" />}>
         <div className="flex shrink-0 flex-wrap items-end gap-3">
-          <FiltroPeriodo
-            rotulo="Vencimento"
+          <FiltroPeriodoPagina
+            campos={[{ valor: "vencimento", rotulo: "Vencimento" }]}
             fusoHorario={contexto.fusoHorario}
-            intervaloPadrao={calcularPresetEsteMes(contexto.fusoHorario)}
           />
           <FiltrosReceber />
         </div>

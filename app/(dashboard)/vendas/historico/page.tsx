@@ -26,7 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { FiltroPeriodo } from "@/components/ui/filtro-periodo";
+import { FiltroPeriodoPagina } from "@/components/ui/filtro-periodo-pagina";
 import { calcularPresetEsteMes, validarIntervalo } from "@/lib/filtro-periodo";
 import { dataDeCalendario, fimDoDia, inicioDoDia } from "@/lib/datas";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
@@ -508,9 +508,19 @@ export default async function SalesHistoryPage({ searchParams }: PageProps) {
                 </Select>
               </div>
 
+              {/*
+                Antes desta adoção, o gatilho aqui não levava rótulo nenhum
+                (só um "Emitido em" solto ao lado, fora do botão) — a única
+                das 7 adoções sem isso, inconsistente com as outras 6, que
+                sempre mostram o campo dentro do próprio gatilho ("Vencimento:
+                dd/mm/aaaa..."). `campos` abaixo corrige isso: o rótulo passa
+                a fazer parte do botão, como em toda outra tela.
+              */}
               <div className="space-y-2 xl:mt-1.5">
-                <span className="block text-sm font-medium text-slate-200">Emitido em</span>
-                <FiltroPeriodo fusoHorario={fusoHorario} intervaloPadrao={intervaloPadrao} />
+                <FiltroPeriodoPagina
+                  campos={[{ valor: "emitido-em", rotulo: "Emitido em" }]}
+                  fusoHorario={fusoHorario}
+                />
               </div>
 
               <Button type="submit" className="bg-cyan-400 text-slate-950 hover:bg-cyan-300">
