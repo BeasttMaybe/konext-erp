@@ -84,35 +84,42 @@ const NOME_DOS_MESES = [
 type ChaveVisualPreset = ChavePresetPeriodo | "mes-especifico" | "personalizado";
 
 const CONSULTA_TELA_MOBILE = "(max-width: 767px)";
+// Sem espaço pra DOIS calendários lado a lado (spec do dono do projeto,
+// depois de testar ao vivo): largura < ~900px OU altura < ~560px — nesses
+// casos o Popover (ainda um Popover, não a bottom sheet do `useEhTelaMobile`
+// — essa troca só acontece abaixo de 768px de LARGURA) mostra um único
+// calendário com navegação de mês, mais estreito.
+const CONSULTA_ESPACO_COMPACTO = "(max-width: 899px), (max-height: 559px)";
 
-function inscreverEmMudancaDeTela(notificar: () => void) {
-  const consulta = window.matchMedia(CONSULTA_TELA_MOBILE);
-  consulta.addEventListener("change", notificar);
-  return () => consulta.removeEventListener("change", notificar);
+function criarHookDeMediaQuery(consultaCss: string) {
+  function inscrever(notificar: () => void) {
+    const consulta = window.matchMedia(consultaCss);
+    consulta.addEventListener("change", notificar);
+    return () => consulta.removeEventListener("change", notificar);
+  }
+
+  function obterInstantaneo() {
+    return window.matchMedia(consultaCss).matches;
+  }
+
+  function obterInstantaneoNoServidor() {
+    return false;
+  }
+
+  /**
+   * `useSyncExternalStore` em vez de `useEffect` + `useState`: evita o
+   * "cascading render" de chamar `setState` de dentro de um efeito só pra
+   * ler o valor inicial (a regra `react-hooks/set-state-in-effect` bane
+   * exatamente esse padrão) — e já é SSR-safe por construção (o snapshot do
+   * servidor devolve `false`, nunca lê `window` fora do cliente).
+   */
+  return function useMediaQuery(): boolean {
+    return React.useSyncExternalStore(inscrever, obterInstantaneo, obterInstantaneoNoServidor);
+  };
 }
 
-function obterSeTelaEhMobile() {
-  return window.matchMedia(CONSULTA_TELA_MOBILE).matches;
-}
-
-function obterSeTelaEhMobileNoServidor() {
-  return false;
-}
-
-/**
- * `useSyncExternalStore` em vez de `useEffect` + `useState`: evita o
- * "cascading render" de chamar `setState` de dentro de um efeito só pra
- * ler o valor inicial (a regra `react-hooks/set-state-in-effect` bane
- * exatamente esse padrão) — e já é SSR-safe por construção (o snapshot do
- * servidor devolve `false`, nunca lê `window` fora do cliente).
- */
-function useEhTelaMobile(): boolean {
-  return React.useSyncExternalStore(
-    inscreverEmMudancaDeTela,
-    obterSeTelaEhMobile,
-    obterSeTelaEhMobileNoServidor
-  );
-}
+const useEhTelaMobile = criarHookDeMediaQuery(CONSULTA_TELA_MOBILE);
+const useEhEspacoCompacto = criarHookDeMediaQuery(CONSULTA_ESPACO_COMPACTO);
 
 function inicioDoMesDeCalendario(data: Date): Date {
   return new Date(Date.UTC(data.getUTCFullYear(), data.getUTCMonth(), 1));
@@ -147,6 +154,7 @@ export function FiltroPeriodo({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const ehMobile = useEhTelaMobile();
+  const ehCompacto = useEhEspacoCompacto();
 
   const valorPadrao = React.useMemo(
     () => intervaloPadrao ?? calcularPresetEsteMes(fusoHorario),
@@ -222,6 +230,7 @@ export function FiltroPeriodo({
               intervaloInicial={intervaloComprometido}
               fusoHorario={fusoHorario}
               variante="folha"
+              compacto={false}
               aoCancelar={() => setAberto(false)}
               aoConfirmar={aoConfirmar}
             />
@@ -234,7 +243,12 @@ export function FiltroPeriodo({
   return (
     <Popover open={aberto} onOpenChange={setAberto}>
       <PopoverTrigger asChild>{gatilho}</PopoverTrigger>
-      <PopoverContent align="start" className="w-auto p-0">
+      <PopoverContent
+        align="start"
+        collisionPadding={16}
+        avoidCollisions
+        className="w-auto max-w-[calc(100vw-32px)] overflow-hidden p-0"
+      >
         {aberto && (
           <PainelFiltroPeriodo
             campos={campos}
@@ -242,6 +256,7 @@ export function FiltroPeriodo({
             intervaloInicial={intervaloComprometido}
             fusoHorario={fusoHorario}
             variante="popover"
+            compacto={ehCompacto}
             aoCancelar={() => setAberto(false)}
             aoConfirmar={aoConfirmar}
           />
@@ -259,6 +274,8 @@ interface PainelFiltroPeriodoProps {
   intervaloInicial: IntervaloPeriodo;
   fusoHorario: string;
   variante: "popover" | "folha";
+  /** Sem espaço pra dois calendários lado a lado (viewport curta/estreita) — mostra um único calendário, mesmo na variante "popover". */
+  compacto: boolean;
   aoCancelar: () => void;
   aoConfirmar: (resultado: { campo: string | undefined; intervalo: IntervaloPeriodo }) => void;
 }
@@ -281,6 +298,7 @@ function PainelFiltroPeriodo({
   intervaloInicial,
   fusoHorario,
   variante,
+  compacto,
   aoCancelar,
   aoConfirmar,
 }: PainelFiltroPeriodoProps) {
@@ -392,105 +410,133 @@ function PainelFiltroPeriodo({
     (identificarMesEspecifico(intervaloRascunho) ? "mes-especifico" : "personalizado");
 
   const mostrarSeletorDeCampo = Boolean(campos && campos.length > 1);
-  const numeroDeCalendarios = variante === "folha" ? 1 : 2;
+  const numeroDeCalendarios = variante === "folha" || compacto ? 1 : 2;
+
+  function aoFocarSemSelecionarTudo(evento: React.FocusEvent<HTMLInputElement>) {
+    // Foca o campo sem selecionar o texto inteiro — o comportamento padrão
+    // do navegador ao focar um input controlado (inclusive via foco
+    // automático do Radix Popover ao abrir) pode deixar o valor inteiro
+    // destacado, o que atrapalha continuar digitando/corrigindo uma data.
+    const valor = evento.target.value;
+    evento.target.setSelectionRange(valor.length, valor.length);
+  }
+
+  // Layout decidido por ESTADO (variante/numeroDeCalendarios, calculados em
+  // JS a partir de `useEhTelaMobile`/`useEhEspacoCompacto`), nunca por
+  // breakpoint `sm:`/`md:` do Tailwind — os dois não têm por que coincidir
+  // (a consulta de "espaço compacto" é 900×560, bem diferente do `sm` do
+  // Tailwind, 640px) misturar os dois foi a causa da largura/altura do
+  // popover saírem do controle em telas reais.
+  const ladoALado = variante === "popover" && numeroDeCalendarios === 2;
+  const largura = variante === "folha" ? "w-full" : ladoALado ? "w-[720px]" : "w-[400px]";
 
   return (
-    <div className="flex w-full flex-col sm:w-[640px]">
-      <div className="flex w-full flex-col gap-4 p-4 sm:flex-row sm:gap-0 sm:p-0">
-      <div className="flex flex-1 flex-col gap-3 sm:p-4">
-        {mostrarSeletorDeCampo && (
-          <SeletorDeCampo campos={campos!} valor={campoRascunho} aoSelecionar={setCampoRascunho} />
-        )}
+    <div
+      className={cn(
+        "flex flex-col overflow-hidden",
+        variante === "popover" && "max-w-[calc(100vw-32px)] rounded-md bg-popover text-popover-foreground",
+        largura
+      )}
+    >
+      <div className={cn("flex w-full", ladoALado ? "flex-row" : "flex-col")}>
+        <div className="flex flex-1 flex-col gap-3 p-4">
+          {mostrarSeletorDeCampo && (
+            <SeletorDeCampo campos={campos!} valor={campoRascunho} aoSelecionar={setCampoRascunho} />
+          )}
 
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <Label htmlFor="filtro-periodo-inicio" className="text-xs text-kx-legenda">
-              Início do período
-            </Label>
-            <Input
-              id="filtro-periodo-inicio"
-              inputMode="numeric"
-              placeholder="dd/mm/aaaa"
-              value={textoInicio}
-              onChange={(evento) => aoDigitarInicio(evento.target.value)}
-              className="h-11 min-h-11"
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label htmlFor="filtro-periodo-inicio" className="text-xs text-kx-legenda">
+                Início do período
+              </Label>
+              <Input
+                id="filtro-periodo-inicio"
+                inputMode="numeric"
+                placeholder="dd/mm/aaaa"
+                value={textoInicio}
+                onChange={(evento) => aoDigitarInicio(evento.target.value)}
+                onFocus={aoFocarSemSelecionarTudo}
+                className="h-11 min-h-11"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="filtro-periodo-fim" className="text-xs text-kx-legenda">
+                Fim do período
+              </Label>
+              <Input
+                id="filtro-periodo-fim"
+                inputMode="numeric"
+                placeholder="dd/mm/aaaa"
+                value={textoFim}
+                onChange={(evento) => aoDigitarFim(evento.target.value)}
+                onFocus={aoFocarSemSelecionarTudo}
+                className="h-11 min-h-11"
+              />
+            </div>
           </div>
-          <div className="space-y-1">
-            <Label htmlFor="filtro-periodo-fim" className="text-xs text-kx-legenda">
-              Fim do período
-            </Label>
-            <Input
-              id="filtro-periodo-fim"
-              inputMode="numeric"
-              placeholder="dd/mm/aaaa"
-              value={textoFim}
-              onChange={(evento) => aoDigitarFim(evento.target.value)}
-              className="h-11 min-h-11"
-            />
-          </div>
-        </div>
 
-        {erro && (
-          <p role="alert" className="text-xs font-medium text-kx-erro">
-            {erro}
-          </p>
-        )}
+          {erro && (
+            <p role="alert" className="text-xs font-medium text-kx-erro">
+              {erro}
+            </p>
+          )}
 
-        {mostrarGradeMes ? (
-          <GradeMesAno
-            mesAno={gradeMesAno}
-            mesSelecionado={identificarMesEspecifico(intervaloRascunho)}
-            aoMudarAno={(ano) => setGradeMesAno((atual) => ({ ...atual, ano }))}
-            aoEscolherMes={aoEscolherMesNaGrade}
-          />
-        ) : (
-          <div className={cn("flex flex-col gap-4", numeroDeCalendarios === 2 && "sm:flex-row sm:gap-2")}>
-            <CalendarioIntervalo
-              mes={mesEsquerda}
-              aoMudarMes={setMesEsquerda}
-              faixa={rangeParaCalendario}
-              aoSelecionar={aoSelecionarNoCalendario}
-              fusoHorario={fusoHorario}
+          {mostrarGradeMes ? (
+            <GradeMesAno
+              mesAno={gradeMesAno}
+              mesSelecionado={identificarMesEspecifico(intervaloRascunho)}
+              aoMudarAno={(ano) => setGradeMesAno((atual) => ({ ...atual, ano }))}
+              aoEscolherMes={aoEscolherMesNaGrade}
             />
-            {numeroDeCalendarios === 2 && (
+          ) : (
+            <div className={cn("flex", ladoALado ? "flex-row gap-3" : "flex-col gap-3")}>
               <CalendarioIntervalo
-                mes={mesDireita}
-                aoMudarMes={setMesDireita}
+                mes={mesEsquerda}
+                aoMudarMes={setMesEsquerda}
                 faixa={rangeParaCalendario}
                 aoSelecionar={aoSelecionarNoCalendario}
                 fusoHorario={fusoHorario}
               />
-            )}
-          </div>
-        )}
-      </div>
+              {numeroDeCalendarios === 2 && (
+                <CalendarioIntervalo
+                  mes={mesDireita}
+                  aoMudarMes={setMesDireita}
+                  faixa={rangeParaCalendario}
+                  aoSelecionar={aoSelecionarNoCalendario}
+                  fusoHorario={fusoHorario}
+                />
+              )}
+            </div>
+          )}
+        </div>
 
-      <div
-        className={cn(
-          "flex shrink-0 gap-1.5 border-kx-painel-borda sm:w-44 sm:flex-col sm:border-l sm:p-4",
-          variante === "folha" && "flex-wrap sm:hidden"
-        )}
-      >
-        {PRESETS_PERIODO.map((preset) => (
-          <ChipPreset
-            key={preset.chave}
-            ativo={chaveVisualAtiva === preset.chave}
-            onClick={() => aoClicarPreset(preset.chave)}
-          >
-            {preset.rotulo}
+        <div
+          className={cn(
+            "flex shrink-0 gap-1.5 bg-popover p-4",
+            ladoALado
+              ? "w-40 flex-col border-l border-kx-painel-borda"
+              : "w-full flex-wrap border-t border-kx-painel-borda"
+          )}
+        >
+          {PRESETS_PERIODO.map((preset) => (
+            <ChipPreset
+              key={preset.chave}
+              ativo={chaveVisualAtiva === preset.chave}
+              onClick={() => aoClicarPreset(preset.chave)}
+            >
+              {preset.rotulo}
+            </ChipPreset>
+          ))}
+          <ChipPreset ativo={chaveVisualAtiva === "mes-especifico"} onClick={aoAbrirSeletorDeMes}>
+            Selecionar mês
           </ChipPreset>
-        ))}
-        <ChipPreset ativo={chaveVisualAtiva === "mes-especifico"} onClick={aoAbrirSeletorDeMes}>
-          Selecionar mês
-        </ChipPreset>
-        <ChipPreset ativo={chaveVisualAtiva === "personalizado"} onClick={aoVoltarParaPeriodoCustomizado}>
-          Período customizado
-        </ChipPreset>
-      </div>
+          <ChipPreset ativo={chaveVisualAtiva === "personalizado"} onClick={aoVoltarParaPeriodoCustomizado}>
+            Período customizado
+          </ChipPreset>
+        </div>
       </div>
 
-      <div className="flex w-full items-center justify-end gap-2 border-t border-kx-painel-borda p-3">
+      <div className="flex w-full items-center justify-end gap-2 border-t border-kx-painel-borda bg-popover p-3">
         <Button type="button" variant="ghost" className="h-11 min-h-11" onClick={aoCancelar}>
           Cancelar
         </Button>
@@ -568,9 +614,32 @@ function ChipPreset({
   );
 }
 
+/**
+ * Medidas alinhadas ao teste ao vivo do dono do projeto (tema claro,
+ * notebook comum): célula de dia 36×36px (`size-9`), com um círculo VISÍVEL
+ * de 32px dentro dela (`border-2 border-transparent bg-clip-padding` — a
+ * mesma técnica de `buttonVariants` em `components/ui/button.tsx` — encolhe
+ * só a área PINTADA, o alvo de clique/toque continua os 36px inteiros da
+ * célula), linha de dias da semana com 28px de altura (`h-7`) e cabeçalho
+ * do mês com 36px (`h-9`).
+ *
+ * `months`/`month` precisam de `relative`: o `Nav` (setas de mês) do
+ * react-day-picker é filho de `Months` (não de `Month`/`MonthCaption` —
+ * ver `node_modules/react-day-picker/dist/esm/DayPicker.js`, o Nav só entra
+ * dentro do `MonthCaption` quando `navLayout` está setado, o que não é o
+ * caso aqui) — sem um ancestral posicionado aí, o `absolute` do Nav escapa
+ * pro container posicionado mais próximo na árvore (podia ser a página
+ * inteira dentro de um Portal), e as setas "flutuam" longe do calendário.
+ *
+ * "outside" (dias de outro mês) usa `!` (important) pra sempre vencer
+ * qualquer classe de "selected"/"range_*"/"today" aplicada ao MESMO
+ * elemento — sem isso, um dia de outro mês que corresponde à borda do
+ * intervalo escolhido (ex.: 30/set aparecendo como dia inicial da grade de
+ * outubro) pinta como se fosse parte do intervalo, mesmo esmaecido.
+ */
 const CLASSES_CALENDARIO = {
-  months: "flex",
-  month: "space-y-2",
+  months: "relative flex",
+  month: "relative space-y-1",
   month_caption: "relative flex h-9 items-center justify-center px-9",
   caption_label: "text-sm font-semibold text-kx-texto",
   nav: "absolute inset-x-0 top-0 flex h-9 items-center justify-between px-0.5",
@@ -582,19 +651,20 @@ const CLASSES_CALENDARIO = {
     buttonVariants({ variant: "ghost", size: "icon-sm" }),
     "text-kx-legenda hover:text-kx-texto"
   ),
-  month_grid: "w-full border-collapse",
+  month_grid: "border-collapse",
   weekdays: "flex",
-  weekday: "size-11 text-center text-xs font-medium text-kx-legenda",
-  week: "mt-1 flex w-full",
-  day: "p-0 text-center align-middle",
+  weekday: "flex h-7 w-9 items-center justify-center text-[11px] font-medium text-kx-legenda",
+  week: "flex w-full",
+  day: "w-9 p-0 text-center align-middle",
   day_button:
-    "flex size-11 items-center justify-center rounded-kx-botao text-sm font-medium text-kx-texto outline-none transition-colors hover:bg-kx-superficie focus-visible:ring-3 focus-visible:ring-ring/50",
+    "flex size-9 items-center justify-center rounded-full border-2 border-transparent bg-clip-padding text-xs font-medium text-kx-texto outline-none transition-colors hover:bg-kx-superficie focus-visible:ring-3 focus-visible:ring-ring/50",
   range_start: "[&>button]:bg-primary [&>button]:text-primary-foreground [&>button]:hover:bg-primary/90",
   range_end: "[&>button]:bg-primary [&>button]:text-primary-foreground [&>button]:hover:bg-primary/90",
-  range_middle: "[&>button]:rounded-none [&>button]:bg-primary/15 [&>button]:text-kx-texto",
+  range_middle: "bg-primary/15",
   selected: "[&>button]:bg-primary [&>button]:text-primary-foreground",
   today: "[&>button]:font-bold [&>button]:text-primary",
-  outside: "[&>button]:text-kx-placeholder [&>button]:opacity-60",
+  outside:
+    "!bg-transparent opacity-60 [&>button]:!bg-transparent [&>button]:!text-kx-placeholder [&>button]:hover:!bg-kx-superficie/60",
   disabled: "[&>button]:opacity-40 [&>button]:pointer-events-none",
   hidden: "invisible",
 };
