@@ -263,6 +263,23 @@ export function FiltroPeriodo({
         align="start"
         collisionPadding={16}
         avoidCollisions
+        // Sem isto, o autofoco padrão do Radix (foca o primeiro campo
+        // focável ao abrir — aqui, "Início do período") deixa o texto
+        // inteiro SELECIONADO nesse primeiro foco (comportamento nativo do
+        // navegador ao focar um input recém-montado por foco programático,
+        // não algo que `onFocus`/`setSelectionRange` no próprio Input
+        // consiga vencer — o navegador aplica a seleção DEPOIS do evento
+        // `focus`). `preventDefault` aqui desliga só o autofoco automático —
+        // o usuário ainda navega pro campo normalmente com Tab/clique, sem
+        // nada vir pré-selecionado.
+        onOpenAutoFocus={(evento) => evento.preventDefault()}
+        // O limite de altura (rede de segurança pra viewport curta — ex.:
+        // notebook com zoom alto, onde nem invertendo o lado o painel cabe
+        // inteiro) fica no filho — PainelFiltroPeriodo usa a mesma
+        // variável CSS do Radix pra altura disponível — não aqui: só a
+        // ÁREA DE CONTEÚDO rola, o rodapé (Cancelar/Filtrar) fica sempre
+        // visível, nunca escondido atrás de uma rolagem que o usuário nem
+        // percebe que existe.
         className="w-auto max-w-[calc(100vw-32px)] overflow-hidden p-0"
       >
         {aberto && (
@@ -450,11 +467,21 @@ function PainelFiltroPeriodo({
     <div
       className={cn(
         "flex flex-col overflow-hidden",
-        variante === "popover" && "max-w-[calc(100vw-32px)] rounded-md bg-popover text-popover-foreground",
+        variante === "popover" &&
+          "max-h-[var(--radix-popover-content-available-height)] max-w-[calc(100vw-32px)] rounded-md bg-popover text-popover-foreground",
         largura
       )}
     >
-      <div className={cn("flex w-full", ladoALado ? "flex-row" : "flex-col")}>
+      {/*
+        flex-1 + min-h-0: dentro de um pai com max-height (não height fixo),
+        é isto que faz esta área ceder e virar rolável quando o conteúdo
+        (calendários + inputs + presets) não cabe no espaço disponível —
+        sem min-h-0 o flex item nunca encolhe abaixo do tamanho do seu
+        próprio conteúdo, e o overflow-y-auto abaixo nunca teria efeito. O
+        rodapé (Cancelar/Filtrar), fora desta div, nunca faz parte da
+        rolagem — sempre visível, sem exigir rolar até o fim pra achá-lo.
+      */}
+      <div className={cn("flex w-full min-h-0 flex-1 overflow-y-auto", ladoALado ? "flex-row" : "flex-col")}>
         <div className="flex flex-1 flex-col gap-3 p-4">
           {mostrarSeletorDeCampo && (
             <SeletorDeCampo campos={campos!} valor={campoRascunho} aoSelecionar={setCampoRascunho} />
@@ -552,7 +579,10 @@ function PainelFiltroPeriodo({
         </div>
       </div>
 
-      <div className="flex w-full items-center justify-end gap-2 border-t border-kx-painel-borda bg-popover p-3">
+      {/* Fora da área rolável de propósito (ver comentário acima) — o
+          rodapé nunca esconde atrás de uma rolagem que o usuário talvez
+          nem perceba que existe. */}
+      <div className="flex w-full shrink-0 items-center justify-end gap-2 border-t border-kx-painel-borda bg-popover p-3">
         <Button type="button" variant="ghost" className="h-11 min-h-11" onClick={aoCancelar}>
           Cancelar
         </Button>
