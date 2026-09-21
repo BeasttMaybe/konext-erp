@@ -5,13 +5,23 @@
  *
  * Combina um seletor de campo de data opcional (ex.: "Vencimento" ×
  * "Pagamento" × "Emissão" — vem de quem usa o componente, nunca hardcoded
- * aqui), UM calendário de intervalo (`react-day-picker`, `mode="range"`,
- * `numberOfMonths={2}` no desktop — nunca dois `DayPicker` independentes:
- * ver o comentário grande perto de `CLASSES_CALENDARIO` pra história desse
- * bug) e uma coluna de presets ("Hoje", "Esta semana", "Mês passado"...).
- * Nada é aplicado até o usuário clicar "Filtrar" — até lá, tudo é um
- * RASCUNHO local; só o clique em "Filtrar" atualiza a URL (e dispara
- * `aoFiltrar`, se passado).
+ * aqui), DOIS calendários (`react-day-picker`) com papéis DISTINTOS —
+ * esquerda = "Início do período", direita = "Fim do período", cada um
+ * navegando de mês de forma INDEPENDENTE — e uma coluna de presets ("Hoje",
+ * "Esta semana", "Mês passado"...). Nada é aplicado até o usuário clicar
+ * "Filtrar" — até lá, tudo é um RASCUNHO local; só o clique em "Filtrar"
+ * atualiza a URL (e dispara `aoFiltrar`, se passado).
+ *
+ * Os dois calendários leem do MESMO estado de intervalo (`intervaloRascunho`,
+ * em `PainelFiltroPeriodo`) — nunca dois estados de intervalo paralelos (o
+ * bug da versão anterior a esta: cada `DayPicker` tinha seu próprio fluxo de
+ * seleção internamente controlado, e clicar no da direita reiniciava a
+ * seleção do da esquerda em vez de completá-la). O que É independente por
+ * calendário é só o MÊS EXIBIDO (dois estados, um por calendário — isso é
+ * esperado e correto aqui: navegar o calendário de início até janeiro não
+ * pode mexer no calendário de fim, que pode estar em setembro). Ver o
+ * comentário grande em `CalendarioIntervalo` pra como o clique de cada
+ * calendário é amarrado só à sua própria ponta do intervalo.
  *
  * Toda fronteira de dia/semana/mês (os presets) vem de `lib/filtro-periodo.ts`,
  * que por sua vez só usa `lib/datas.ts` — nunca `new Date()`/`setHours`/
@@ -86,10 +96,12 @@ const NOME_DOS_MESES = [
 type ChaveVisualPreset = ChavePresetPeriodo | "mes-especifico" | "personalizado";
 
 const CONSULTA_TELA_MOBILE = "(max-width: 767px)";
-// Sem espaço pra DOIS meses lado a lado (spec do dono do projeto, depois de
-// testar ao vivo): largura < ~900px OU altura < ~560px — nesses casos o
-// Popover (ainda um Popover, não a bottom sheet do `useEhTelaMobile` — essa
-// troca só acontece abaixo de 768px de LARGURA) mostra um único mês.
+// Sem espaço pra DOIS calendários lado a lado (spec do dono do projeto,
+// depois de testar ao vivo): largura < ~900px OU altura < ~560px — nesses
+// casos o Popover (ainda um Popover, não a bottom sheet do `useEhTelaMobile`
+// — essa troca só acontece abaixo de 768px de LARGURA) mostra um único
+// calendário, com um alternador "Início/Fim" decidindo qual ponta um
+// clique define (ver `numeroDeCalendarios`/`ladoCompactoAtivo` abaixo).
 const CONSULTA_ESPACO_COMPACTO = "(max-width: 899px), (max-height: 559px)";
 
 function criarHookDeMediaQuery(consultaCss: string) {
@@ -124,6 +136,11 @@ const useEhEspacoCompacto = criarHookDeMediaQuery(CONSULTA_ESPACO_COMPACTO);
 
 function inicioDoMesDeCalendario(data: Date): Date {
   return new Date(Date.UTC(data.getUTCFullYear(), data.getUTCMonth(), 1));
+}
+
+/** Passado como `onSelect` do `react-day-picker` — nunca chamado pra decidir nada (ver o comentário grande em `CalendarioIntervalo` sobre por que ele existe mesmo assim). */
+function aoSelecionarNativoNoOp() {
+  // Intencionalmente vazio.
 }
 
 export interface FiltroPeriodoProps {
@@ -340,7 +357,7 @@ interface PainelFiltroPeriodoProps {
   intervaloInicial: IntervaloPeriodo;
   fusoHorario: string;
   variante: "popover" | "folha";
-  /** Sem espaço pra dois meses lado a lado (viewport curta/estreita) — mostra um único mês, mesmo na variante "popover". */
+  /** Sem espaço pra dois calendários lado a lado (viewport curta/estreita) — mostra um único calendário, mesmo na variante "popover". */
   compacto: boolean;
   aoCancelar: () => void;
   aoConfirmar: (resultado: { campo: string | undefined; intervalo: IntervaloPeriodo }) => void;
@@ -378,26 +395,27 @@ function PainelFiltroPeriodo({
     () => identificarMesEspecifico(intervaloInicial) ?? mesDeCalendarioAtual(fusoHorario)
   );
 
-  // UM único DayPicker (`numberOfMonths`) precisa de UM único estado de mês
-  // (o primeiro mês mostrado — os seguintes são consecutivos POR
-  // CONSTRUÇÃO da própria biblioteca) e de UMA única faixa controlada.
-  //
-  // A faixa controlada (`faixaCalendario`) é DISTINTA de `intervaloRascunho`
-  // de propósito: ela espelha exatamente o que o `react-day-picker` devolve
-  // — inclusive o estado INCOMPLETO `{ from, to: undefined }` entre o
-  // primeiro e o segundo clique. Colapsar isso cedo demais num intervalo
-  // "completo" (fim = início) — o que este componente fazia antes — engana
-  // a lógica nativa de seleção da biblioteca (`resetOnSelect`, abaixo): ela
-  // decide "começar um intervalo novo" olhando se JÁ existe uma faixa
-  // completa, e se a faixa controlada que devolvemos pra ela já está
-  // sempre completa, todo clique pareceria o "terceiro clique".
-  const [faixaCalendario, setFaixaCalendario] = React.useState<DateRange>({
-    from: intervaloInicial.inicio,
-    to: intervaloInicial.fim,
-  });
-  const [mesBase, setMesBase] = React.useState(() => inicioDoMesDeCalendario(intervaloInicial.inicio));
+  // Dois calendários com papéis DISTINTOS (esquerda = início, direita =
+  // fim) — cada um navega de mês de forma INDEPENDENTE (um intervalo de
+  // janeiro a setembro é só 2 cliques, nunca precisa paginar mês a mês),
+  // então cada um precisa do SEU PRÓPRIO estado de mês exibido. Isso é
+  // diferente do bug da versão anterior: lá, o que vazava eram dois
+  // ESTADOS DE SELEÇÃO paralelos (cada `DayPicker` completando sua própria
+  // faixa); aqui só o mês exibido é paralelo — a faixa pintada nos dois
+  // calendários vem do MESMO `intervaloRascunho` (via `faixaAtual` abaixo),
+  // então os dois NUNCA dessincronizam visualmente.
+  const [mesEsquerda, setMesEsquerda] = React.useState(() => inicioDoMesDeCalendario(intervaloInicial.inicio));
+  const [mesDireita, setMesDireita] = React.useState(() => inicioDoMesDeCalendario(intervaloInicial.fim));
+  // Layout compacto (um calendário só): qual ponta do intervalo um clique
+  // define agora, trocado pelo alternador "Início/Fim" acima do calendário.
+  const [ladoCompactoAtivo, setLadoCompactoAtivo] = React.useState<"inicio" | "fim">("inicio");
 
-  function aplicarNovoIntervalo(novo: IntervaloPeriodo, opcoes: { moverCalendario?: boolean } = {}) {
+  const faixaAtual: DateRange = { from: intervaloRascunho.inicio, to: intervaloRascunho.fim };
+
+  function aplicarNovoIntervalo(
+    novo: IntervaloPeriodo,
+    opcoes: { moverEsquerda?: boolean; moverDireita?: boolean } = {}
+  ) {
     const resultado = validarIntervalo(novo.inicio, novo.fim);
     if (!resultado.valido) {
       setErro(resultado.mensagemErro);
@@ -405,11 +423,13 @@ function PainelFiltroPeriodo({
     }
     setErro(undefined);
     setIntervaloRascunho(novo);
-    setFaixaCalendario({ from: novo.inicio, to: novo.fim });
     setTextoInicio(formatarDataExibicao(novo.inicio));
     setTextoFim(formatarDataExibicao(novo.fim));
-    if (opcoes.moverCalendario !== false) {
-      setMesBase(inicioDoMesDeCalendario(novo.inicio));
+    if (opcoes.moverEsquerda !== false) {
+      setMesEsquerda(inicioDoMesDeCalendario(novo.inicio));
+    }
+    if (opcoes.moverDireita !== false) {
+      setMesDireita(inicioDoMesDeCalendario(novo.fim));
     }
   }
 
@@ -435,30 +455,42 @@ function PainelFiltroPeriodo({
     setMostrarGradeMes(false);
   }
 
-  function aoSelecionarNoCalendario(faixa: DateRange | undefined) {
-    // `undefined` acontece ao clicar de novo no único dia de uma seleção de
-    // um dia só (a biblioteca "desmarca" quando `required` não está
-    // setado) — mantém a última faixa válida em vez de ficar sem nada.
-    if (!faixa?.from) return;
-
-    setFaixaCalendario(faixa);
+  /**
+   * Clique no calendário de INÍCIO: o dia clicado sempre vira o novo
+   * início — nunca depende de quantos cliques já aconteceram (diferente do
+   * fluxo padrão de "dois cliques" do `mode="range"` da biblioteca, que
+   * este componente propositalmente ignora — ver `CalendarioIntervalo`).
+   * Se o dia clicado é DEPOIS do fim atual, o fim se ajusta pro mesmo dia
+   * — o intervalo nunca fica invertido, sem precisar de mensagem de erro
+   * (pedido explícito do dono do projeto: isso é diferente de digitar uma
+   * data inválida nos campos de texto, que continua mostrando erro).
+   */
+  function aoClicarDiaEsquerda(dia: Date) {
     setMostrarGradeMes(false);
+    const fimPrecisaAjustar = dia.getTime() > intervaloRascunho.fim.getTime();
+    aplicarNovoIntervalo(
+      { inicio: dia, fim: fimPrecisaAjustar ? dia : intervaloRascunho.fim },
+      { moverEsquerda: false, moverDireita: fimPrecisaAjustar }
+    );
+  }
 
-    if (!faixa.to) {
-      // Primeiro clique de uma seleção nova — só o início foi escolhido
-      // ainda. Não mexe em intervaloRascunho/textos/erro/mês exibido: o
-      // usuário ainda está no meio do gesto de selecionar o intervalo, e
-      // navegar o calendário sozinho aqui atrapalharia o segundo clique.
-      return;
+  /** Espelho de `aoClicarDiaEsquerda` pro calendário de FIM. */
+  function aoClicarDiaDireita(dia: Date) {
+    setMostrarGradeMes(false);
+    const inicioPrecisaAjustar = dia.getTime() < intervaloRascunho.inicio.getTime();
+    aplicarNovoIntervalo(
+      { inicio: inicioPrecisaAjustar ? dia : intervaloRascunho.inicio, fim: dia },
+      { moverEsquerda: inicioPrecisaAjustar, moverDireita: false }
+    );
+  }
+
+  /** No layout compacto (um calendário só), o alternador decide qual das duas funções acima o clique único usa. */
+  function aoClicarDiaCompacto(dia: Date) {
+    if (ladoCompactoAtivo === "inicio") {
+      aoClicarDiaEsquerda(dia);
+    } else {
+      aoClicarDiaDireita(dia);
     }
-
-    // Segundo clique (completou o intervalo) ou clique que reinicia um
-    // intervalo já completo com um único dia (from === to): os dois casos
-    // já chegam prontos em `faixa` — a lógica de "antes do início vira o
-    // novo início"/"terceiro clique começa de novo" é da própria
-    // biblioteca (`resetOnSelect`, na instância do calendário abaixo), não
-    // reimplementada aqui.
-    aplicarNovoIntervalo({ inicio: faixa.from, fim: faixa.to }, { moverCalendario: false });
   }
 
   function aoDigitarInicio(valorDigitado: string) {
@@ -466,16 +498,10 @@ function PainelFiltroPeriodo({
     setTextoInicio(mascarado);
     const novaData = interpretarDataDigitada(mascarado);
     if (!novaData) return; // incompleto/inválido — mantém o intervalo válido anterior
-    const resultado = validarIntervalo(novaData, intervaloRascunho.fim);
-    if (!resultado.valido) {
-      setErro(resultado.mensagemErro);
-      return;
-    }
-    setErro(undefined);
-    const novo = { inicio: novaData, fim: intervaloRascunho.fim };
-    setIntervaloRascunho(novo);
-    setFaixaCalendario({ from: novo.inicio, to: novo.fim });
-    setMesBase(inicioDoMesDeCalendario(novaData));
+    aplicarNovoIntervalo(
+      { inicio: novaData, fim: intervaloRascunho.fim },
+      { moverEsquerda: true, moverDireita: false }
+    );
   }
 
   function aoDigitarFim(valorDigitado: string) {
@@ -483,24 +509,10 @@ function PainelFiltroPeriodo({
     setTextoFim(mascarado);
     const novaData = interpretarDataDigitada(mascarado);
     if (!novaData) return;
-    const resultado = validarIntervalo(intervaloRascunho.inicio, novaData);
-    if (!resultado.valido) {
-      setErro(resultado.mensagemErro);
-      return;
-    }
-    setErro(undefined);
-    const novo = { inicio: intervaloRascunho.inicio, fim: novaData };
-    setIntervaloRascunho(novo);
-    setFaixaCalendario({ from: novo.inicio, to: novo.fim });
-    // Mostra o mês do FIM no último mês visível do calendário (no layout de
-    // dois meses, o segundo; no compacto, o único).
-    const numeroDeCalendariosAtual = variante === "folha" || compacto ? 1 : 2;
-    const mesDoFim = inicioDoMesDeCalendario(novaData);
-    if (numeroDeCalendariosAtual === 2) {
-      setMesBase(new Date(Date.UTC(mesDoFim.getUTCFullYear(), mesDoFim.getUTCMonth() - 1, 1)));
-    } else {
-      setMesBase(mesDoFim);
-    }
+    aplicarNovoIntervalo(
+      { inicio: intervaloRascunho.inicio, fim: novaData },
+      { moverEsquerda: false, moverDireita: true }
+    );
   }
 
   function aoClicarFiltrar() {
@@ -535,7 +547,15 @@ function PainelFiltroPeriodo({
   // Tailwind, 640px) misturar os dois foi a causa da largura/altura do
   // popover saírem do controle em telas reais.
   const ladoALado = variante === "popover" && numeroDeCalendarios === 2;
-  const largura = variante === "folha" ? "w-full" : ladoALado ? "w-[680px]" : "w-[340px]";
+  // 720px: cada calendário tem largura mínima fixa (7 colunas × 36px =
+  // 252px, o grid de dias não encolhe) — dois lado a lado + gap-3 entre
+  // eles + o padding da coluna de conteúdo já somam 540px, mais a barra de
+  // presets (w-44 = 176px) dá 716px. Um valor menor aqui faz o flexbox
+  // forçar a largura mínima dos calendários mesmo assim (min-width: auto
+  // é o padrão em flex items), estourando o container e cortando o que
+  // teria que encolher — confirmado com Playwright (o rótulo "Início do
+  // período" aparecia cortado, embora o texto no DOM estivesse correto).
+  const largura = variante === "folha" ? "w-full" : ladoALado ? "w-[720px]" : "w-[340px]";
 
   return (
     <div
@@ -549,7 +569,7 @@ function PainelFiltroPeriodo({
       {/*
         flex-1 + min-h-0: dentro de um pai com max-height (não height fixo),
         é isto que faz esta área ceder e virar rolável quando o conteúdo
-        (calendário + inputs + presets) não cabe no espaço disponível — sem
+        (calendários + inputs + presets) não cabe no espaço disponível — sem
         min-h-0 o flex item nunca encolhe abaixo do tamanho do seu próprio
         conteúdo, e o overflow-y-auto abaixo nunca teria efeito. O rodapé
         (Cancelar/Filtrar), fora desta div, nunca faz parte da rolagem —
@@ -560,37 +580,6 @@ function PainelFiltroPeriodo({
           {mostrarSeletorDeCampo && (
             <SeletorDeCampo campos={campos!} valor={campoRascunho} aoSelecionar={setCampoRascunho} />
           )}
-
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <Label htmlFor="filtro-periodo-inicio" className="text-xs text-kx-legenda">
-                Início do período
-              </Label>
-              <Input
-                id="filtro-periodo-inicio"
-                inputMode="numeric"
-                placeholder="dd/mm/aaaa"
-                value={textoInicio}
-                onChange={(evento) => aoDigitarInicio(evento.target.value)}
-                onFocus={aoFocarSemSelecionarTudo}
-                className="h-9"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="filtro-periodo-fim" className="text-xs text-kx-legenda">
-                Fim do período
-              </Label>
-              <Input
-                id="filtro-periodo-fim"
-                inputMode="numeric"
-                placeholder="dd/mm/aaaa"
-                value={textoFim}
-                onChange={(evento) => aoDigitarFim(evento.target.value)}
-                onFocus={aoFocarSemSelecionarTudo}
-                className="h-9"
-              />
-            </div>
-          </div>
 
           {erro && (
             <p role="alert" className="text-xs font-medium text-kx-erro">
@@ -605,15 +594,132 @@ function PainelFiltroPeriodo({
               aoMudarAno={(ano) => setGradeMesAno((atual) => ({ ...atual, ano }))}
               aoEscolherMes={aoEscolherMesNaGrade}
             />
+          ) : numeroDeCalendarios === 2 ? (
+            <div className="flex flex-row gap-3">
+              <div className="flex flex-1 flex-col gap-2">
+                <div className="space-y-1">
+                  <Label htmlFor="filtro-periodo-inicio" className="text-xs text-kx-legenda">
+                    Início do período
+                  </Label>
+                  <Input
+                    id="filtro-periodo-inicio"
+                    inputMode="numeric"
+                    placeholder="dd/mm/aaaa"
+                    value={textoInicio}
+                    onChange={(evento) => aoDigitarInicio(evento.target.value)}
+                    onFocus={aoFocarSemSelecionarTudo}
+                    className="h-9"
+                  />
+                </div>
+                <CalendarioIntervalo
+                  mes={mesEsquerda}
+                  aoMudarMes={setMesEsquerda}
+                  faixa={faixaAtual}
+                  aoClicarDia={aoClicarDiaEsquerda}
+                  fusoHorario={fusoHorario}
+                />
+              </div>
+              <div className="flex flex-1 flex-col gap-2">
+                <div className="space-y-1">
+                  <Label htmlFor="filtro-periodo-fim" className="text-xs text-kx-legenda">
+                    Fim do período
+                  </Label>
+                  <Input
+                    id="filtro-periodo-fim"
+                    inputMode="numeric"
+                    placeholder="dd/mm/aaaa"
+                    value={textoFim}
+                    onChange={(evento) => aoDigitarFim(evento.target.value)}
+                    onFocus={aoFocarSemSelecionarTudo}
+                    className="h-9"
+                  />
+                </div>
+                <CalendarioIntervalo
+                  mes={mesDireita}
+                  aoMudarMes={setMesDireita}
+                  faixa={faixaAtual}
+                  aoClicarDia={aoClicarDiaDireita}
+                  fusoHorario={fusoHorario}
+                />
+              </div>
+            </div>
           ) : (
-            <CalendarioIntervalo
-              numeroDeMeses={numeroDeCalendarios}
-              mes={mesBase}
-              aoMudarMes={setMesBase}
-              faixa={faixaCalendario}
-              aoSelecionar={aoSelecionarNoCalendario}
-              fusoHorario={fusoHorario}
-            />
+            <div className="flex flex-col gap-2">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label htmlFor="filtro-periodo-inicio" className="text-xs text-kx-legenda">
+                    Início do período
+                  </Label>
+                  <Input
+                    id="filtro-periodo-inicio"
+                    inputMode="numeric"
+                    placeholder="dd/mm/aaaa"
+                    value={textoInicio}
+                    onChange={(evento) => aoDigitarInicio(evento.target.value)}
+                    onFocus={aoFocarSemSelecionarTudo}
+                    className="h-9"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="filtro-periodo-fim" className="text-xs text-kx-legenda">
+                    Fim do período
+                  </Label>
+                  <Input
+                    id="filtro-periodo-fim"
+                    inputMode="numeric"
+                    placeholder="dd/mm/aaaa"
+                    value={textoFim}
+                    onChange={(evento) => aoDigitarFim(evento.target.value)}
+                    onFocus={aoFocarSemSelecionarTudo}
+                    className="h-9"
+                  />
+                </div>
+              </div>
+
+              {/* Layout compacto: um calendário só — este alternador decide se o próximo clique nele define o início ou o fim. */}
+              <div
+                role="tablist"
+                aria-label="Ponta do período que o calendário edita"
+                className="flex gap-1 rounded-kx-botao bg-kx-superficie p-1"
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={ladoCompactoAtivo === "inicio"}
+                  onClick={() => setLadoCompactoAtivo("inicio")}
+                  className={cn(
+                    "flex-1 rounded-kx-botao px-2 py-1.5 text-xs font-medium transition-colors",
+                    ladoCompactoAtivo === "inicio"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-kx-legenda hover:text-kx-texto"
+                  )}
+                >
+                  Início
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={ladoCompactoAtivo === "fim"}
+                  onClick={() => setLadoCompactoAtivo("fim")}
+                  className={cn(
+                    "flex-1 rounded-kx-botao px-2 py-1.5 text-xs font-medium transition-colors",
+                    ladoCompactoAtivo === "fim"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-kx-legenda hover:text-kx-texto"
+                  )}
+                >
+                  Fim
+                </button>
+              </div>
+
+              <CalendarioIntervalo
+                mes={ladoCompactoAtivo === "inicio" ? mesEsquerda : mesDireita}
+                aoMudarMes={ladoCompactoAtivo === "inicio" ? setMesEsquerda : setMesDireita}
+                faixa={faixaAtual}
+                aoClicarDia={aoClicarDiaCompacto}
+                fusoHorario={fusoHorario}
+              />
+            </div>
           )}
         </div>
 
@@ -718,61 +824,57 @@ function ChipPreset({
 
 /**
  * Medidas calibradas contra `docs/design/referencia-filtro-periodo-bling.png`
- * (chegou durante esta fase — antes disso, "mais compacto" era um pedido às
- * cegas, comparado contra o estado COM O BUG dos dois `DayPicker`
- * duplicando "agosto" lado a lado, que inflava o painel bem além do
- * normal; a referência real mede célula de dia ~38×38px, não algo minúsculo
- * estilo app mobile). Célula de dia 36×36px (`size-9`, o mais próximo do
- * grid de 4px que chega perto dos ~38px medidos), círculo VISÍVEL de 32px
- * dentro dela (`border-2 border-transparent bg-clip-padding` — a mesma
- * técnica de `buttonVariants` em `components/ui/button.tsx` — encolhe só a
- * área PINTADA, o alvo de clique/toque continua os 36px inteiros da
- * célula), linha de dias da semana com 28px de altura (`h-7`) e cabeçalho
- * do mês com 36px (`h-9`).
+ * (chegou durante a Fase 2A-1 — antes disso, "mais compacto" era um pedido
+ * às cegas, comparado contra um estado com bug que inflava o painel bem
+ * além do normal; a referência real mede célula de dia ~38×38px, não algo
+ * minúsculo estilo app mobile). Célula de dia 36×36px (`size-9`, o mais
+ * próximo do grid de 4px que chega perto dos ~38px medidos), círculo
+ * VISÍVEL de 32px dentro dela (`border-2 border-transparent
+ * bg-clip-padding` — a mesma técnica de `buttonVariants` em
+ * `components/ui/button.tsx` — encolhe só a área PINTADA, o alvo de
+ * clique/toque continua os 36px inteiros da célula), linha de dias da
+ * semana com 28px de altura (`h-7`) e cabeçalho do mês com 36px (`h-9`).
  *
  * `months`/`month` precisam de `relative`: o `Nav` (setas de mês) do
  * react-day-picker é filho de `Months` (não de `Month`/`MonthCaption` — ver
  * `node_modules/react-day-picker/dist/esm/DayPicker.js`, o Nav só entra
  * dentro do `MonthCaption` quando `navLayout` está setado, o que não é o
  * caso aqui) — sem um ancestral posicionado aí, o `absolute` do Nav escapa
- * pro container posicionado mais próximo na árvore (podia ser a página
- * inteira dentro de um Portal), e as setas "flutuam" longe do calendário.
- * Com `numberOfMonths={2}` num ÚNICO `DayPicker` (ver comentário grande em
- * `CalendarioIntervalo`), o Nav aparece uma vez só, olhando pro par de
- * meses inteiro — não uma seta por mês.
+ * pro container posicionado mais próximo na árvore. Com DOIS `DayPicker`
+ * (`numberOfMonths={1}` cada — ver `CalendarioIntervalo`), cada instância
+ * tem seu próprio `Months`/Nav — as setas ficam na linha de título de CADA
+ * calendário, naturalmente, sem precisar de nada especial aqui.
  *
  * `select-none` no `months` (herda pros filhos — dias, cabeçalho, tudo):
  * sem isso, um clique duplo no título do mês ("setembro 2026") seleciona o
  * texto como se fosse um parágrafo comum, feio e sem função nenhuma aqui.
  *
  * Estilo do intervalo — só início e fim são círculo cheio, o meio é uma
- * faixa clara contínua (Fase 2A-1, correção pós-bug dos dois `DayPicker`):
- * a biblioteca aplica o modificador genérico "selected" a TODO dia dentro
- * do intervalo (não só as pontas — confirmado lendo
- * `node_modules/react-day-picker/dist/esm/DayPicker.js`, a linha que faz
- * `modifiers[SelectionState.selected] = isSelected?.(date) || ...` roda
- * pra cada dia que `rangeIncludesDate` inclui), ALÉM de "range_start"/
- * "range_middle"/"range_end". Pintar o botão a partir de "selected" (como
- * este componente fazia antes) deixava TODO dia do intervalo com o mesmo
- * círculo cheio das pontas — daí "selected" abaixo não pinta nada: só
- * "range_start"/"range_end" (círculo cheio + canto arredondado do lado de
- * fora) e "range_middle" (faixa clara na CÉLULA, sem círculo no botão)
- * carregam cor. Um intervalo de um dia só marca o MESMO dia como
- * "range_start" E "range_end" ao mesmo tempo (a biblioteca faz isso quando
- * `from`/`to` caem no mesmo dia) — as duas bordas arredondadas juntas viram
- * um círculo só, sem precisar de caso especial aqui.
+ * faixa clara contínua: a biblioteca aplica o modificador genérico
+ * "selected" a TODO dia dentro do intervalo (não só as pontas —
+ * confirmado lendo `node_modules/react-day-picker/dist/esm/DayPicker.js`,
+ * a linha que faz `modifiers[SelectionState.selected] = isSelected?.(date)
+ * || ...` roda pra cada dia que `rangeIncludesDate` inclui), ALÉM de
+ * "range_start"/"range_middle"/"range_end". Pintar o botão a partir de
+ * "selected" deixaria TODO dia do intervalo com o mesmo círculo cheio das
+ * pontas — daí "selected" abaixo não pinta nada: só "range_start"/
+ * "range_end" (círculo cheio + canto arredondado do lado de fora) e
+ * "range_middle" (faixa clara na CÉLULA, sem círculo no botão) carregam
+ * cor. Um intervalo de um dia só marca o MESMO dia como "range_start" E
+ * "range_end" ao mesmo tempo (a biblioteca faz isso quando `from`/`to`
+ * caem no mesmo dia) — as duas bordas arredondadas juntas viram um círculo
+ * só, sem precisar de caso especial aqui. Como os DOIS calendários recebem
+ * a MESMA faixa (`faixaAtual`, computada uma vez em `PainelFiltroPeriodo`
+ * a partir do único `intervaloRascunho`), a faixa pintada é sempre
+ * idêntica nos dois — nunca dessincroniza.
  *
  * "outside" (dias de outro mês) usa `!` (important) pra sempre vencer
  * qualquer classe de "range_*"/"today" aplicada ao MESMO elemento — sem
  * isso, um dia de outro mês que corresponde à borda do intervalo escolhido
- * pinta como se fosse parte do intervalo, mesmo esmaecido. Com um ÚNICO
- * `DayPicker` de dois meses, dias "outside" só aparecem preenchendo a
- * primeira/última semana do PRIMEIRO/ÚLTIMO mês mostrado (nunca entre os
- * dois meses do meio — cada um dos dois já é mostrado por inteiro) — mas a
- * regra abaixo continua valendo pra esses dois casos.
+ * pinta como se fosse parte do intervalo, mesmo esmaecido.
  */
 const CLASSES_CALENDARIO = {
-  months: "relative flex select-none gap-2",
+  months: "relative flex select-none",
   month: "relative space-y-0.5",
   month_caption: "relative flex h-9 items-center justify-center px-9",
   caption_label: "text-sm font-semibold text-kx-texto",
@@ -806,56 +908,63 @@ const CLASSES_CALENDARIO = {
 };
 
 /**
- * UM `DayPicker` só, `mode="range"`, `numberOfMonths` (2 no desktop, 1 no
- * layout compacto/mobile) — NUNCA duas instâncias independentes.
+ * Um calendário, com papel FIXO decidido por quem chama (`aoClicarDia`
+ * sempre define ou o início, ou o fim — nunca os dois, nunca depende de
+ * "qual clique é esse"). `numberOfMonths` fica sempre em 1: cada instância
+ * é UM mês, e o componente pai (`PainelFiltroPeriodo`) decide quantas
+ * instâncias renderizar (2 no desktop, 1 no layout compacto).
  *
- * Bug histórico (Fase 2A-1, corrigido): a versão anterior deste componente
- * renderizava DOIS `<DayPicker numberOfMonths={1}>`, um "mês de início" e
- * um "mês de fim", cada um com seu PRÓPRIO estado de mês exibido — a
- * intenção era imitar visualmente dois calendários lado a lado, mas isso
- * quebrava a biblioteca de verdade: os dois mês podiam mostrar o MESMO mês
- * (nada os mantinha consecutivos por construção), e mais grave, cada
- * instância tinha seu PRÓPRIO estado de seleção internamente controlado a
- * partir da MESMA faixa — clicar num dia na instância da direita reiniciava
- * a seleção em vez de completá-la, porque cada `DayPicker` reage à sua
- * PRÓPRIA sequência de cliques, não a uma sequência compartilhada entre os
- * dois. `numberOfMonths={2}` num único `DayPicker` resolve os dois
- * problemas de graça: os meses são consecutivos por construção (mostra
- * `mes` e `mes+1`) e existe um único fluxo de seleção (primeiro clique =
- * início, segundo = fim, terceiro = reinicia — nativo do `mode="range"`
- * com `resetOnSelect`, não reimplementado na mão).
+ * `mode="range"` + `selected={faixa}` continuam aqui — não pra usar o
+ * fluxo padrão de seleção da biblioteca (2 cliques, `resetOnSelect`
+ * etc. — isso é o que este componente PRECISA EVITAR: cada calendário tem
+ * um papel fixo, não uma sequência de cliques própria), mas porque é o
+ * `mode` que faz a biblioteca computar os modificadores
+ * `range_start`/`range_middle`/`range_end`/`selected` a partir de
+ * `selected` (ver o código de `DayPicker.js`: esse bloco só roda quando
+ * `isDateRange(selectedValue)`, e `selectedValue` só existe quando `mode`
+ * está setado). Sem um `mode`, eu teria que recalcular esses modificadores
+ * na mão via a prop `modifiers` — dá mais trabalho pra reproduzir algo que
+ * a biblioteca já faz certo.
+ *
+ * O que É preciso evitar é o `onSelect` PADRÃO decidindo o próximo
+ * intervalo: `useRange` (o hook interno da biblioteca pro `mode="range"`)
+ * só usa `props.selected` pra computar os modificadores quando `onSelect`
+ * está presente — API "controlada" de verdade (ver
+ * `node_modules/react-day-picker/dist/esm/selection/useRange.js`: sem
+ * `onSelect`, o `selected` que a biblioteca usa pra pintar a tela vem de
+ * um estado INTERNO dela, que ignora o que a gente passa depois do
+ * primeiro render). Por isso `onSelect` aqui é um no-op deliberado
+ * (`aoSelecionarNativoNoOp`) — só pra manter a biblioteca no modo
+ * controlado — e quem decide o próximo intervalo de verdade é
+ * `onDayClick`, que dá o `Date` exato clicado, sem nenhuma lógica de
+ * "qual clique é esse" embutida.
  */
 function CalendarioIntervalo({
-  numeroDeMeses,
   mes,
   aoMudarMes,
   faixa,
-  aoSelecionar,
+  aoClicarDia,
   fusoHorario,
 }: {
-  numeroDeMeses: number;
   mes: Date;
   aoMudarMes: (mes: Date) => void;
   faixa: DateRange;
-  aoSelecionar: (faixa: DateRange | undefined) => void;
+  aoClicarDia: (dia: Date) => void;
   fusoHorario: string;
 }) {
   return (
     <DayPicker
       mode="range"
-      numberOfMonths={numeroDeMeses}
+      numberOfMonths={1}
       timeZone="UTC"
       locale={ptBR}
       weekStartsOn={0}
       showOutsideDays
-      // Terceiro clique (depois de já ter início E fim) começa um
-      // intervalo novo em vez de mover a ponta mais próxima — pedido
-      // explícito do dono do projeto, e o que `resetOnSelect` faz nativo.
-      resetOnSelect
       month={mes}
       onMonthChange={aoMudarMes}
       selected={faixa}
-      onSelect={aoSelecionar}
+      onSelect={aoSelecionarNativoNoOp}
+      onDayClick={(dia) => aoClicarDia(dia)}
       classNames={CLASSES_CALENDARIO}
       components={{
         Chevron: ({ orientation }) =>
