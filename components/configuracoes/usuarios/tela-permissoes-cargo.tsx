@@ -18,8 +18,6 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 
 type PropsTelaPermissoesCargo = {
@@ -29,6 +27,13 @@ type PropsTelaPermissoesCargo = {
 
 const COLUNAS: ColunaGradePermissoes[] = ["ver", "criar", "editar", "excluir"];
 
+/**
+ * Permissões do cargo (Fase 3-2E, Parte 4) — referência: referencia-
+ * configuracoes-permissoes.html. "Renomear"/"Excluir cargo" aparecem na
+ * referência mas não têm ação nenhuma ligada na UI hoje (renomearCargo/
+ * arquivarCargo existem em app/actions/cargos.ts, mas nenhum componente os
+ * chama) — não foram inventados aqui; só "Voltar", que já existia.
+ */
 export function TelaPermissoesCargo({ cargoId, onVoltar }: PropsTelaPermissoesCargo) {
   const [cargo, setCargo] = useState<CargoListado | null>(null);
   const [catalogo, setCatalogo] = useState<PermissaoDisponivel[]>([]);
@@ -88,130 +93,139 @@ export function TelaPermissoesCargo({ cargoId, onVoltar }: PropsTelaPermissoesCa
   };
 
   if (carregando) {
-    return <Card className="border-border bg-card p-6 text-sm text-muted-foreground">Carregando permissões...</Card>;
+    return (
+      <div className="rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-6 text-sm text-kx-legenda">
+        Carregando permissões...
+      </div>
+    );
   }
 
   if (!cargo) {
     return (
-      <Card className="border-border bg-card p-6 space-y-3">
-        <p className="text-sm text-muted-foreground">Cargo não encontrado.</p>
-        <Button type="button" variant="outline" onClick={onVoltar}>
+      <div className="flex flex-col gap-3 rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-6">
+        <p className="text-sm text-kx-legenda">Cargo não encontrado.</p>
+        <Button type="button" variant="outline" className="w-fit rounded-kx-botao" onClick={onVoltar}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
         </Button>
-      </Card>
+      </div>
     );
   }
 
   return (
-    <Card className="border-border bg-card p-5 md:p-6 space-y-5">
-      <div className="flex items-center justify-between gap-3">
+    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
+      <div className="flex shrink-0 flex-col gap-2 rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5">
+        <Button type="button" variant="ghost" size="sm" className="-ml-2 w-fit" onClick={onVoltar}>
+          <ArrowLeft className="mr-2 h-4 w-4" /> Voltar para cargos
+        </Button>
         <div>
-          <Button type="button" variant="ghost" size="sm" className="mb-2 -ml-2" onClick={onVoltar}>
-            <ArrowLeft className="mr-2 h-4 w-4" /> Voltar para cargos
-          </Button>
-          <h2 className="text-xl font-semibold text-foreground">Permissões de &quot;{cargo.nome}&quot;</h2>
-          <p className="text-sm text-muted-foreground">
+          <h2 className="text-lg font-extrabold text-kx-texto">Permissões de &quot;{cargo.nome}&quot;</h2>
+          <p className="text-sm text-kx-legenda">
             {cargo.quantidadeUsuariosAtivos} {cargo.quantidadeUsuariosAtivos === 1 ? "pessoa usa" : "pessoas usam"} este cargo hoje.
           </p>
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-border">
-        <table className="w-full min-w-[560px] table-auto border-collapse text-sm">
-          <thead>
-            <tr className="border-b border-border bg-muted/40 text-left">
-              <th className="px-3 py-2 font-medium text-foreground">Módulo</th>
-              {COLUNAS.map((coluna) => (
-                <th key={coluna} className="px-3 py-2 text-center font-medium text-foreground">
-                  {ROTULOS_COLUNA_GRADE[coluna]}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {GRADE_PERMISSOES.map((linha) => (
-              <tr key={linha.chave} className="border-b border-border/60">
-                <td className="px-3 py-2 font-medium text-foreground">{linha.rotulo}</td>
-                {COLUNAS.map((coluna) => {
-                  const permissao = linha.colunas[coluna];
-                  if (!permissao) {
-                    return (
-                      <td key={coluna} className="px-3 py-2 text-center text-muted-foreground">
-                        —
-                      </td>
-                    );
-                  }
-                  const info = rotulosPorPermissao.get(permissao);
-                  return (
-                    <td key={coluna} className="px-3 py-2 text-center" title={info?.descricao}>
-                      <Checkbox
-                        checked={selecionadas.has(permissao)}
-                        onCheckedChange={(marcado) => alternar(permissao, Boolean(marcado))}
-                        aria-label={info?.rotulo ?? permissao}
-                      />
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <div className="flex flex-col gap-2 rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5">
+        <div className="hidden grid-cols-[minmax(0,1fr)_74px_74px_74px_74px] gap-2 px-3 pb-1 text-[11px] font-bold uppercase tracking-wide text-kx-legenda sm:grid">
+          <span>Módulo</span>
+          {COLUNAS.map((coluna) => (
+            <span key={coluna} className="text-center">
+              {ROTULOS_COLUNA_GRADE[coluna]}
+            </span>
+          ))}
+        </div>
 
-      <div className="space-y-2">
-        <p className="text-sm font-semibold text-foreground">Permissões especiais</p>
-        <div className="grid gap-3 md:grid-cols-2">
-          {PERMISSOES_ESPECIAIS.map((permissao) => {
-            const info = rotulosPorPermissao.get(permissao);
-            return (
-              <label
-                key={permissao}
-                className="flex items-start gap-3 rounded-lg border border-border bg-background p-3 cursor-pointer"
-              >
-                <Checkbox
-                  checked={selecionadas.has(permissao)}
-                  onCheckedChange={(marcado) => alternar(permissao, Boolean(marcado))}
-                />
-                <span className="space-y-0.5">
-                  <span className="block text-sm font-medium text-foreground">{info?.rotulo ?? permissao}</span>
-                  <span className="block text-xs text-muted-foreground">{info?.descricao}</span>
-                </span>
-              </label>
-            );
-          })}
+        <div className="flex flex-col gap-1.5">
+          {GRADE_PERMISSOES.map((linha) => (
+            <div
+              key={linha.chave}
+              className="grid grid-cols-2 gap-2 rounded-kx-botao bg-kx-superficie px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_74px_74px_74px_74px] sm:items-center"
+            >
+              <span className="col-span-2 text-sm font-bold text-kx-texto sm:col-span-1">{linha.rotulo}</span>
+              {COLUNAS.map((coluna) => {
+                const permissao = linha.colunas[coluna];
+                if (!permissao) {
+                  return (
+                    <span key={coluna} className="flex justify-center text-kx-legenda">
+                      —
+                    </span>
+                  );
+                }
+                const info = rotulosPorPermissao.get(permissao);
+                return (
+                  <span key={coluna} className="flex items-center justify-center gap-1.5" title={info?.descricao}>
+                    <span className="text-[11px] text-kx-legenda sm:hidden">{ROTULOS_COLUNA_GRADE[coluna]}</span>
+                    <Switch
+                      checked={selecionadas.has(permissao)}
+                      onCheckedChange={(marcado) => alternar(permissao, Boolean(marcado))}
+                      aria-label={info?.rotulo ?? permissao}
+                    />
+                  </span>
+                );
+              })}
+            </div>
+          ))}
         </div>
       </div>
 
-      <div className="space-y-2">
-        <p className="text-sm font-semibold text-foreground">Escopo de visibilidade</p>
-        <p className="text-xs text-muted-foreground">
-          Estas três decidem se o cargo enxerga só o que a própria pessoa criou/atende, ou tudo da empresa.
-        </p>
-        <div className="grid gap-3 md:grid-cols-3">
-          {PERMISSOES_ESCOPO.map((item) => {
-            const ligado = selecionadas.has(item.permissao);
-            const info = rotulosPorPermissao.get(item.permissao);
+      <div className="flex flex-col gap-3 rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5">
+        <p className="text-sm font-bold text-kx-texto">Permissões especiais</p>
+        <div className="grid gap-2 md:grid-cols-2">
+          {PERMISSOES_ESPECIAIS.map((permissao) => {
+            const info = rotulosPorPermissao.get(permissao);
+            const ligado = selecionadas.has(permissao);
             return (
-              <div key={item.permissao} className="rounded-lg border border-border bg-background p-3 space-y-2">
-                <p className="text-sm font-medium text-foreground">{item.rotulo}</p>
-                <div className="flex items-center gap-2">
-                  <Switch checked={ligado} onCheckedChange={(marcado) => alternar(item.permissao, marcado)} />
-                  <span className="text-xs text-muted-foreground">{ligado ? item.rotuloAtivo : item.rotuloInativo}</span>
+              <div key={permissao} className="flex items-center gap-3 rounded-kx-botao bg-kx-superficie p-3">
+                <div className="min-w-0 flex-1 space-y-0.5">
+                  <p className="text-[13px] font-bold text-kx-texto">{info?.rotulo ?? permissao}</p>
+                  <p className="text-[11px] text-kx-legenda">{info?.descricao}</p>
                 </div>
-                {info?.descricao && <p className="text-xs text-muted-foreground">{info.descricao}</p>}
+                <Switch
+                  checked={ligado}
+                  onCheckedChange={(marcado) => alternar(permissao, Boolean(marcado))}
+                  aria-label={info?.rotulo ?? permissao}
+                  className="shrink-0"
+                />
               </div>
             );
           })}
         </div>
       </div>
 
-      <div className="flex justify-end gap-2 pt-2">
+      <div className="flex flex-col gap-3 rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5">
+        <div>
+          <p className="text-sm font-bold text-kx-texto">Escopo de visibilidade</p>
+          <p className="text-xs text-kx-legenda">
+            Estas três decidem se o cargo enxerga só o que a própria pessoa criou/atende, ou tudo da empresa.
+          </p>
+        </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          {PERMISSOES_ESCOPO.map((item) => {
+            const ligado = selecionadas.has(item.permissao);
+            const info = rotulosPorPermissao.get(item.permissao);
+            return (
+              <div key={item.permissao} className="flex flex-col gap-2 rounded-kx-botao border border-kx-campo-borda bg-kx-superficie p-3.5">
+                <p className="text-sm font-bold text-kx-texto">{item.rotulo}</p>
+                <div className="flex items-center gap-2">
+                  <Switch checked={ligado} onCheckedChange={(marcado) => alternar(item.permissao, marcado)} />
+                  <span className={`text-xs font-semibold ${ligado ? "text-kx-sucesso-texto" : "text-kx-legenda"}`}>
+                    {ligado ? item.rotuloAtivo : item.rotuloInativo}
+                  </span>
+                </div>
+                {info?.descricao && <p className="text-xs text-kx-legenda">{info.descricao}</p>}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="flex shrink-0 justify-end gap-2 pb-1">
         <Button type="button" variant="ghost" onClick={onVoltar} disabled={salvando}>
           Cancelar
         </Button>
         <AlertDialog>
           <AlertDialogTrigger asChild>
-            <Button type="button" disabled={salvando}>
+            <Button type="button" className="rounded-kx-botao" disabled={salvando}>
               {salvando ? "Salvando..." : "Salvar permissões"}
             </Button>
           </AlertDialogTrigger>
@@ -231,6 +245,6 @@ export function TelaPermissoesCargo({ cargoId, onVoltar }: PropsTelaPermissoesCa
           </AlertDialogContent>
         </AlertDialog>
       </div>
-    </Card>
+    </div>
   );
 }
