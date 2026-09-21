@@ -1,6 +1,5 @@
 // Helpers compartilhados pelos scripts de reparo de OS
 // (scripts/reparo/relatorio-os-inconsistentes.mjs e scripts/reparo/aplicar-reparo-os.mjs).
-import { types } from "@neondatabase/serverless";
 import { encontrarEntregaAuditada } from "../../lib/dominio/os/entrega-auditada.ts";
 
 // Tolerancia usada para "este evento e o mesmo momento que aquele timestamp":
@@ -23,32 +22,6 @@ export const TOLERANCIA_SEGUNDOS_EVENTO = 2;
  * frente, entao o fim tambem so move pra frente.
  */
 export const LIMIAR_HORAS_RECALCULO_GARANTIA = 24;
-
-const OID_TIMESTAMP_SEM_FUSO = 1114;
-
-/**
- * Toda coluna DateTime deste schema e "timestamp without time zone" — o
- * Prisma NUNCA converte fuso horario nela: le o valor gravado como se ja
- * fosse UTC. O driver `pg`/`@neondatabase/serverless`, por padrao, faz o
- * OPOSTO — interpreta o valor como fuso horario LOCAL do processo e converte
- * para UTC. Num processo rodando em UTC-3 isso desloca toda leitura por essas
- * conexoes em 3 horas em relacao ao que o Prisma le da MESMA linha.
- *
- * Isso e inofensivo para os relatorios de diagnostico existentes (eles so
- * fazem `String(data)`, que reconverte para o fuso local na exibicao — os
- * dois deslocamentos se cancelam OS na tela). Mas quebra de verdade a
- * checagem otimista deste modulo: o relatorio grava um snapshot lido via
- * `pg`, e scripts/reparo/aplicar-reparo-os.mjs confere esse snapshot contra
- * uma leitura via Prisma — sem este ajuste, a comparacao SEMPRE dá diferente
- * mesmo quando nada mudou, e todo id seria rejeitado.
- *
- * Chame isto uma vez, antes de abrir qualquer conexao, em qualquer script
- * deste projeto que precise comparar um timestamp lido via `pg` com um lido
- * via Prisma. Efeito e por processo (Node), nunca vaza para outro script.
- */
-export function configurarParserTimestampUtc() {
-  types.setTypeParser(OID_TIMESTAMP_SEM_FUSO, (valor) => new Date(`${valor}Z`));
-}
 
 /**
  * Formata um DateTime deste schema para leitura humana, lendo os campos UTC

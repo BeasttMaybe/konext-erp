@@ -40,18 +40,11 @@ import {
   buscarTermoAtivo,
   buscarEntregaAuditada,
   buscarVendaVinculada,
-  configurarParserTimestampUtc,
   formatarDataHora,
   tabelaMarkdown,
 } from "../lib/reparo-os.mjs";
 
 const LIMIAR_MS_RECALCULO_GARANTIA = LIMIAR_HORAS_RECALCULO_GARANTIA * 60 * 60 * 1000;
-
-// Ver o comentario de configurarParserTimestampUtc em scripts/lib/reparo-os.mjs:
-// sem isto, o snapshot que este script grava em reparo-os.json (lido via
-// `pg`) fica 3h deslocado em relacao ao que scripts/reparo/aplicar-reparo-os.mjs
-// le da MESMA linha via Prisma, e a checagem otimista rejeitaria tudo.
-configurarParserTimestampUtc();
 
 const PASTA_SAIDA = path.resolve(process.cwd(), "docs", "diagnostico");
 const CAMINHO_MD = path.join(PASTA_SAIDA, "reparo-os.md");
