@@ -26,6 +26,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { FiltroPeriodo } from "@/components/ui/filtro-periodo";
+import { calcularPresetEsteMes, validarIntervalo } from "@/lib/filtro-periodo";
+import { dataDeCalendario, fimDoDia, inicioDoDia } from "@/lib/datas";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 
 const ITEMS_PER_PAGE = 10;
@@ -343,7 +346,7 @@ export const metadata = {
 };
 
 export default async function SalesHistoryPage({ searchParams }: PageProps) {
-  const { prisma } = await exigirContextoTenant();
+  const { prisma, fusoHorario } = await exigirContextoTenant();
   await syncLegacyPdvSalesIntoOrderHistory(prisma);
 
   const params = await searchParams;
@@ -354,7 +357,29 @@ export default async function SalesHistoryPage({ searchParams }: PageProps) {
   const requestedPage = Number(getSingleParam(params, "page") ?? "1");
   const page = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
 
-  const where: Prisma.PedidoVendaWhereInput = {};
+  // Período (Fase 2A-1, `FiltroPeriodo`) — esta tela não tinha filtro de
+  // período algum antes (só cliente/vendedor/status/página). Sem inicio/fim
+  // válidos na URL, cai no mês corrente — mesmo padrão adotado nas outras
+  // telas desta fase.
+  const intervaloPadrao = calcularPresetEsteMes(fusoHorario);
+  const inicioParam = getSingleParam(params, "inicio");
+  const fimParam = getSingleParam(params, "fim");
+  const inicioValido = inicioParam ? dataDeCalendario(inicioParam) : null;
+  const fimValido = fimParam ? dataDeCalendario(fimParam) : null;
+  const periodo =
+    inicioValido && fimValido && validarIntervalo(inicioValido, fimValido).valido
+      ? { inicio: inicioValido, fim: fimValido }
+      : intervaloPadrao;
+
+  const where: Prisma.PedidoVendaWhereInput = {
+    // `dataCriacao` é INSTANTE — inicio/fim do FiltroPeriodo são DATA DE
+    // CALENDÁRIO, viram fronteira de instante no fuso da loja antes de
+    // comparar (inicioDoDia/fimDoDia), nunca comparados direto.
+    dataCriacao: {
+      gte: inicioDoDia(periodo.inicio, fusoHorario),
+      lte: fimDoDia(periodo.fim, fusoHorario),
+    },
+  };
 
   if (clientFilter) {
     where.cliente = {
@@ -389,6 +414,8 @@ export default async function SalesHistoryPage({ searchParams }: PageProps) {
     if (clientFilter) query.set("cliente", clientFilter);
     if (sellerFilter) query.set("vendedor", sellerFilter);
     if (statusFilter) query.set("status", statusFilter);
+    if (inicioParam) query.set("inicio", inicioParam);
+    if (fimParam) query.set("fim", fimParam);
     if (nextPage > 1) query.set("page", String(nextPage));
 
     const queryString = query.toString();
@@ -427,7 +454,18 @@ export default async function SalesHistoryPage({ searchParams }: PageProps) {
       <div className="px-6 py-6 lg:px-8">
         <div className="mx-auto max-w-7xl space-y-6">
           <Card className="rounded-3xl border border-white/10 bg-slate-950/55 p-5 shadow-[0_20px_60px_-32px_rgba(15,23,42,0.95)] backdrop-blur-xl">
-            <form className="grid gap-3 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1.1fr)_220px_auto_auto] xl:items-end">
+            <form className="grid gap-3 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1.1fr)_180px_auto_auto_auto] xl:items-end">
+              {/*
+                O submit nativo (GET, sem JS) reconstrói a query string SÓ com
+                os campos NOMEADOS deste form — sem estes dois hidden, aplicar
+                cliente/vendedor/status apagaria inicio/fim que o FiltroPeriodo
+                (abaixo, fora deste form) já tinha escrito na URL. O caminho
+                inverso (FiltroPeriodo → cliente/vendedor/status) já é seguro:
+                ele lê `useSearchParams()` e faz merge, nunca substitui tudo.
+              */}
+              <input type="hidden" name="inicio" defaultValue={inicioParam ?? ""} />
+              <input type="hidden" name="fim" defaultValue={fimParam ?? ""} />
+
               <div className="space-y-2">
                 <label htmlFor="cliente" className="text-sm font-medium text-slate-200">
                   Cliente
@@ -468,6 +506,11 @@ export default async function SalesHistoryPage({ searchParams }: PageProps) {
                     <SelectItem value="CANCELADO">Cancelado</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="space-y-2 xl:mt-1.5">
+                <span className="block text-sm font-medium text-slate-200">Emitido em</span>
+                <FiltroPeriodo fusoHorario={fusoHorario} intervaloPadrao={intervaloPadrao} />
               </div>
 
               <Button type="submit" className="bg-cyan-400 text-slate-950 hover:bg-cyan-300">
