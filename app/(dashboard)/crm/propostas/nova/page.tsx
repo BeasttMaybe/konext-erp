@@ -385,7 +385,7 @@ export default function NovaPropostaPage() {
     !clienteExisteNoCadastro;
 
   return (
-    <form className="w-full min-h-full flex flex-col bg-transparent" onSubmit={(e) => e.preventDefault()}>
+    <form className="w-full flex flex-col bg-transparent" onSubmit={(e) => e.preventDefault()}>
       <div className="sticky top-0 z-kx-sticky border-b border-white/10 bg-slate-950/70 px-6 py-4 backdrop-blur-xl lg:px-8">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4">
           <div className="flex items-center gap-4 min-w-0">
@@ -434,7 +434,7 @@ export default function NovaPropostaPage() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-6 py-8 lg:px-8">
+      <div className="px-6 py-8 lg:px-8">
         <div className="mx-auto max-w-5xl space-y-6">
           <GlassCard>
             <div className="border-b border-white/10 px-6 py-5">

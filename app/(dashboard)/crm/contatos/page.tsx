@@ -158,14 +158,14 @@ function mapClientRecord(client: {
 
 function SkeletonContacts() {
   return (
-    <div className="w-full min-h-full flex flex-col bg-transparent">
+    <div className="w-full flex flex-col bg-transparent">
       <div className="border-b border-slate-200/70 bg-white/75 px-6 py-6 backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/50 lg:px-8">
         <div className="max-w-7xl mx-auto w-full">
           <div className="h-9 w-64 rounded-lg bg-slate-200 dark:bg-slate-700 animate-pulse" />
           <div className="h-4 w-96 rounded bg-slate-100 dark:bg-slate-800 animate-pulse mt-2" />
         </div>
       </div>
-      <div className="flex-1 px-6 lg:px-8 py-6">
+      <div className="px-6 lg:px-8 py-6">
         <div className="max-w-7xl mx-auto space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
             {Array.from({ length: 4 }).map((_, index) => (
@@ -523,7 +523,7 @@ function ContactsPageContent() {
   };
 
   return (
-    <div className="w-full min-h-full flex flex-col bg-transparent">
+    <div className="w-full flex flex-col bg-transparent">
       <div className="border-b border-slate-200/70 bg-white/75 px-6 py-6 backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/50 lg:px-8">
         <div className="max-w-7xl mx-auto w-full flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
@@ -546,10 +546,9 @@ function ContactsPageContent() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
-        <div className="px-6 lg:px-8 py-6">
+      <div className="px-6 lg:px-8 py-6">
           <div className="max-w-7xl mx-auto space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
               <Card className="p-5 border-border bg-card">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -679,7 +678,6 @@ function ContactsPageContent() {
               </div>
             </div>
           </div>
-        </div>
       </div>
 
       <ModalNovoCliente

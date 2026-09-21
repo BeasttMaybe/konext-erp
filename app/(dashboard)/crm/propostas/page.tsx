@@ -82,7 +82,7 @@ export default async function PropostasPage() {
   const hasPropostas = propostas.length > 0;
 
   return (
-    <div className="w-full min-h-full flex flex-col bg-transparent">
+    <div className="w-full flex flex-col bg-transparent">
 
       {/* ── Page Header ── */}
       <div className="border-b border-white/10 bg-slate-950/55 px-6 py-6 backdrop-blur-xl lg:px-8">
@@ -113,7 +113,7 @@ export default async function PropostasPage() {
       </div>
 
       {/* ── Content ── */}
-      <div className="flex-1 overflow-y-auto px-6 py-8 lg:px-8">
+      <div className="px-6 py-8 lg:px-8">
         <div className="mx-auto max-w-7xl">
           {hasPropostas ? (
             <Card className="overflow-hidden rounded-3xl border border-white/10 bg-slate-950/55 shadow-[0_20px_60px_-32px_rgba(15,23,42,0.95)] backdrop-blur-xl">

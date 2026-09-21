@@ -577,7 +577,7 @@ export function FunilVendasKanban({ oportunidades, clientes }: FunilVendasKanban
                           </div>
                         </div>
 
-                        <ScrollArea className="h-[calc(100vh-360px)] min-h-[420px]">
+                        <ScrollArea className="max-h-[640px]">
                           <div
                             ref={dropProvided.innerRef}
                             {...dropProvided.droppableProps}
