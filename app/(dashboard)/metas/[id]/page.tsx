@@ -15,11 +15,9 @@ export default async function MetaDetalhePage({ params }: Props) {
   }
 
   return (
-    <div className="w-full h-full flex flex-col overflow-hidden bg-transparent">
-      <div className="flex-1 overflow-y-auto">
-        <div className="px-6 lg:px-8 py-6">
-          <DetalheMetaCliente meta={meta} />
-        </div>
+    <div className="w-full flex flex-col bg-transparent">
+      <div className="px-6 lg:px-8 py-6 pb-10">
+        <DetalheMetaCliente meta={meta} />
       </div>
     </div>
   );

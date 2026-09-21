@@ -110,7 +110,7 @@ export const metadata = {
 
 export default function SalesHubPage() {
   return (
-    <div className="w-full min-h-full flex flex-col bg-transparent">
+    <div className="w-full flex flex-col bg-transparent">
       <div className="border-b border-white/10 bg-slate-950/55 px-6 py-6 backdrop-blur-xl lg:px-8">
         <div className="mx-auto max-w-7xl">
           <div className="inline-flex items-center rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.24em] text-cyan-200">
@@ -125,7 +125,7 @@ export default function SalesHubPage() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-6 py-6 lg:px-8">
+      <div className="px-6 py-6 lg:px-8">
         <div className="mx-auto max-w-7xl space-y-8">
           {hubSections.map((section) => (
             <section key={section.title} className="space-y-4">

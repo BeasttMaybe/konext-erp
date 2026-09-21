@@ -56,14 +56,14 @@ const LIMITE_POR_PAGINA = 20;
 
 function SkeletonEstoque() {
   return (
-    <div className="w-full min-h-full flex flex-col bg-transparent">
+    <div className="w-full flex flex-col bg-transparent">
       <div className="border-b border-slate-200/70 bg-white/75 px-6 py-6 backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/50 lg:px-8">
         <div className="max-w-7xl mx-auto w-full">
           <div className="h-9 w-56 rounded-lg bg-slate-200 dark:bg-slate-700 animate-pulse" />
           <div className="h-4 w-80 rounded bg-slate-100 dark:bg-slate-800 animate-pulse mt-2" />
         </div>
       </div>
-      <div className="flex-1 px-6 lg:px-8 py-6">
+      <div className="px-6 lg:px-8 py-6">
         <div className="max-w-7xl mx-auto">
           <div className="rounded-xl border border-border bg-card p-5 space-y-4">
             <div className="flex gap-3">
@@ -265,7 +265,7 @@ function ConteudoEstoque() {
   };
 
   return (
-    <div className="w-full min-h-full flex flex-col bg-transparent">
+    <div className="w-full flex flex-col bg-transparent">
       <div className="border-b border-slate-200/70 bg-white/75 px-6 py-6 backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/50 lg:px-8">
         <div className="max-w-7xl mx-auto w-full">
           <h1 className="text-3xl font-bold text-foreground">Estoque & Produtos</h1>
@@ -275,8 +275,7 @@ function ConteudoEstoque() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
-        <div className="px-6 lg:px-8 py-6">
+      <div className="px-6 lg:px-8 py-6">
           <div className="max-w-7xl mx-auto space-y-6">
             <Card className="border-border bg-card p-4 sm:p-5 space-y-4">
               <div className="flex flex-col lg:flex-row lg:items-center gap-3">
@@ -317,7 +316,7 @@ function ConteudoEstoque() {
 
               <div className="rounded-lg border border-border overflow-hidden">
                 <Table>
-                  <TableHeader>
+                  <TableHeader className="sticky top-0 z-kx-sticky bg-card">
                     <TableRow>
                       <TableHead>Foto</TableHead>
                       <TableHead>Nome</TableHead>
@@ -421,7 +420,6 @@ function ConteudoEstoque() {
               />
             </Card>
           </div>
-        </div>
       </div>
 
       <ModalNovoProduto

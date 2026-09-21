@@ -7,7 +7,7 @@ export const metadata = {
 
 export default function MetasPage() {
   return (
-    <div className="w-full h-full flex flex-col overflow-hidden bg-transparent">
+    <div className="w-full flex flex-col bg-transparent">
       <div className="border-b border-slate-200/70 bg-white/75 px-6 py-6 backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/50 lg:px-8">
         <div className="max-w-7xl">
           <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-50">Metas</h1>
@@ -17,11 +17,9 @@ export default function MetasPage() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
-        <div className="px-6 lg:px-8 py-6">
-          <div className="max-w-7xl mx-auto">
-            <PaginaMetas />
-          </div>
+      <div className="px-6 lg:px-8 py-6 pb-10">
+        <div className="max-w-7xl mx-auto">
+          <PaginaMetas />
         </div>
       </div>
     </div>

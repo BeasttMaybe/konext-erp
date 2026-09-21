@@ -396,7 +396,7 @@ export default async function SalesHistoryPage({ searchParams }: PageProps) {
   };
 
   return (
-    <div className="w-full min-h-full flex flex-col bg-transparent">
+    <div className="w-full flex flex-col bg-transparent">
       <div className="border-b border-white/10 bg-slate-950/55 px-6 py-6 backdrop-blur-xl lg:px-8">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -424,7 +424,7 @@ export default async function SalesHistoryPage({ searchParams }: PageProps) {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-6 py-6 lg:px-8">
+      <div className="px-6 py-6 lg:px-8">
         <div className="mx-auto max-w-7xl space-y-6">
           <Card className="rounded-3xl border border-white/10 bg-slate-950/55 p-5 shadow-[0_20px_60px_-32px_rgba(15,23,42,0.95)] backdrop-blur-xl">
             <form className="grid gap-3 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1.1fr)_220px_auto_auto] xl:items-end">
@@ -495,7 +495,7 @@ export default async function SalesHistoryPage({ searchParams }: PageProps) {
 
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader className="border-white/10 bg-white/[0.03]">
+                <TableHeader className="sticky top-0 z-kx-sticky border-white/10 bg-slate-950">
                   <TableRow className="border-white/10 hover:bg-transparent">
                     <TableHead className="text-slate-300">Pedido</TableHead>
                     <TableHead className="text-slate-300">Data</TableHead>
