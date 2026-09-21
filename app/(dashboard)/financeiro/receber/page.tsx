@@ -1,13 +1,13 @@
 import { Suspense } from "react";
-import Link from "next/link";
-import { ChevronLeft, TrendingUp, AlertTriangle, CheckCircle2, Wallet } from "lucide-react";
-import { Card } from "@/components/ui/card";
 import {
   listarContasReceberFiltradas,
   obterResumoReceber,
 } from "@/app/actions/financeiro-receber";
+import { NavFinanceiro } from "@/components/financeiro/nav-financeiro";
 import { FiltrosReceber } from "./components/FiltrosReceber";
 import { ConteudoReceber } from "./components/ConteudoReceber";
+import { CartaoIndicador } from "@/components/ui/cartao-indicador";
+import { Wallet, AlertTriangle, CheckCircle2, TrendingUp } from "lucide-react";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { temPermissao } from "@/lib/auth/permissoes";
 import { AcessoNegado } from "@/components/ui/acesso-negado";
@@ -26,15 +26,17 @@ function obterParam(
   return Array.isArray(valor) ? valor[0] : valor;
 }
 
+const formatarMoeda = (valor: number) =>
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(valor);
+
 /**
- * Página de Contas a Receber — Server Component.
- *
- * Arquitetura:
- * - page.tsx (Server): lê searchParams, busca dados do Prisma, renderiza KPIs reativos
- * - <FiltrosReceber> (Client): atualiza URL Search Params sem useState para filtros
- * - <ConteudoReceber> (Client): tabela + modais de CRUD; chama router.refresh() após mutações
- *
- * URL de filtros: /financeiro/receber?mes=6&ano=2026&categoriaCliente=EMPRESA
+ * Contas a Receber (Fase 3-2D, Parte 2) — referência:
+ * docs/design/referencia-financeiro-receber.html. Mês/Ano/Categoria de
+ * Cliente continuam existindo (URL de filtros: ?mes=6&ano=2026&
+ * categoriaCliente=EMPRESA&todasAsContas=1) — o que muda é o "Dar baixa",
+ * que sai do menu de ações da linha e vira o painel lateral fixo
+ * (ConteudoReceber), e o filtro de status, que vira pílulas (client-side,
+ * sobre a lista já buscada — sem novo parâmetro de servidor).
  */
 export default async function FinanceiroReceberPage({ searchParams }: PageProps) {
   const contexto = await exigirContextoTenant();
@@ -49,6 +51,7 @@ export default async function FinanceiroReceberPage({ searchParams }: PageProps)
     mes: obterParam(params, "mes"),
     ano: obterParam(params, "ano"),
     categoriaCliente: obterParam(params, "categoriaCliente"),
+    todoPeriodo: obterParam(params, "todasAsContas") === "1",
   };
 
   const [contas, resumo] = await Promise.all([
@@ -56,105 +59,32 @@ export default async function FinanceiroReceberPage({ searchParams }: PageProps)
     obterResumoReceber(filtros),
   ]);
 
-  const fmt = (v: number) =>
-    v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-
   return (
-    <div className="w-full min-h-full flex flex-col bg-transparent">
-      {/* Cabeçalho */}
-      <div className="border-b border-slate-200/70 bg-white/75 px-6 py-6 backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/50 lg:px-8">
-        <div className="max-w-7xl mx-auto w-full">
-          <Link
-            href="/financeiro"
-            className="inline-flex items-center text-sm text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 transition-colors"
-          >
-            <ChevronLeft className="h-4 w-4 mr-1" />
-            Voltar ao Financeiro
-          </Link>
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-50 mt-2">
-            Contas a Receber
-          </h1>
-          <p className="text-slate-600 dark:text-slate-400 mt-1 text-sm">
-            Controle de títulos pendentes, inadimplência e confirmação de recebimento.
-          </p>
-        </div>
+    <div className="flex h-[calc(100vh-72px)] w-full flex-col gap-4 overflow-hidden bg-kx-fundo p-5 lg:h-[calc(100vh-104px)] lg:p-6 xl:h-[calc(100vh-120px)]">
+      <div className="flex flex-col gap-0.5">
+        <span className="text-xs text-kx-legenda">Financeiro</span>
+        <span className="text-[22px] font-extrabold tracking-tight text-kx-texto">Contas a Receber</span>
       </div>
 
-      {/* Conteúdo */}
-      <div className="flex-1 overflow-y-auto px-6 lg:px-8 py-6">
-        <div className="max-w-7xl mx-auto space-y-6">
+      <NavFinanceiro />
 
-          {/* KPIs — calculados server-side com base nos filtros da URL */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="p-5 border-border bg-card">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Pendente</p>
-                  <p className="text-2xl font-bold text-foreground mt-1">
-                    {fmt(resumo.totalPendente)}
-                  </p>
-                </div>
-                <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/20">
-                  <Wallet className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                </div>
-              </div>
-            </Card>
-
-            <Card className="p-5 border-border bg-card">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Atrasado</p>
-                  <p className="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">
-                    {fmt(resumo.totalAtrasado)}
-                  </p>
-                </div>
-                <div className="p-2 rounded-lg bg-red-100 dark:bg-red-900/20">
-                  <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
-                </div>
-              </div>
-            </Card>
-
-            <Card className="p-5 border-border bg-card">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Recebido</p>
-                  <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">
-                    {fmt(resumo.totalRecebido)}
-                  </p>
-                </div>
-                <div className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-900/20">
-                  <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                </div>
-              </div>
-            </Card>
-
-            <Card className="p-5 border-border bg-card">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">
-                    {filtros.mes ? "Total no Mês" : "Total no Período"}
-                  </p>
-                  <p className="text-2xl font-bold text-foreground mt-1">
-                    {fmt(resumo.totalPeriodo)}
-                  </p>
-                </div>
-                <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800">
-                  <TrendingUp className="h-5 w-5 text-slate-600 dark:text-slate-400" />
-                </div>
-              </div>
-            </Card>
-          </div>
-
-          {/* Filtros (Client Component) — requer Suspense por usar useSearchParams */}
-          <Suspense fallback={<div className="h-10 animate-pulse bg-muted rounded-md" />}>
-            <FiltrosReceber />
-          </Suspense>
-
-          {/* Tabela e modais (Client Component) */}
-          <ConteudoReceber contas={contas} />
-        </div>
+      <div className="grid shrink-0 grid-cols-2 gap-3 min-[1400px]:grid-cols-4">
+        <CartaoIndicador variante="alerta" titulo="Pendente" valor={formatarMoeda(resumo.totalPendente)} icone={<Wallet />} />
+        <CartaoIndicador variante="erro" titulo="Atrasado" valor={formatarMoeda(resumo.totalAtrasado)} icone={<AlertTriangle />} />
+        <CartaoIndicador variante="sucesso" titulo="Recebido" valor={formatarMoeda(resumo.totalRecebido)} icone={<CheckCircle2 />} />
+        <CartaoIndicador
+          variante="primaria"
+          titulo={filtros.todoPeriodo ? "Total (todas as contas)" : "Total no período"}
+          valor={formatarMoeda(resumo.totalPeriodo)}
+          icone={<TrendingUp />}
+        />
       </div>
+
+      <Suspense fallback={<div className="h-11 shrink-0 animate-pulse rounded-kx-botao bg-kx-superficie" />}>
+        <FiltrosReceber />
+      </Suspense>
+
+      <ConteudoReceber contas={contas} />
     </div>
   );
 }
-

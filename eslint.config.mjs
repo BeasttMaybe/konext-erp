@@ -28,8 +28,6 @@ const ARQUIVOS_COM_COR_LEGADA = [
   "app/(dashboard)/financeiro/inteligencia/page.tsx",
   "app/(dashboard)/financeiro/pagar/components/ConteudoPagar.tsx",
   "app/(dashboard)/financeiro/pagar/page.tsx",
-  "app/(dashboard)/financeiro/receber/components/ConteudoReceber.tsx",
-  "app/(dashboard)/financeiro/receber/page.tsx",
   "app/(dashboard)/inicio/page.tsx",
   "app/(dashboard)/metas/page.tsx",
   "app/(dashboard)/os/page.tsx",
