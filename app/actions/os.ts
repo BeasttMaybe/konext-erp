@@ -1935,7 +1935,7 @@ export async function excluirOrdemServico(input: EntradaExcluirOrdemServico): Pr
     revalidatePath(`/os/${idNormalizado}/garantia`);
     revalidatePath("/financeiro");
     revalidatePath("/financeiro/receber");
-    revalidatePath("/financeiro/inteligencia");
+    revalidatePath("/financeiro/fluxo");
     revalidatePath("/pdv");
 
     return {

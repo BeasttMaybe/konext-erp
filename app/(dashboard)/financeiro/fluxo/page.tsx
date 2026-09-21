@@ -1,19 +1,26 @@
+import { obterDadosFluxoDeCaixa, obterDadosResultadoPeriodo } from "@/app/actions/financeiro-fluxo";
 import { NavFinanceiro } from "@/components/financeiro/nav-financeiro";
+import { ConteudoFluxo } from "./components/ConteudoFluxo";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { temPermissao } from "@/lib/auth/permissoes";
 import { AcessoNegado } from "@/components/ui/acesso-negado";
 
+export const metadata = { title: "Fluxo e Relatórios | Konext" };
+
 /**
- * Fluxo e relatórios (Fase 3-2D, Parte 4 — ainda não implementada). Rota
- * criada na Parte 1 só pra a navegação do módulo não apontar pra um 404
- * enquanto as partes seguintes não chegam.
+ * Fluxo e relatórios (Fase 3-2D, Parte 4) — substitui a antiga Inteligência
+ * Financeira. Mesma permissão que o item de navegação já exigia
+ * (`dashboard.financeiro`, não `financeiro.ver` como o resto do módulo) —
+ * preservada tal como estava, não uma escolha nova desta parte.
  */
 export default async function FinanceiroFluxoPage() {
   const contexto = await exigirContextoTenant();
 
-  if (!temPermissao(contexto, "financeiro.ver")) {
+  if (!temPermissao(contexto, "dashboard.financeiro")) {
     return <AcessoNegado />;
   }
+
+  const [dadosFluxo, dadosResultado] = await Promise.all([obterDadosFluxoDeCaixa(), obterDadosResultadoPeriodo()]);
 
   return (
     <div className="flex h-[calc(100vh-72px)] w-full flex-col gap-4 overflow-hidden bg-kx-fundo p-5 lg:h-[calc(100vh-104px)] lg:p-6 xl:h-[calc(100vh-120px)]">
@@ -24,14 +31,7 @@ export default async function FinanceiroFluxoPage() {
 
       <NavFinanceiro />
 
-      <div className="flex flex-1 items-center justify-center rounded-kx-painel border border-dashed border-kx-painel-borda bg-kx-painel p-8 text-center">
-        <div className="max-w-sm space-y-1.5">
-          <p className="text-sm font-bold text-kx-texto">Chega na Parte 4 desta fase</p>
-          <p className="text-xs text-kx-legenda">
-            Projeção de saldo, resultado do período e os relatórios exportáveis ainda não foram construídos.
-          </p>
-        </div>
-      </div>
+      <ConteudoFluxo dadosFluxo={dadosFluxo} dadosResultado={dadosResultado} />
     </div>
   );
 }

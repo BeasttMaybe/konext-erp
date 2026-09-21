@@ -25,7 +25,6 @@ const ARQUIVOS_COM_COR_LEGADA = [
   "app/(dashboard)/crm/propostas/page.tsx",
   "app/(dashboard)/crm/propostas/\\[id\\]/page.tsx",
   "app/(dashboard)/estoque/page.tsx",
-  "app/(dashboard)/financeiro/inteligencia/page.tsx",
   "app/(dashboard)/inicio/page.tsx",
   "app/(dashboard)/metas/page.tsx",
   "app/(dashboard)/os/page.tsx",

@@ -282,7 +282,7 @@ export async function aprovarPedido(pedidoId: string): Promise<ApprovePedidoVend
     revalidatePath("/vendas/historico");
     revalidatePath("/financeiro");
     revalidatePath("/financeiro/receber");
-    revalidatePath("/financeiro/inteligencia");
+    revalidatePath("/financeiro/fluxo");
     revalidatePath("/");
 
     return {
@@ -412,7 +412,7 @@ export async function cancelarPedido(pedidoId: string): Promise<ApprovePedidoVen
     revalidatePath("/vendas/historico");
     revalidatePath("/financeiro");
     revalidatePath("/financeiro/receber");
-    revalidatePath("/financeiro/inteligencia");
+    revalidatePath("/financeiro/fluxo");
     revalidatePath("/");
 
     return {

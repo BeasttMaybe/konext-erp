@@ -196,7 +196,7 @@ async function criarContaReceberInterno(input: CriarContaReceberInput): Promise<
 
   revalidatePath("/financeiro/receber");
   revalidatePath("/financeiro");
-  revalidatePath("/financeiro/inteligencia");
+  revalidatePath("/financeiro/fluxo");
   revalidatePath("/");
 }
 
@@ -307,7 +307,7 @@ async function darBaixaContaInterno(id: string, observacaoPagamento?: string): P
 
   revalidatePath("/financeiro/receber");
   revalidatePath("/financeiro");
-  revalidatePath("/financeiro/inteligencia");
+  revalidatePath("/financeiro/fluxo");
   revalidatePath("/");
 }
 
@@ -359,7 +359,7 @@ async function editarContaReceberInterno(id: string, input: EditarContaReceberIn
 
   revalidatePath("/financeiro/receber");
   revalidatePath("/financeiro");
-  revalidatePath("/financeiro/inteligencia");
+  revalidatePath("/financeiro/fluxo");
   revalidatePath("/");
 }
 
@@ -418,7 +418,7 @@ async function excluirContaReceberInterno(id: string): Promise<void> {
 
   revalidatePath("/financeiro/receber");
   revalidatePath("/financeiro");
-  revalidatePath("/financeiro/inteligencia");
+  revalidatePath("/financeiro/fluxo");
   revalidatePath("/");
 }
 

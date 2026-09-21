@@ -1209,7 +1209,7 @@ export async function processarVenda(
     revalidatePath("/pdv");
     revalidatePath("/financeiro");
     revalidatePath("/financeiro/receber");
-    revalidatePath("/financeiro/inteligencia");
+    revalidatePath("/financeiro/fluxo");
     revalidatePath("/vendas/historico");
 
     return {
@@ -1656,7 +1656,7 @@ export async function processarVendaComOSNoPDV(
     revalidatePath(`/os/${pedido.osId}`);
     revalidatePath("/financeiro");
     revalidatePath("/financeiro/receber");
-    revalidatePath("/financeiro/inteligencia");
+    revalidatePath("/financeiro/fluxo");
     revalidatePath("/vendas");
     revalidatePath("/vendas/historico");
     revalidatePath("/");

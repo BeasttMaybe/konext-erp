@@ -355,7 +355,7 @@ export async function adicionarItemOS(osId: string, data: DadosAdicionarItemOS) 
   revalidatePath("/os");
   revalidatePath("/");
   revalidatePath("/financeiro/receber");
-  revalidatePath("/financeiro/inteligencia");
+  revalidatePath("/financeiro/fluxo");
   revalidatePath("/pdv");
   revalidatePath("/financeiro/pagar");
   revalidatePath("/financeiro");
@@ -465,7 +465,7 @@ export async function atualizarItemOS(input: EntradaAtualizarItemOS): Promise<Re
     revalidatePath("/");
     revalidatePath("/financeiro");
     revalidatePath("/financeiro/receber");
-    revalidatePath("/financeiro/inteligencia");
+    revalidatePath("/financeiro/fluxo");
     revalidatePath("/pdv");
 
     return {
@@ -557,7 +557,7 @@ export async function removerItemOS(input: EntradaRemoverItemOS): Promise<Result
     revalidatePath("/");
     revalidatePath("/financeiro");
     revalidatePath("/financeiro/receber");
-    revalidatePath("/financeiro/inteligencia");
+    revalidatePath("/financeiro/fluxo");
     revalidatePath("/pdv");
 
     return {

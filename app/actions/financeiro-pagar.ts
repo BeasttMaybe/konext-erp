@@ -527,6 +527,6 @@ async function pagarParcelaInterno(parcelaId: string, valorPago: number): Promis
 
   revalidatePath("/financeiro/pagar");
   revalidatePath("/financeiro");
-  revalidatePath("/financeiro/inteligencia");
+  revalidatePath("/financeiro/fluxo");
   revalidatePath("/");
 }
