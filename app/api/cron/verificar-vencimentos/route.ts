@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { prismaCentral } from "@/lib/central/prisma-central";
 import { obterPrismaTenant } from "@/lib/tenant/prisma-tenant";
 import { resolverConexaoTenant } from "@/lib/tenant/resolver-conexao-tenant";
+import {
+  FUSO_HORARIO_PADRAO,
+  hojeComoDataDeCalendario,
+  somarDiasEmDataDeCalendario,
+} from "@/lib/datas";
 
 type ContaVencimento = {
   id: string;
@@ -22,6 +27,34 @@ type NotificacaoDelegate = {
   create?: (args: unknown) => Promise<unknown>;
 };
 
+type ConfiguracaoDelegate = {
+  findFirst?: (args: unknown) => Promise<{ fusoHorario?: string | null } | null>;
+};
+
+/**
+ * Fuso horário da loja (Fase 2A-1) — este endpoint roda fora de
+ * exigirContextoTenant (é chamado pelo cron, não por uma requisição de
+ * usuário), então resolve `Configuracao.fusoHorario` direto por tenant.
+ * Nunca decide "vence hoje"/"vence amanhã" com o fuso do processo (a Vercel
+ * roda em UTC) — ver lib/datas.ts.
+ */
+async function resolverFusoHorarioTenant(prisma: {
+  configuracao?: ConfiguracaoDelegate;
+  Configuracao?: ConfiguracaoDelegate;
+}): Promise<string> {
+  try {
+    const delegate = prisma.configuracao ?? prisma.Configuracao;
+    const configuracao = await delegate?.findFirst?.({
+      orderBy: { criadoEm: "asc" },
+      select: { fusoHorario: true },
+    });
+    const valor = configuracao?.fusoHorario?.trim();
+    return valor && valor.length > 0 ? valor : FUSO_HORARIO_PADRAO;
+  } catch {
+    return FUSO_HORARIO_PADRAO;
+  }
+}
+
 /**
  * GET /api/cron/verificar-vencimentos
  *
@@ -37,6 +70,8 @@ async function processarVencimentosTenant(prisma: {
   Conta?: ContaDelegate;
   notificacao?: NotificacaoDelegate;
   Notificacao?: NotificacaoDelegate;
+  configuracao?: ConfiguracaoDelegate;
+  Configuracao?: ConfiguracaoDelegate;
 }): Promise<number> {
   const contaDelegate = prisma.conta ?? prisma.Conta;
   const notifDelegate = prisma.notificacao ?? prisma.Notificacao;
@@ -45,24 +80,26 @@ async function processarVencimentosTenant(prisma: {
     throw new Error("Delegates Prisma necessarios nao estao disponiveis no tenant.");
   }
 
-  const agora = new Date();
-  const inicioDiaAtual = new Date(agora);
-  inicioDiaAtual.setHours(0, 0, 0, 0);
+  // `Conta.vencimento` é DATA DE CALENDÁRIO (dia puro, sem hora
+  // significativa — mesma convenção de `ContaReceber.dataVencimento`):
+  // guardada como meia-noite UTC, nunca meia-noite do fuso da loja. Resolver
+  // "hoje"/"amanhã" primeiro no fuso da loja e SÓ DEPOIS representar como
+  // meia-noite UTC (`hojeComoDataDeCalendario`) evita marcar uma conta que
+  // vence hoje como atrasada logo depois da meia-noite UTC (21h no horário
+  // da loja) — ver lib/datas.ts.
+  const fusoHorario = await resolverFusoHorarioTenant(prisma);
+  const inicioDiaAtual = hojeComoDataDeCalendario(fusoHorario);
+  const inicioAmanha = somarDiasEmDataDeCalendario(inicioDiaAtual, 1);
 
-  const fimDiaAmanha = new Date(agora);
-  fimDiaAmanha.setDate(fimDiaAmanha.getDate() + 1);
-  fimDiaAmanha.setHours(23, 59, 59, 999);
-
-  const inicioAmanha = new Date(agora);
-  inicioAmanha.setDate(inicioAmanha.getDate() + 1);
-  inicioAmanha.setHours(0, 0, 0, 0);
-
+  // `vencimento` só existe como meia-noite exata (dia puro), então "hoje ou
+  // amanhã" é exatamente esses dois valores — sem precisar de uma fronteira
+  // de "fim do dia" separada.
   const contas = await contaDelegate.findMany({
     where: {
       status: "PENDENTE",
       vencimento: {
         gte: inicioDiaAtual,
-        lte: fimDiaAmanha,
+        lte: inicioAmanha,
       },
     },
     select: {

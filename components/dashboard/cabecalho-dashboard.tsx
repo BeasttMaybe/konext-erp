@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { PeriodoDashboard } from "@/app/actions/dashboard";
+import { agoraNaLoja, FUSO_HORARIO_PADRAO } from "@/lib/datas";
 import { cn } from "@/lib/utils";
 
 const OPCOES_PERIODO: Array<{ valor: PeriodoDashboard; rotulo: string }> = [
@@ -12,15 +13,21 @@ const OPCOES_PERIODO: Array<{ valor: PeriodoDashboard; rotulo: string }> = [
 type CabecalhoDashboardProps = {
   empresa: string;
   periodo: PeriodoDashboard;
+  /** Fuso horário da loja (Fase 2A-1) — vem de `contexto.fusoHorario`. */
+  fusoHorario?: string;
 };
 
 /** Cabeçalho da home (Fase 3-2A): nome da empresa, data e seletor de período. */
-export function CabecalhoDashboard({ empresa, periodo }: CabecalhoDashboardProps) {
+export function CabecalhoDashboard({ empresa, periodo, fusoHorario }: CabecalhoDashboardProps) {
+  // Componente de servidor: sem isto, "hoje" seria calculado no fuso do
+  // processo (Vercel roda em UTC), mostrando a data errada entre 21h e
+  // 23:59 no horário da loja. Ver lib/datas.ts.
   const dataHoje = new Intl.DateTimeFormat("pt-BR", {
     day: "2-digit",
     month: "long",
     year: "numeric",
-  }).format(new Date());
+    timeZone: fusoHorario ?? FUSO_HORARIO_PADRAO,
+  }).format(agoraNaLoja(fusoHorario));
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-kx-3">

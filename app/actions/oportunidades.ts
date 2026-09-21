@@ -12,6 +12,7 @@ import {
   type EstagioFunil,
   type FormOportunidade,
 } from "@/lib/validations/oportunidades";
+import { dataDeCalendario } from "@/lib/datas";
 
 export type OportunidadeListagem = {
   id: string;
@@ -201,13 +202,17 @@ export async function criarOportunidade(dados: FormOportunidade): Promise<Result
 
     const dadosValidados = formOportunidadeSchema.parse(dados);
     const dataFechamentoInformada = dadosValidados.dataFechamento?.trim();
+    // Data de calendário digitada pelo usuário ("yyyy-MM-dd") — nunca
+    // `new Date(`${texto}T00:00:00`)`: isso assume meia-noite do fuso do
+    // PROCESSO, que não é a convenção usada pra data de calendário neste
+    // projeto (meia-noite UTC — ver lib/datas.ts).
     const dataFechamento = dataFechamentoInformada
-      ? new Date(`${dataFechamentoInformada}T00:00:00`)
+      ? dataDeCalendario(dataFechamentoInformada)
       : etapasFechadas.includes(dadosValidados.estagio)
         ? new Date()
         : null;
 
-    if (dataFechamento instanceof Date && Number.isNaN(dataFechamento.getTime())) {
+    if (dataFechamentoInformada && dataFechamento === null) {
       return {
         sucesso: false,
         mensagem: "A data de fechamento informada e invalida.",

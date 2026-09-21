@@ -7,6 +7,7 @@ import { escopoContaReceber } from "@/lib/auth/escopos";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 import { paraMensagemSegura } from "@/lib/erros";
+import { comoDataDeCalendario, FUSO_HORARIO_PADRAO, inicioDoDia } from "@/lib/datas";
 
 /**
  * Antes, criarContaReceber/darBaixaConta/editarContaReceber/excluirContaReceber
@@ -555,7 +556,7 @@ export async function listarContasReceberFiltradas(
   // todoPeriodo pula a janela inteira — usado pelos indicadores "em aberto"
   // da Visão geral (Fase 3-2D), que somam contas pendentes de qualquer mês.
   if (!filtros?.todoPeriodo) {
-    const hoje = new Date();
+    const hoje = inicioDoDia(new Date(), contexto.fusoHorario);
     const mesFiltro = filtros?.mes ? parseInt(filtros.mes, 10) : hoje.getMonth() + 1;
     const anoFiltro = filtros?.ano ? parseInt(filtros.ano, 10) : hoje.getFullYear();
 
@@ -613,8 +614,18 @@ export async function listarContasReceberFiltradas(
 export async function obterResumoReceber(filtros?: FiltrosReceber): Promise<ResumoReceber> {
   const contas = await listarContasReceberFiltradas(filtros);
 
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
+  let fusoHorario = FUSO_HORARIO_PADRAO;
+  try {
+    fusoHorario = (await exigirContextoTenant()).fusoHorario ?? FUSO_HORARIO_PADRAO;
+  } catch {
+    // Mesma tolerancia de listarContasReceberFiltradas acima: sem contexto
+    // (chamada fora de requisicao autenticada), cai no fuso padrao.
+  }
+
+  // `dataVencimento` é DATA DE CALENDÁRIO — comparar contra "hoje" precisa
+  // da mesma convenção (meia-noite UTC), não meia-noite do fuso da loja
+  // como instante. Ver lib/datas.ts (`comoDataDeCalendario`).
+  const hoje = comoDataDeCalendario(new Date(), fusoHorario);
 
   let totalPendente = 0;
   let totalAtrasado = 0;
@@ -623,8 +634,11 @@ export async function obterResumoReceber(filtros?: FiltrosReceber): Promise<Resu
 
   for (const conta of contas) {
     totalPeriodo += conta.valor;
-    const vencimento = new Date(conta.dataVencimento);
-    vencimento.setHours(0, 0, 0, 0);
+    // dataVencimento já é uma DATA DE CALENDÁRIO (meia-noite UTC) — nunca
+    // reconverter via comoDataDeCalendario, que assumiria um instante
+    // qualquer e deslocaria o dia. Compara direto contra `hoje`, que já
+    // está na mesma convenção.
+    const vencimento = conta.dataVencimento;
 
     if (conta.status === "RECEBIDO") {
       totalRecebido += conta.valor;

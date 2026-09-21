@@ -70,7 +70,11 @@ export default async function PaginaDashboard({ searchParams }: PropsPaginaDashb
 
   return (
     <div className="space-y-kx-4 py-3">
-      <CabecalhoDashboard empresa={configuracoes.nomeFantasia} periodo={painel.periodo} />
+      <CabecalhoDashboard
+        empresa={configuracoes.nomeFantasia}
+        periodo={painel.periodo}
+        fusoHorario={contexto.fusoHorario}
+      />
 
       <PendenciasHome itens={pendencias} />
 

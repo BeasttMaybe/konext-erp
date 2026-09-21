@@ -35,6 +35,18 @@ export type ContextoTenantSeguro = {
    * real de exigirContextoTenant sempre preenche.
    */
   permissoes?: ReadonlySet<Permissao>;
+  /**
+   * Fuso horário da loja (`Configuracao.fusoHorario`, Fase 2A-1), resolvido
+   * uma vez por requisicao em exigirContextoTenant — ver lib/datas.ts, o
+   * unico modulo autorizado a usar isto pra calcular fronteira de
+   * dia/semana/mes. Opcional só pra nao quebrar um ContextoTenantSeguro
+   * montado a mao (teste/script antigo), mesma decisao de `permissoes`
+   * acima; toda chamada real de exigirContextoTenant sempre preenche (cai
+   * pro default do schema, America/Sao_Paulo, quando a linha de
+   * Configuracao nao existe ou o valor esta vazio). Quem le, le com
+   * `contexto.fusoHorario ?? FUSO_HORARIO_PADRAO` (lib/datas.ts).
+   */
+  fusoHorario?: string;
 };
 
 export type ContextoTenantServidor = ContextoTenantSeguro & {

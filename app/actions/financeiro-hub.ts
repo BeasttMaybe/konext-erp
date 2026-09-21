@@ -5,6 +5,18 @@ import { exigirPermissao } from "@/lib/auth/permissoes";
 import { obterReceitaTotalPadrao } from "@/lib/dashboard/regras-financeiras";
 import { obterResumoReceber } from "@/app/actions/financeiro-receber";
 import { obterResumoPagar } from "@/app/actions/financeiro-pagar";
+import {
+  agoraNaLoja,
+  comoDataDeCalendario,
+  diferencaEntreDatasDeCalendario,
+  fimDoDia,
+  fimDoMes,
+  FUSO_HORARIO_PADRAO,
+  inicioDoDia,
+  inicioDoMes,
+  somarDias,
+  somarDiasEmDataDeCalendario,
+} from "@/lib/datas";
 
 const paraCentavos = (valor: number) => Math.round((valor + Number.EPSILON) * 100);
 const paraMoeda = (centavos: number) => centavos / 100;
@@ -12,10 +24,13 @@ const paraMoeda = (centavos: number) => centavos / 100;
 /** Nome que `os-itens.ts` grava em `Despesa.fornecedor` pra custo de peça vindo de uma OS — não existe campo de origem no schema, então é este texto exato que distingue "peça de OS" de despesa de loja de verdade (Fase 3-2D). */
 const FORNECEDOR_PECA_OS = "Custo de peça (OS)";
 
-function inicioFimDoMes(referencia: Date = new Date()) {
-  const inicio = new Date(referencia.getFullYear(), referencia.getMonth(), 1, 0, 0, 0, 0);
-  const fim = new Date(referencia.getFullYear(), referencia.getMonth() + 1, 0, 23, 59, 59, 999);
-  return { inicio, fim };
+/**
+ * `Venda.criadoEm`/`ParcelaDespesa.dataPagamento` são INSTANTE (não data de
+ * calendário) — o mês certo é o mês no fuso da LOJA, nunca o do processo
+ * (Vercel roda em UTC). Delega pro único módulo autorizado (lib/datas.ts).
+ */
+function inicioFimDoMes(referencia: Date = new Date(), fusoHorario: string = FUSO_HORARIO_PADRAO) {
+  return { inicio: inicioDoMes(referencia, fusoHorario), fim: fimDoMes(referencia, fusoHorario) };
 }
 
 /**
@@ -113,7 +128,7 @@ export async function obterResultadoDoMes(): Promise<ResultadoDoMes> {
   const contexto = await exigirContextoTenant();
   exigirPermissao(contexto, "financeiro.ver");
   const { prisma } = contexto;
-  const { inicio, fim } = inicioFimDoMes();
+  const { inicio, fim } = inicioFimDoMes(new Date(), contexto.fusoHorario);
 
   const [entradas, saidasBrutas] = await Promise.all([
     obterReceitaTotalPadrao(inicio, fim, prisma),
@@ -155,21 +170,24 @@ export async function obterFluxoDeCaixaSemanal(): Promise<SemanaFluxoCaixa[]> {
   const contexto = await exigirContextoTenant();
   exigirPermissao(contexto, "financeiro.ver");
   const { prisma } = contexto;
-  const hoje = new Date();
-  const { inicio, fim } = inicioFimDoMes(hoje);
+  const hoje = agoraNaLoja(contexto.fusoHorario);
+  const { inicio, fim } = inicioFimDoMes(hoje, contexto.fusoHorario);
 
+  // Semanas parciais dentro do mês, no fuso da loja — nunca `setDate`/
+  // `setHours` crus (fuso do processo). Nota: `receber`/`dataVencimento`
+  // abaixo são DATA DE CALENDÁRIO, então comparar contra estas fronteiras
+  // de INSTANTE pode divergir por algumas horas perto da virada do dia; a
+  // correção completa (separar fronteira de instante e de calendário aqui
+  // também, como em obterProjecaoSaldo) fica para um follow-up — ver
+  // relatório da Fase 2A-1.
   const semanas: { inicio: Date; fim: Date; projetado: boolean }[] = [];
-  let cursor = new Date(inicio);
+  let cursor = inicio;
   let numero = 1;
   while (cursor <= fim) {
-    const fimSemana = new Date(cursor);
-    fimSemana.setDate(fimSemana.getDate() + 6);
-    fimSemana.setHours(23, 59, 59, 999);
-    const fimReal = fimSemana > fim ? fim : fimSemana;
-    semanas.push({ inicio: new Date(cursor), fim: fimReal, projetado: fimReal > hoje });
-    cursor = new Date(fimReal);
-    cursor.setDate(cursor.getDate() + 1);
-    cursor.setHours(0, 0, 0, 0);
+    const fimSemanaBruto = fimDoDia(somarDias(cursor, 6, contexto.fusoHorario), contexto.fusoHorario);
+    const fimReal = fimSemanaBruto > fim ? fim : fimSemanaBruto;
+    semanas.push({ inicio: cursor, fim: fimReal, projetado: fimReal > hoje });
+    cursor = inicioDoDia(somarDias(fimReal, 1, contexto.fusoHorario), contexto.fusoHorario);
     numero += 1;
     if (numero > 6) break; // guarda-corpo — meses têm no máximo 5-6 semanas parciais
   }
@@ -236,7 +254,7 @@ export async function obterSaidasPorCategoria(): Promise<FatiaCategoria[]> {
   const contexto = await exigirContextoTenant();
   exigirPermissao(contexto, "financeiro.ver");
   const { prisma } = contexto;
-  const { inicio, fim } = inicioFimDoMes();
+  const { inicio, fim } = inicioFimDoMes(new Date(), contexto.fusoHorario);
 
   const pagas = await prisma.parcelaDespesa.findMany({
     where: { status: "PAGO", dataPagamento: { gte: inicio, lte: fim } },
@@ -265,7 +283,7 @@ export async function obterEntradasPorForma(): Promise<FatiaCategoria[]> {
   const contexto = await exigirContextoTenant();
   exigirPermissao(contexto, "financeiro.ver");
   const { prisma } = contexto;
-  const { inicio, fim } = inicioFimDoMes();
+  const { inicio, fim } = inicioFimDoMes(new Date(), contexto.fusoHorario);
 
   const linhas = await prisma.$queryRaw<Array<{ formaPagamento: string; total: number }>>`
     SELECT vp."formaPagamento"::text AS "formaPagamento", COALESCE(SUM(vp."valorBruto"), 0) AS total
@@ -319,11 +337,11 @@ export async function obterPrecisaDeAtencao(limite = 8): Promise<ItemAtencao[]> 
   exigirPermissao(contexto, "financeiro.ver");
   const { prisma } = contexto;
 
-  const hoje = new Date();
-  hoje.setHours(23, 59, 59, 999);
-  const em7Dias = new Date();
-  em7Dias.setDate(em7Dias.getDate() + 7);
-  em7Dias.setHours(23, 59, 59, 999);
+  // `dataVencimento` (ContaReceber/ParcelaDespesa) é DATA DE CALENDÁRIO
+  // (meia-noite UTC) — "hoje"/"daqui a 7 dias" precisam da mesma convenção,
+  // nunca meia-noite do fuso da loja como instante. Ver lib/datas.ts.
+  const hoje = comoDataDeCalendario(new Date(), contexto.fusoHorario);
+  const em7Dias = somarDiasEmDataDeCalendario(hoje, 7);
 
   const [receber, pagar] = await Promise.all([
     prisma.contaReceber.findMany({
@@ -341,7 +359,7 @@ export async function obterPrecisaDeAtencao(limite = 8): Promise<ItemAtencao[]> 
   ]);
 
   const diasDeAtraso = (vencimento: Date) =>
-    Math.max(0, Math.floor((hoje.getTime() - new Date(vencimento).getTime()) / 86_400_000));
+    Math.max(0, diferencaEntreDatasDeCalendario(vencimento, hoje));
 
   const itensReceber: ItemAtencao[] = receber.map((conta) => ({
     id: conta.id,

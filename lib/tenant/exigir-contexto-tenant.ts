@@ -3,6 +3,7 @@ import { obterPrismaTenant } from "@/lib/tenant/prisma-tenant";
 import { resolverConexaoTenant } from "@/lib/tenant/resolver-conexao-tenant";
 import { ehPapelEmpresa, type PapelEmpresa } from "@/lib/auth/permissoes";
 import { resolverPermissoesEfetivas } from "@/lib/auth/resolver-permissoes";
+import { FUSO_HORARIO_PADRAO } from "@/lib/datas";
 import type { ContextoTenantServidor } from "@/types/tenant";
 
 type UsuarioOperacionalMapeado = {
@@ -79,6 +80,32 @@ function normalizarPapelEmpresa(role: string): PapelEmpresa {
   return ehPapelEmpresa(role) ? role : "USUARIO";
 }
 
+/**
+ * Fuso horário da loja (Fase 2A-1) — lido uma vez por requisicao, aqui,
+ * porque este ja e o ponto unico de resolucao de contexto por requisicao do
+ * projeto (mesmo raciocinio de resolverPermissoesEfetivas acima). Nunca lido
+ * ad hoc em nenhum outro lugar: todo calculo de fronteira de dia/semana/mes
+ * usa contexto.fusoHorario via lib/datas.ts.
+ */
+async function resolverFusoHorarioTenant(
+  prisma: ContextoTenantServidor["prisma"]
+): Promise<string> {
+  try {
+    const configuracao = await prisma.configuracao.findFirst({
+      orderBy: { criadoEm: "asc" },
+      select: { fusoHorario: true },
+    });
+
+    const valor = configuracao?.fusoHorario?.trim();
+    return valor && valor.length > 0 ? valor : FUSO_HORARIO_PADRAO;
+  } catch {
+    // Sem linha de Configuracao ainda (tenant recem-provisionado) ou coluna
+    // ausente num runtime legado: cai pro default do schema, nunca quebra a
+    // resolucao de contexto por causa do fuso.
+    return FUSO_HORARIO_PADRAO;
+  }
+}
+
 export async function exigirContextoTenant(): Promise<ContextoTenantServidor> {
   const sessaoCentral = await exigirSessaoCentral();
 
@@ -105,6 +132,8 @@ export async function exigirContextoTenant(): Promise<ContextoTenantServidor> {
     papelEmpresa
   );
 
+  const fusoHorario = await resolverFusoHorarioTenant(prisma);
+
   return {
     usuarioOperacional,
     usuarioCentralId: sessaoCentral.usuarioCentralId,
@@ -116,6 +145,7 @@ export async function exigirContextoTenant(): Promise<ContextoTenantServidor> {
     // Direto da sessao central, nunca contaminado pelo Usuario.role do tenant.
     papelEmpresa,
     permissoes,
+    fusoHorario,
     prisma,
   };
 }

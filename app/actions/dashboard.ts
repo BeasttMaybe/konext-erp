@@ -6,6 +6,15 @@ import { obterReceitaTotalPadrao } from "@/lib/dashboard/regras-financeiras";
 import { escopoOrdemServico } from "@/lib/auth/escopos";
 import { paraEstagio, type EtapaOS } from "@/lib/dominio/os/etapas";
 import { Prisma } from "@prisma/client";
+import {
+  agoraNaLoja,
+  comoDataDeCalendario,
+  fimDoDia as fimDoDiaNaLoja,
+  FUSO_HORARIO_PADRAO,
+  inicioDoDia as inicioDoDiaNaLoja,
+  inicioDoMes as inicioDoMesNaLoja,
+  somarDias,
+} from "@/lib/datas";
 
 export type PeriodoDashboard = "hoje" | "7d" | "30d" | "mes";
 
@@ -213,16 +222,22 @@ async function validarConectividadeBanco(prismaClient: PrismaDashboardClient): P
   }
 }
 
-function inicioDoDia(data: Date): Date {
-  return new Date(data.getFullYear(), data.getMonth(), data.getDate(), 0, 0, 0, 0);
+/**
+ * Fronteiras de dia/mês da home — delegam pro único módulo autorizado a
+ * calcular isso (lib/datas.ts, Fase 2A-1). `fusoHorario` sempre vem de
+ * `contexto.fusoHorario` nos call sites que têm um `ContextoTenantServidor`
+ * por perto; sem ele, cai no default do schema (`FUSO_HORARIO_PADRAO`).
+ */
+function inicioDoDia(data: Date, fusoHorario: string = FUSO_HORARIO_PADRAO): Date {
+  return inicioDoDiaNaLoja(data, fusoHorario);
 }
 
-function fimDoDia(data: Date): Date {
-  return new Date(data.getFullYear(), data.getMonth(), data.getDate(), 23, 59, 59, 999);
+function fimDoDia(data: Date, fusoHorario: string = FUSO_HORARIO_PADRAO): Date {
+  return fimDoDiaNaLoja(data, fusoHorario);
 }
 
-function inicioDoMes(data: Date): Date {
-  return new Date(data.getFullYear(), data.getMonth(), 1, 0, 0, 0, 0);
+function inicioDoMes(data: Date, fusoHorario: string = FUSO_HORARIO_PADRAO): Date {
+  return inicioDoMesNaLoja(data, fusoHorario);
 }
 
 function chaveDia(data: Date): string {
@@ -460,15 +475,19 @@ function diferencaEmDias(inicio: Date, fim: Date): number {
   return Math.max(0, Math.floor((fim.getTime() - inicio.getTime()) / (24 * 60 * 60 * 1000)));
 }
 
-function resolverIntervaloPeriodo(periodo: PeriodoDashboard, agora: Date): { inicio: Date; fim: Date } {
-  const fim = fimDoDia(agora);
+function resolverIntervaloPeriodo(
+  periodo: PeriodoDashboard,
+  agora: Date,
+  fusoHorario: string = FUSO_HORARIO_PADRAO
+): { inicio: Date; fim: Date } {
+  const fim = fimDoDia(agora, fusoHorario);
 
   if (periodo === "mes") {
-    return { inicio: inicioDoMes(agora), fim };
+    return { inicio: inicioDoMes(agora, fusoHorario), fim };
   }
 
   const diasParaTras = periodo === "7d" ? 6 : periodo === "30d" ? 29 : 0;
-  const inicio = inicioDoDia(new Date(agora.getTime() - diasParaTras * 24 * 60 * 60 * 1000));
+  const inicio = inicioDoDia(somarDias(agora, -diasParaTras, fusoHorario), fusoHorario);
 
   return { inicio, fim };
 }
@@ -669,15 +688,16 @@ export async function obterPainelOperacionalHome(
 
   const podeVerMetas = temPermissao(contexto, "metas.ver");
 
-  const agora = new Date();
-  const inicioHoje = inicioDoDia(agora);
-  const intervaloPeriodo = resolverIntervaloPeriodo(periodo, agora);
-  const limiteParado = new Date(inicioHoje.getTime() - DIAS_LIMITE_PARADO * 24 * 60 * 60 * 1000);
-  const limiteRetirada = new Date(inicioHoje.getTime() - DIAS_LIMITE_RETIRADA * 24 * 60 * 60 * 1000);
+  const agora = agoraNaLoja(contexto.fusoHorario);
+  const inicioHoje = inicioDoDia(agora, contexto.fusoHorario);
+  const intervaloPeriodo = resolverIntervaloPeriodo(periodo, agora, contexto.fusoHorario);
+  const limiteParado = somarDias(inicioHoje, -DIAS_LIMITE_PARADO, contexto.fusoHorario);
+  const limiteRetirada = somarDias(inicioHoje, -DIAS_LIMITE_RETIRADA, contexto.fusoHorario);
   const inicioJanelaRetorno = inicioDoDia(
-    new Date(agora.getTime() - JANELA_TAXA_RETORNO_DIAS * 24 * 60 * 60 * 1000)
+    somarDias(agora, -JANELA_TAXA_RETORNO_DIAS, contexto.fusoHorario),
+    contexto.fusoHorario
   );
-  const inicio30Dias = inicioDoDia(new Date(agora.getTime() - 30 * 24 * 60 * 60 * 1000));
+  const inicio30Dias = inicioDoDia(somarDias(agora, -30, contexto.fusoHorario), contexto.fusoHorario);
 
   const [
     filaPorStatus,
@@ -779,7 +799,7 @@ export async function obterPainelOperacionalHome(
             os: { excluidaEm: null },
             dataFimGarantia: {
               gte: inicioHoje,
-              lte: fimDoDia(new Date(inicioHoje.getTime() + 7 * 24 * 60 * 60 * 1000)),
+              lte: fimDoDia(somarDias(inicioHoje, 7, contexto.fusoHorario), contexto.fusoHorario),
             },
           },
         }),
@@ -1063,9 +1083,12 @@ async function obterFaturamentoHome(periodo: PeriodoDashboard = "hoje"): Promise
   const prisma = contexto.prisma;
   await validarConectividadeBanco(prisma);
 
-  const agora = new Date();
-  const inicioHoje = inicioDoDia(agora);
-  const intervaloPeriodo = resolverIntervaloPeriodo(periodo, agora);
+  const agora = agoraNaLoja(contexto.fusoHorario);
+  // dataVencimento (ContaReceber/ParcelaDespesa) é DATA DE CALENDÁRIO —
+  // "hoje" pra comparar com ela precisa da mesma convenção (meia-noite UTC),
+  // não meia-noite do fuso da loja como instante. Ver lib/datas.ts.
+  const hojeCalendario = comoDataDeCalendario(agora, contexto.fusoHorario);
+  const intervaloPeriodo = resolverIntervaloPeriodo(periodo, agora, contexto.fusoHorario);
   const duracaoPeriodo = intervaloPeriodo.fim.getTime() - intervaloPeriodo.inicio.getTime();
   const intervaloAnterior = {
     inicio: new Date(intervaloPeriodo.inicio.getTime() - duracaoPeriodo - 1),
@@ -1116,7 +1139,7 @@ async function obterFaturamentoHome(periodo: PeriodoDashboard = "hoje"): Promise
       "faturamentoHome.receberAtrasado",
       () =>
         prisma.contaReceber.aggregate({
-          where: { status: { in: [...STATUS_CONTA_PENDENTE] }, dataVencimento: { lt: inicioHoje } },
+          where: { status: { in: [...STATUS_CONTA_PENDENTE] }, dataVencimento: { lt: hojeCalendario } },
           _sum: { valor: true },
         }),
       { _sum: { valor: null } }
@@ -1125,7 +1148,7 @@ async function obterFaturamentoHome(periodo: PeriodoDashboard = "hoje"): Promise
       "faturamentoHome.pagarAtrasado",
       () =>
         prisma.parcelaDespesa.aggregate({
-          where: { status: { in: [...STATUS_PARCELA_PENDENTE] }, dataVencimento: { lt: inicioHoje } },
+          where: { status: { in: [...STATUS_PARCELA_PENDENTE] }, dataVencimento: { lt: hojeCalendario } },
           _sum: { valor: true },
         }),
       { _sum: { valor: null } }

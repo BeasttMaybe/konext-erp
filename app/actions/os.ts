@@ -1497,6 +1497,7 @@ export async function finalizarOrdemServico(
         criadoPorId: normalizarIdUsuarioOperacional(usuario),
         prazoGarantiaDias: avaliacao.prazoGarantiaEfetivo ?? undefined,
         dataInicioGarantia: entrega.momento,
+        fusoHorario: contexto.fusoHorario,
         auditoria: {
           contexto: contextoAuditoriaDoUsuario(
             { id: normalizarIdUsuarioOperacional(usuario) },

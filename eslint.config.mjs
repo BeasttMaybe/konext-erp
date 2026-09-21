@@ -2,6 +2,7 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 import konextRegrasCor from "./eslint-rules/sem-cor-hardcoded.mjs";
+import konextRegrasDatas from "./eslint-rules/datas-fronteira-fora-do-modulo.mjs";
 
 /**
  * Telas grandfathered da Fase 3-1, Parte 4 (regra `konext/sem-*`): tinham
@@ -96,6 +97,22 @@ const eslintConfig = defineConfig([
     plugins: { konext: konextRegrasCor },
     rules: {
       "konext/sem-z-index-solto": "error",
+    },
+  },
+  // Regras de fronteira de data (Fase 2A-1): setHours(0/date-fns puro/
+  // CURRENT_DATE em SQL raw só são permitidos dentro de lib/datas.ts — o
+  // único módulo autorizado a calcular "hoje"/fronteira de dia/semana/mês no
+  // fuso da loja. Nasce sem lista de exceção: a Fase 2A-1 já substituiu toda
+  // ocorrência encontrada em app/**, components/** e lib/** por lib/datas.ts,
+  // então qualquer violação daqui pra frente é regressão nova.
+  {
+    files: ["app/**/*.{ts,tsx}", "components/**/*.{ts,tsx}", "lib/**/*.{ts,tsx}", "scripts/**/*.mjs"],
+    ignores: ["lib/datas.ts"],
+    plugins: { "konext-datas": konextRegrasDatas },
+    rules: {
+      "konext-datas/sem-set-hours-fronteira-fora-do-modulo": "error",
+      "konext-datas/sem-date-fns-fronteira-fora-do-modulo": "error",
+      "konext-datas/sem-current-date-sql-fora-do-modulo": "error",
     },
   },
   // Override default ignores of eslint-config-next.

@@ -7,6 +7,12 @@ import { mensagemDeErroConhecido } from "@/lib/erros";
 import { obterIdUsuarioOperacionalOuNulo } from "@/lib/tenant/usuario-operacional";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
+import {
+  agoraNaLoja,
+  FUSO_HORARIO_PADRAO,
+  hojeComoDataDeCalendario,
+  somarDiasEmDataDeCalendario,
+} from "@/lib/datas";
 import { Prisma } from "@prisma/client";
 import type {
   CategoriaMeta,
@@ -551,7 +557,8 @@ function montarFiltroPeriodoContaReceber(
 
 async function executarCalculoMetaAutomatica(
   prismaClient: PrismaMetasClient,
-  meta: MetaCalculoAutomatico
+  meta: MetaCalculoAutomatico,
+  fusoHorario: string
 ): Promise<ResultadoCalculoMetaAutomatica> {
   if (meta.origemProgresso !== "AUTOMATICA") {
     return { sucesso: false, erro: "Meta não é automática." };
@@ -639,7 +646,9 @@ async function executarCalculoMetaAutomatica(
     }
 
     if (meta.metricaAutomatica === "GARANTIAS_ATIVAS") {
-      const hoje = new Date();
+      // TermoGarantiaOS.dataFimGarantia é INSTANTE (ancorado na entrega) —
+      // "agora" precisa ser o instante certo no fuso da loja.
+      const hoje = agoraNaLoja(fusoHorario);
       const total = await prismaClient.termoGarantiaOS.count({
         where: {
           canceladaEm: null,
@@ -889,7 +898,10 @@ export async function listarMetas(
     const tamanhoPagina = Math.min(100, Math.max(1, filtros.tamanhoPagina ?? 20));
     const skip = (pagina - 1) * tamanhoPagina;
 
-    const agora = new Date();
+    // Meta.dataPrazo é DATA DE CALENDÁRIO (meia-noite UTC) — "hoje"/"daqui a
+    // 7 dias" precisam da mesma convenção, nunca meia-noite do fuso da loja
+    // como instante. Ver lib/datas.ts.
+    const hojeCalendario = hojeComoDataDeCalendario(contexto.fusoHorario);
 
     const where: Prisma.MetaWhereInput = {
       excluidaEm: null,
@@ -920,14 +932,13 @@ export async function listarMetas(
     }
 
     if (filtros.apenasAtrasadas) {
-      where.dataPrazo = { lt: agora };
+      where.dataPrazo = { lt: hojeCalendario };
       where.status = { in: ["EM_ANDAMENTO", "ATENCAO", "ATRASADA"] };
     }
 
     if (filtros.apenasProximasVencer) {
-      const em7dias = new Date(agora);
-      em7dias.setDate(em7dias.getDate() + 7);
-      where.dataPrazo = { gte: agora, lte: em7dias };
+      const em7dias = somarDiasEmDataDeCalendario(hojeCalendario, 7);
+      where.dataPrazo = { gte: hojeCalendario, lte: em7dias };
     }
 
     const [metas, total] = await prisma.$transaction([
@@ -1152,9 +1163,9 @@ export async function obterDashboardMetas(): Promise<DashboardMetasResult> {
     const prisma = contexto.prisma;
     const usuario = { id: obterUsuarioOperacionalId(contexto) };
 
-    const agora = new Date();
-    const em7dias = new Date(agora);
-    em7dias.setDate(em7dias.getDate() + 7);
+    // Meta.dataPrazo é DATA DE CALENDÁRIO — mesma convenção do bloco acima.
+    const agora = hojeComoDataDeCalendario(contexto.fusoHorario);
+    const em7dias = somarDiasEmDataDeCalendario(agora, 7);
 
     const [contagens, metasManuais, metasAutomaticas, automaticasComErroSincronizacao, somasDinheiro, proximasVencer] =
       await prisma.$transaction([
@@ -1801,7 +1812,7 @@ export async function calcularValorAtualMetaAutomatica(metaId: string): Promise<
       return { sucesso: false, erro: "Meta não encontrada." };
     }
 
-    return executarCalculoMetaAutomatica(prisma, meta);
+    return executarCalculoMetaAutomatica(prisma, meta, contexto.fusoHorario ?? FUSO_HORARIO_PADRAO);
   } catch (erro) {
     const mensagemConhecida = mensagemDeErroConhecido(erro);
     if (mensagemConhecida !== null) {
@@ -1849,7 +1860,7 @@ export async function sincronizarMetaAutomatica(metaId: string): Promise<Resulta
       return { sucesso: false, erro: "Esta meta é manual e não pode ser sincronizada automaticamente." };
     }
 
-    const calculo = await executarCalculoMetaAutomatica(prisma, meta);
+    const calculo = await executarCalculoMetaAutomatica(prisma, meta, contexto.fusoHorario ?? FUSO_HORARIO_PADRAO);
     if (!calculo.sucesso) {
       await prisma.meta.update({
         where: { id: meta.id },

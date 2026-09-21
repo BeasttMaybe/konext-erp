@@ -17,6 +17,7 @@ import { SeletorClienteCRM } from "@/components/financeiro/seletor-cliente-crm";
 import { BarraAcaoLote } from "@/components/financeiro/barra-acao-lote";
 import { PainelConfirmarLote } from "@/components/financeiro/painel-confirmar-lote";
 import { alternarSelecaoLinha, resumirSelecao, selecionarTodosFiltrados } from "@/lib/dominio/financeiro/selecao-lote";
+import { FUSO_HORARIO_PADRAO, hojeComoDataDeCalendario } from "@/lib/datas";
 import { useTemPermissao } from "@/contextos/contexto-permissoes";
 import { PilulaStatus } from "@/components/ui/pilula-status";
 import { Button } from "@/components/ui/button";
@@ -64,12 +65,6 @@ interface FormDespesa {
   tipo: TipoDespesa;
   qtdParcelas: string;
   dataVencimento: string;
-}
-
-function inicioDoDia(data: Date) {
-  const d = new Date(data);
-  d.setHours(0, 0, 0, 0);
-  return d;
 }
 
 function statusExibicaoParcela(parcela: ParcelaDespesaComRelacao, referencia: Date): StatusExibicao {
@@ -124,7 +119,9 @@ interface ConteudoPagarProps {
  */
 export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
   const router = useRouter();
-  const hoje = useMemo(() => inicioDoDia(new Date()), []);
+  // dataVencimento é DATA DE CALENDÁRIO (meia-noite UTC) — nunca setHours(0)
+  // local do navegador. Ver lib/datas.ts.
+  const hoje = useMemo(() => hojeComoDataDeCalendario(FUSO_HORARIO_PADRAO), []);
 
   const podeLancar = useTemPermissao("financeiro.lancar");
   const podeBaixar = useTemPermissao("financeiro.baixar");

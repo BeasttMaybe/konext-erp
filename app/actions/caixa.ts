@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { exigirPermissao } from "@/lib/auth/permissoes";
 import { escopoCaixaSession } from "@/lib/auth/escopos";
+import { fimDoDia, inicioDoDia } from "@/lib/datas";
 
 type OrdemServicoCustoItem = { custoPeca?: number | null };
 type OrdemServicoCustoRow = { itens?: OrdemServicoCustoItem[] };
@@ -72,11 +73,8 @@ export async function obterResumoCaixaDiario(): Promise<ResumoCaixaDiario> {
   exigirPermissao(contexto, "pdv.vender");
   const { prisma } = contexto;
 
-  const inicioHoje = new Date();
-  inicioHoje.setHours(0, 0, 0, 0);
-
-  const fimHoje = new Date();
-  fimHoje.setHours(23, 59, 59, 999);
+  const inicioHoje = inicioDoDia(new Date(), contexto.fusoHorario);
+  const fimHoje = fimDoDia(new Date(), contexto.fusoHorario);
 
   const prismaAny = prisma as typeof prisma & {
     ordemServico?: OrdemServicoResumoDelegate;

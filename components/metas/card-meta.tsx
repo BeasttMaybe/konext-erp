@@ -8,6 +8,7 @@ import { BadgeStatusMeta } from "@/components/metas/badge-status-meta";
 import { BadgePrioridadeMeta } from "@/components/metas/badge-prioridade-meta";
 import { BarraProgressoMeta } from "@/components/metas/barra-progresso-meta";
 import type { LinhaMetaLista } from "@/app/actions/metas";
+import { diferencaEntreDatasDeCalendario, FUSO_HORARIO_PADRAO, hojeComoDataDeCalendario } from "@/lib/datas";
 
 const labelCategoria: Record<string, string> = {
   FINANCEIRA: "Financeira",
@@ -29,11 +30,12 @@ function formatarData(iso: string) {
 }
 
 function diasRestantes(iso: string): { dias: number; atrasada: boolean } {
+  // dataPrazo é DATA DE CALENDÁRIO (meia-noite UTC) — comparar via
+  // setHours(0) local do NAVEGADOR deslocaria o dia sempre que o navegador
+  // não estiver em UTC. Ver lib/datas.ts.
   const prazo = new Date(iso);
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
-  prazo.setHours(0, 0, 0, 0);
-  const diff = Math.round((prazo.getTime() - hoje.getTime()) / 86400000);
+  const hoje = hojeComoDataDeCalendario(FUSO_HORARIO_PADRAO);
+  const diff = diferencaEntreDatasDeCalendario(hoje, prazo);
   return { dias: Math.abs(diff), atrasada: diff < 0 };
 }
 

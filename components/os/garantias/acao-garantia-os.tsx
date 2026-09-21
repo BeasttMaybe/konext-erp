@@ -1,5 +1,7 @@
 import { ShieldCheck, ShieldAlert } from "lucide-react";
 import { obterPreviaTermoGarantiaOS } from "@/app/actions/garantias";
+import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
+import { agoraNaLoja, FUSO_HORARIO_PADRAO, somarDias } from "@/lib/datas";
 
 type AcaoGarantiaOSProps = {
   osId: string;
@@ -9,8 +11,13 @@ type AcaoGarantiaOSProps = {
   mostrarTextoBloqueio?: boolean;
 };
 
-function formatarData(data: Date): string {
-  return data.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+function formatarData(data: Date, fusoHorario: string): string {
+  return data.toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: fusoHorario,
+  });
 }
 
 /**
@@ -40,9 +47,15 @@ export async function AcaoGarantiaOS({
     return null;
   }
 
+  let fusoHorario = FUSO_HORARIO_PADRAO;
+  try {
+    fusoHorario = (await exigirContextoTenant()).fusoHorario ?? FUSO_HORARIO_PADRAO;
+  } catch {
+    // Sem contexto: cai no fuso padrao — nunca quebra a previa por isso.
+  }
+
   const faltamItens = previa.exigeItemParaGarantia && !possuiItens;
-  const terminoPrevisto = new Date();
-  terminoPrevisto.setDate(terminoPrevisto.getDate() + previa.prazoPrevistoDias);
+  const terminoPrevisto = somarDias(agoraNaLoja(fusoHorario), previa.prazoPrevistoDias, fusoHorario);
 
   return (
     <div className="rounded-lg border border-border bg-muted/40 p-4 text-sm">
@@ -66,7 +79,7 @@ export async function AcaoGarantiaOS({
           ) : (
             <p className="text-muted-foreground">
               Prévia: {previa.prazoPrevistoDias} dias de garantia. Se a OS fosse entregue hoje, a
-              cobertura iria até {formatarData(terminoPrevisto)}. A contagem só começa na entrega
+              cobertura iria até {formatarData(terminoPrevisto, fusoHorario)}. A contagem só começa na entrega
               real.
             </p>
           )}

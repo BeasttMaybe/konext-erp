@@ -7,6 +7,7 @@ import { escopoDespesa } from "@/lib/auth/escopos";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 import { paraMensagemSegura } from "@/lib/erros";
+import { comoDataDeCalendario, FUSO_HORARIO_PADRAO, inicioDoDia } from "@/lib/datas";
 
 /** Ver o comentario equivalente em financeiro-receber.ts (Fase 1B-UI, Parte 1). */
 export type ResultadoAcaoDespesa = { sucesso: true } | { sucesso: false; mensagem: string };
@@ -354,7 +355,7 @@ export async function listarParcelasPagarFiltradas(
   // todoPeriodo pula a janela inteira — usado pelos indicadores "em aberto"
   // da Visão geral (Fase 3-2D), que somam parcelas pendentes de qualquer mês.
   if (!filtros?.todoPeriodo) {
-    const hoje = new Date();
+    const hoje = inicioDoDia(new Date(), contexto.fusoHorario);
     const mesFiltro = filtros?.mes ? parseInt(filtros.mes, 10) : hoje.getMonth() + 1;
     const anoFiltro = filtros?.ano ? parseInt(filtros.ano, 10) : hoje.getFullYear();
 
@@ -410,10 +411,17 @@ export async function listarParcelasPagarFiltradas(
 export async function obterResumoPagar(filtros?: FiltrosPagar): Promise<ResumoPagar> {
   const parcelas = await listarParcelasPagarFiltradas(filtros);
 
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
-  const amanha = new Date(hoje);
-  amanha.setDate(amanha.getDate() + 1);
+  let fusoHorario = FUSO_HORARIO_PADRAO;
+  try {
+    fusoHorario = (await exigirContextoTenant()).fusoHorario ?? FUSO_HORARIO_PADRAO;
+  } catch {
+    // Sem contexto (chamada fora de requisicao autenticada): cai no fuso padrao.
+  }
+
+  // `dataVencimento` é DATA DE CALENDÁRIO (meia-noite UTC) — "hoje"/"amanhã"
+  // precisam da mesma convenção, não meia-noite do fuso da loja como
+  // instante. Ver lib/datas.ts (`comoDataDeCalendario`).
+  const hoje = comoDataDeCalendario(new Date(), fusoHorario);
 
   let totalPendente = 0;
   let totalAtrasado = 0;
@@ -421,8 +429,8 @@ export async function obterResumoPagar(filtros?: FiltrosPagar): Promise<ResumoPa
   let totalPeriodo = 0;
 
   for (const parcela of parcelas) {
-    const venc = new Date(parcela.dataVencimento);
-    venc.setHours(0, 0, 0, 0);
+    // Já é DATA DE CALENDÁRIO — nunca reconverter via comoDataDeCalendario.
+    const venc = parcela.dataVencimento;
 
     totalPeriodo += parcela.valor;
 

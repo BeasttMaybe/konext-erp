@@ -133,6 +133,14 @@ model Configuracao {
   textoCoberturaGarantia    String?
   textoExclusoesGarantia    String?
   textoResponsabilidadeDados String?
+  /**
+   * Fase 2A-1: fuso horário da loja, usado por lib/datas.ts pra resolver
+   * TODA fronteira de dia/semana/mes/"agora" da aplicacao — nunca o fuso do
+   * processo (Vercel roda em UTC). Cada tenant futuro pode ter o seu; ate
+   * la, America/Sao_Paulo cobre o unico tenant hoje. Resolvido uma vez por
+   * requisicao em lib/tenant/exigir-contexto-tenant.ts.
+   */
+  fusoHorario                String   @default("America/Sao_Paulo")
   criadoEm                  DateTime @default(now())
   atualizadoEm              DateTime @updatedAt
 }

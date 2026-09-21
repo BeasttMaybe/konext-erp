@@ -24,6 +24,14 @@ import {
   TEXTO_EXCLUSOES_GARANTIA_PADRAO,
   TEXTO_RESPONSABILIDADE_DADOS_PADRAO,
 } from "@/lib/configuracoes-os-garantias";
+import {
+  agoraNaLoja,
+  diferencaEmDiasDeCalendario,
+  fimDoDia,
+  FUSO_HORARIO_PADRAO,
+  inicioDoDia,
+  somarDias,
+} from "@/lib/datas";
 
 export type StatusGarantia =
   | "ATIVA"
@@ -208,20 +216,6 @@ function normalizarTexto(valor: string | null | undefined): string {
   return String(valor ?? "").trim();
 }
 
-function inicioDoDia(data = new Date()): Date {
-  return new Date(data.getFullYear(), data.getMonth(), data.getDate(), 0, 0, 0, 0);
-}
-
-function fimDoDia(data = new Date()): Date {
-  return new Date(data.getFullYear(), data.getMonth(), data.getDate(), 23, 59, 59, 999);
-}
-
-function adicionarDias(data: Date, dias: number): Date {
-  const copia = new Date(data);
-  copia.setDate(copia.getDate() + dias);
-  return copia;
-}
-
 function validarPrazoGarantiaDias(valor: unknown): number {
   const textoValor = String(valor ?? "").trim();
   if (!textoValor) {
@@ -236,13 +230,6 @@ function validarPrazoGarantiaDias(valor: unknown): number {
   return numero;
 }
 
-function diferencaDias(base: Date, alvo: Date): number {
-  const umDiaMs = 1000 * 60 * 60 * 24;
-  const inicioBase = inicioDoDia(base).getTime();
-  const inicioAlvo = inicioDoDia(alvo).getTime();
-  return Math.ceil((inicioAlvo - inicioBase) / umDiaMs);
-}
-
 function formatarNumeroOS(numero: number): string {
   const ano = new Date().getFullYear();
   return `OS-${ano}-${String(numero).padStart(3, "0")}`;
@@ -254,9 +241,11 @@ function calcularStatusGarantia(parametros: {
   retornoEmAndamento: boolean;
   quantidadeRetornos: number;
   ultimoResultadoRetorno: ResultadoRetornoGarantia | null;
+  fusoHorario?: string;
 }): StatusGarantia {
-  const hoje = inicioDoDia();
-  const limiteProximo = adicionarDias(hoje, 7);
+  const fusoHorario = parametros.fusoHorario ?? FUSO_HORARIO_PADRAO;
+  const hoje = inicioDoDia(new Date(), fusoHorario);
+  const limiteProximo = somarDias(hoje, 7, fusoHorario);
 
   if (parametros.cancelada) return "CANCELADA";
   if (parametros.retornoEmAndamento) return "RETORNO_EM_ANDAMENTO";
@@ -538,6 +527,8 @@ export async function garantirTermoGarantiaPorOS(
     dataInicioGarantia: Date;
     /** Contexto para a auditoria gravada na MESMA transacao. */
     auditoria: { contexto: ContextoAuditoria; extras?: Record<string, unknown> };
+    /** Fuso horario da loja (Fase 2A-1) — ver lib/datas.ts. Default America/Sao_Paulo quando o chamador nao tem contexto de requisicao (ex.: script). */
+    fusoHorario?: string;
   }
 ): Promise<{
   termoGarantiaId: string;
@@ -608,7 +599,7 @@ export async function garantirTermoGarantiaPorOS(
     if (aindaNaoEntregue) {
       const novoInicio = new Date(input.dataInicioGarantia);
       const prazoVigente = Number(os.termoGarantia.prazoGarantiaDias);
-      const novoFim = adicionarDias(novoInicio, prazoVigente);
+      const novoFim = somarDias(novoInicio, prazoVigente, input.fusoHorario ?? FUSO_HORARIO_PADRAO);
 
       await client.termoGarantiaOS.update({
         where: { id: os.termoGarantia.id },
@@ -668,7 +659,7 @@ export async function garantirTermoGarantiaPorOS(
 
   const prazoGarantiaDias = validarPrazoGarantiaConfigurado(input.prazoGarantiaDias, regrasGarantia, os.prazoGarantiaDias);
   const dataInicioGarantia = new Date(input.dataInicioGarantia);
-  const dataFimGarantia = adicionarDias(dataInicioGarantia, prazoGarantiaDias);
+  const dataFimGarantia = somarDias(dataInicioGarantia, prazoGarantiaDias, input.fusoHorario ?? FUSO_HORARIO_PADRAO);
   const numeroOS = formatarNumeroOS(os.numeroOs);
 
   const servicosExecutados = montarServicosExecutados(
@@ -1022,8 +1013,10 @@ export async function listarGarantiasOS(filtros: FiltrosGarantiaInput = {}): Pro
     const pagina = Math.max(1, Number(filtros.pagina ?? 1));
     const tamanhoPagina = Math.min(100, Math.max(1, Number(filtros.tamanhoPagina ?? 20)));
     const termoBusca = normalizarTexto(filtros.busca);
-    const inicioFiltro = filtros.dataInicio ? inicioDoDia(new Date(filtros.dataInicio)) : null;
-    const fimFiltro = filtros.dataFim ? fimDoDia(new Date(filtros.dataFim)) : null;
+    const inicioFiltro = filtros.dataInicio
+      ? inicioDoDia(new Date(filtros.dataInicio), contexto.fusoHorario)
+      : null;
+    const fimFiltro = filtros.dataFim ? fimDoDia(new Date(filtros.dataFim), contexto.fusoHorario) : null;
 
     const whereBase: Prisma.TermoGarantiaOSWhereInput = {
       // Escopo de visibilidade (Fase 1D-2): sem os.ver_todas, so garantias
@@ -1146,7 +1139,7 @@ export async function listarGarantiasOS(filtros: FiltrosGarantiaInput = {}): Pro
       prisma.termoGarantiaOS.count({ where: whereBase }),
     ]);
 
-    const hoje = new Date();
+    const hoje = agoraNaLoja(contexto.fusoHorario);
 
     let linhas = termos.map((termo): LinhaGarantiaOS => {
       const quantidadeRetornos = termo.retornos.length;
@@ -1159,6 +1152,7 @@ export async function listarGarantiasOS(filtros: FiltrosGarantiaInput = {}): Pro
         retornoEmAndamento,
         quantidadeRetornos,
         ultimoResultadoRetorno: ultimoRetorno?.resultado ?? null,
+        fusoHorario: contexto.fusoHorario,
       });
       const valorCobrado = termo.os.itens.reduce((acc, item) => acc + Number(item.valorCobrado ?? 0), 0);
       const servicos = montarServicosExecutados(
@@ -1181,7 +1175,7 @@ export async function listarGarantiasOS(filtros: FiltrosGarantiaInput = {}): Pro
         dataFinalizacao: termo.dataInicioGarantia.toISOString(),
         prazoGarantiaDias: termo.prazoGarantiaDias,
         dataFimGarantia: termo.dataFimGarantia.toISOString(),
-        diasRestantes: diferencaDias(hoje, termo.dataFimGarantia),
+        diasRestantes: diferencaEmDiasDeCalendario(hoje, termo.dataFimGarantia, contexto.fusoHorario),
         statusGarantia,
         teveRetorno: quantidadeRetornos > 0,
         retornoEmAndamento,
@@ -1229,8 +1223,8 @@ export async function obterDashboardGarantiasOS(): Promise<DashboardGarantiasOS>
   const contexto = await exigirContextoTenant();
   const prisma = contexto.prisma;
 
-  const hoje = inicioDoDia();
-  const limite7 = fimDoDia(adicionarDias(hoje, 7));
+  const hoje = inicioDoDia(new Date(), contexto.fusoHorario);
+  const limite7 = fimDoDia(somarDias(hoje, 7, contexto.fusoHorario), contexto.fusoHorario);
 
   // Escopo de visibilidade (Fase 1D-2): os cartoes do topo da aba Garantia
   // precisam refletir o MESMO recorte da tabela abaixo — ver

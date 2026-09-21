@@ -5,34 +5,36 @@ import { exigirPermissao } from "@/lib/auth/permissoes";
 import { obterReceitaTotalPadrao } from "@/lib/dashboard/regras-financeiras";
 import { obterResumoReceber } from "@/app/actions/financeiro-receber";
 import { obterSaldoEmCaixaHoje, type SaldoEmCaixaHoje } from "@/app/actions/financeiro-hub";
+import {
+  comoDataDeCalendario,
+  fimDoMes,
+  FUSO_HORARIO_PADRAO,
+  inicioDoMes,
+  somarDias,
+  somarDiasEmDataDeCalendario,
+} from "@/lib/datas";
 
 const paraCentavos = (valor: number) => Math.round((valor + Number.EPSILON) * 100);
 const paraMoeda = (centavos: number) => centavos / 100;
 
-function inicioDoDia(data: Date): Date {
-  const nova = new Date(data);
-  nova.setHours(0, 0, 0, 0);
-  return nova;
+/** Chave "yyyy-MM-dd" de uma DATA DE CALENDÁRIO (meia-noite UTC) — sempre lida em UTC, nunca no fuso do processo. */
+function chaveDiaCalendario(data: Date): string {
+  return data.toISOString().slice(0, 10);
 }
 
-function fimDoDia(data: Date): Date {
-  const nova = new Date(data);
-  nova.setHours(23, 59, 59, 999);
-  return nova;
+/**
+ * `Venda.criadoEm`/`ContaReceber.dataRecebimento`/`criadoEm` são INSTANTE —
+ * o mês certo é o mês no fuso da LOJA. Delega pro único módulo autorizado
+ * (lib/datas.ts).
+ */
+function inicioFimDoMes(referencia: Date = new Date(), fusoHorario: string = FUSO_HORARIO_PADRAO) {
+  return { inicio: inicioDoMes(referencia, fusoHorario), fim: fimDoMes(referencia, fusoHorario) };
 }
 
-function chaveDia(data: Date): string {
-  return new Date(data).toISOString().slice(0, 10);
-}
-
-function inicioFimDoMes(referencia: Date = new Date()) {
-  const inicio = new Date(referencia.getFullYear(), referencia.getMonth(), 1, 0, 0, 0, 0);
-  const fim = new Date(referencia.getFullYear(), referencia.getMonth() + 1, 0, 23, 59, 59, 999);
-  return { inicio, fim };
-}
-
-function mesAnterior(referencia: Date = new Date()): Date {
-  return new Date(referencia.getFullYear(), referencia.getMonth() - 1, 1);
+function mesAnterior(referencia: Date = new Date(), fusoHorario: string = FUSO_HORARIO_PADRAO): Date {
+  const primeiroDiaMesAtual = inicioDoMes(referencia, fusoHorario);
+  const ultimoDiaMesAnterior = somarDias(primeiroDiaMesAtual, -1, fusoHorario);
+  return inicioDoMes(ultimoDiaMesAnterior, fusoHorario);
 }
 
 // ── Projeção diária de saldo (30 dias) ──────────────────────────────────────
@@ -64,8 +66,10 @@ export async function obterProjecaoSaldo(dias = 30): Promise<ProjecaoSaldo> {
   exigirPermissao(contexto, "financeiro.ver");
   const { prisma } = contexto;
 
-  const hoje = inicioDoDia(new Date());
-  const fimJanela = fimDoDia(new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + dias));
+  // `dataVencimento` é DATA DE CALENDÁRIO (meia-noite UTC) — "hoje" precisa
+  // da mesma convenção, nunca meia-noite do fuso da loja como instante.
+  const hoje = comoDataDeCalendario(new Date(), contexto.fusoHorario);
+  const fimJanela = somarDiasEmDataDeCalendario(hoje, dias);
 
   const [saldoHoje, receber, pagar] = await Promise.all([
     obterSaldoEmCaixaHoje(),
@@ -81,13 +85,13 @@ export async function obterProjecaoSaldo(dias = 30): Promise<ProjecaoSaldo> {
 
   const entradasPorDia = new Map<string, number>();
   for (const conta of receber) {
-    const chave = chaveDia(conta.dataVencimento);
+    const chave = chaveDiaCalendario(conta.dataVencimento);
     entradasPorDia.set(chave, (entradasPorDia.get(chave) ?? 0) + paraCentavos(conta.valor));
   }
 
   const saidasPorDia = new Map<string, number>();
   for (const parcela of pagar) {
-    const chave = chaveDia(parcela.dataVencimento);
+    const chave = chaveDiaCalendario(parcela.dataVencimento);
     saidasPorDia.set(chave, (saidasPorDia.get(chave) ?? 0) + paraCentavos(parcela.valor));
   }
 
@@ -95,8 +99,8 @@ export async function obterProjecaoSaldo(dias = 30): Promise<ProjecaoSaldo> {
   const pontos: PontoProjecaoSaldo[] = [];
 
   for (let indice = 0; indice <= dias; indice += 1) {
-    const data = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + indice);
-    const chave = chaveDia(data);
+    const data = somarDiasEmDataDeCalendario(hoje, indice);
+    const chave = chaveDiaCalendario(data);
     const entradasCentavos = entradasPorDia.get(chave) ?? 0;
     const saidasCentavos = saidasPorDia.get(chave) ?? 0;
     saldoCentavos += entradasCentavos - saidasCentavos;
@@ -135,8 +139,10 @@ export async function obterProximosLancamentos(dias = 7): Promise<ProximosLancam
   exigirPermissao(contexto, "financeiro.ver");
   const { prisma } = contexto;
 
-  const hoje = inicioDoDia(new Date());
-  const fimJanela = fimDoDia(new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + dias));
+  // Mesma convenção de obterProjecaoSaldo acima: dataVencimento é DATA DE
+  // CALENDÁRIO (meia-noite UTC).
+  const hoje = comoDataDeCalendario(new Date(), contexto.fusoHorario);
+  const fimJanela = somarDiasEmDataDeCalendario(hoje, dias);
 
   const [receber, pagar] = await Promise.all([
     prisma.contaReceber.findMany({
@@ -232,8 +238,11 @@ export async function obterResultadoDoPeriodo(referencia: Date = new Date()): Pr
   exigirPermissao(contexto, "financeiro.ver");
   const { prisma } = contexto;
 
-  const { inicio, fim } = inicioFimDoMes(referencia);
-  const { inicio: inicioAnterior, fim: fimAnterior } = inicioFimDoMes(mesAnterior(referencia));
+  const { inicio, fim } = inicioFimDoMes(referencia, contexto.fusoHorario);
+  const { inicio: inicioAnterior, fim: fimAnterior } = inicioFimDoMes(
+    mesAnterior(referencia, contexto.fusoHorario),
+    contexto.fusoHorario
+  );
 
   const [atual, anterior] = await Promise.all([
     calcularEntradasSaidas(inicio, fim, prisma),
@@ -272,7 +281,7 @@ export async function obterServicoXProduto(referencia: Date = new Date()): Promi
   const contexto = await exigirContextoTenant();
   exigirPermissao(contexto, "financeiro.ver");
   const { prisma } = contexto;
-  const { inicio, fim } = inicioFimDoMes(referencia);
+  const { inicio, fim } = inicioFimDoMes(referencia, contexto.fusoHorario);
 
   const linhas = await prisma.$queryRaw<Array<{ ehServico: boolean; total: number }>>`
     SELECT base."ehServico", COALESCE(SUM(base.valor), 0) AS total
@@ -345,7 +354,7 @@ export async function obterQuantoSobrouPorOS(referencia: Date = new Date(), limi
   const contexto = await exigirContextoTenant();
   exigirPermissao(contexto, "financeiro.ver");
   const { prisma } = contexto;
-  const { inicio, fim } = inicioFimDoMes(referencia);
+  const { inicio, fim } = inicioFimDoMes(referencia, contexto.fusoHorario);
 
   const contasRecebidas = await prisma.contaReceber.findMany({
     where: {

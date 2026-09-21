@@ -18,6 +18,7 @@ import { SeletorClienteCRM } from "@/components/financeiro/seletor-cliente-crm";
 import { BarraAcaoLote } from "@/components/financeiro/barra-acao-lote";
 import { PainelConfirmarLote } from "@/components/financeiro/painel-confirmar-lote";
 import { alternarSelecaoLinha, resumirSelecao, selecionarTodosFiltrados } from "@/lib/dominio/financeiro/selecao-lote";
+import { FUSO_HORARIO_PADRAO, hojeComoDataDeCalendario } from "@/lib/datas";
 import { useTemPermissao } from "@/contextos/contexto-permissoes";
 import { PilulaStatus } from "@/components/ui/pilula-status";
 import { Button } from "@/components/ui/button";
@@ -136,11 +137,9 @@ interface ConteudoReceberProps {
 export function ConteudoReceber({ contas }: ConteudoReceberProps) {
   const router = useRouter();
 
-  const inicioDiaAtual = (() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d;
-  })();
+  // dataVencimento é DATA DE CALENDÁRIO (meia-noite UTC) — nunca setHours(0)
+  // local do navegador, que deslocaria o dia fora de UTC. Ver lib/datas.ts.
+  const inicioDiaAtual = hojeComoDataDeCalendario(FUSO_HORARIO_PADRAO);
 
   const podeLancar = useTemPermissao("financeiro.lancar");
   const podeBaixar = useTemPermissao("financeiro.baixar");
