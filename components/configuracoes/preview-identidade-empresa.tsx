@@ -1,10 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
+import { useState } from "react";
+import { PilulaStatus } from "@/components/ui/pilula-status";
 import type { ConfiguracaoEmpresaDocumentos } from "@/lib/configuracoes-documentos";
-import { cn } from "@/lib/utils";
 import { montarResumoEmpresaDocumentos } from "@/lib/configuracoes-documentos";
 
 type PreviewIdentidadeEmpresaProps = {
@@ -17,9 +15,9 @@ type PreviewIdentidadeEmpresaProps = {
 };
 
 const mapaStatus = {
-  completa: { rotulo: "Configuração completa", classe: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  parcial: { rotulo: "Configuração parcial", classe: "bg-amber-50 text-amber-700 border-amber-200" },
-  pendente: { rotulo: "Configuração pendente", classe: "bg-slate-100 text-slate-700 border-slate-200" },
+  completa: { rotulo: "Configuração completa", variante: "sucesso" },
+  parcial: { rotulo: "Configuração parcial", variante: "alerta" },
+  pendente: { rotulo: "Configuração pendente", variante: "neutro" },
 } as const;
 
 export function PreviewIdentidadeEmpresa({
@@ -32,28 +30,31 @@ export function PreviewIdentidadeEmpresa({
 }: PreviewIdentidadeEmpresaProps) {
   const resumo = montarResumoEmpresaDocumentos(configuracao);
   const [falhaLogo, setFalhaLogo] = useState(false);
+  const [ultimaLogoUrl, setUltimaLogoUrl] = useState(resumo.logoUrl);
 
-  useEffect(() => {
+  // Reseta a falha de carregamento quando a URL muda — ajuste de estado
+  // durante a renderização (padrão recomendado pelo React), não em efeito,
+  // pra não causar um ciclo extra de render.
+  if (resumo.logoUrl !== ultimaLogoUrl) {
+    setUltimaLogoUrl(resumo.logoUrl);
     setFalhaLogo(false);
-  }, [resumo.logoUrl]);
+  }
 
   const status = mapaStatus[resumo.status];
 
   return (
-    <Card id={id} className="border-border bg-background">
+    <div id={id} className="flex flex-col gap-4 rounded-kx-cartao border border-kx-painel-borda bg-kx-cartao p-4 md:p-5">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
-          <p className="text-sm font-semibold text-foreground">{titulo}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{descricao}</p>
+          <p className="text-sm font-bold text-kx-texto">{titulo}</p>
+          <p className="mt-1 text-xs text-kx-legenda">{descricao}</p>
         </div>
-        <Badge variant="outline" className={cn("border", status.classe)}>
-          {status.rotulo}
-        </Badge>
+        <PilulaStatus variante={status.variante}>{status.rotulo}</PilulaStatus>
       </div>
 
-      <div className={cn("rounded-xl border border-dashed border-border/80 bg-slate-50/70 p-4", compacta ? "" : "md:p-5") }>
+      <div className={`rounded-kx-botao border border-dashed border-kx-campo-borda bg-kx-superficie p-4 ${compacta ? "" : "md:p-5"}`}>
         <div className="flex flex-col gap-4 md:flex-row md:items-start">
-          <div className="flex h-20 w-28 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-white">
+          <div className="flex h-20 w-28 shrink-0 items-center justify-center overflow-hidden rounded-kx-botao border border-kx-painel-borda bg-kx-painel">
             {resumo.logoUrl && !falhaLogo ? (
               <img
                 src={resumo.logoUrl}
@@ -62,33 +63,33 @@ export function PreviewIdentidadeEmpresa({
                 onError={() => setFalhaLogo(true)}
               />
             ) : (
-              <div className="px-3 text-center text-xs font-medium text-muted-foreground">
+              <div className="px-3 text-center text-xs font-medium text-kx-legenda">
                 Logo não configurada
               </div>
             )}
           </div>
 
           <div className="min-w-0 flex-1 space-y-1">
-            <p className="text-lg font-semibold leading-tight text-foreground">{resumo.nomeExibicao}</p>
-            <p className="text-sm text-muted-foreground">{resumo.razaoSocial}</p>
-            <p className="text-sm text-foreground">{resumo.cnpj}</p>
-            <p className="text-sm text-foreground">{resumo.telefone}</p>
-            <p className="text-sm text-foreground">{resumo.cidadeUf}</p>
-            <p className="text-sm text-muted-foreground">{resumo.endereco}</p>
+            <p className="text-lg font-bold leading-tight text-kx-texto">{resumo.nomeExibicao}</p>
+            <p className="text-sm text-kx-legenda">{resumo.razaoSocial}</p>
+            <p className="text-sm text-kx-texto-2">{resumo.cnpj}</p>
+            <p className="text-sm text-kx-texto-2">{resumo.telefone}</p>
+            <p className="text-sm text-kx-texto-2">{resumo.cidadeUf}</p>
+            <p className="text-sm text-kx-legenda">{resumo.endereco}</p>
           </div>
         </div>
 
         {mostrarMensagemCupom && (
-          <div className="mt-4 rounded-lg border border-border bg-white p-3">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          <div className="mt-4 rounded-kx-botao border border-kx-painel-borda bg-kx-painel p-3">
+            <p className="text-[11px] font-bold uppercase tracking-wide text-kx-legenda">
               Mensagem do cupom / recibo
             </p>
-            <p className="mt-2 whitespace-pre-wrap text-sm text-foreground">
+            <p className="mt-2 whitespace-pre-wrap text-sm text-kx-texto-2">
               {resumo.mensagemCupom || "Mensagem padrão ainda não configurada."}
             </p>
           </div>
         )}
       </div>
-    </Card>
+    </div>
   );
 }

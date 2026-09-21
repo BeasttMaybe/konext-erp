@@ -2,13 +2,12 @@
 
 import type { DadosConfiguracoes } from "@/app/actions/configuracoes";
 import { Search } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import type { UseFormRegister } from "react-hook-form";
+import { PilulaStatus } from "@/components/ui/pilula-status";
+import type { UseFormRegister, UseFormSetValue } from "react-hook-form";
 import {
   CAMPOS_EMPRESA_PLANEJADOS,
   formatarCepVisual,
@@ -20,14 +19,26 @@ import { SecaoConfiguracoes } from "./secao-configuracoes";
 
 type PropsPainelEmpresa = {
   register: UseFormRegister<DadosConfiguracoes>;
+  setValue: UseFormSetValue<DadosConfiguracoes>;
   buscandoCnpj: boolean;
   onBuscarCnpj: () => Promise<void>;
   salvando: boolean;
   configuracaoAtual: DadosConfiguracoes;
 };
 
+/**
+ * Empresa (Fase 3-2E, Parte 2) — referência: referencia-configuracoes-
+ * empresa.html. Três campos que a referência mostra não existem no
+ * modelo real e por isso NÃO foram inventados aqui: "E-mail de contato"
+ * (já sinalizado como planejado — CAMPOS_EMPRESA_PLANEJADOS.contato),
+ * "Mostrar endereço no link de rastreio" (nenhum campo correspondente em
+ * DadosConfiguracoes) e upload real de logo (o campo é uma URL de texto,
+ * sem endpoint de upload). O bloco de logo usa o visual da referência
+ * (preview + ações) sobre o mecanismo real (colar link / limpar).
+ */
 export function PainelEmpresa({
   register,
+  setValue,
   buscandoCnpj,
   onBuscarCnpj,
   salvando,
@@ -51,44 +62,80 @@ export function PainelEmpresa({
     },
   });
 
+  const registroLogoUrl = register("logoUrl");
+
   return (
     <SecaoConfiguracoes
       titulo="Empresa"
       descricao="Dados cadastrais e identidade institucional da empresa."
     >
-      <div className="space-y-5">
-        <Card className="border-border bg-background">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold text-foreground">Identificação da empresa</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Base cadastral usada nos documentos, impressões e cabeçalhos do ERP.
-              </p>
+      <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-5 rounded-kx-cartao border border-kx-painel-borda bg-kx-cartao p-4 md:p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-sm font-bold text-kx-texto">Dados da empresa</span>
+              <span className="text-xs text-kx-legenda">Aparecem na OS, no termo de garantia e no cupom do PDV</span>
             </div>
-            <Badge variant="secondary">Persistência ativa</Badge>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="razaoSocial">Razão Social</Label>
-              <Input id="razaoSocial" placeholder="Informe a razão social" {...register("razaoSocial")} />
+          <div className="flex flex-col gap-3 rounded-kx-botao bg-kx-superficie p-4 sm:flex-row sm:items-center">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-kx-botao border border-kx-painel-borda bg-kx-painel text-lg font-extrabold text-kx-texto">
+              {configuracaoAtual.logoUrl ? (
+                <img src={configuracaoAtual.logoUrl} alt="Logo da empresa" className="h-full w-full object-contain p-1.5" />
+              ) : (
+                (configuracaoAtual.nomeFantasia || "K").charAt(0).toUpperCase()
+              )}
+            </div>
+            <div className="flex min-w-0 flex-1 flex-col gap-2">
+              <div>
+                <p className="text-sm font-bold text-kx-texto">Logo da loja</p>
+                <p className="text-xs text-kx-legenda">Link de imagem (PNG/JPG). Usada nos documentos impressos.</p>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input
+                  placeholder="https://exemplo.com/logo.png"
+                  className="h-10 border-kx-campo-borda bg-kx-painel"
+                  {...registroLogoUrl}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-10 shrink-0 rounded-kx-botao border-kx-erro-borda text-kx-erro-texto hover:bg-kx-erro-fundo"
+                  onClick={() => setValue("logoUrl", "", { shouldDirty: true })}
+                >
+                  Remover
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="nomeFantasia" className="text-xs font-bold text-kx-texto">
+                Nome fantasia
+              </Label>
+              <Input id="nomeFantasia" placeholder="Informe o nome fantasia" className="h-11 border-kx-campo-borda bg-kx-superficie" {...register("nomeFantasia")} />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="nomeFantasia">Nome Fantasia</Label>
-              <Input id="nomeFantasia" placeholder="Informe o nome fantasia" {...register("nomeFantasia")} />
+            <div className="space-y-1.5">
+              <Label htmlFor="razaoSocial" className="text-xs font-bold text-kx-texto">
+                Razão social
+              </Label>
+              <Input id="razaoSocial" placeholder="Informe a razão social" className="h-11 border-kx-campo-borda bg-kx-superficie" {...register("razaoSocial")} />
             </div>
 
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="cnpj">CNPJ</Label>
-              <div className="flex flex-col gap-2 md:flex-row md:items-end">
-                <Input id="cnpj" placeholder="00.000.000/0000-00" maxLength={18} {...registroCnpj} />
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label htmlFor="cnpj" className="text-xs font-bold text-kx-texto">
+                CNPJ
+              </Label>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input id="cnpj" placeholder="00.000.000/0000-00" maxLength={18} className="h-11 border-kx-campo-borda bg-kx-superficie" {...registroCnpj} />
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => void onBuscarCnpj()}
                   disabled={buscandoCnpj || salvando}
-                  className="whitespace-nowrap"
+                  className="h-11 shrink-0 rounded-kx-botao whitespace-nowrap"
                 >
                   <Search className="mr-2 h-4 w-4" />
                   {buscandoCnpj ? "Buscando..." : "Buscar dados"}
@@ -96,117 +143,111 @@ export function PainelEmpresa({
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="inscricaoEstadual">Inscrição Estadual</Label>
-              <Input
-                id="inscricaoEstadual"
-                placeholder="Informe a inscrição estadual"
-                {...register("inscricaoEstadual")}
-              />
+            <div className="space-y-1.5">
+              <Label htmlFor="inscricaoEstadual" className="text-xs font-bold text-kx-texto">
+                Inscrição estadual
+              </Label>
+              <Input id="inscricaoEstadual" placeholder="Informe a inscrição estadual" className="h-11 border-kx-campo-borda bg-kx-superficie" {...register("inscricaoEstadual")} />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="telefone" className="text-xs font-bold text-kx-texto">
+                Telefone / WhatsApp
+              </Label>
+              <Input id="telefone" placeholder="(00) 00000-0000" maxLength={15} className="h-11 border-kx-campo-borda bg-kx-superficie" {...registroTelefone} />
             </div>
           </div>
-        </Card>
 
-        <Card className="border-border bg-background">
-          <p className="text-sm font-semibold text-foreground">Contato</p>
-          <p className="text-xs text-muted-foreground">
-            Nesta etapa, o telefone principal já é persistido. Demais canais ficam sinalizados para expansão do modelo.
-          </p>
-
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="telefone">Telefone Principal</Label>
-              <Input id="telefone" placeholder="(00) 00000-0000" maxLength={15} {...registroTelefone} />
-            </div>
-
-            <div className="rounded-xl border border-dashed border-border bg-slate-50/80 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                Planejado para próxima etapa
-              </p>
-              <div className="mt-3 flex flex-wrap gap-2">
+          {CAMPOS_EMPRESA_PLANEJADOS.contato.length > 0 && (
+            <div className="rounded-kx-botao border border-dashed border-kx-campo-borda p-3">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-kx-legenda">Planejado para próxima etapa</p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
                 {CAMPOS_EMPRESA_PLANEJADOS.contato.map((campo) => (
-                  <Badge key={campo} variant="outline">
+                  <PilulaStatus key={campo} variante="neutro">
                     {campo}
-                  </Badge>
+                  </PilulaStatus>
                 ))}
               </div>
             </div>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-5 rounded-kx-cartao border border-kx-painel-borda bg-kx-cartao p-4 md:p-5">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-sm font-bold text-kx-texto">Endereço e atendimento</span>
+            <span className="text-xs text-kx-legenda">Usado nos documentos e no link de rastreio do cliente</span>
           </div>
-        </Card>
 
-        <Card className="border-border bg-background">
-          <p className="text-sm font-semibold text-foreground">Endereço</p>
-          <p className="text-xs text-muted-foreground">
-            CEP, logradouro e endereço completo seguem o fluxo atual, inclusive com apoio da busca por CNPJ.
-          </p>
-
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="cep">CEP</Label>
-              <Input id="cep" placeholder="00000-000" maxLength={9} {...registroCep} />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="cep" className="text-xs font-bold text-kx-texto">
+                CEP
+              </Label>
+              <Input id="cep" placeholder="00000-000" maxLength={9} className="h-11 border-kx-campo-borda bg-kx-superficie" {...registroCep} />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="logradouro">Logradouro</Label>
-              <Input id="logradouro" placeholder="Rua / Avenida" {...register("logradouro")} />
+            <div className="space-y-1.5">
+              <Label htmlFor="logradouro" className="text-xs font-bold text-kx-texto">
+                Logradouro
+              </Label>
+              <Input id="logradouro" placeholder="Rua / Avenida" className="h-11 border-kx-campo-borda bg-kx-superficie" {...register("logradouro")} />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="numero">Número</Label>
-              <Input id="numero" placeholder="123" {...register("numero")} />
+            <div className="space-y-1.5">
+              <Label htmlFor="numero" className="text-xs font-bold text-kx-texto">
+                Número
+              </Label>
+              <Input id="numero" placeholder="123" className="h-11 border-kx-campo-borda bg-kx-superficie" {...register("numero")} />
             </div>
 
-            <div className="rounded-xl border border-dashed border-border bg-slate-50/80 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                Planejado para próxima etapa
-              </p>
-              <div className="mt-3 flex flex-wrap gap-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="bairro" className="text-xs font-bold text-kx-texto">
+                Bairro
+              </Label>
+              <Input id="bairro" placeholder="Centro" className="h-11 border-kx-campo-borda bg-kx-superficie" {...register("bairro")} />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="cidade" className="text-xs font-bold text-kx-texto">
+                Cidade
+              </Label>
+              <Input id="cidade" placeholder="Sua cidade" className="h-11 border-kx-campo-borda bg-kx-superficie" {...register("cidade")} />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="estado" className="text-xs font-bold text-kx-texto">
+                Estado (UF)
+              </Label>
+              <Input id="estado" placeholder="SP" maxLength={2} className="h-11 border-kx-campo-borda bg-kx-superficie" {...register("estado")} />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="endereco" className="text-xs font-bold text-kx-texto">
+              Endereço completo
+            </Label>
+            <Textarea
+              id="endereco"
+              rows={2}
+              placeholder="Rua, número, bairro, cidade, estado e CEP"
+              className="border-kx-campo-borda bg-kx-superficie"
+              {...register("endereco")}
+            />
+          </div>
+
+          {CAMPOS_EMPRESA_PLANEJADOS.endereco.length > 0 && (
+            <div className="rounded-kx-botao border border-dashed border-kx-campo-borda p-3">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-kx-legenda">Planejado para próxima etapa</p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
                 {CAMPOS_EMPRESA_PLANEJADOS.endereco.map((campo) => (
-                  <Badge key={campo} variant="outline">
+                  <PilulaStatus key={campo} variante="neutro">
                     {campo}
-                  </Badge>
+                  </PilulaStatus>
                 ))}
               </div>
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="bairro">Bairro</Label>
-              <Input id="bairro" placeholder="Centro" {...register("bairro")} />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="cidade">Cidade</Label>
-              <Input id="cidade" placeholder="Sua cidade" {...register("cidade")} />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="estado">Estado (UF)</Label>
-              <Input id="estado" placeholder="SP" maxLength={2} {...register("estado")} />
-            </div>
-
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="endereco">Endereço Completo</Label>
-              <Textarea
-                id="endereco"
-                rows={3}
-                placeholder="Rua, número, bairro, cidade, estado e CEP"
-                {...register("endereco")}
-              />
-            </div>
-          </div>
-        </Card>
-
-        <Card className="border-border bg-background">
-          <p className="text-sm font-semibold text-foreground">Identidade visual</p>
-          <p className="text-xs text-muted-foreground">
-            A logo é usada nas áreas visuais já compatíveis e possui fallback seguro quando ausente.
-          </p>
-
-          <div className="space-y-2">
-            <Label htmlFor="logoUrl">URL da Logo da Empresa</Label>
-            <Input id="logoUrl" placeholder="https://exemplo.com/logo.png" {...register("logoUrl")} />
-          </div>
-        </Card>
+          )}
+        </div>
 
         <PreviewIdentidadeEmpresa
           configuracao={configuracaoAtual}

@@ -10,7 +10,6 @@ import {
 } from "@/app/actions/configuracoes";
 import { useTemPermissao } from "@/contextos/contexto-permissoes";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import {
   formatarCepVisual,
   formatarCnpjVisual,
@@ -77,10 +76,6 @@ export function LayoutConfiguracoes({ defaultValues }: PropsLayoutConfiguracoes)
     secaoAtiva === "os" ||
     secaoAtiva === "garantias" ||
     secaoAtiva === "pdv-caixa";
-
-  const descricaoSecaoAtiva = useMemo(() => {
-    return secoesVisiveis.find((secao) => secao.id === secaoAtiva)?.descricao ?? "";
-  }, [secoesVisiveis, secaoAtiva]);
 
   const aoBuscarDadosCnpj = async () => {
     try {
@@ -161,6 +156,7 @@ export function LayoutConfiguracoes({ defaultValues }: PropsLayoutConfiguracoes)
         return (
           <PainelEmpresa
             register={register}
+            setValue={setValue}
             buscandoCnpj={buscandoCnpj}
             onBuscarCnpj={aoBuscarDadosCnpj}
             salvando={salvando}
@@ -211,40 +207,35 @@ export function LayoutConfiguracoes({ defaultValues }: PropsLayoutConfiguracoes)
   };
 
   return (
-    <form onSubmit={handleSubmit(aoSalvar)} className="space-y-4">
-      <div className="grid grid-cols-1 xl:grid-cols-[320px_1fr] gap-4">
+    <form onSubmit={handleSubmit(aoSalvar)} className="flex min-h-0 flex-1 flex-col gap-4">
+      <div className="flex shrink-0 flex-col gap-0.5">
+        <span className="text-xs text-kx-legenda">Configurações</span>
+        <span className="text-[22px] font-extrabold tracking-tight text-kx-texto">
+          {secoesVisiveis.find((secao) => secao.id === secaoAtiva)?.rotulo}
+        </span>
+      </div>
+
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto min-[1400px]:overflow-hidden min-[1400px]:grid-cols-[268px_1fr]">
         <MenuConfiguracoes
           secoes={secoesVisiveis}
           secaoAtiva={secaoAtiva}
           onSelecionarSecao={setSecaoAtiva}
         />
 
-        <div className="space-y-4">
-          <Card className="border-border bg-card p-4">
-            <p className="text-sm text-muted-foreground">Seção ativa</p>
-            <p className="text-base font-semibold text-foreground">
-              {secoesVisiveis.find((secao) => secao.id === secaoAtiva)?.rotulo}
-            </p>
-            <p className="text-sm text-muted-foreground mt-1">{descricaoSecaoAtiva}</p>
-          </Card>
-
+        <div className="flex min-h-0 flex-col gap-4 min-[1400px]:overflow-y-auto">
           {renderizarPainelAtivo()}
         </div>
       </div>
 
       {secaoComPersistenciaAtiva && (
-        <div className="sticky bottom-3 flex justify-end">
-          <div className="flex items-center gap-3 rounded-xl border border-border bg-background/95 px-3 py-2 shadow-sm backdrop-blur">
-            <p className="text-xs text-muted-foreground">
+        <div className="flex shrink-0 justify-end">
+          <div className="flex items-center gap-3 rounded-kx-painel border border-kx-painel-borda bg-kx-painel px-4 py-2.5 shadow-kx-cartao">
+            <p className="text-xs text-kx-legenda">
               {formState.isDirty
                 ? "Há alterações pendentes nesta etapa."
                 : "Nenhuma alteração pendente no formulário atual."}
             </p>
-            <Button
-              type="submit"
-              disabled={salvando}
-              className="bg-emerald-600 text-white hover:bg-emerald-700"
-            >
+            <Button type="submit" disabled={salvando} className="rounded-kx-botao">
               {salvando
                 ? "Salvando..."
                 : secaoAtiva === "documentos"
