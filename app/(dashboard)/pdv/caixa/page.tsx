@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
@@ -58,6 +58,25 @@ export default function PDVCaixaPage() {
 
   const [resumoSessao, setResumoSessao] = useState<ResumoSessaoAbertaDetalhado | null>(null);
   const [carregandoResumoSessao, setCarregandoResumoSessao] = useState(false);
+  // Investigação (Fase 2A-1 follow-up): o que parecia "trava pra sempre em
+  // 'Verificando o caixa...'" era, na verdade, `obterResumoSessaoAbertaDetalhado()`
+  // demorando ~26-30s pra resolver em modo dev (Turbopack compilando cada
+  // rota de server action pela primeira vez, mais várias outras actions do
+  // chrome do app — cabeçalho, notificações, perfil — competindo na mesma
+  // janela) — reproduzido IDÊNTICO em `main` (sem nenhum código da Fase
+  // 2A-1) e nesta branch, com o MESMO banco de teste já migrado pra
+  // timestamptz: não é regressão desta fase. Ainda assim, se a chamada
+  // REALMENTE falhar (rejeitar de verdade — rede caiu, banco fora do ar),
+  // o comportamento antigo prendia a tela pra sempre: `carregandoResumoSessao`
+  // virava `false` no `finally`, mas como `resumoSessao` continuava `null`,
+  // NENHUMA das 3 condições de render (carregando / painel aberto / painel
+  // fechamento) batia — a tela ficava em branco, sem toast visível o
+  // bastante e sem qualquer forma de tentar de novo sem recarregar a
+  // página inteira. `erroResumoSessao` + `carregarResumoSessao` (abaixo)
+  // corrigem isso: um estado de erro de verdade, com botão "Tentar
+  // novamente" que só refaz ESSA chamada, sem recarregar a página nem
+  // reverificar o status do caixa.
+  const [erroResumoSessao, setErroResumoSessao] = useState<string | null>(null);
 
   const [fechamentoAutomaticoAtivo, setFechamentoAutomaticoAtivo] = useState(false);
   const [fechamentoAutomaticoHorario, setFechamentoAutomaticoHorario] = useState("23:59");
@@ -70,35 +89,56 @@ export default function PDVCaixaPage() {
   const [observacaoTexto, setObservacaoTexto] = useState("");
   const [confirmando, setConfirmando] = useState(false);
 
+  // Ref (não state) porque só serve pra decidir se ainda é seguro chamar
+  // `setState` — tanto o efeito de montagem quanto o retry manual (botão
+  // "Tentar novamente") escrevem nela, e nenhum dos dois deve fazer a
+  // página re-renderizar só por causa desse controle.
+  const montadoRef = useRef(true);
   useEffect(() => {
-    let ativo = true;
+    montadoRef.current = true;
+    return () => {
+      montadoRef.current = false;
+    };
+  }, []);
 
+  // Extraído do efeito de montagem pra ser reutilizável pelo botão "Tentar
+  // novamente" (ver o comentário grande em `erroResumoSessao`) — chamar de
+  // novo só ISSO, nunca `verificarStatusCaixa()` de novo (o caixa já sabe
+  // que está aberto; reconfirmar isso a cada retry seria refazer trabalho
+  // que já deu certo).
+  const carregarResumoSessao = useCallback(async () => {
+    try {
+      setCarregandoResumoSessao(true);
+      setErroResumoSessao(null);
+      const resumo = await obterResumoSessaoAbertaDetalhado();
+      if (montadoRef.current) setResumoSessao(resumo);
+    } catch (erro) {
+      if (!montadoRef.current) return;
+      const mensagem = erro instanceof Error ? erro.message : "Não foi possível carregar o resumo do caixa.";
+      setErroResumoSessao(mensagem);
+      toast.error(mensagem);
+    } finally {
+      if (montadoRef.current) setCarregandoResumoSessao(false);
+    }
+  }, []);
+
+  useEffect(() => {
     const iniciar = async () => {
       try {
         setCarregandoStatus(true);
         const status = await verificarStatusCaixa();
-        if (!ativo) return;
+        if (!montadoRef.current) return;
         setCaixaAberto(status);
 
         if (status) {
-          try {
-            setCarregandoResumoSessao(true);
-            const resumo = await obterResumoSessaoAbertaDetalhado();
-            if (ativo) setResumoSessao(resumo);
-          } catch (erro) {
-            if (!ativo) return;
-            const mensagem = erro instanceof Error ? erro.message : "Não foi possível carregar o resumo do caixa.";
-            toast.error(mensagem);
-          } finally {
-            if (ativo) setCarregandoResumoSessao(false);
-          }
+          await carregarResumoSessao();
         }
       } catch (erro) {
-        if (!ativo) return;
+        if (!montadoRef.current) return;
         const mensagem = erro instanceof Error ? erro.message : "Não foi possível verificar o status do caixa.";
         toast.error(mensagem);
       } finally {
-        if (ativo) setCarregandoStatus(false);
+        if (montadoRef.current) setCarregandoStatus(false);
       }
     };
 
@@ -106,17 +146,14 @@ export default function PDVCaixaPage() {
 
     obterConfiguracoes()
       .then((config) => {
-        if (!ativo) return;
+        if (!montadoRef.current) return;
         setFechamentoAutomaticoAtivo(Boolean(config.fechamentoAutomaticoCaixaAtivo));
         setFechamentoAutomaticoHorario(config.fechamentoAutomaticoCaixaHorario || "23:59");
       })
       .catch(() => {
         // Sem a config, o aviso de fechamento automático so fica oculto — nao impede o uso da tela.
       });
-
-    return () => {
-      ativo = false;
-    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- roda só na montagem, de propósito (mesmo comportamento de antes desta correção); `carregarResumoSessao` é estável (useCallback com deps vazias).
   }, []);
 
   useEffect(() => {
@@ -197,6 +234,21 @@ export default function PDVCaixaPage() {
 
       {!carregandoStatus && caixaAberto && carregandoResumoSessao && !resumoSessao && (
         <p className="text-sm text-kx-legenda">Carregando resumo do caixa...</p>
+      )}
+
+      {/* Antes desta correção, uma falha real aqui (rede caiu, banco fora
+          do ar) deixava a tela em branco pra sempre — nenhuma das outras
+          condições batia (não carregando, sem resumo). Agora aparece um
+          estado de erro de verdade, com "Tentar novamente" chamando só
+          `carregarResumoSessao` de novo (não a página inteira). */}
+      {!carregandoStatus && caixaAberto && !carregandoResumoSessao && !resumoSessao && erroResumoSessao && (
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-kx-painel border border-kx-erro-borda bg-kx-erro-fundo p-8 text-center">
+          <p className="text-sm font-semibold text-kx-erro-texto">Não foi possível carregar o resumo do caixa.</p>
+          <p className="text-xs text-kx-erro-texto">{erroResumoSessao}</p>
+          <Button type="button" className="mt-2 h-10 rounded-kx-botao px-4 text-sm font-bold" onClick={() => carregarResumoSessao()}>
+            Tentar novamente
+          </Button>
+        </div>
       )}
 
       {!carregandoStatus && caixaAberto && resumoSessao && aba === "aberto" && (
