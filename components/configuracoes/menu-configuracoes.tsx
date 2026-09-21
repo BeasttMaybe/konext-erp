@@ -1,7 +1,5 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import { Building2, FileText, Wrench, ShieldCheck, ShoppingCart, UserCog, type LucideIcon } from "lucide-react";
 import type { ItemSecaoConfiguracoes, SecaoConfiguracoesId } from "./tipos";
 
@@ -20,45 +18,41 @@ type PropsMenuConfiguracoes = {
   onSelecionarSecao: (secao: SecaoConfiguracoesId) => void;
 };
 
+/**
+ * Coluna de seções (Fase 3-2E, Parte 1) — cada item empilha rótulo +
+ * descrição, como na referência; a ativa ganha fundo elevado e a borda de
+ * destaque à esquerda (não é mais um botão horizontal ícone+texto).
+ */
 export function MenuConfiguracoes({ secoes, secaoAtiva, onSelecionarSecao }: PropsMenuConfiguracoes) {
   return (
-    <aside className="rounded-xl border border-border bg-card/70 p-2 md:p-3">
-      <div className="flex flex-col gap-1.5">
-        {secoes.map((secao) => {
-          const Icone = iconesPorSecao[secao.id];
-          const ativo = secao.id === secaoAtiva;
+    <nav
+      aria-label="Seções das configurações"
+      className="flex shrink-0 flex-col gap-0.5 overflow-y-auto rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-3 min-[1400px]:min-h-0"
+    >
+      {secoes.map((secao) => {
+        const Icone = iconesPorSecao[secao.id];
+        const ativo = secao.id === secaoAtiva;
 
-          return (
-            <Button
-              key={secao.id}
-              type="button"
-              variant="ghost"
-              onClick={() => onSelecionarSecao(secao.id)}
-              className={cn(
-                "justify-start h-auto px-3 py-2.5 w-full",
-                ativo
-                  ? "bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white"
-                  : "text-foreground/90 hover:bg-muted"
-              )}
-            >
-              <span className="flex items-start gap-2.5 text-left">
-                <Icone className="h-4 w-4 mt-0.5 shrink-0" />
-                <span className="space-y-0.5">
-                  <span className="block text-sm font-medium leading-tight">{secao.rotulo}</span>
-                  <span
-                    className={cn(
-                      "block text-xs leading-tight whitespace-normal",
-                      ativo ? "text-emerald-50/90" : "text-muted-foreground"
-                    )}
-                  >
-                    {secao.descricao}
-                  </span>
-                </span>
-              </span>
-            </Button>
-          );
-        })}
-      </div>
-    </aside>
+        return (
+          <button
+            key={secao.id}
+            type="button"
+            onClick={() => onSelecionarSecao(secao.id)}
+            aria-current={ativo ? "page" : undefined}
+            className={`flex flex-col gap-0.5 rounded-kx-botao border-l-[3px] px-3.5 py-2.5 text-left transition-colors ${
+              ativo
+                ? "border-l-kx-destaque bg-kx-cartao text-kx-texto"
+                : "border-l-transparent text-kx-texto-2 hover:bg-kx-superficie"
+            }`}
+          >
+            <span className="flex items-center gap-2 text-sm font-bold">
+              <Icone className="h-4 w-4 shrink-0" aria-hidden="true" />
+              {secao.rotulo}
+            </span>
+            <span className={`pl-6 text-xs ${ativo ? "text-kx-texto-2" : "text-kx-legenda"}`}>{secao.descricao}</span>
+          </button>
+        );
+      })}
+    </nav>
   );
 }

@@ -4,6 +4,14 @@ import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { temAlgumaPermissao } from "@/lib/auth/permissoes";
 import { AcessoNegado } from "@/components/ui/acesso-negado";
 
+export const metadata = { title: "Configurações | Konext" };
+
+/**
+ * Configurações (Fase 3-2E) — shell no design system. O cabeçalho
+ * (eyebrow "Configurações" + título da seção ativa) mora dentro de
+ * LayoutConfiguracoes: a seção ativa é estado de cliente, esta página é
+ * servidor.
+ */
 export default async function ConfiguracoesPage() {
   const contexto = await exigirContextoTenant();
 
@@ -20,19 +28,8 @@ export default async function ConfiguracoesPage() {
   const configuracoes = await obterConfiguracoes();
 
   return (
-    <div className="w-full min-h-full bg-slate-50 dark:bg-slate-900 p-6">
-      <div className="space-y-6 max-w-7xl">
-        <div className="space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">
-            Configurações do Sistema
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Gerencie dados da empresa, documentos, regras operacionais e preferências gerais do Konext ERP.
-          </p>
-        </div>
-
-        <LayoutConfiguracoes defaultValues={configuracoes} />
-      </div>
+    <div className="flex h-[calc(100vh-72px)] w-full flex-col overflow-hidden bg-kx-fundo p-5 lg:h-[calc(100vh-104px)] lg:p-6 xl:h-[calc(100vh-120px)]">
+      <LayoutConfiguracoes defaultValues={configuracoes} />
     </div>
   );
 }
