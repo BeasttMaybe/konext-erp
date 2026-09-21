@@ -7,6 +7,8 @@ import { NavFinanceiro } from "@/components/financeiro/nav-financeiro";
 import { FiltrosReceber } from "./components/FiltrosReceber";
 import { ConteudoReceber } from "./components/ConteudoReceber";
 import { CartaoIndicador } from "@/components/ui/cartao-indicador";
+import { FiltroPeriodo } from "@/components/ui/filtro-periodo";
+import { calcularPresetEsteMes } from "@/lib/filtro-periodo";
 import { Wallet, AlertTriangle, CheckCircle2, TrendingUp } from "lucide-react";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { temPermissao } from "@/lib/auth/permissoes";
@@ -31,12 +33,19 @@ const formatarMoeda = (valor: number) =>
 
 /**
  * Contas a Receber (Fase 3-2D, Parte 2) — referência:
- * docs/design/referencia-financeiro-receber.html. Mês/Ano/Categoria de
- * Cliente continuam existindo (URL de filtros: ?mes=6&ano=2026&
- * categoriaCliente=EMPRESA&todasAsContas=1) — o que muda é o "Dar baixa",
- * que sai do menu de ações da linha e vira o painel lateral fixo
- * (ConteudoReceber), e o filtro de status, que vira pílulas (client-side,
- * sobre a lista já buscada — sem novo parâmetro de servidor).
+ * docs/design/referencia-financeiro-receber.html. Categoria de Cliente
+ * continua existindo (URL: ?categoriaCliente=EMPRESA) — o que muda é o
+ * "Dar baixa", que sai do menu de ações da linha e vira o painel lateral
+ * fixo (ConteudoReceber), e o filtro de status, que vira pílulas
+ * (client-side, sobre a lista já buscada — sem novo parâmetro de servidor).
+ *
+ * Fase 2A-1 (`FiltroPeriodo`): o Select de mês + Input de ano + botão
+ * "Todas as contas" (antes em `FiltrosReceber`) deram lugar ao filtro de
+ * período compartilhado, filtrando por `dataVencimento` via `?inicio=&fim=`
+ * em vez de `?mes=&ano=`. "Todas as contas" não tem mais equivalente na
+ * UI — "Período customizado" cobre o caso (a capacidade de pular a janela
+ * inteira continua existindo na action, `todoPeriodo`, só usada
+ * internamente pelos indicadores "em aberto" — ver `app/actions/financeiro-hub.ts`).
  */
 export default async function FinanceiroReceberPage({ searchParams }: PageProps) {
   const contexto = await exigirContextoTenant();
@@ -48,10 +57,9 @@ export default async function FinanceiroReceberPage({ searchParams }: PageProps)
   const params = await searchParams;
 
   const filtros = {
-    mes: obterParam(params, "mes"),
-    ano: obterParam(params, "ano"),
+    inicio: obterParam(params, "inicio"),
+    fim: obterParam(params, "fim"),
     categoriaCliente: obterParam(params, "categoriaCliente"),
-    todoPeriodo: obterParam(params, "todasAsContas") === "1",
   };
 
   const [contas, resumo] = await Promise.all([
@@ -74,14 +82,21 @@ export default async function FinanceiroReceberPage({ searchParams }: PageProps)
         <CartaoIndicador variante="sucesso" titulo="Recebido" valor={formatarMoeda(resumo.totalRecebido)} icone={<CheckCircle2 />} />
         <CartaoIndicador
           variante="primaria"
-          titulo={filtros.todoPeriodo ? "Total (todas as contas)" : "Total no período"}
+          titulo="Total no período"
           valor={formatarMoeda(resumo.totalPeriodo)}
           icone={<TrendingUp />}
         />
       </div>
 
       <Suspense fallback={<div className="h-11 shrink-0 animate-pulse rounded-kx-botao bg-kx-superficie" />}>
-        <FiltrosReceber />
+        <div className="flex shrink-0 flex-wrap items-end gap-3">
+          <FiltroPeriodo
+            rotulo="Vencimento"
+            fusoHorario={contexto.fusoHorario}
+            intervaloPadrao={calcularPresetEsteMes(contexto.fusoHorario)}
+          />
+          <FiltrosReceber />
+        </div>
       </Suspense>
 
       <ConteudoReceber contas={contas} />
