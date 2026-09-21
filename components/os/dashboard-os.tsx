@@ -1,11 +1,14 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { FiltroPeriodo } from "@/components/ui/filtro-periodo";
+import { calcularPresetEsteMes, validarIntervalo } from "@/lib/filtro-periodo";
+import { dataDeCalendario, fimDoDia, FUSO_HORARIO_PADRAO, inicioDoDia } from "@/lib/datas";
 import { TabuleiroKanban } from "@/components/os/tabuleiro-kanban";
 import { ModalReabrirOS, type ConfirmacaoReaberturaPayload } from "@/components/os/modal-reabrir-os";
 import type { PendenciaFinalizacao } from "@/lib/dominio/os/regras-finalizacao";
@@ -64,6 +67,8 @@ interface DashboardOSProps {
   dashboardGarantiasInicial: DashboardGarantiasOS;
   linhasGarantiasIniciais: LinhaGarantiaOS[];
   erroGarantiasInicial?: string | null;
+  /** Fuso horário da loja — usado pelo `FiltroPeriodo` da lista de Finalizadas (Fase 2A-1). */
+  fusoHorario?: string;
 }
 
 type DadosNovaOS = Parameters<typeof criarOrdemServico>[0];
@@ -81,8 +86,10 @@ export function DashboardOS({
   dashboardGarantiasInicial,
   linhasGarantiasIniciais,
   erroGarantiasInicial = null,
+  fusoHorario = FUSO_HORARIO_PADRAO,
 }: DashboardOSProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [modalAberta, setModalAberta] = useState(Boolean(clienteIdInicial));
   const [buscaTexto, setBuscaTexto] = useState("");
   const [modoVisualizacao, setModoVisualizacao] = useState<"KANBAN" | "LISTA_FINALIZADAS" | "GARANTIA">(modoInicial);
@@ -115,13 +122,39 @@ export function DashboardOS({
     os.equipamento.toLowerCase().includes(buscaTexto.toLowerCase())
   );
 
+  // Período de "Finalizadas" (Fase 2A-1, `FiltroPeriodo`) — filtra por
+  // `archivedAt` (INSTANTE: quando a OS foi de fato arquivada na entrega).
+  // Esta lista nunca tinha filtro de período: carregava TUDO de uma vez, sem
+  // paginação nem corte de data (ver `app/actions/os.ts`, `obterDadosDashboardOS`).
+  // Filtragem aqui é client-side, sobre a lista já carregada — mesmo padrão
+  // já usado por busca/"somenteSemServico"/"mostrarExcluidas" nesta tela, não
+  // uma mudança de arquitetura pontual só pra este filtro.
+  const intervaloPadraoFinalizadas = useMemo(() => calcularPresetEsteMes(fusoHorario), [fusoHorario]);
+  const periodoFinalizadas = useMemo(() => {
+    const inicioTexto = searchParams.get("inicio");
+    const fimTexto = searchParams.get("fim");
+    const inicio = inicioTexto ? dataDeCalendario(inicioTexto) : null;
+    const fim = fimTexto ? dataDeCalendario(fimTexto) : null;
+    if (inicio && fim && validarIntervalo(inicio, fim).valido) {
+      return { inicio, fim };
+    }
+    return intervaloPadraoFinalizadas;
+  }, [searchParams, intervaloPadraoFinalizadas]);
+
   const filteredArchivedOrders = archivedOrderServices
     .filter((os) =>
       os.numeroOS.toLowerCase().includes(buscaTexto.toLowerCase()) ||
       os.nomeCliente.toLowerCase().includes(buscaTexto.toLowerCase()) ||
       os.equipamento.toLowerCase().includes(buscaTexto.toLowerCase())
     )
-    .filter((os) => !somenteSemServico || os.entregueSemServico);
+    .filter((os) => !somenteSemServico || os.entregueSemServico)
+    .filter((os) => {
+      if (!os.archivedAt) return true; // defensivo — a lista já vem só com arquivadas
+      const instanteArquivamento = new Date(os.archivedAt).getTime();
+      const inicioInstante = inicioDoDia(periodoFinalizadas.inicio, fusoHorario).getTime();
+      const fimInstante = fimDoDia(periodoFinalizadas.fim, fusoHorario).getTime();
+      return instanteArquivamento >= inicioInstante && instanteArquivamento <= fimInstante;
+    });
 
   const filteredDeletedOrders = deletedOrderServices.filter((os) =>
     os.numeroOS.toLowerCase().includes(buscaTexto.toLowerCase()) ||
@@ -458,7 +491,12 @@ export function DashboardOS({
         onValueChange={(valor) => {
           const modo = valor as "KANBAN" | "LISTA_FINALIZADAS" | "GARANTIA";
           setModoVisualizacao(modo);
-          router.push(`/os?modo=${modo === "KANBAN" ? "kanban" : modo === "LISTA_FINALIZADAS" ? "lista" : "garantia"}`);
+          // Preserva os demais params (inclusive inicio/fim do FiltroPeriodo
+          // da lista de Finalizadas) — trocar de aba e voltar não pode
+          // resetar um filtro que o usuário já tinha escolhido.
+          const params = new URLSearchParams(searchParams.toString());
+          params.set("modo", modo === "KANBAN" ? "kanban" : modo === "LISTA_FINALIZADAS" ? "lista" : "garantia");
+          router.push(`/os?${params.toString()}`);
         }}
       >
         <TabsList>
@@ -566,6 +604,13 @@ export function DashboardOS({
                 </p>
               )}
               <div className="mb-3 flex flex-wrap items-center gap-4">
+                {!mostrarExcluidas && (
+                  <FiltroPeriodo
+                    rotulo="Finalizadas em"
+                    fusoHorario={fusoHorario}
+                    intervaloPadrao={intervaloPadraoFinalizadas}
+                  />
+                )}
                 <label className="flex w-fit items-center gap-2 text-sm text-kx-texto-2">
                   <input
                     type="checkbox"

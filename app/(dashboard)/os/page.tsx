@@ -2,6 +2,7 @@ import { DashboardOS } from "@/components/os/dashboard-os";
 import { obterDadosDashboardOS } from "@/app/actions/os";
 import { obterConfiguracoes } from "@/app/actions/configuracoes";
 import { listarGarantiasOS, obterDashboardGarantiasOS, type DashboardGarantiasOS, type LinhaGarantiaOS } from "@/app/actions/garantias";
+import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 
 export const metadata = {
   title: "Ordem de Serviço - Konext ERP",
@@ -46,7 +47,8 @@ export default async function OSPage({
         : "KANBAN";
   const mostrarExcluidasInicial = modoParam === "excluidas";
 
-  const [dadosDashboard, configuracoes, dashboardGarantias, listagemGarantias] = await Promise.all([
+  const [contexto, dadosDashboard, configuracoes, dashboardGarantias, listagemGarantias] = await Promise.all([
+    exigirContextoTenant(),
     obterDadosDashboardOS(),
     obterConfiguracoes(),
     obterDashboardGarantiasOS().catch(() => DASHBOARD_GARANTIAS_VAZIO),
@@ -86,6 +88,7 @@ export default async function OSPage({
             dashboardGarantiasInicial={dashboardGarantias}
             linhasGarantiasIniciais={linhasGarantiasIniciais}
             erroGarantiasInicial={erroGarantiasInicial}
+            fusoHorario={contexto.fusoHorario}
           />
         </div>
       </div>
