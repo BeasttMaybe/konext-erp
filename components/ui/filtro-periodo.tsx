@@ -1013,8 +1013,28 @@ function ChipPreset({
  */
 const CLASSES_CALENDARIO = {
   months: "relative flex select-none",
-  month: "relative space-y-0.5",
-  month_caption: "relative flex h-9 items-center justify-center px-9",
+  // `pointer-events-none` aqui também: `month` (não só `month_caption`, seu
+  // filho) é quem de fato ocupa a mesma faixa de `nav` no DOM — desligar só
+  // no filho não bastava (confirmado com Playwright: o clique passou a ser
+  // bloqueado por ESTE elemento em vez do de dentro). `month_grid` abaixo
+  // religa com `pointer-events-auto`, senão os DIAS também parariam de
+  // responder a clique (pointer-events: none propaga pra descendentes).
+  month: "relative space-y-0.5 pointer-events-none",
+  // `pointer-events-none`: `month_caption` ocupa a largura INTEIRA da tira
+  // do cabeçalho (`px-9` é só padding — o elemento em si continua com o
+  // box cheio), sobrepondo o `nav` (que é `absolute`, mesma faixa de
+  // altura, botões nas pontas) sem nenhum dos dois declarar `z-index` — o
+  // empate de camada é resolvido por ORDEM NO DOM, e `month_caption` vem
+  // DEPOIS de `nav` dentro de `Month`, então pintava por cima e
+  // interceptava o clique nas setas (mesmo sem ter fundo opaco — um `div`
+  // comum já bloqueia ponteiro por cima de outro elemento, mesmo
+  // "invisível"). Bug real, não só visual: reproduzido com Playwright (o
+  // erro exato do clique automatizado apontava a `<div class="... px-9">`
+  // como quem "intercepts pointer events"). `month_caption` nunca precisa
+  // receber clique (só mostra o nome do mês) — desligar pointer-events
+  // nele deixa os cliques passarem direto pro `nav` por baixo, nos dois
+  // layouts (dois calendários e compacto — é o mesmo componente).
+  month_caption: "relative flex h-9 items-center justify-center px-9 pointer-events-none",
   caption_label: "text-sm font-semibold text-kx-texto",
   nav: "absolute inset-x-0 top-0 flex h-9 items-center justify-between px-0.5",
   button_previous: cn(
@@ -1025,7 +1045,7 @@ const CLASSES_CALENDARIO = {
     buttonVariants({ variant: "ghost", size: "icon-sm" }),
     "text-kx-legenda hover:text-kx-texto"
   ),
-  month_grid: "border-collapse",
+  month_grid: "pointer-events-auto border-collapse",
   weekdays: "flex",
   weekday: "flex h-7 w-9 items-center justify-center text-[11px] font-medium text-kx-legenda",
   week: "flex w-full",
