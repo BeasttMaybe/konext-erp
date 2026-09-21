@@ -96,13 +96,6 @@ const NOME_DOS_MESES = [
 type ChaveVisualPreset = ChavePresetPeriodo | "mes-especifico" | "personalizado";
 
 const CONSULTA_TELA_MOBILE = "(max-width: 767px)";
-// Sem espaço pra DOIS calendários lado a lado (spec do dono do projeto,
-// depois de testar ao vivo): largura < ~900px OU altura < ~560px — nesses
-// casos o Popover (ainda um Popover, não a bottom sheet do `useEhTelaMobile`
-// — essa troca só acontece abaixo de 768px de LARGURA) mostra um único
-// calendário, com um alternador "Início/Fim" decidindo qual ponta um
-// clique define (ver `numeroDeCalendarios`/`ladoCompactoAtivo` abaixo).
-const CONSULTA_ESPACO_COMPACTO = "(max-width: 899px), (max-height: 559px)";
 
 function criarHookDeMediaQuery(consultaCss: string) {
   function inscrever(notificar: () => void) {
@@ -132,7 +125,47 @@ function criarHookDeMediaQuery(consultaCss: string) {
 }
 
 const useEhTelaMobile = criarHookDeMediaQuery(CONSULTA_TELA_MOBILE);
-const useEhEspacoCompacto = criarHookDeMediaQuery(CONSULTA_ESPACO_COMPACTO);
+
+/**
+ * Espaço mínimo (em px) que o layout de DOIS calendários lado a lado
+ * precisa pra caber sem cortar nada. Altura medida DE VERDADE com
+ * Playwright (o painel real — inputs + calendário + presets + rodapé —
+ * renderiza a ~389px numa viewport bem alta, sem precisar rolar): 460px dá
+ * uma margem de ~70px pra fonte/borda/padding variarem entre navegador/SO
+ * sem virar um cálculo tão folgado que force o layout compacto em telas
+ * que já teriam espaço de sobra pros dois calendários. Largura: 760px, o
+ * painel de dois calendários mede 720px (ver `largura` em
+ * `PainelFiltroPeriodo`) mais margem de segurança equivalente.
+ */
+const LARGURA_MINIMA_DOIS_CALENDARIOS = 760;
+const ALTURA_MINIMA_DOIS_CALENDARIOS = 460;
+
+/**
+ * Decide o layout compacto medindo o espaço disponível AO REDOR DO
+ * GATILHO de verdade (`getBoundingClientRect`), não só o tamanho da
+ * viewport — os dois só coincidem quando o gatilho fica no meio da tela.
+ * Reportado ao vivo pelo dono do projeto: numa janela de ~1100×500 com o
+ * gatilho perto do TOPO da página, a viewport inteira tem largura de
+ * sobra (1100 > 900), mas o espaço vertical disponível ao redor do
+ * gatilho — o que importa de verdade, já que é ele que limita onde o
+ * Radix consegue encaixar o popover — é bem menor que os 500px inteiros
+ * da janela (o gatilho já ocupa uma fatia vertical, então nem "acima" nem
+ * "abaixo" dele sobra tudo). Usa o MAIOR dos dois lados (acima/abaixo),
+ * já que é pra esse lado que o `avoidCollisions` do Radix vai inverter o
+ * popover.
+ */
+function medirSeEspacoEhCompacto(gatilho: HTMLElement | null): boolean {
+  if (typeof window === "undefined") return false;
+  if (window.innerWidth < LARGURA_MINIMA_DOIS_CALENDARIOS) return true;
+  if (!gatilho) return false;
+
+  const retangulo = gatilho.getBoundingClientRect();
+  const espacoAcima = retangulo.top;
+  const espacoAbaixo = window.innerHeight - retangulo.bottom;
+  const melhorEspacoVertical = Math.max(espacoAcima, espacoAbaixo);
+
+  return melhorEspacoVertical < ALTURA_MINIMA_DOIS_CALENDARIOS;
+}
 
 function inicioDoMesDeCalendario(data: Date): Date {
   return new Date(Date.UTC(data.getUTCFullYear(), data.getUTCMonth(), 1));
@@ -183,8 +216,14 @@ export function FiltroPeriodo({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const ehMobile = useEhTelaMobile();
-  const ehCompacto = useEhEspacoCompacto();
   const conteudoRef = React.useRef<HTMLDivElement>(null);
+  const gatilhoRef = React.useRef<HTMLButtonElement>(null);
+  // Medido no momento de ABRIR (não um media query de viewport — ver
+  // `medirSeEspacoEhCompacto`), então só precisa de estado normal: o valor
+  // certo já está pronto quando `PainelFiltroPeriodo` monta pela primeira
+  // vez (a chamada em `aoMudarAberto`, abaixo, roda ANTES do `setAberto`
+  // no mesmo handler, então os dois batches num render só).
+  const [compacto, setCompacto] = React.useState(false);
 
   const valorPadrao = React.useMemo(
     () => intervaloPadrao ?? calcularPresetEsteMes(fusoHorario),
@@ -232,15 +271,40 @@ export function FiltroPeriodo({
   // resto do posicionamento, o padrão mais comum (e o mais simples e
   // robusto) pra esse pedido é FECHAR o popover quando a página rola por
   // baixo dele — nunca quando a rolagem é DENTRO do próprio popover (ex.:
-  // a área de calendário/presets ficando rolável em telas curtas).
+  // a área de calendário/presets ficando rolável em telas curtas). Fecha
+  // também no `resize` da janela pelo mesmo motivo: o layout compacto×dois
+  // calendários é decidido ao ABRIR (medindo o espaço real ao redor do
+  // gatilho, ver `medirSeEspacoEhCompacto`) — re-medir e trocar de layout
+  // com o popover já aberto seria mais complexo que só fechar, e resize
+  // com o popover aberto é uma interação rara o bastante pra isso ser uma
+  // troca razoável.
   React.useEffect(() => {
     if (!aberto) return;
 
+    // A própria ABERTURA às vezes dispara um scroll (confirmado com
+    // Playwright: `<main>` rola ~21px sozinho logo que o popover monta,
+    // efeito colateral de foco/posicionamento do Radix — não uma rolagem
+    // do usuário) — sem este atraso, o listener abaixo pegava ESSE scroll
+    // e fechava o popover no mesmo instante em que abria (reproduzido de
+    // verdade numa janela curta, onde o gatilho fica perto da borda). Só
+    // passa a reagir a scroll/resize depois que a abertura terminou de
+    // assentar.
+    let ativo = false;
+    const temporizador = window.setTimeout(() => {
+      ativo = true;
+    }, 350);
+
     function aoRolarFora(evento: Event) {
+      if (!ativo) return;
       const alvo = evento.target;
       if (conteudoRef.current && alvo instanceof Node && conteudoRef.current.contains(alvo)) {
         return;
       }
+      setAberto(false);
+    }
+
+    function aoRedimensionar() {
+      if (!ativo) return;
       setAberto(false);
     }
 
@@ -249,8 +313,33 @@ export function FiltroPeriodo({
     // container rolável específico lá dentro (ex.: o `<main>` do shell do
     // app), não só o scroll da window.
     document.addEventListener("scroll", aoRolarFora, true);
-    return () => document.removeEventListener("scroll", aoRolarFora, true);
+    window.addEventListener("resize", aoRedimensionar);
+    return () => {
+      window.clearTimeout(temporizador);
+      document.removeEventListener("scroll", aoRolarFora, true);
+      window.removeEventListener("resize", aoRedimensionar);
+    };
   }, [aberto]);
+
+  /**
+   * Decide dois calendários × compacto no momento de ABRIR, medindo o
+   * espaço de verdade ao redor do GATILHO (`medirSeEspacoEhCompacto`) — não
+   * um media query de viewport. Reportado ao vivo: numa janela curta
+   * (~1100×500) com o gatilho perto do topo da página, a viewport tem
+   * largura de sobra, mas o espaço VERTICAL disponível ao redor do
+   * gatilho — o que realmente limita onde o painel cabe — é bem menor que
+   * a altura inteira da janela. As duas `setState` abaixo (aqui e a que o
+   * Radix dispara via `open`) acontecem no mesmo handler, então o React
+   * aplica as duas juntas antes do próximo render — `PainelFiltroPeriodo`
+   * já monta com o `compacto` certo na primeira renderização, sem piscar
+   * o layout errado primeiro.
+   */
+  function aoMudarAberto(novoAberto: boolean) {
+    if (novoAberto) {
+      setCompacto(medirSeEspacoEhCompacto(gatilhoRef.current));
+    }
+    setAberto(novoAberto);
+  }
 
   const rotuloCampoAtual =
     campos && campos.length > 0
@@ -273,6 +362,7 @@ export function FiltroPeriodo({
 
   const gatilho = (
     <Button
+      ref={gatilhoRef}
       type="button"
       variant="outline"
       className={cn("h-10 min-h-11 gap-2 rounded-kx-botao border-kx-campo-borda bg-kx-superficie px-3 text-sm font-medium text-kx-texto", className)}
@@ -308,7 +398,7 @@ export function FiltroPeriodo({
   }
 
   return (
-    <Popover open={aberto} onOpenChange={setAberto}>
+    <Popover open={aberto} onOpenChange={aoMudarAberto}>
       <PopoverTrigger asChild>{gatilho}</PopoverTrigger>
       <PopoverContent
         ref={conteudoRef}
@@ -339,7 +429,7 @@ export function FiltroPeriodo({
             intervaloInicial={intervaloComprometido}
             fusoHorario={fusoHorario}
             variante="popover"
-            compacto={ehCompacto}
+            compacto={compacto}
             aoCancelar={() => setAberto(false)}
             aoConfirmar={aoConfirmar}
           />
@@ -410,6 +500,32 @@ function PainelFiltroPeriodo({
   // define agora, trocado pelo alternador "Início/Fim" acima do calendário.
   const [ladoCompactoAtivo, setLadoCompactoAtivo] = React.useState<"inicio" | "fim">("inicio");
 
+  // "Período customizado" (chip de preset) não tem uma FÓRMULA própria —
+  // ao contrário de "Este mês"/"Mês passado"/etc., que `identificarPresetAtivo`
+  // reconhece comparando datas, "personalizado" é estruturalmente "não bate
+  // com nada". Isso significa que `chaveVisualAtiva` (calculada a partir de
+  // `intervaloRascunho`, mais abaixo) NUNCA fica "personalizado" só porque
+  // o usuário clicou o chip — se o intervalo atual por acaso bate com "Este
+  // mês", clicar "Período customizado" sem mexer nas datas não mudaria
+  // nada visualmente sem este override explícito. `presetForcado` existe
+  // só pra isso: fica "personalizado" a partir do clique no chip, e volta
+  // a `null` (deixa o cálculo normal assumir de novo) assim que o
+  // intervalo REALMENTE muda — via `aplicarNovoIntervalo`, chamada por
+  // todo outro caminho que move as datas (presets, cliques no calendário,
+  // digitação).
+  const [presetForcado, setPresetForcado] = React.useState<"personalizado" | null>(null);
+  const inputInicioRef = React.useRef<HTMLInputElement>(null);
+  const [pedidoDeFoco, setPedidoDeFoco] = React.useState(0);
+
+  React.useEffect(() => {
+    if (pedidoDeFoco === 0) return;
+    // `preventScroll`: focar um campo que já está visível não pode rolar
+    // nada na tela (pedido explícito) — o padrão do navegador rolaria o
+    // elemento pra vista mesmo já estando visível, em alguns casos.
+    inputInicioRef.current?.focus({ preventScroll: true });
+    inputInicioRef.current?.select();
+  }, [pedidoDeFoco]);
+
   const faixaAtual: DateRange = { from: intervaloRascunho.inicio, to: intervaloRascunho.fim };
 
   function aplicarNovoIntervalo(
@@ -422,6 +538,7 @@ function PainelFiltroPeriodo({
       return;
     }
     setErro(undefined);
+    setPresetForcado(null);
     setIntervaloRascunho(novo);
     setTextoInicio(formatarDataExibicao(novo.inicio));
     setTextoFim(formatarDataExibicao(novo.fim));
@@ -451,8 +568,18 @@ function PainelFiltroPeriodo({
     aplicarNovoIntervalo(calcularIntervaloMesEspecifico(mes));
   }
 
+  /**
+   * "Período customizado": vira o preset ativo, mantém o intervalo atual
+   * intacto (não é um preset com fórmula própria — é o "modo manual"), e
+   * move o foco pro campo "Início do período" com o texto selecionado,
+   * pronto pra digitar por cima. Não muda `mesEsquerda`/`mesDireita` nem
+   * `intervaloRascunho` — só sair da grade de mês (se estava aberta) e
+   * marcar o preset.
+   */
   function aoVoltarParaPeriodoCustomizado() {
     setMostrarGradeMes(false);
+    setPresetForcado("personalizado");
+    setPedidoDeFoco((atual) => atual + 1);
   }
 
   /**
@@ -525,6 +652,7 @@ function PainelFiltroPeriodo({
   }
 
   const chaveVisualAtiva: ChaveVisualPreset =
+    presetForcado ??
     identificarPresetAtivo(intervaloRascunho, fusoHorario) ??
     (identificarMesEspecifico(intervaloRascunho) ? "mes-especifico" : "personalizado");
 
@@ -595,13 +723,22 @@ function PainelFiltroPeriodo({
               aoEscolherMes={aoEscolherMesNaGrade}
             />
           ) : numeroDeCalendarios === 2 ? (
-            <div className="flex flex-row gap-3">
-              <div className="flex flex-1 flex-col gap-2">
+            // min-w-0 nas duas colunas: sem isto, `min-width: auto` (o
+            // padrão em flex item) faz cada coluna recusar encolher abaixo
+            // da largura mínima do CONTEÚDO dela (o grid de dias do
+            // calendário, 252px fixos) — mesmo com a largura do painel já
+            // calibrada (`largura`, mais abaixo), qualquer diferença entre
+            // a conta teórica e o que renderiza de verdade (fonte, borda,
+            // padding) faz o flexbox estourar o container em vez de
+            // simplesmente encolher o que sobra. Confirmado com Playwright.
+            <div className="flex min-w-0 flex-row gap-3">
+              <div className="flex min-w-0 flex-1 flex-col gap-2">
                 <div className="space-y-1">
                   <Label htmlFor="filtro-periodo-inicio" className="text-xs text-kx-legenda">
                     Início do período
                   </Label>
                   <Input
+                    ref={inputInicioRef}
                     id="filtro-periodo-inicio"
                     inputMode="numeric"
                     placeholder="dd/mm/aaaa"
@@ -619,7 +756,7 @@ function PainelFiltroPeriodo({
                   fusoHorario={fusoHorario}
                 />
               </div>
-              <div className="flex flex-1 flex-col gap-2">
+              <div className="flex min-w-0 flex-1 flex-col gap-2">
                 <div className="space-y-1">
                   <Label htmlFor="filtro-periodo-fim" className="text-xs text-kx-legenda">
                     Fim do período
@@ -651,6 +788,7 @@ function PainelFiltroPeriodo({
                     Início do período
                   </Label>
                   <Input
+                    ref={inputInicioRef}
                     id="filtro-periodo-inicio"
                     inputMode="numeric"
                     placeholder="dd/mm/aaaa"
