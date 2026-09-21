@@ -9,14 +9,19 @@ import type { ClienteBuscaCRM } from "@/app/actions/crm";
 import {
   criarContaReceber,
   darBaixaConta,
+  darBaixaContasEmLote,
   editarContaReceber,
   excluirContaReceber,
   type ContaReceberFinanceiro,
 } from "@/app/actions/financeiro-receber";
 import { SeletorClienteCRM } from "@/components/financeiro/seletor-cliente-crm";
+import { BarraAcaoLote } from "@/components/financeiro/barra-acao-lote";
+import { PainelConfirmarLote } from "@/components/financeiro/painel-confirmar-lote";
+import { alternarSelecaoLinha, resumirSelecao, selecionarTodosFiltrados } from "@/lib/dominio/financeiro/selecao-lote";
 import { useTemPermissao } from "@/contextos/contexto-permissoes";
 import { PilulaStatus } from "@/components/ui/pilula-status";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -166,6 +171,11 @@ export function ConteudoReceber({ contas }: ConteudoReceberProps) {
   const [clienteSelecionado, setClienteSelecionado] = useState<ClienteBuscaCRM | null>(null);
   const [formNovaConta, setFormNovaConta] = useState<FormNovaConta>(FORM_INICIAL);
 
+  // Seleção em lote (Fase 3-2D, Parte 5)
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
+  const [painelLoteAberto, setPainelLoteAberto] = useState(false);
+  const [processandoLote, setProcessandoLote] = useState(false);
+
   const contasComStatus = useMemo(
     () => contas.map((conta) => ({ conta, status: obterStatusExibicao(conta, inicioDiaAtual) })),
     [contas, inicioDiaAtual]
@@ -179,6 +189,49 @@ export function ConteudoReceber({ contas }: ConteudoReceberProps) {
   }, [contasComStatus, pilulaAtiva]);
 
   const contaSelecionada = contas.find((c) => c.id === contaSelecionadaId) ?? null;
+
+  const itensSelecionaveisFiltrados = useMemo(
+    () => contasFiltradas.map(({ conta, status }) => ({ id: conta.id, jaLiquidado: status === "RECEBIDO" })),
+    [contasFiltradas]
+  );
+
+  const resumoLote = useMemo(
+    () => resumirSelecao(selecionados, contas.map((c) => ({ id: c.id, valor: c.valor }))),
+    [selecionados, contas]
+  );
+
+  const todosFiltradosSelecionados =
+    itensSelecionaveisFiltrados.some((i) => !i.jaLiquidado) &&
+    itensSelecionaveisFiltrados.filter((i) => !i.jaLiquidado).every((i) => selecionados.has(i.id));
+
+  // ── Handlers: Seleção em lote ────────────────────────────────────────────
+
+  function alternarLinhaSelecionada(conta: ContaReceberFinanceiro, status: StatusExibicao) {
+    setSelecionados((atual) => alternarSelecaoLinha(atual, { id: conta.id, jaLiquidado: status === "RECEBIDO" }));
+  }
+
+  function alternarTodosFiltrados() {
+    setSelecionados((atual) => selecionarTodosFiltrados(atual, itensSelecionaveisFiltrados));
+  }
+
+  async function confirmarBaixaLote(observacao?: string) {
+    try {
+      setProcessandoLote(true);
+      const resultado = await darBaixaContasEmLote(Array.from(selecionados), observacao);
+      if (!resultado.sucesso) {
+        toast.error(resultado.mensagem);
+        return;
+      }
+      toast.success(`${resultado.quantidade} ${resultado.quantidade === 1 ? "conta baixada" : "contas baixadas"} com sucesso.`);
+      setSelecionados(new Set());
+      setPainelLoteAberto(false);
+      router.refresh();
+    } catch {
+      toast.error("Não foi possível dar baixa nas contas selecionadas.");
+    } finally {
+      setProcessandoLote(false);
+    }
+  }
 
   // ── Handlers: Dar Baixa ──────────────────────────────────────────────────
 
@@ -325,7 +378,15 @@ export function ConteudoReceber({ contas }: ConteudoReceberProps) {
           + gaps) nao deixam quase nada pra "Cliente / origem" a 1280px —
           empilha em vez de espremer. */}
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto min-[1400px]:overflow-hidden min-[1400px]:grid-cols-[1fr_340px]">
-        <div className="flex min-h-0 flex-col gap-3 rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-4">
+        {/* min-h-[460px]: empilhado (abaixo de 1400px), grid-cols-1 vira DUAS
+            linhas de grid auto-sizadas (uma por item) em vez de uma só — o
+            "stretch" do Grid só preenche a altura do container quando há uma
+            única linha (caso ≥1400px, lado a lado). Sem um piso explícito
+            aqui, o filho flex-1/min-h-0 da lista de linhas não tem pra onde
+            crescer e colapsa a ~0px (achado ao vivo testando a barra de
+            lote da Parte 5, mas o bug já existia sem ela — só ficava menos
+            óbvio com poucas linhas visíveis). */}
+        <div className="flex min-h-[460px] flex-col gap-3 rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-4 min-[1400px]:min-h-0">
           <div className="flex flex-wrap items-center gap-2">
             {PILULAS.map((pilula) => (
               <button
@@ -351,7 +412,28 @@ export function ConteudoReceber({ contas }: ConteudoReceberProps) {
             )}
           </div>
 
-          <div className="hidden grid-cols-[minmax(0,1.5fr)_90px_110px_120px_120px_40px] gap-3 px-3 text-[11px] font-bold uppercase tracking-wide text-kx-legenda sm:grid">
+          {podeBaixar && selecionados.size > 0 && (
+            <BarraAcaoLote
+              quantidade={resumoLote.quantidade}
+              total={resumoLote.total}
+              rotuloAcaoPrincipal="Dar baixa"
+              onAcaoPrincipal={() => setPainelLoteAberto(true)}
+              onLimparSelecao={() => setSelecionados(new Set())}
+            />
+          )}
+
+          <div
+            className={`hidden gap-3 px-3 text-[11px] font-bold uppercase tracking-wide text-kx-legenda sm:grid ${
+              podeBaixar ? "grid-cols-[24px_minmax(0,1.5fr)_90px_110px_120px_120px_40px]" : "grid-cols-[minmax(0,1.5fr)_90px_110px_120px_120px_40px]"
+            }`}
+          >
+            {podeBaixar && (
+              <Checkbox
+                checked={todosFiltradosSelecionados}
+                onCheckedChange={alternarTodosFiltrados}
+                aria-label={`Selecionar todas as ${itensSelecionaveisFiltrados.filter((i) => !i.jaLiquidado).length} contas filtradas`}
+              />
+            )}
             <span>Cliente / origem</span>
             <span>Parcela</span>
             <span>Vencimento</span>
@@ -371,10 +453,18 @@ export function ConteudoReceber({ contas }: ConteudoReceberProps) {
               return (
                 <div
                   key={conta.id}
-                  className={`grid grid-cols-1 gap-2 rounded-kx-botao border px-3 py-2.5 text-sm transition-colors sm:grid-cols-[minmax(0,1.5fr)_90px_110px_120px_120px_40px] sm:items-center sm:gap-3 ${
-                    selecionada ? "border-kx-primaria bg-kx-primaria/8" : "border-kx-painel-borda bg-kx-cartao"
-                  }`}
+                  className={`grid grid-cols-1 gap-2 rounded-kx-botao border px-3 py-2.5 text-sm transition-colors sm:items-center sm:gap-3 ${
+                    podeBaixar ? "sm:grid-cols-[24px_minmax(0,1.5fr)_90px_110px_120px_120px_40px]" : "sm:grid-cols-[minmax(0,1.5fr)_90px_110px_120px_120px_40px]"
+                  } ${selecionada ? "border-kx-primaria bg-kx-primaria/8" : "border-kx-painel-borda bg-kx-cartao"}`}
                 >
+                  {podeBaixar && (
+                    <Checkbox
+                      checked={selecionados.has(conta.id)}
+                      disabled={status === "RECEBIDO"}
+                      onCheckedChange={() => alternarLinhaSelecionada(conta, status)}
+                      aria-label={`Selecionar ${conta.cliente?.nomeRazaoSocial ?? conta.descricao}`}
+                    />
+                  )}
                   <button
                     type="button"
                     onClick={() => (status !== "RECEBIDO" && podeBaixar ? setContaSelecionadaId(conta.id) : setContaDetalhes(conta))}
@@ -715,6 +805,20 @@ export function ConteudoReceber({ contas }: ConteudoReceberProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Confirmação de baixa em lote (Fase 3-2D, Parte 5) */}
+      <PainelConfirmarLote
+        aberto={painelLoteAberto}
+        onOpenChange={setPainelLoteAberto}
+        titulo="Dar baixa em lote"
+        quantidade={resumoLote.quantidade}
+        total={resumoLote.total}
+        avisoValorOriginal="Cada título será recebido pelo seu valor original — para ajustar valor de uma conta específica, dê baixa nela individualmente."
+        comObservacao
+        confirmando={processandoLote}
+        rotuloConfirmar="Confirmar recebimento"
+        onConfirmar={confirmarBaixaLote}
+      />
     </>
   );
 }

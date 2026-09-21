@@ -454,6 +454,9 @@ export async function pagarParcela(
   }
 }
 
+type PrismaTenantPagar = Awaited<ReturnType<typeof exigirContextoTenant>>["prisma"];
+type PrismaTxPagar = Parameters<Parameters<PrismaTenantPagar["$transaction"]>[0]>[0];
+
 async function pagarParcelaInterno(parcelaId: string, valorPago: number): Promise<void> {
   // C1: exige sessao valida antes de pagar parcela.
   const contexto = await exigirContextoTenant();
@@ -461,72 +464,160 @@ async function pagarParcelaInterno(parcelaId: string, valorPago: number): Promis
   const prisma = contexto.prisma;
   const usuario = contexto.usuarioOperacional;
 
-  if (!parcelaId) {
-    throw new Error("Parcela invalida para pagamento.");
-  }
-
-  if (!Number.isFinite(valorPago) || valorPago <= 0) {
-    throw new Error("Informe um valor pago valido.");
-  }
-
-  const prismaAny = prisma as unknown as PrismaFinanceiroPagarAny;
-  await prisma.$transaction(async (tx) => {
-    const txAny = tx as unknown as PrismaFinanceiroPagarAny;
-    const parcelaDespesaDelegate = obterDelegateParcelaDespesa(txAny, prismaAny);
-
-    const parcelaAntes = await parcelaDespesaDelegate.findMany({
-      where: {
-        id: parcelaId,
-      },
-      select: {
-        id: true,
-        status: true,
-        valorPago: true,
-        valor: true,
-      },
-      take: 1,
-    });
-
-    if (!parcelaAntes[0]?.id) {
-      throw new Error("Parcela nao encontrada para pagamento.");
-    }
-
-    const dataPagamento = new Date();
-
-    await parcelaDespesaDelegate.update({
-      where: {
-        id: parcelaId,
-      },
-      data: {
-        status: "PAGO",
-        dataPagamento,
-        valorPago,
-      },
-    });
-
-    await registrarLogAuditoria(
-      tx,
-      contextoAuditoriaDoUsuario(usuario, "app/actions/financeiro-pagar.ts:pagarParcela"),
-      {
-        acao: ACOES_AUDITORIA.FINALIZAR,
-        entidade: ENTIDADES_AUDITORIA.CONTA_PAGAR,
-        entidadeId: parcelaId,
-        dadosAntes: {
-          status: parcelaAntes[0].status,
-          valorPago: parcelaAntes[0].valorPago,
-          valor: parcelaAntes[0].valor,
-        },
-        dadosDepois: {
-          status: "PAGO",
-          valorPago,
-          dataPagamento,
-        },
-      }
-    );
-  });
+  await prisma.$transaction((tx) => aplicarPagamentoParcela(tx, prisma, parcelaId, valorPago, usuario));
 
   revalidatePath("/financeiro/pagar");
   revalidatePath("/financeiro");
   revalidatePath("/financeiro/fluxo");
   revalidatePath("/");
+}
+
+/**
+ * Núcleo de "pagar parcela", sem abrir transação própria — mesmo padrão de
+ * `aplicarBaixaConta` em financeiro-receber.ts (Fase 3-2D, Parte 5): usada
+ * pelo caminho de uma parcela só e pelo lote, dentro da MESMA transação no
+ * caso do lote. `root` é sempre o client de nivel de modulo (pra resolver o
+ * delegate 'parcelaDespesa'/'ParcelaDespesa' mesmo quando `tx` nao tem —
+ * ver obterDelegateParcelaDespesa), nao muda entre uma parcela e lote.
+ */
+async function aplicarPagamentoParcela(
+  tx: PrismaTxPagar,
+  root: PrismaTenantPagar,
+  parcelaId: string,
+  /** Omitido = paga pelo valor original da parcela (lote, Fase 3-2D Parte 5 — sem desconto/juros por item). */
+  valorPagoInformado: number | undefined,
+  usuario: { id?: string | null } | null | undefined
+): Promise<{ valor: number }> {
+  if (!parcelaId) {
+    throw new Error("Parcela invalida para pagamento.");
+  }
+
+  if (valorPagoInformado !== undefined && (!Number.isFinite(valorPagoInformado) || valorPagoInformado <= 0)) {
+    throw new Error("Informe um valor pago valido.");
+  }
+
+  const txAny = tx as unknown as PrismaFinanceiroPagarAny;
+  const rootAny = root as unknown as PrismaFinanceiroPagarAny;
+  const parcelaDespesaDelegate = obterDelegateParcelaDespesa(txAny, rootAny);
+
+  const parcelaAntes = await parcelaDespesaDelegate.findMany({
+    where: {
+      id: parcelaId,
+    },
+    select: {
+      id: true,
+      status: true,
+      valorPago: true,
+      valor: true,
+    },
+    take: 1,
+  });
+
+  if (!parcelaAntes[0]?.id) {
+    throw new Error("Parcela nao encontrada para pagamento.");
+  }
+
+  if (parcelaAntes[0].status === "PAGO") {
+    throw new Error("Esta parcela ja foi paga.");
+  }
+
+  const valorPago = valorPagoInformado ?? Number(parcelaAntes[0].valor ?? 0);
+  const dataPagamento = new Date();
+
+  await parcelaDespesaDelegate.update({
+    where: {
+      id: parcelaId,
+    },
+    data: {
+      status: "PAGO",
+      dataPagamento,
+      valorPago,
+    },
+  });
+
+  await registrarLogAuditoria(
+    tx,
+    contextoAuditoriaDoUsuario(usuario, "app/actions/financeiro-pagar.ts:pagarParcela"),
+    {
+      acao: ACOES_AUDITORIA.FINALIZAR,
+      entidade: ENTIDADES_AUDITORIA.CONTA_PAGAR,
+      entidadeId: parcelaId,
+      dadosAntes: {
+        status: parcelaAntes[0].status,
+        valorPago: parcelaAntes[0].valorPago,
+        valor: parcelaAntes[0].valor,
+      },
+      dadosDepois: {
+        status: "PAGO",
+        valorPago,
+        dataPagamento,
+      },
+    }
+  );
+
+  return { valor: valorPago };
+}
+
+export type ResultadoAcaoLotePagar =
+  | { sucesso: true; quantidade: number; total: number }
+  | { sucesso: false; mensagem: string };
+
+/**
+ * Pagar várias parcelas de uma vez (Fase 3-2D, Parte 5) — cada uma pelo
+ * seu valor ORIGINAL, sem desconto/juros por parcela: quem quiser ajustar
+ * valor tem que baixar individualmente, não é uma opção do lote de
+ * propósito ("aplicar um valor só pra várias é assim que dinheiro se
+ * perde", conforme a especificação). UMA transação pro lote inteiro,
+ * tudo-ou-nada — ver o comentário equivalente em
+ * `darBaixaContasEmLote` (financeiro-receber.ts).
+ */
+export async function pagarParcelasEmLote(ids: string[]): Promise<ResultadoAcaoLotePagar> {
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "financeiro.baixar");
+  const prisma = contexto.prisma;
+  const usuario = contexto.usuarioOperacional;
+
+  const idsUnicos = Array.from(new Set(ids.filter((id) => id.trim().length > 0)));
+
+  if (idsUnicos.length === 0) {
+    return { sucesso: false, mensagem: "Selecione ao menos uma parcela para pagar." };
+  }
+
+  try {
+    const totalCentavos = await prisma.$transaction(async (tx) => {
+      let acumuladoCentavos = 0;
+
+      for (const id of idsUnicos) {
+        const { valor } = await aplicarPagamentoParcela(tx, prisma, id, undefined, usuario);
+        acumuladoCentavos += paraCentavos(valor);
+      }
+
+      const idLote = crypto.randomUUID();
+      await registrarLogAuditoria(
+        tx,
+        contextoAuditoriaDoUsuario(usuario, "app/actions/financeiro-pagar.ts:pagarParcelasEmLote"),
+        {
+          acao: ACOES_AUDITORIA.FINALIZAR_LOTE,
+          entidade: ENTIDADES_AUDITORIA.CONTA_PAGAR,
+          entidadeId: idLote,
+          dadosDepois: {
+            parcelasIds: idsUnicos,
+            quantidade: idsUnicos.length,
+            total: paraMoeda(acumuladoCentavos),
+          },
+        }
+      );
+
+      return acumuladoCentavos;
+    });
+
+    revalidatePath("/financeiro/pagar");
+    revalidatePath("/financeiro");
+    revalidatePath("/financeiro/fluxo");
+    revalidatePath("/");
+
+    return { sucesso: true, quantidade: idsUnicos.length, total: paraMoeda(totalCentavos) };
+  } catch (erro) {
+    return { sucesso: false, mensagem: paraMensagemSegura(erro) };
+  }
 }

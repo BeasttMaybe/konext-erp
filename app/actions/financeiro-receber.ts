@@ -200,6 +200,9 @@ async function criarContaReceberInterno(input: CriarContaReceberInput): Promise<
   revalidatePath("/");
 }
 
+type PrismaTenant = Awaited<ReturnType<typeof exigirContextoTenant>>["prisma"];
+type PrismaTx = Parameters<Parameters<PrismaTenant["$transaction"]>[0]>[0];
+
 export async function darBaixaConta(
   id: string,
   observacaoPagamento?: string
@@ -219,71 +222,54 @@ async function darBaixaContaInterno(id: string, observacaoPagamento?: string): P
   const prisma = contexto.prisma;
   const usuario = contexto.usuarioOperacional;
 
+  await prisma.$transaction((tx) => aplicarBaixaConta(tx, id, observacaoPagamento, usuario));
+
+  revalidatePath("/financeiro/receber");
+  revalidatePath("/financeiro");
+  revalidatePath("/financeiro/fluxo");
+  revalidatePath("/");
+}
+
+/**
+ * Núcleo de "dar baixa", sem abrir transação própria — usada tanto pelo
+ * caminho de uma conta só (`darBaixaContaInterno`, que abre a transação em
+ * volta dela) quanto pelo lote (Fase 3-2D, Parte 5: várias chamadas dentro
+ * de UMA `$transaction` só, pra ficar tudo-ou-nada). É a MESMA validação
+ * nos dois casos — não existe um segundo caminho de baixa.
+ */
+async function aplicarBaixaConta(
+  tx: PrismaTx,
+  id: string,
+  observacaoPagamento: string | undefined,
+  usuario: { id?: string | null } | null | undefined
+): Promise<{ valor: number }> {
   const momentoBaixa = new Date();
   const observacao = observacaoPagamento?.trim() || null;
 
-  await prisma.$transaction(async (tx) => {
-    const contaAtual = await tx.contaReceber.findUnique({
-      where: { id },
-      select: { id: true, parcelamentoId: true, status: true, dataRecebimento: true },
-    });
+  const contaAtual = await tx.contaReceber.findUnique({
+    where: { id },
+    select: { id: true, valor: true, parcelamentoId: true, status: true, dataRecebimento: true },
+  });
 
-    if (!contaAtual) {
-      throw new Error("Conta a receber nao encontrada.");
-    }
+  if (!contaAtual) {
+    throw new Error("Conta a receber nao encontrada.");
+  }
 
-    await tx.contaReceber.update({
-      where: { id },
-      data: {
-        status: "RECEBIDO",
-        dataRecebimento: momentoBaixa,
-        observacaoPagamento: observacao,
-        dataFinalizacao: contaAtual.parcelamentoId ? null : momentoBaixa,
-      },
-    });
+  if (contaAtual.status === "RECEBIDO") {
+    throw new Error("Esta conta ja foi recebida.");
+  }
 
-    if (!contaAtual.parcelamentoId) {
-      await registrarLogAuditoria(
-        tx,
-        contextoAuditoriaDoUsuario(usuario, "app/actions/financeiro-receber.ts:darBaixaConta"),
-        {
-          acao: ACOES_AUDITORIA.FINALIZAR,
-          entidade: ENTIDADES_AUDITORIA.CONTA_RECEBER,
-          entidadeId: id,
-          dadosAntes: {
-            status: contaAtual.status,
-            dataRecebimento: contaAtual.dataRecebimento,
-          },
-          dadosDepois: {
-            status: "RECEBIDO",
-            dataRecebimento: momentoBaixa,
-            observacaoPagamento: observacao,
-          },
-        }
-      );
-      return;
-    }
+  await tx.contaReceber.update({
+    where: { id },
+    data: {
+      status: "RECEBIDO",
+      dataRecebimento: momentoBaixa,
+      observacaoPagamento: observacao,
+      dataFinalizacao: contaAtual.parcelamentoId ? null : momentoBaixa,
+    },
+  });
 
-    const pendentesNoGrupo = await tx.contaReceber.count({
-      where: {
-        parcelamentoId: contaAtual.parcelamentoId,
-        status: {
-          not: "RECEBIDO",
-        },
-      },
-    });
-
-    if (pendentesNoGrupo === 0) {
-      await tx.contaReceber.updateMany({
-        where: {
-          parcelamentoId: contaAtual.parcelamentoId,
-        },
-        data: {
-          dataFinalizacao: momentoBaixa,
-        },
-      });
-    }
-
+  if (!contaAtual.parcelamentoId) {
     await registrarLogAuditoria(
       tx,
       contextoAuditoriaDoUsuario(usuario, "app/actions/financeiro-receber.ts:darBaixaConta"),
@@ -299,16 +285,120 @@ async function darBaixaContaInterno(id: string, observacaoPagamento?: string): P
           status: "RECEBIDO",
           dataRecebimento: momentoBaixa,
           observacaoPagamento: observacao,
-          parcelamentoId: contaAtual.parcelamentoId,
         },
       }
     );
+    return { valor: contaAtual.valor };
+  }
+
+  const pendentesNoGrupo = await tx.contaReceber.count({
+    where: {
+      parcelamentoId: contaAtual.parcelamentoId,
+      status: {
+        not: "RECEBIDO",
+      },
+    },
   });
 
-  revalidatePath("/financeiro/receber");
-  revalidatePath("/financeiro");
-  revalidatePath("/financeiro/fluxo");
-  revalidatePath("/");
+  if (pendentesNoGrupo === 0) {
+    await tx.contaReceber.updateMany({
+      where: {
+        parcelamentoId: contaAtual.parcelamentoId,
+      },
+      data: {
+        dataFinalizacao: momentoBaixa,
+      },
+    });
+  }
+
+  await registrarLogAuditoria(
+    tx,
+    contextoAuditoriaDoUsuario(usuario, "app/actions/financeiro-receber.ts:darBaixaConta"),
+    {
+      acao: ACOES_AUDITORIA.FINALIZAR,
+      entidade: ENTIDADES_AUDITORIA.CONTA_RECEBER,
+      entidadeId: id,
+      dadosAntes: {
+        status: contaAtual.status,
+        dataRecebimento: contaAtual.dataRecebimento,
+      },
+      dadosDepois: {
+        status: "RECEBIDO",
+        dataRecebimento: momentoBaixa,
+        observacaoPagamento: observacao,
+        parcelamentoId: contaAtual.parcelamentoId,
+      },
+    }
+  );
+
+  return { valor: contaAtual.valor };
+}
+
+export type ResultadoAcaoLote =
+  | { sucesso: true; quantidade: number; total: number }
+  | { sucesso: false; mensagem: string };
+
+/**
+ * Dar baixa em várias contas de uma vez (Fase 3-2D, Parte 5). UMA
+ * transação pro lote inteiro — se uma conta falhar (já recebida, excluída
+ * por outra aba entre a seleção e a confirmação, etc.), NENHUMA muda:
+ * tudo-ou-nada, não "passou o que deu". A mensagem de erro nomeia a conta
+ * que falhou. Mesma observação (opcional) pra todas — sem valor por conta
+ * customizado em lote, de propósito.
+ */
+export async function darBaixaContasEmLote(
+  ids: string[],
+  observacaoPagamento?: string
+): Promise<ResultadoAcaoLote> {
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "financeiro.baixar");
+  const prisma = contexto.prisma;
+  const usuario = contexto.usuarioOperacional;
+
+  const idsUnicos = Array.from(new Set(ids.filter((id) => id.trim().length > 0)));
+
+  if (idsUnicos.length === 0) {
+    return { sucesso: false, mensagem: "Selecione ao menos uma conta para dar baixa." };
+  }
+
+  try {
+    const totalCentavos = await prisma.$transaction(async (tx) => {
+      let acumuladoCentavos = 0;
+
+      for (const id of idsUnicos) {
+        const { valor } = await aplicarBaixaConta(tx, id, observacaoPagamento, usuario);
+        acumuladoCentavos += paraCentavos(valor);
+      }
+
+      const idLote = crypto.randomUUID();
+      await registrarLogAuditoria(
+        tx,
+        contextoAuditoriaDoUsuario(usuario, "app/actions/financeiro-receber.ts:darBaixaContasEmLote"),
+        {
+          acao: ACOES_AUDITORIA.FINALIZAR_LOTE,
+          entidade: ENTIDADES_AUDITORIA.CONTA_RECEBER,
+          entidadeId: idLote,
+          dadosDepois: {
+            contasIds: idsUnicos,
+            quantidade: idsUnicos.length,
+            total: paraMoeda(acumuladoCentavos),
+            observacaoPagamento: observacaoPagamento?.trim() || null,
+          },
+        }
+      );
+
+      return acumuladoCentavos;
+    });
+
+    revalidatePath("/financeiro/receber");
+    revalidatePath("/financeiro");
+    revalidatePath("/financeiro/fluxo");
+    revalidatePath("/");
+
+    return { sucesso: true, quantidade: idsUnicos.length, total: paraMoeda(totalCentavos) };
+  } catch (erro) {
+    return { sucesso: false, mensagem: paraMensagemSegura(erro) };
+  }
 }
 
 // ── Editar Conta a Receber ────────────────────────────────────────────────────

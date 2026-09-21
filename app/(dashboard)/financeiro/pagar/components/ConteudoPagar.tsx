@@ -9,13 +9,18 @@ import type { ClienteBuscaCRM } from "@/app/actions/crm";
 import {
   criarDespesa,
   pagarParcela,
+  pagarParcelasEmLote,
   type ParcelaDespesaComRelacao,
   type TipoDespesa,
 } from "@/app/actions/financeiro-pagar";
 import { SeletorClienteCRM } from "@/components/financeiro/seletor-cliente-crm";
+import { BarraAcaoLote } from "@/components/financeiro/barra-acao-lote";
+import { PainelConfirmarLote } from "@/components/financeiro/painel-confirmar-lote";
+import { alternarSelecaoLinha, resumirSelecao, selecionarTodosFiltrados } from "@/lib/dominio/financeiro/selecao-lote";
 import { useTemPermissao } from "@/contextos/contexto-permissoes";
 import { PilulaStatus } from "@/components/ui/pilula-status";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -139,6 +144,11 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
   const [valorPagamento, setValorPagamento] = useState("");
   const [pagandoParcela, setPagandoParcela] = useState(false);
 
+  // Seleção em lote (Fase 3-2D, Parte 5) — só na vista "Contas do período".
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
+  const [painelLoteAberto, setPainelLoteAberto] = useState(false);
+  const [processandoLote, setProcessandoLote] = useState(false);
+
   const despesaSelecionada = useMemo(() => {
     if (!despesaSelecionadaId) return null;
     return parcelas.find((p) => p.despesaId === despesaSelecionadaId)?.despesa ?? null;
@@ -163,6 +173,20 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
 
   const totalDoPeriodo = useMemo(() => parcelas.reduce((acc, p) => acc + p.valor, 0), [parcelas]);
 
+  const itensSelecionaveisPeriodo = useMemo(
+    () => parcelas.map((p) => ({ id: p.id, jaLiquidado: p.status === "PAGO" })),
+    [parcelas]
+  );
+
+  const resumoLote = useMemo(
+    () => resumirSelecao(selecionados, parcelas.map((p) => ({ id: p.id, valor: p.valor }))),
+    [selecionados, parcelas]
+  );
+
+  const todosFiltradosSelecionados =
+    itensSelecionaveisPeriodo.some((i) => !i.jaLiquidado) &&
+    itensSelecionaveisPeriodo.filter((i) => !i.jaLiquidado).every((i) => selecionados.has(i.id));
+
   const recorrencias = useMemo(() => {
     const porDespesa = new Map<string, ParcelaDespesaComRelacao[]>();
     for (const parcela of parcelas) {
@@ -177,6 +201,35 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
       return { despesaId, despesa: lista[0]!.despesa, proxima };
     });
   }, [parcelas]);
+
+  // ── Handlers: Seleção em lote ────────────────────────────────────────────
+
+  function alternarLinhaSelecionada(parcela: ParcelaDespesaComRelacao) {
+    setSelecionados((atual) => alternarSelecaoLinha(atual, { id: parcela.id, jaLiquidado: parcela.status === "PAGO" }));
+  }
+
+  function alternarTodosFiltrados() {
+    setSelecionados((atual) => selecionarTodosFiltrados(atual, itensSelecionaveisPeriodo));
+  }
+
+  async function confirmarPagamentoLote() {
+    try {
+      setProcessandoLote(true);
+      const resultado = await pagarParcelasEmLote(Array.from(selecionados));
+      if (!resultado.sucesso) {
+        toast.error(resultado.mensagem);
+        return;
+      }
+      toast.success(`${resultado.quantidade} ${resultado.quantidade === 1 ? "parcela paga" : "parcelas pagas"} com sucesso.`);
+      setSelecionados(new Set());
+      setPainelLoteAberto(false);
+      router.refresh();
+    } catch {
+      toast.error("Não foi possível pagar as parcelas selecionadas.");
+    } finally {
+      setProcessandoLote(false);
+    }
+  }
 
   // ── Handlers: Nova Despesa ───────────────────────────────────────────────
 
@@ -304,7 +357,28 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
 
         {vista === "PERIODO" ? (
           <>
-            <div className="hidden grid-cols-[minmax(0,1.4fr)_120px_90px_110px_110px_120px] gap-3 px-3 text-[11px] font-bold uppercase tracking-wide text-kx-legenda sm:grid">
+            {podeBaixar && selecionados.size > 0 && (
+              <BarraAcaoLote
+                quantidade={resumoLote.quantidade}
+                total={resumoLote.total}
+                rotuloAcaoPrincipal="Pagar"
+                onAcaoPrincipal={() => setPainelLoteAberto(true)}
+                onLimparSelecao={() => setSelecionados(new Set())}
+              />
+            )}
+
+            <div
+              className={`hidden gap-3 px-3 text-[11px] font-bold uppercase tracking-wide text-kx-legenda sm:grid ${
+                podeBaixar ? "grid-cols-[24px_minmax(0,1.4fr)_120px_90px_110px_110px_120px]" : "grid-cols-[minmax(0,1.4fr)_120px_90px_110px_110px_120px]"
+              }`}
+            >
+              {podeBaixar && (
+                <Checkbox
+                  checked={todosFiltradosSelecionados}
+                  onCheckedChange={alternarTodosFiltrados}
+                  aria-label={`Selecionar todas as ${itensSelecionaveisPeriodo.filter((i) => !i.jaLiquidado).length} parcelas do período`}
+                />
+              )}
               <span>Fornecedor / descrição</span>
               <span>Categoria</span>
               <span>Parcela</span>
@@ -321,18 +395,30 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
                 const status = statusExibicaoParcela(parcela, hoje);
                 const categoria = categoriaDaDespesa(parcela.despesa.fornecedor);
                 return (
-                  <button
+                  <div
                     key={parcela.id}
-                    type="button"
-                    onClick={() => abrirGerenciamento(parcela.despesaId)}
-                    className="grid grid-cols-1 gap-2 rounded-kx-botao border border-kx-painel-borda bg-kx-cartao px-3 py-2.5 text-left text-sm transition-colors hover:border-kx-destaque sm:grid-cols-[minmax(0,1.4fr)_120px_90px_110px_110px_120px] sm:items-center sm:gap-3"
+                    className={`grid grid-cols-1 gap-2 rounded-kx-botao border border-kx-painel-borda bg-kx-cartao px-3 py-2.5 text-sm sm:items-center sm:gap-3 ${
+                      podeBaixar ? "sm:grid-cols-[24px_minmax(0,1.4fr)_120px_90px_110px_110px_120px]" : "sm:grid-cols-[minmax(0,1.4fr)_120px_90px_110px_110px_120px]"
+                    }`}
                   >
-                    <span className="flex min-w-0 flex-col">
+                    {podeBaixar && (
+                      <Checkbox
+                        checked={selecionados.has(parcela.id)}
+                        disabled={parcela.status === "PAGO"}
+                        onCheckedChange={() => alternarLinhaSelecionada(parcela)}
+                        aria-label={`Selecionar ${parcela.despesa.cliente?.nomeRazaoSocial ?? parcela.despesa.fornecedor}`}
+                      />
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => abrirGerenciamento(parcela.despesaId)}
+                      className="flex min-w-0 flex-col text-left transition-colors hover:text-kx-primaria"
+                    >
                       <span className="truncate font-bold text-kx-texto">
                         {parcela.despesa.cliente?.nomeRazaoSocial ?? parcela.despesa.fornecedor}
                       </span>
                       <span className="truncate text-xs text-kx-legenda">{parcela.despesa.descricao}</span>
-                    </span>
+                    </button>
                     <span>
                       <PilulaStatus variante={categoria.ehPecaOS ? "garantia" : "neutro"} className="w-fit">
                         {categoria.rotulo}
@@ -344,7 +430,7 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
                     <span className="tabular-nums text-kx-texto-2">{format(new Date(parcela.dataVencimento), "dd/MM/yyyy")}</span>
                     <span className="text-right font-bold tabular-nums text-kx-texto">{formatarMoeda(parcela.valor)}</span>
                     <span className="flex justify-end">{pilulaDoStatus(status)}</span>
-                  </button>
+                  </div>
                 );
               })}
             </div>
@@ -600,6 +686,19 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Confirmação de pagamento em lote (Fase 3-2D, Parte 5) */}
+      <PainelConfirmarLote
+        aberto={painelLoteAberto}
+        onOpenChange={setPainelLoteAberto}
+        titulo="Pagar em lote"
+        quantidade={resumoLote.quantidade}
+        total={resumoLote.total}
+        avisoValorOriginal="Cada parcela será paga pelo seu valor original — para aplicar desconto ou juros numa parcela específica, pague-a individualmente."
+        confirmando={processandoLote}
+        rotuloConfirmar="Confirmar pagamento"
+        onConfirmar={confirmarPagamentoLote}
+      />
     </>
   );
 }

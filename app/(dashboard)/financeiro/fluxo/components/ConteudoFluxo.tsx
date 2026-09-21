@@ -133,7 +133,13 @@ function VistaFluxo({ dados }: { dados: DadosFluxoDeCaixa }) {
         </div>
       )}
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-hidden min-[1400px]:grid-cols-[1.7fr_1fr]">
+      {/* overflow-y-auto (não overflow-hidden) abaixo de 1400px: empilhado, os
+          dois cartões (280px de piso cada) somam mais altura do que sobra na
+          tela depois dos cartões de KPI + aviso — sem rolagem aqui o
+          segundo cartão ("Próximos 7 dias") ficava cortado e inacessível
+          (achado ao vivo, Parte 5). Em ≥1400px o grid vira uma linha só
+          lado a lado e cabe sem rolar, então overflow-hidden volta lá. */}
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto min-[1400px]:overflow-hidden min-[1400px]:grid-cols-[1.7fr_1fr]">
         <div className="flex min-h-[280px] flex-col gap-3 overflow-hidden rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5">
           <div className="flex flex-col gap-0.5">
             <span className="text-[17px] font-bold text-kx-texto">Projeção de saldo · próximos 30 dias</span>
@@ -269,7 +275,11 @@ function VistaResultado({ dados }: { dados: DadosResultadoPeriodo }) {
 
 function VistaRelatorios() {
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-hidden min-[1400px]:grid-cols-[1.25fr_1fr]">
+    // overflow-y-auto abaixo de 1400px pelo mesmo motivo do grid de Fluxo de
+    // caixa acima — hoje os dois cartões cabem empilhados, mas sem rolagem
+    // de reserva um relatório a mais bastaria pra cortar "Comissões do mês"
+    // sem chance de rolar até ele.
+    <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto min-[1400px]:overflow-hidden min-[1400px]:grid-cols-[1.25fr_1fr]">
       <div className="flex min-h-0 flex-col gap-3 overflow-hidden rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5">
         <span className="shrink-0 text-[17px] font-bold text-kx-texto">Relatórios</span>
         <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
