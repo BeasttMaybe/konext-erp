@@ -5,9 +5,10 @@ import {
   obterResumoPagar,
 } from "@/app/actions/financeiro-pagar";
 import { NavFinanceiro } from "@/components/financeiro/nav-financeiro";
-import { FiltrosPagar } from "./components/FiltrosPagar";
 import { ConteudoPagar } from "./components/ConteudoPagar";
 import { CartaoIndicador } from "@/components/ui/cartao-indicador";
+import { FiltroPeriodo } from "@/components/ui/filtro-periodo";
+import { calcularPresetEsteMes } from "@/lib/filtro-periodo";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { temPermissao } from "@/lib/auth/permissoes";
 import { AcessoNegado } from "@/components/ui/acesso-negado";
@@ -29,8 +30,16 @@ const formatarMoeda = (valor: number) =>
 /**
  * Contas a Pagar (Fase 3-2D, Parte 3) — referência:
  * docs/design/referencia-financeiro-pagar.html. "Categoria de Cliente"
- * sai daqui (não fazia sentido — despesa não tem cliente-devedor); Mês/Ano
- * continuam, com o mesmo "todasAsContas" da Parte 2.
+ * sai daqui (não fazia sentido — despesa não tem cliente-devedor).
+ *
+ * Fase 2A-1 (`FiltroPeriodo`): o Select de mês + Input de ano + botão
+ * "Todas as contas" deram lugar ao filtro de período compartilhado,
+ * filtrando por `dataVencimento` (único campo de data que esta tela já
+ * filtrava). "Todas as contas" não tem mais equivalente na UI — pra ver um
+ * período amplo, o próprio "Período customizado" do `FiltroPeriodo` cobre
+ * o caso (a capacidade de pular a janela inteira continua existindo na
+ * action, `todoPeriodo`, mas só é usada internamente pelos indicadores "em
+ * aberto" da Visão geral — ver `app/actions/financeiro-hub.ts`).
  */
 export default async function FinanceiroPagarPage({ searchParams }: PageProps) {
   const contexto = await exigirContextoTenant();
@@ -42,9 +51,8 @@ export default async function FinanceiroPagarPage({ searchParams }: PageProps) {
   const params = await searchParams;
 
   const filtros = {
-    mes: obterParam(params, "mes"),
-    ano: obterParam(params, "ano"),
-    todoPeriodo: obterParam(params, "todasAsContas") === "1",
+    inicio: obterParam(params, "inicio"),
+    fim: obterParam(params, "fim"),
   };
 
   const [parcelas, resumo] = await Promise.all([
@@ -67,14 +75,18 @@ export default async function FinanceiroPagarPage({ searchParams }: PageProps) {
         <CartaoIndicador variante="sucesso" titulo="Vence hoje" valor={formatarMoeda(resumo.venceHoje)} icone={<CheckCircle2 />} />
         <CartaoIndicador
           variante="primaria"
-          titulo={filtros.todoPeriodo ? "Total (todas as contas)" : "Total no período"}
+          titulo="Total no período"
           valor={formatarMoeda(resumo.totalPeriodo)}
           icone={<Repeat />}
         />
       </div>
 
       <Suspense fallback={<div className="h-11 shrink-0 animate-pulse rounded-kx-botao bg-kx-superficie" />}>
-        <FiltrosPagar />
+        <FiltroPeriodo
+          rotulo="Vencimento"
+          fusoHorario={contexto.fusoHorario}
+          intervaloPadrao={calcularPresetEsteMes(contexto.fusoHorario)}
+        />
       </Suspense>
 
       <ConteudoPagar parcelas={parcelas} />

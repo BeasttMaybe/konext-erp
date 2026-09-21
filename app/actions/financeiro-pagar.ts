@@ -7,7 +7,7 @@ import { escopoDespesa } from "@/lib/auth/escopos";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 import { paraMensagemSegura } from "@/lib/erros";
-import { comoDataDeCalendario, FUSO_HORARIO_PADRAO, inicioDoDia } from "@/lib/datas";
+import { comoDataDeCalendario, dataDeCalendario, FUSO_HORARIO_PADRAO, fimDoMes, inicioDoMes } from "@/lib/datas";
 
 /** Ver o comentario equivalente em financeiro-receber.ts (Fase 1B-UI, Parte 1). */
 export type ResultadoAcaoDespesa = { sucesso: true } | { sucesso: false; mensagem: string };
@@ -317,10 +317,18 @@ export async function listarParcelasPagar(): Promise<ParcelaDespesaComRelacao[]>
 // ── Tipos e funções para consulta filtrada ──────────────────────────────────
 
 export interface FiltrosPagar {
-  mes?: string;
-  ano?: string;
+  /** Início/fim do período (DATA DE CALENDÁRIO, "yyyy-MM-dd") — vem do componente `FiltroPeriodo` (Fase 2A-1), filtra `dataVencimento`. */
+  inicio?: string;
+  fim?: string;
   categoriaCliente?: string;
-  /** Ignora a janela de mes/ano — todas as parcelas, de qualquer periodo (Fase 3-2D). */
+  /**
+   * Ignora a janela de período — todas as parcelas, de qualquer período
+   * (Fase 3-2D). Usado pelos indicadores "em aberto" da Visão geral
+   * (`app/actions/financeiro-hub.ts`), chamado direto no código — a tela de
+   * Contas a Pagar não expõe mais isso como opção pro usuário desde a
+   * adoção do `FiltroPeriodo` (Fase 2A-1): "Período customizado" com um
+   * intervalo bem largo cobre o mesmo caso de uso pela UI.
+   */
   todoPeriodo?: boolean;
 }
 
@@ -339,8 +347,11 @@ export interface ResumoPagar {
  * Retorna as parcelas a pagar com filtros opcionais por período e categoria de cliente.
  * Adequado para chamadas em Server Components (page.tsx).
  *
- * Quando nenhum mês/ano é informado via URL, aplica o mês e ano correntes como padrão,
- * evitando retornar registros de todos os períodos sem filtragem.
+ * Quando `inicio`/`fim` não vêm (ou vêm inválidos), aplica o mês corrente
+ * (no fuso da loja) como padrão, evitando retornar registros de todos os
+ * períodos sem filtragem — mesmo comportamento de antes da Fase 2A-1,
+ * agora com `dataDeCalendario` em vez de `new Date(ano, mes-1, 1)` cru (que
+ * construía a fronteira no fuso do PROCESSO, não no da loja).
  */
 export async function listarParcelasPagarFiltradas(
   filtros?: FiltrosPagar
@@ -351,25 +362,29 @@ export async function listarParcelasPagarFiltradas(
 
   const where: Record<string, unknown> = {};
 
-  // Usa os valores da URL quando presentes; caso contrário, adota o mês/ano atual.
-  // todoPeriodo pula a janela inteira — usado pelos indicadores "em aberto"
-  // da Visão geral (Fase 3-2D), que somam parcelas pendentes de qualquer mês.
+  // `dataVencimento` é DATA DE CALENDÁRIO (meia-noite UTC) — `inicio`/`fim`
+  // (yyyy-MM-dd) comparam direto, sem inicioDoDia/fimDoDia (que resolveriam
+  // fronteira de INSTANTE, não de calendário). todoPeriodo pula a janela
+  // inteira — ver o comentário em `FiltrosPagar.todoPeriodo` acima.
   if (!filtros?.todoPeriodo) {
-    const hoje = inicioDoDia(new Date(), contexto.fusoHorario);
-    const mesFiltro = filtros?.mes ? parseInt(filtros.mes, 10) : hoje.getMonth() + 1;
-    const anoFiltro = filtros?.ano ? parseInt(filtros.ano, 10) : hoje.getFullYear();
+    const dataInicioFiltro = filtros?.inicio ? dataDeCalendario(filtros.inicio) : null;
+    const dataFimFiltro = filtros?.fim ? dataDeCalendario(filtros.fim) : null;
 
-    if (!Number.isNaN(mesFiltro) && !Number.isNaN(anoFiltro)) {
-      // Início: primeiro dia do mês às 00:00:00.000
-      const dataInicio = new Date(anoFiltro, mesFiltro - 1, 1);
-      // Fim: último dia do mês às 23:59:59.999 (dia 0 do mês seguinte = último dia do atual)
-      const dataFim = new Date(anoFiltro, mesFiltro, 0, 23, 59, 59, 999);
+    // Só usa o par vindo da URL quando os DOIS lados são válidos — um único
+    // lado presente (URL adulterada/incompleta) cai pro mês inteiro, nunca
+    // mistura um limite filtrado com um limite "mês atual" do outro lado.
+    const [dataInicio, dataFim] =
+      dataInicioFiltro && dataFimFiltro
+        ? [dataInicioFiltro, dataFimFiltro]
+        : [
+            comoDataDeCalendario(inicioDoMes(new Date(), contexto.fusoHorario), contexto.fusoHorario),
+            comoDataDeCalendario(fimDoMes(new Date(), contexto.fusoHorario), contexto.fusoHorario),
+          ];
 
-      where.dataVencimento = {
-        gte: dataInicio,
-        lte: dataFim,
-      };
-    }
+    where.dataVencimento = {
+      gte: dataInicio,
+      lte: dataFim,
+    };
   }
 
   // Escopo de visibilidade (Fase 1D-2) + filtro por categoria de cliente,
