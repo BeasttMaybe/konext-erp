@@ -59,16 +59,24 @@ export function ModalCargo({ modo, cargoOrigem, aberto, onFechar, onCriado }: Pr
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-2">
-          <Label htmlFor="nome-cargo">Nome do cargo</Label>
-          <Input id="nome-cargo" value={nome} onChange={(evento) => setNome(evento.target.value)} placeholder="Ex.: Técnico Sênior" />
+        <div className="space-y-1.5">
+          <Label htmlFor="nome-cargo" className="text-xs font-bold text-kx-texto">
+            Nome do cargo
+          </Label>
+          <Input
+            id="nome-cargo"
+            value={nome}
+            onChange={(evento) => setNome(evento.target.value)}
+            placeholder="Ex.: Técnico Sênior"
+            className="h-11 border-kx-campo-borda bg-kx-superficie"
+          />
         </div>
 
         <DialogFooter>
           <Button type="button" variant="ghost" onClick={onFechar}>
             Cancelar
           </Button>
-          <Button type="button" onClick={() => void aoConfirmar()} disabled={salvando || nome.trim().length < 2}>
+          <Button type="button" className="rounded-kx-botao" onClick={() => void aoConfirmar()} disabled={salvando || nome.trim().length < 2}>
             {salvando ? "Salvando..." : "Continuar"}
           </Button>
         </DialogFooter>

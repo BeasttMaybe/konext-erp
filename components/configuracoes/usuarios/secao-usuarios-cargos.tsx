@@ -2,15 +2,29 @@
 
 import { useState } from "react";
 import { SecaoConfiguracoes } from "../secao-configuracoes";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AbaUsuarios } from "./aba-usuarios";
 import { AbaCargos } from "./aba-cargos";
 import { TelaPermissoesCargo } from "./tela-permissoes-cargo";
 
 type Visao = { tela: "abas" } | { tela: "permissoes-cargo"; cargoId: string };
+type AbaId = "usuarios" | "cargos";
 
+const ABAS: { id: AbaId; rotulo: string }[] = [
+  { id: "usuarios", rotulo: "Usuários" },
+  { id: "cargos", rotulo: "Cargos" },
+];
+
+/**
+ * Usuários e Cargos (Fase 3-2E, Parte 3) — referência: referencia-
+ * configuracoes-usuarios.html. A referência mostra "Novo cargo" e
+ * "Convidar usuário" numa barra compartilhada acima das abas — não existe
+ * função de convidar usuário no sistema hoje, então esse botão não foi
+ * inventado; "Criar cargo" continua só dentro da aba Cargos (único lugar
+ * onde já existia e faz sentido aparecer).
+ */
 export function SecaoUsuariosCargos() {
   const [visao, setVisao] = useState<Visao>({ tela: "abas" });
+  const [abaAtiva, setAbaAtiva] = useState<AbaId>("usuarios");
 
   if (visao.tela === "permissoes-cargo") {
     return (
@@ -26,20 +40,30 @@ export function SecaoUsuariosCargos() {
       titulo="Usuários e Cargos"
       descricao="Cada tela abaixo salva na hora — não é preciso usar o botão de salvar do rodapé."
     >
-      <Tabs defaultValue="usuarios" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="usuarios">Usuários</TabsTrigger>
-          <TabsTrigger value="cargos">Cargos</TabsTrigger>
-        </TabsList>
+      <div className="flex flex-col gap-4">
+        <div role="tablist" aria-label="Usuários ou cargos" className="flex w-fit gap-1 rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-1">
+          {ABAS.map((aba) => (
+            <button
+              key={aba.id}
+              type="button"
+              role="tab"
+              aria-selected={abaAtiva === aba.id}
+              onClick={() => setAbaAtiva(aba.id)}
+              className={`h-9 rounded-kx-botao px-4 text-sm font-bold transition-colors ${
+                abaAtiva === aba.id ? "bg-kx-primaria text-primary-foreground" : "text-kx-texto-2 hover:bg-kx-superficie"
+              }`}
+            >
+              {aba.rotulo}
+            </button>
+          ))}
+        </div>
 
-        <TabsContent value="usuarios">
+        {abaAtiva === "usuarios" ? (
           <AbaUsuarios />
-        </TabsContent>
-
-        <TabsContent value="cargos">
+        ) : (
           <AbaCargos onEditarPermissoes={(cargoId) => setVisao({ tela: "permissoes-cargo", cargoId })} />
-        </TabsContent>
-      </Tabs>
+        )}
+      </div>
     </SecaoConfiguracoes>
   );
 }

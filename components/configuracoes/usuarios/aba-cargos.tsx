@@ -4,9 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { listarCargos, listarPermissoesDisponiveis, type CargoListado } from "@/app/actions/cargos";
 import type { PermissaoDisponivel } from "@/lib/auth/permissoes";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { PilulaStatus } from "@/components/ui/pilula-status";
 import { ModalCargo } from "./modal-cargo";
 
 type PropsAbaCargos = {
@@ -47,56 +46,61 @@ export function AbaCargos({ onEditarPermissoes }: PropsAbaCargos) {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       <div className="flex justify-end">
-        <Button type="button" onClick={() => setModalAberto({ modo: "criar" })}>
+        <Button type="button" className="rounded-kx-botao" onClick={() => setModalAberto({ modo: "criar" })}>
           Criar cargo
         </Button>
       </div>
 
       <div className="grid gap-3 md:grid-cols-2">
         {cargos === null ? (
-          <p className="text-sm text-muted-foreground">Carregando cargos...</p>
+          <p className="text-sm text-kx-legenda">Carregando cargos...</p>
         ) : cargos.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nenhum cargo cadastrado.</p>
+          <p className="text-sm text-kx-legenda">Nenhum cargo cadastrado.</p>
         ) : (
           cargos
             .filter((cargo) => !cargo.arquivadoEm)
             .map((cargo) => (
-              <Card key={cargo.id} className="border-border bg-background p-4 space-y-3">
+              <div key={cargo.id} className="flex flex-col gap-3 rounded-kx-cartao border border-kx-painel-borda bg-kx-cartao p-4">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <p className="flex items-center gap-2 text-sm font-bold text-kx-texto">
                       {cargo.nome}
-                      {cargo.fixo && <Badge variant="outline">Fixo</Badge>}
+                      {cargo.fixo && <PilulaStatus variante="neutro">Fixo</PilulaStatus>}
                     </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {cargo.descricao || "Sem descrição."}
-                    </p>
+                    <p className="mt-1 text-xs text-kx-legenda">{cargo.descricao || "Sem descrição."}</p>
                   </div>
                 </div>
 
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-kx-legenda">
                   {cargo.quantidadeUsuariosAtivos} {cargo.quantidadeUsuariosAtivos === 1 ? "pessoa" : "pessoas"} neste cargo
                 </p>
 
-                <div className="flex flex-wrap gap-1">
+                <div className="flex flex-wrap gap-1.5">
                   {modulosDoCargo(cargo).map((modulo) => (
-                    <Badge key={modulo} variant="secondary" className="text-[11px]">
+                    <PilulaStatus key={modulo} variante="neutro">
                       {modulo}
-                    </Badge>
+                    </PilulaStatus>
                   ))}
                 </div>
 
                 <div className="flex gap-2 pt-1">
-                  <Button type="button" variant="outline" size="sm" onClick={() => onEditarPermissoes(cargo.id)} disabled={cargo.fixo}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="rounded-kx-botao"
+                    onClick={() => onEditarPermissoes(cargo.id)}
+                    disabled={cargo.fixo}
+                  >
                     Editar permissões
                   </Button>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => setModalAberto({ modo: "duplicar", cargo })}>
+                  <Button type="button" variant="ghost" size="sm" className="rounded-kx-botao" onClick={() => setModalAberto({ modo: "duplicar", cargo })}>
                     Duplicar
                   </Button>
                 </div>
-              </Card>
+              </div>
             ))
         )}
       </div>

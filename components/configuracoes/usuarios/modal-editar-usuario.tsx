@@ -100,15 +100,17 @@ export function ModalEditarUsuario({ usuario, aberto, onFechar, onSalvo }: Props
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="cargo-usuario">Cargo</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="cargo-usuario" className="text-xs font-bold text-kx-texto">
+              Cargo
+            </Label>
             {usuario.souEu ? (
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-kx-legenda">
                 Você não pode alterar o seu próprio cargo — peça a outra pessoa com acesso a Usuários e Cargos.
               </p>
             ) : (
               <Select value={cargoSelecionado} onValueChange={setCargoSelecionado}>
-                <SelectTrigger id="cargo-usuario">
+                <SelectTrigger id="cargo-usuario" className="h-11 border-kx-campo-borda bg-kx-superficie">
                   <SelectValue placeholder="Selecione um cargo" />
                 </SelectTrigger>
                 <SelectContent>
@@ -122,10 +124,10 @@ export function ModalEditarUsuario({ usuario, aberto, onFechar, onSalvo }: Props
             )}
           </div>
 
-          <div className="space-y-2 rounded-lg border border-border p-3">
-            <Label>Status</Label>
+          <div className="space-y-2 rounded-kx-botao border border-kx-campo-borda bg-kx-superficie p-3">
+            <Label className="text-xs font-bold text-kx-texto">Status</Label>
             <div className="flex items-center justify-between gap-3">
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-kx-legenda">
                 {usuario.ativo
                   ? "Este usuário está ativo e consegue entrar no sistema."
                   : "Este usuário está desativado e não consegue entrar no sistema."}
@@ -161,7 +163,7 @@ export function ModalEditarUsuario({ usuario, aberto, onFechar, onSalvo }: Props
             Fechar
           </Button>
           {!usuario.souEu && (
-            <Button type="button" onClick={() => void aoSalvarCargo()} disabled={salvandoCargo}>
+            <Button type="button" className="rounded-kx-botao" onClick={() => void aoSalvarCargo()} disabled={salvandoCargo}>
               {salvandoCargo ? "Salvando..." : "Salvar cargo"}
             </Button>
           )}

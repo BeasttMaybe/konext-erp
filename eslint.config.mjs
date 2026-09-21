@@ -34,7 +34,6 @@ const ARQUIVOS_COM_COR_LEGADA = [
   "app/(printer)/os/\\[id\\]/garantia/page.tsx",
   "app/(printer)/recibo/\\[id\\]/page.tsx",
   "app/rastreio/\\[id\\]/page.tsx",
-  "components/configuracoes/usuarios/aba-usuarios.tsx",
   "components/crm/funil-vendas-kanban.tsx",
   "components/crm/proposal-actions-cell.tsx",
   "components/estoque/modal-novo-produto.tsx",

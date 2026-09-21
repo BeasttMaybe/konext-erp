@@ -64,16 +64,18 @@ export function ModalTransferirPropriedade({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-2">
-          <Label htmlFor="novo-responsavel">Novo responsável</Label>
+        <div className="space-y-1.5">
+          <Label htmlFor="novo-responsavel" className="text-xs font-bold text-kx-texto">
+            Novo responsável
+          </Label>
           {candidatos.length === 0 ? (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-kx-legenda">
               Nenhum outro usuário ativo tem acesso a Usuários e Cargos hoje — conceda essa permissão a alguém antes
               de transferir.
             </p>
           ) : (
             <Select value={novoResponsavelId} onValueChange={setNovoResponsavelId}>
-              <SelectTrigger id="novo-responsavel">
+              <SelectTrigger id="novo-responsavel" className="h-11 border-kx-campo-borda bg-kx-superficie">
                 <SelectValue placeholder="Selecione quem vai assumir" />
               </SelectTrigger>
               <SelectContent>
@@ -94,6 +96,7 @@ export function ModalTransferirPropriedade({
           <Button
             type="button"
             variant="destructive"
+            className="rounded-kx-botao"
             onClick={() => void aoConfirmar()}
             disabled={transferindo || !novoResponsavelId}
           >
