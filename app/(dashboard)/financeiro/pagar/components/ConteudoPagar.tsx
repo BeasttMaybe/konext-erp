@@ -325,7 +325,7 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
 
   return (
     <>
-      <div className="flex min-h-0 flex-1 flex-col gap-3 rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-4">
+      <div className="flex flex-col gap-3 rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-4">
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
@@ -357,37 +357,39 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
 
         {vista === "PERIODO" ? (
           <>
-            {podeBaixar && selecionados.size > 0 && (
-              <BarraAcaoLote
-                quantidade={resumoLote.quantidade}
-                total={resumoLote.total}
-                rotuloAcaoPrincipal="Pagar"
-                onAcaoPrincipal={() => setPainelLoteAberto(true)}
-                onLimparSelecao={() => setSelecionados(new Set())}
-              />
-            )}
-
-            <div
-              className={`hidden gap-3 px-3 text-[11px] font-bold uppercase tracking-wide text-kx-legenda sm:grid ${
-                podeBaixar ? "grid-cols-[24px_minmax(0,1.4fr)_120px_90px_110px_110px_120px]" : "grid-cols-[minmax(0,1.4fr)_120px_90px_110px_110px_120px]"
-              }`}
-            >
-              {podeBaixar && (
-                <Checkbox
-                  checked={todosFiltradosSelecionados}
-                  onCheckedChange={alternarTodosFiltrados}
-                  aria-label={`Selecionar todas as ${itensSelecionaveisPeriodo.filter((i) => !i.jaLiquidado).length} parcelas do período`}
+            <div className="sticky top-0 z-kx-sticky flex flex-col gap-2 bg-kx-painel pt-1 pb-2">
+              {podeBaixar && selecionados.size > 0 && (
+                <BarraAcaoLote
+                  quantidade={resumoLote.quantidade}
+                  total={resumoLote.total}
+                  rotuloAcaoPrincipal="Pagar"
+                  onAcaoPrincipal={() => setPainelLoteAberto(true)}
+                  onLimparSelecao={() => setSelecionados(new Set())}
                 />
               )}
-              <span>Fornecedor / descrição</span>
-              <span>Categoria</span>
-              <span>Parcela</span>
-              <span>Vencimento</span>
-              <span className="text-right">Valor</span>
-              <span className="text-right">Situação</span>
+
+              <div
+                className={`hidden gap-3 px-3 text-[11px] font-bold uppercase tracking-wide text-kx-legenda sm:grid ${
+                  podeBaixar ? "grid-cols-[24px_minmax(0,1.4fr)_120px_90px_110px_110px_120px]" : "grid-cols-[minmax(0,1.4fr)_120px_90px_110px_110px_120px]"
+                }`}
+              >
+                {podeBaixar && (
+                  <Checkbox
+                    checked={todosFiltradosSelecionados}
+                    onCheckedChange={alternarTodosFiltrados}
+                    aria-label={`Selecionar todas as ${itensSelecionaveisPeriodo.filter((i) => !i.jaLiquidado).length} parcelas do período`}
+                  />
+                )}
+                <span>Fornecedor / descrição</span>
+                <span>Categoria</span>
+                <span>Parcela</span>
+                <span>Vencimento</span>
+                <span className="text-right">Valor</span>
+                <span className="text-right">Situação</span>
+              </div>
             </div>
 
-            <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
+            <div className="flex flex-col gap-2">
               {parcelas.length === 0 && (
                 <p className="py-10 text-center text-sm text-kx-legenda">Nenhuma parcela encontrada com os filtros selecionados.</p>
               )}
@@ -445,7 +447,7 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
             )}
           </>
         ) : (
-          <div className="grid min-h-0 flex-1 auto-rows-min grid-cols-1 gap-3 overflow-y-auto sm:grid-cols-2">
+          <div className="grid auto-rows-min grid-cols-1 gap-3 sm:grid-cols-2">
             {recorrencias.length === 0 && (
               <p className="col-span-full py-10 text-center text-sm text-kx-legenda">
                 Nenhuma despesa fixa mensal com parcela no período selecionado. Recorrência de verdade (regra, pausar, data de fim) chega

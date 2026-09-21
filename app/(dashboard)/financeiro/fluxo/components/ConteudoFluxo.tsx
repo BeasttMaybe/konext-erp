@@ -84,8 +84,8 @@ function VistaFluxo({ dados }: { dados: DadosFluxoDeCaixa }) {
   const { menorPonto, temSaldoNegativo } = projecao;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
-      <div className="grid shrink-0 grid-cols-2 gap-3 min-[1400px]:grid-cols-4">
+    <div className="flex flex-col gap-4">
+      <div className="grid shrink-0 grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
         <CartaoIndicador
           variante="primaria"
           titulo="Saldo em caixa hoje"
@@ -133,14 +133,8 @@ function VistaFluxo({ dados }: { dados: DadosFluxoDeCaixa }) {
         </div>
       )}
 
-      {/* overflow-y-auto (não overflow-hidden) abaixo de 1400px: empilhado, os
-          dois cartões (280px de piso cada) somam mais altura do que sobra na
-          tela depois dos cartões de KPI + aviso — sem rolagem aqui o
-          segundo cartão ("Próximos 7 dias") ficava cortado e inacessível
-          (achado ao vivo, Parte 5). Em ≥1400px o grid vira uma linha só
-          lado a lado e cabe sem rolar, então overflow-hidden volta lá. */}
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto min-[1400px]:overflow-hidden min-[1400px]:grid-cols-[1.7fr_1fr]">
-        <div className="flex min-h-[280px] flex-col gap-3 overflow-hidden rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5">
+      <div className="grid grid-cols-1 gap-4 min-[1400px]:grid-cols-[1.7fr_1fr] min-[1400px]:items-start">
+        <div className="flex min-h-[280px] flex-col gap-3 rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5">
           <div className="flex flex-col gap-0.5">
             <span className="text-[17px] font-bold text-kx-texto">Projeção de saldo · próximos 30 dias</span>
             <span className="text-xs text-kx-legenda">Saldo atual + títulos a receber − contas e recorrências agendadas</span>
@@ -148,9 +142,9 @@ function VistaFluxo({ dados }: { dados: DadosFluxoDeCaixa }) {
           <GraficoProjecaoSaldo pontos={projecao.pontos} menorPonto={menorPonto} />
         </div>
 
-        <div className="flex min-h-[280px] flex-col gap-2 overflow-hidden rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5">
+        <div className="flex min-h-[280px] flex-col gap-2 rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5">
           <span className="shrink-0 text-[16px] font-bold text-kx-texto">Próximos 7 dias</span>
-          <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto">
+          <div className="flex max-h-[360px] flex-col gap-1.5 overflow-y-auto">
             {proximosLancamentos.itens.length === 0 && (
               <p className="py-8 text-center text-sm text-kx-legenda">Nada previsto pra essa semana.</p>
             )}
@@ -184,8 +178,8 @@ function VistaResultado({ dados }: { dados: DadosResultadoPeriodo }) {
   const { resultado, servicoXProduto, sobraPorOS } = dados;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
-      <div className="grid shrink-0 grid-cols-2 gap-3 min-[1400px]:grid-cols-4">
+    <div className="flex flex-col gap-4">
+      <div className="grid shrink-0 grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
         <CartaoIndicador
           variante="sucesso"
           titulo="Entradas"
@@ -217,7 +211,7 @@ function VistaResultado({ dados }: { dados: DadosResultadoPeriodo }) {
         />
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5">
+      <div className="flex flex-col gap-2 rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5">
         <div className="flex shrink-0 items-center justify-between gap-3">
           <div className="flex flex-col gap-0.5">
             <span className="text-[17px] font-bold text-kx-texto">Quanto sobrou por OS</span>
@@ -228,7 +222,7 @@ function VistaResultado({ dados }: { dados: DadosResultadoPeriodo }) {
           </PilulaStatus>
         </div>
 
-        <div className="hidden grid-cols-[64px_minmax(0,1.3fr)_130px_110px_100px_100px_100px] gap-2.5 px-2 pt-1 text-[11px] font-bold uppercase tracking-wide text-kx-legenda sm:grid">
+        <div className="sticky top-0 z-kx-sticky hidden grid-cols-[64px_minmax(0,1.3fr)_130px_110px_100px_100px_100px] gap-2.5 bg-kx-painel px-2 pb-1.5 pt-1 text-[11px] font-bold uppercase tracking-wide text-kx-legenda sm:grid">
           <span>OS</span>
           <span>Serviço</span>
           <span>Técnico</span>
@@ -238,7 +232,7 @@ function VistaResultado({ dados }: { dados: DadosResultadoPeriodo }) {
           <span className="text-right">Sobrou</span>
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto">
+        <div className="flex flex-col gap-1.5">
           {sobraPorOS.linhas.length === 0 && (
             <p className="py-10 text-center text-sm text-kx-legenda">Nenhuma OS entregue com recebimento neste período.</p>
           )}
@@ -275,14 +269,10 @@ function VistaResultado({ dados }: { dados: DadosResultadoPeriodo }) {
 
 function VistaRelatorios() {
   return (
-    // overflow-y-auto abaixo de 1400px pelo mesmo motivo do grid de Fluxo de
-    // caixa acima — hoje os dois cartões cabem empilhados, mas sem rolagem
-    // de reserva um relatório a mais bastaria pra cortar "Comissões do mês"
-    // sem chance de rolar até ele.
-    <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto min-[1400px]:overflow-hidden min-[1400px]:grid-cols-[1.25fr_1fr]">
-      <div className="flex min-h-0 flex-col gap-3 overflow-hidden rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5">
+    <div className="grid grid-cols-1 gap-4 min-[1400px]:grid-cols-[1.25fr_1fr] min-[1400px]:items-start">
+      <div className="flex flex-col gap-3 rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5">
         <span className="shrink-0 text-[17px] font-bold text-kx-texto">Relatórios</span>
-        <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
+        <div className="flex flex-col gap-2">
           {RELATORIOS.map((relatorio) => (
             <div key={relatorio.nome} className="flex min-h-[64px] items-center gap-3 rounded-kx-botao bg-kx-superficie px-3.5 py-2">
               <div className="min-w-0 flex-1 space-y-0.5">
@@ -306,7 +296,7 @@ function VistaRelatorios() {
         </p>
       </div>
 
-      <div className="flex min-h-0 flex-col gap-3 overflow-hidden rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5">
+      <div className="flex flex-col gap-3 rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5">
         <div className="flex shrink-0 items-center justify-between gap-2">
           <span className="text-[17px] font-bold text-kx-texto">Comissões do mês</span>
           <PilulaStatus variante="neutro">Indisponível</PilulaStatus>

@@ -377,16 +377,8 @@ export function ConteudoReceber({ contas }: ConteudoReceberProps) {
           colunas fixas da tabela (parcela/vencimento/valor/situacao = ~480px
           + gaps) nao deixam quase nada pra "Cliente / origem" a 1280px —
           empilha em vez de espremer. */}
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto min-[1400px]:overflow-hidden min-[1400px]:grid-cols-[1fr_340px]">
-        {/* min-h-[460px]: empilhado (abaixo de 1400px), grid-cols-1 vira DUAS
-            linhas de grid auto-sizadas (uma por item) em vez de uma só — o
-            "stretch" do Grid só preenche a altura do container quando há uma
-            única linha (caso ≥1400px, lado a lado). Sem um piso explícito
-            aqui, o filho flex-1/min-h-0 da lista de linhas não tem pra onde
-            crescer e colapsa a ~0px (achado ao vivo testando a barra de
-            lote da Parte 5, mas o bug já existia sem ela — só ficava menos
-            óbvio com poucas linhas visíveis). */}
-        <div className="flex min-h-[460px] flex-col gap-3 rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-4 min-[1400px]:min-h-0">
+      <div className="grid grid-cols-1 gap-4 min-[1400px]:grid-cols-[1fr_340px] min-[1400px]:items-start">
+        <div className="flex min-h-[460px] flex-col gap-3 rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-4">
           <div className="flex flex-wrap items-center gap-2">
             {PILULAS.map((pilula) => (
               <button
@@ -412,37 +404,39 @@ export function ConteudoReceber({ contas }: ConteudoReceberProps) {
             )}
           </div>
 
-          {podeBaixar && selecionados.size > 0 && (
-            <BarraAcaoLote
-              quantidade={resumoLote.quantidade}
-              total={resumoLote.total}
-              rotuloAcaoPrincipal="Dar baixa"
-              onAcaoPrincipal={() => setPainelLoteAberto(true)}
-              onLimparSelecao={() => setSelecionados(new Set())}
-            />
-          )}
-
-          <div
-            className={`hidden gap-3 px-3 text-[11px] font-bold uppercase tracking-wide text-kx-legenda sm:grid ${
-              podeBaixar ? "grid-cols-[24px_minmax(0,1.5fr)_90px_110px_120px_120px_40px]" : "grid-cols-[minmax(0,1.5fr)_90px_110px_120px_120px_40px]"
-            }`}
-          >
-            {podeBaixar && (
-              <Checkbox
-                checked={todosFiltradosSelecionados}
-                onCheckedChange={alternarTodosFiltrados}
-                aria-label={`Selecionar todas as ${itensSelecionaveisFiltrados.filter((i) => !i.jaLiquidado).length} contas filtradas`}
+          <div className="sticky top-0 z-kx-sticky flex flex-col gap-2 bg-kx-painel pt-1 pb-2">
+            {podeBaixar && selecionados.size > 0 && (
+              <BarraAcaoLote
+                quantidade={resumoLote.quantidade}
+                total={resumoLote.total}
+                rotuloAcaoPrincipal="Dar baixa"
+                onAcaoPrincipal={() => setPainelLoteAberto(true)}
+                onLimparSelecao={() => setSelecionados(new Set())}
               />
             )}
-            <span>Cliente / origem</span>
-            <span>Parcela</span>
-            <span>Vencimento</span>
-            <span className="text-right">Valor</span>
-            <span className="text-right">Situação</span>
-            <span />
+
+            <div
+              className={`hidden gap-3 px-3 text-[11px] font-bold uppercase tracking-wide text-kx-legenda sm:grid ${
+                podeBaixar ? "grid-cols-[24px_minmax(0,1.5fr)_90px_110px_120px_120px_40px]" : "grid-cols-[minmax(0,1.5fr)_90px_110px_120px_120px_40px]"
+              }`}
+            >
+              {podeBaixar && (
+                <Checkbox
+                  checked={todosFiltradosSelecionados}
+                  onCheckedChange={alternarTodosFiltrados}
+                  aria-label={`Selecionar todas as ${itensSelecionaveisFiltrados.filter((i) => !i.jaLiquidado).length} contas filtradas`}
+                />
+              )}
+              <span>Cliente / origem</span>
+              <span>Parcela</span>
+              <span>Vencimento</span>
+              <span className="text-right">Valor</span>
+              <span className="text-right">Situação</span>
+              <span />
+            </div>
           </div>
 
-          <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
+          <div className="flex flex-col gap-2">
             {contasFiltradas.length === 0 && (
               <p className="py-10 text-center text-sm text-kx-legenda">Nenhuma conta encontrada com os filtros selecionados.</p>
             )}
@@ -510,7 +504,7 @@ export function ConteudoReceber({ contas }: ConteudoReceberProps) {
         {/* Painel "Dar baixa" — substitui o Dialog; mesma action/validação de antes. */}
         <aside
           aria-label="Dar baixa"
-          className="flex min-h-0 flex-col gap-3.5 overflow-y-auto rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5"
+          className="sticky top-4 flex flex-col gap-3.5 rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5"
         >
           <div>
             <p className="text-base font-bold text-kx-texto">Dar baixa</p>

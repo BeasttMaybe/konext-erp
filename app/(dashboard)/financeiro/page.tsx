@@ -44,7 +44,7 @@ export default async function FinanceiroPage() {
   const maiorValorBarras = Math.max(1, ...maiorCategoria.map((c) => c.valor), ...maiorForma.map((f) => f.valor));
 
   return (
-    <div className="flex h-[calc(100vh-72px)] w-full flex-col gap-4 overflow-hidden bg-kx-fundo p-5 lg:h-[calc(100vh-104px)] lg:p-6 xl:h-[calc(100vh-120px)]">
+    <div className="flex w-full flex-col gap-4 bg-kx-fundo p-5 pb-8 lg:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-col gap-0.5">
           <span className="text-xs text-kx-legenda">Visão geral do mês</span>
@@ -70,7 +70,7 @@ export default async function FinanceiroPage() {
       {/* min-[1400px], nao xl (1280px): com 4 colunas a essa largura o valor
           de "-R$ 1.993,48" nao cabe numa linha (transborda ~25px, medido) —
           precisa de mais fôlego que o breakpoint padrão do Tailwind dá. */}
-      <div className="grid shrink-0 grid-cols-2 gap-3 min-[1400px]:grid-cols-4">
+      <div className="grid shrink-0 grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
         <CartaoIndicador
           variante="primaria"
           titulo="Saldo em caixa hoje"
@@ -113,8 +113,8 @@ export default async function FinanceiroPage() {
         />
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 xl:grid-cols-[1.7fr_1fr]">
-        <div className="flex min-h-0 flex-col gap-4 rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.7fr_1fr] xl:items-start">
+        <div className="flex flex-col gap-4 rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-base font-bold text-kx-texto">Fluxo de caixa</p>
@@ -122,12 +122,10 @@ export default async function FinanceiroPage() {
             </div>
           </div>
 
-          {/* min-h explicito, nao so flex-1: com flex-1 puro o flexbox tem
-              licenca pra encolher esta caixa abaixo da altura real do
-              conteudo (grafico + legenda de projecao), que ai vazava por
-              cima do bloco de Saidas/Entradas embaixo — mesma causa raiz do
-              bug corrigido no modal de pagamento do PDV. */}
-          <div className="min-h-[200px] flex-1 overflow-hidden">
+          {/* Altura fixa, nao mais flex-1 preso a uma coluna de viewport: o
+              ResponsiveContainer do recharts (height="100%") precisa de um
+              pai com altura definida pra ter onde desenhar. */}
+          <div className="h-[280px]">
             <GraficoFluxoCaixa semanas={dados.fluxoSemanal} />
           </div>
 
@@ -171,8 +169,8 @@ export default async function FinanceiroPage() {
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-col gap-4">
-          <div className="flex min-h-0 flex-1 flex-col gap-2 rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2 rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5">
             <div className="flex items-center justify-between gap-3">
               <p className="text-base font-bold text-kx-texto">Precisa de atenção</p>
               {totalAtencao > 0 && (
@@ -181,7 +179,7 @@ export default async function FinanceiroPage() {
                 </span>
               )}
             </div>
-            <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto">
+            <div className="flex max-h-[420px] flex-col gap-1.5 overflow-y-auto">
               {totalAtencao === 0 && <p className="text-sm text-kx-legenda">Nada vencido ou vencendo nos próximos 7 dias.</p>}
               {dados.precisaDeAtencao.map((item) => (
                 <Link
