@@ -1,13 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { AbasCaixa, type AbaCaixa } from "@/components/pdv/caixa/abas-caixa";
 import { PainelCaixaAberto } from "@/components/pdv/caixa/painel-caixa-aberto";
 import { PainelFecharCaixa } from "@/components/pdv/caixa/painel-fechar-caixa";
+import { FiltroPeriodo } from "@/components/ui/filtro-periodo";
+import { calcularPresetEsteMes, validarIntervalo, type IntervaloPeriodo } from "@/lib/filtro-periodo";
+import { dataDeCalendario } from "@/lib/datas";
 import {
   fecharCaixaSessionAtual,
   obterResumoSessaoAbertaDetalhado,
@@ -22,10 +25,33 @@ import { obterConfiguracoes } from "@/app/actions/configuracoes";
  * docs/design/referencia-pdv-caixa.html. Substitui o antigo modal de
  * "Fechamento de Caixa" do balcão (ver comentário em app/(dashboard)/pdv/page.tsx
  * junto ao link "Caixa e fechamento").
+ *
+ * Fase 2A-1 (`FiltroPeriodo`): "Últimos fechamentos" (dentro da aba
+ * "fechamento") não tinha filtro de período — sempre os 5 mais recentes,
+ * de qualquer data. Ganha o `FiltroPeriodo`, lido/escrito na URL como as
+ * outras adoções (esta página já é Client Component, então lê via
+ * `useSearchParams` em vez de receber `searchParams` como prop). Esta
+ * página não busca `Configuracao.fusoHorario` do tenant hoje (é 100%
+ * client-side) — o filtro usa o fuso padrão da loja (`FUSO_HORARIO_PADRAO`)
+ * em vez do fuso configurado; documentado como limitação conhecida no
+ * relatório da Fase 2A-1.
  */
 export default function PDVCaixaPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [aba, setAba] = useState<AbaCaixa>("aberto");
+
+  const intervaloPadraoFechamentos = useMemo(() => calcularPresetEsteMes(), []);
+  const periodoFechamentos = useMemo<IntervaloPeriodo>(() => {
+    const inicioTexto = searchParams.get("inicio");
+    const fimTexto = searchParams.get("fim");
+    const inicio = inicioTexto ? dataDeCalendario(inicioTexto) : null;
+    const fim = fimTexto ? dataDeCalendario(fimTexto) : null;
+    if (inicio && fim && validarIntervalo(inicio, fim).valido) {
+      return { inicio, fim };
+    }
+    return intervaloPadraoFechamentos;
+  }, [searchParams, intervaloPadraoFechamentos]);
 
   const [carregandoStatus, setCarregandoStatus] = useState(true);
   const [caixaAberto, setCaixaAberto] = useState(false);
@@ -101,7 +127,10 @@ export default function PDVCaixaPage() {
     const carregar = async () => {
       try {
         setCarregandoFechamento(true);
-        const [diario, historico] = await Promise.all([obterResumoCaixaDiario(), obterHistoricoFechamentos(1, 5)]);
+        const [diario, historico] = await Promise.all([
+          obterResumoCaixaDiario(),
+          obterHistoricoFechamentos(1, 5, periodoFechamentos),
+        ]);
         if (!ativo) return;
         setResumoDiario(diario);
         setFechamentos(historico.data);
@@ -118,7 +147,8 @@ export default function PDVCaixaPage() {
     return () => {
       ativo = false;
     };
-  }, [aba, caixaAberto]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- periodoFechamentos e um objeto novo a cada render (useMemo com deps proprias); as datas em si (getTime()) sao o que realmente precisa disparar o efeito.
+  }, [aba, caixaAberto, periodoFechamentos.inicio.getTime(), periodoFechamentos.fim.getTime()]);
 
   const confirmarFechamento = async () => {
     const valor = Number(valorContadoTexto);
@@ -190,6 +220,7 @@ export default function PDVCaixaPage() {
           onObservacaoChange={setObservacaoTexto}
           confirmando={confirmando}
           onConfirmar={confirmarFechamento}
+          filtroPeriodo={<FiltroPeriodo rotulo="Período" intervaloPadrao={intervaloPadraoFechamentos} />}
         />
       )}
     </div>

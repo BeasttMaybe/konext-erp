@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PilulaStatus } from "@/components/ui/pilula-status";
@@ -58,6 +59,8 @@ interface PropsPainelFecharCaixa {
   onObservacaoChange: (valor: string) => void;
   confirmando: boolean;
   onConfirmar: () => void;
+  /** `FiltroPeriodo` (Fase 2A-1) pronto, renderizado pelo caller — passado como nó em vez de props soltas pra este componente não precisar conhecer a API do filtro. */
+  filtroPeriodo: ReactNode;
 }
 
 export function PainelFecharCaixa({
@@ -71,6 +74,7 @@ export function PainelFecharCaixa({
   onObservacaoChange,
   confirmando,
   onConfirmar,
+  filtroPeriodo,
 }: PropsPainelFecharCaixa) {
   const valorContadoNumero = valorContadoTexto.trim() === "" ? null : Number(valorContadoTexto);
   const contagemValida = valorContadoNumero !== null && Number.isFinite(valorContadoNumero);
@@ -192,7 +196,10 @@ export function PainelFecharCaixa({
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5">
-          <span className="text-base font-bold text-kx-texto">Últimos fechamentos</span>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-base font-bold text-kx-texto">Últimos fechamentos</span>
+            {filtroPeriodo}
+          </div>
 
           <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
             {carregandoFechamentos && <p className="py-6 text-center text-sm text-kx-legenda">Carregando...</p>}

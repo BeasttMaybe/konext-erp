@@ -312,13 +312,23 @@ export interface ItemHistoricoFechamento {
   abertoPorNome: string | null;
 }
 
+/** Início/fim (DATA DE CALENDÁRIO) de um recorte de período — usado pelo `FiltroPeriodo` (Fase 2A-1) em `obterHistoricoFechamentos`. */
+export interface PeriodoHistoricoFechamentos {
+  inicio: Date;
+  fim: Date;
+}
+
 /**
  * Retorna as sessões de caixa fechadas de forma paginada, ordenadas da mais recente
  * para a mais antiga. Usado para popular o histórico de fechamentos.
+ *
+ * `periodo` (Fase 2A-1, `FiltroPeriodo`): opcional — sem ele, devolve
+ * fechamentos de qualquer data (comportamento anterior à Fase 2A-1).
  */
 export async function obterHistoricoFechamentos(
   page: number = 1,
-  limit: number = 15
+  limit: number = 15,
+  periodo?: PeriodoHistoricoFechamentos
 ): Promise<{ data: ItemHistoricoFechamento[]; total: number; page: number; totalPages: number }> {
   const contexto = await exigirContextoTenant();
   exigirPermissao(contexto, "caixa.ver_historico");
@@ -335,6 +345,14 @@ export async function obterHistoricoFechamentos(
       ? Prisma.sql`AND "abertoPorId" = ${escopoCaixa.abertoPorId}`
       : Prisma.empty;
 
+  // "dataFechamento" é INSTANTE (timestamptz) — `periodo.inicio`/`fim` são
+  // DATA DE CALENDÁRIO (o que o FiltroPeriodo produz); vira fronteira de
+  // INSTANTE no fuso da loja via inicioDoDia/fimDoDia antes de comparar,
+  // nunca comparado direto (compararia timestamptz com meia-noite UTC).
+  const filtroPeriodoSql = periodo
+    ? Prisma.sql`AND "dataFechamento" >= ${inicioDoDia(periodo.inicio, contexto.fusoHorario)} AND "dataFechamento" <= ${fimDoDia(periodo.fim, contexto.fusoHorario)}`
+    : Prisma.empty;
+
   // Total de sessões fechadas (para calcular totalPages)
   const totalRaw = await prisma.$queryRaw<Array<{ count: bigint }>>`
     SELECT COUNT(*) AS count
@@ -342,6 +360,7 @@ export async function obterHistoricoFechamentos(
     WHERE status::text = 'FECHADO'
       AND "dataFechamento" IS NOT NULL
       ${filtroAutorSql}
+      ${filtroPeriodoSql}
   `;
   const total = Number(totalRaw[0]?.count ?? 0);
 
@@ -368,6 +387,7 @@ export async function obterHistoricoFechamentos(
     WHERE c.status::text = 'FECHADO'
       AND c."dataFechamento" IS NOT NULL
       ${filtroAutorSql}
+      ${filtroPeriodoSql}
     GROUP BY c.id, c."dataFechamento", c."valorAbertura", c."valorFechamento", u.nome
     ORDER BY c."dataFechamento" DESC
     LIMIT ${limit} OFFSET ${offset}
