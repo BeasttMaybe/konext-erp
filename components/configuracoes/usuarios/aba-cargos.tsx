@@ -2,8 +2,18 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { listarCargos, listarPermissoesDisponiveis, type CargoListado } from "@/app/actions/cargos";
+import { arquivarCargo, listarCargos, listarPermissoesDisponiveis, type CargoListado } from "@/app/actions/cargos";
 import type { PermissaoDisponivel } from "@/lib/auth/permissoes";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { PilulaStatus } from "@/components/ui/pilula-status";
 import { ModalCargo } from "./modal-cargo";
@@ -12,10 +22,25 @@ type PropsAbaCargos = {
   onEditarPermissoes: (cargoId: string) => void;
 };
 
+type ModalCargoAberto =
+  | { modo: "criar" }
+  | { modo: "duplicar"; cargo: CargoListado }
+  | { modo: "renomear"; cargo: CargoListado };
+
+/**
+ * Renomear/Excluir (Fase 3-2E, fix) — ficam no cartão, ao lado de
+ * Duplicar, SEM desabilitar pro cargo Fixo (Administrador): ao contrário
+ * de "Editar permissões" (bloqueado no cliente porque o cargo não tem
+ * permissão nenhuma pra editar), renomear/arquivar são ações que o
+ * servidor recusa com uma mensagem clara — a recusa em si é o
+ * comportamento a mostrar, não um botão escondido.
+ */
 export function AbaCargos({ onEditarPermissoes }: PropsAbaCargos) {
   const [cargos, setCargos] = useState<CargoListado[] | null>(null);
   const [catalogo, setCatalogo] = useState<PermissaoDisponivel[]>([]);
-  const [modalAberto, setModalAberto] = useState<{ modo: "criar" } | { modo: "duplicar"; cargo: CargoListado } | null>(null);
+  const [modalAberto, setModalAberto] = useState<ModalCargoAberto | null>(null);
+  const [cargoParaExcluir, setCargoParaExcluir] = useState<CargoListado | null>(null);
+  const [excluindo, setExcluindo] = useState(false);
 
   const recarregar = () => {
     listarCargos().then((resultado) => {
@@ -26,6 +51,23 @@ export function AbaCargos({ onEditarPermissoes }: PropsAbaCargos) {
         setCargos([]);
       }
     });
+  };
+
+  const confirmarExclusao = async () => {
+    if (!cargoParaExcluir) return;
+    setExcluindo(true);
+    try {
+      const resultado = await arquivarCargo({ cargoId: cargoParaExcluir.id });
+      if (!resultado.sucesso) {
+        toast.error(resultado.erro);
+        return;
+      }
+      toast.success(`Cargo "${cargoParaExcluir.nome}" excluído.`);
+      setCargoParaExcluir(null);
+      recarregar();
+    } finally {
+      setExcluindo(false);
+    }
   };
 
   useEffect(() => {
@@ -85,7 +127,7 @@ export function AbaCargos({ onEditarPermissoes }: PropsAbaCargos) {
                   ))}
                 </div>
 
-                <div className="flex gap-2 pt-1">
+                <div className="flex flex-wrap gap-2 pt-1">
                   <Button
                     type="button"
                     variant="outline"
@@ -99,6 +141,18 @@ export function AbaCargos({ onEditarPermissoes }: PropsAbaCargos) {
                   <Button type="button" variant="ghost" size="sm" className="rounded-kx-botao" onClick={() => setModalAberto({ modo: "duplicar", cargo })}>
                     Duplicar
                   </Button>
+                  <Button type="button" variant="ghost" size="sm" className="rounded-kx-botao" onClick={() => setModalAberto({ modo: "renomear", cargo })}>
+                    Renomear
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="rounded-kx-botao text-kx-erro-texto hover:bg-kx-erro-fundo hover:text-kx-erro-texto"
+                    onClick={() => setCargoParaExcluir(cargo)}
+                  >
+                    Excluir cargo
+                  </Button>
                 </div>
               </div>
             ))
@@ -108,7 +162,7 @@ export function AbaCargos({ onEditarPermissoes }: PropsAbaCargos) {
       {modalAberto && (
         <ModalCargo
           modo={modalAberto.modo}
-          cargoOrigem={modalAberto.modo === "duplicar" ? modalAberto.cargo : undefined}
+          cargoOrigem={modalAberto.modo === "criar" ? undefined : modalAberto.cargo}
           cargosExistentes={cargos ?? []}
           aberto
           onFechar={() => setModalAberto(null)}
@@ -117,8 +171,34 @@ export function AbaCargos({ onEditarPermissoes }: PropsAbaCargos) {
             recarregar();
             onEditarPermissoes(cargoId);
           }}
+          onRenomeado={() => {
+            setModalAberto(null);
+            recarregar();
+          }}
         />
       )}
+
+      <AlertDialog open={Boolean(cargoParaExcluir)} onOpenChange={(aberto) => !aberto && setCargoParaExcluir(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir o cargo &quot;{cargoParaExcluir?.nome}&quot;?</AlertDialogTitle>
+            <AlertDialogDescription>
+              O cargo é arquivado — deixa de aparecer na lista e não pode mais ser atribuído a ninguém. Só é
+              possível excluir um cargo sem nenhuma pessoa atribuída a ele no momento.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={excluindo}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => void confirmarExclusao()}
+              disabled={excluindo}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {excluindo ? "Excluindo..." : "Confirmar exclusão"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
