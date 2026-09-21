@@ -112,8 +112,8 @@ export function TelaPermissoesCargo({ cargoId, onVoltar }: PropsTelaPermissoesCa
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
-      <div className="flex shrink-0 flex-col gap-2 rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5">
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-2 rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5">
         <Button type="button" variant="ghost" size="sm" className="-ml-2 w-fit" onClick={onVoltar}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Voltar para cargos
         </Button>
@@ -219,7 +219,7 @@ export function TelaPermissoesCargo({ cargoId, onVoltar }: PropsTelaPermissoesCa
         </div>
       </div>
 
-      <div className="flex shrink-0 justify-end gap-2 pb-1">
+      <div className="flex justify-end gap-2 pb-1">
         <Button type="button" variant="ghost" onClick={onVoltar} disabled={salvando}>
           Cancelar
         </Button>

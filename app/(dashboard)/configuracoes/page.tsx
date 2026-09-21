@@ -28,7 +28,7 @@ export default async function ConfiguracoesPage() {
   const configuracoes = await obterConfiguracoes();
 
   return (
-    <div className="flex h-[calc(100vh-72px)] w-full flex-col overflow-hidden bg-kx-fundo p-5 lg:h-[calc(100vh-104px)] lg:p-6 xl:h-[calc(100vh-120px)]">
+    <div className="flex w-full flex-col bg-kx-fundo p-5 lg:p-6">
       <LayoutConfiguracoes defaultValues={configuracoes} />
     </div>
   );

@@ -207,28 +207,30 @@ export function LayoutConfiguracoes({ defaultValues }: PropsLayoutConfiguracoes)
   };
 
   return (
-    <form onSubmit={handleSubmit(aoSalvar)} className="flex min-h-0 flex-1 flex-col gap-4">
-      <div className="flex shrink-0 flex-col gap-0.5">
+    <form onSubmit={handleSubmit(aoSalvar)} className="flex flex-col gap-4">
+      <div className="flex flex-col gap-0.5">
         <span className="text-xs text-kx-legenda">Configurações</span>
         <span className="text-[22px] font-extrabold tracking-tight text-kx-texto">
           {secoesVisiveis.find((secao) => secao.id === secaoAtiva)?.rotulo}
         </span>
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto min-[1400px]:overflow-hidden min-[1400px]:grid-cols-[268px_1fr]">
-        <MenuConfiguracoes
-          secoes={secoesVisiveis}
-          secaoAtiva={secaoAtiva}
-          onSelecionarSecao={setSecaoAtiva}
-        />
+      <div className="grid grid-cols-1 gap-4 min-[1400px]:grid-cols-[268px_1fr] min-[1400px]:items-start">
+        <div className="min-[1400px]:sticky min-[1400px]:top-4">
+          <MenuConfiguracoes
+            secoes={secoesVisiveis}
+            secaoAtiva={secaoAtiva}
+            onSelecionarSecao={setSecaoAtiva}
+          />
+        </div>
 
-        <div className="flex min-h-0 flex-col gap-4 min-[1400px]:overflow-y-auto">
+        <div className="flex flex-col gap-4">
           {renderizarPainelAtivo()}
         </div>
       </div>
 
       {secaoComPersistenciaAtiva && (
-        <div className="flex shrink-0 justify-end">
+        <div className="sticky bottom-0 z-kx-sticky flex justify-end bg-kx-fundo pt-2 pb-2">
           <div className="flex items-center gap-3 rounded-kx-painel border border-kx-painel-borda bg-kx-painel px-4 py-2.5 shadow-kx-cartao">
             <p className="text-xs text-kx-legenda">
               {formState.isDirty
