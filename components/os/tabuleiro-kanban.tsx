@@ -1,11 +1,8 @@
 "use client";
 
 import {
-  useCallback,
-  useEffect,
   useMemo,
   useOptimistic,
-  useRef,
   useState,
   useTransition,
   type CSSProperties,
@@ -430,33 +427,14 @@ export function TabuleiroKanban({
     setOsEmArraste(os);
   };
 
-  // O board ocupa o que sobra da viewport, medido do layout real: sem numero magico,
-  // e correto em qualquer largura ou altura de janela.
-  const boardRef = useRef<HTMLDivElement>(null);
-  const [alturaBoard, setAlturaBoard] = useState<number | null>(null);
-
-  const medirAltura = useCallback(() => {
-    const elemento = boardRef.current;
-    if (!elemento) return;
-
-    const topo = elemento.getBoundingClientRect().top;
-    const FOLGA = 16;
-    setAlturaBoard(Math.max(420, window.innerHeight - topo - FOLGA));
-  }, []);
-
-  useEffect(() => {
-    medirAltura();
-    window.addEventListener("resize", medirAltura);
-    return () => window.removeEventListener("resize", medirAltura);
-  }, [medirAltura]);
-
+  // O board tem altura própria e fixa — nao mede nem preenche o que sobra da
+  // viewport (esse era o padrao de artboard fixo copiado pro app). Cada
+  // coluna rola por dentro (Kanban é um "canvas" com colunas de altura
+  // própria, não uma lista de página) e a página inteira continua rolando
+  // normalmente ao redor do quadro.
   return (
       <DragDropContext onDragStart={aoIniciarDrag} onDragEnd={aoFinalizarDrag}>
-        <div
-          ref={boardRef}
-          className="flex min-h-[420px] gap-4 overflow-x-auto pb-4"
-          style={alturaBoard === null ? undefined : { height: alturaBoard }}
-        >
+        <div className="flex min-h-[420px] gap-4 overflow-x-auto pb-4">
         {ETAPA_SEQUENCIA.map((etapa) => {
           const ordensFiltradas = ordensPorEtapa[etapa];
           const configuracao = configuracaoEtapa[etapa];
@@ -472,7 +450,7 @@ export function TabuleiroKanban({
             <Droppable key={etapa} droppableId={etapa} isDropDisabled={colunaBloqueada(etapa)}>
               {(dropProvided, dropSnapshot) => (
                 <div
-                  className={`flex h-full min-h-0 w-[320px] shrink-0 flex-col overflow-hidden rounded-kx-cartao border-x border-b border-x-kx-painel-borda border-b-kx-painel-borda bg-kx-painel shadow-sm transition-all ${configuracao.faixaTopo} ${
+                  className={`flex max-h-[640px] w-[320px] shrink-0 flex-col overflow-hidden rounded-kx-cartao border-x border-b border-x-kx-painel-borda border-b-kx-painel-borda bg-kx-painel shadow-sm transition-all ${configuracao.faixaTopo} ${
                     dropSnapshot.isDraggingOver ? "ring-2 ring-primary/30 shadow-lg" : ""
                   } ${colunaBloqueada(etapa) ? "opacity-40 saturate-50" : ""}`}
                 >

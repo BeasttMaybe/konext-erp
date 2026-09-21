@@ -474,7 +474,7 @@ export function DashboardOS({
         </TabsList>
 
         {/* Statistics Cards - segue as 4 etapas (Fase 1C-3, Parte 4) */}
-        <div className="mt-kx-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-kx-4">
+        <div className="mt-kx-4 grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-kx-4">
           <CartaoIndicador
             variante="alerta"
             titulo={ROTULOS_ETAPA_OS.ORCAMENTO}
@@ -592,7 +592,7 @@ export function DashboardOS({
               {mostrarExcluidas ? (
                 <div className="overflow-hidden rounded-kx-painel border border-kx-painel-borda">
                   <Table className="min-w-[1120px]">
-                    <TableHeader>
+                    <TableHeader className="sticky top-0 z-kx-sticky bg-kx-cartao">
                       <TableRow className="hover:bg-transparent">
                         <TableHead>Nº OS</TableHead>
                         <TableHead>Cliente</TableHead>
@@ -658,7 +658,7 @@ export function DashboardOS({
               ) : (
                 <div className="overflow-hidden rounded-kx-painel border border-kx-painel-borda">
                   <Table className="min-w-[840px]">
-                    <TableHeader>
+                    <TableHeader className="sticky top-0 z-kx-sticky bg-kx-cartao">
                       <TableRow className="hover:bg-transparent">
                         <TableHead>Nº OS</TableHead>
                         <TableHead>Cliente</TableHead>

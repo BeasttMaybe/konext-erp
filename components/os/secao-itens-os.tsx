@@ -223,7 +223,7 @@ export function SecaoItensOS({ osId, numeroOs, itens, desabilitarCadastro = fals
   };
 
   return (
-    <div className="p-kx-4 rounded-kx-painel border border-kx-painel-borda bg-kx-painel flex flex-1 min-h-0 flex-col gap-2 overflow-hidden">
+    <div className="p-kx-4 rounded-kx-painel border border-kx-painel-borda bg-kx-painel flex flex-col gap-2">
       <div className="flex items-center gap-2.5">
         <span className="text-sm font-bold text-kx-texto">Peças e serviços</span>
         <Button
@@ -246,7 +246,7 @@ export function SecaoItensOS({ osId, numeroOs, itens, desabilitarCadastro = fals
         <span />
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto rounded-kx-cartao">
+      <div className="rounded-kx-cartao">
         {itens.length === 0 ? (
           <p className="py-8 text-center text-sm text-kx-legenda">Nenhum item adicionado nesta OS.</p>
         ) : (

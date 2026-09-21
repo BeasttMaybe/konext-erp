@@ -57,7 +57,7 @@ export default async function OSPage({
   const erroGarantiasInicial = listagemGarantias.sucesso ? null : listagemGarantias.erro;
 
   return (
-    <div className="w-full h-full flex flex-col overflow-hidden bg-transparent">
+    <div className="w-full bg-transparent">
       {/* Header Section */}
       <div className="border-b border-slate-200/70 bg-white/75 px-6 py-6 backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/50 lg:px-8">
         <div className="max-w-7xl">
@@ -71,24 +71,22 @@ export default async function OSPage({
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="px-6 lg:px-8 py-6">
-          <div className="max-w-7xl mx-auto">
-            <DashboardOS
-              activeOrderServices={dadosDashboard.ordensAtivas}
-              archivedOrderServices={dadosDashboard.ordensArquivadas}
-              deletedOrderServices={dadosDashboard.ordensExcluidas}
-              clienteIdInicial={clienteIdInicial}
-              modoInicial={modoInicial}
-              mostrarExcluidasInicial={mostrarExcluidasInicial}
-              prazoGarantiaPadraoDias={configuracoes.prazoGarantiaPadraoDias}
-              prazoMinimoGarantiaDias={configuracoes.prazoMinimoGarantiaDias}
-              prazoMaximoGarantiaDias={configuracoes.prazoMaximoGarantiaDias}
-              dashboardGarantiasInicial={dashboardGarantias}
-              linhasGarantiasIniciais={linhasGarantiasIniciais}
-              erroGarantiasInicial={erroGarantiasInicial}
-            />
-          </div>
+      <div className="px-6 lg:px-8 py-6 pb-10">
+        <div className="max-w-7xl mx-auto">
+          <DashboardOS
+            activeOrderServices={dadosDashboard.ordensAtivas}
+            archivedOrderServices={dadosDashboard.ordensArquivadas}
+            deletedOrderServices={dadosDashboard.ordensExcluidas}
+            clienteIdInicial={clienteIdInicial}
+            modoInicial={modoInicial}
+            mostrarExcluidasInicial={mostrarExcluidasInicial}
+            prazoGarantiaPadraoDias={configuracoes.prazoGarantiaPadraoDias}
+            prazoMinimoGarantiaDias={configuracoes.prazoMinimoGarantiaDias}
+            prazoMaximoGarantiaDias={configuracoes.prazoMaximoGarantiaDias}
+            dashboardGarantiasInicial={dashboardGarantias}
+            linhasGarantiasIniciais={linhasGarantiasIniciais}
+            erroGarantiasInicial={erroGarantiasInicial}
+          />
         </div>
       </div>
     </div>

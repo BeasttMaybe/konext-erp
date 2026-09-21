@@ -63,7 +63,7 @@ export function TabelaGarantias({ linhas, onAtualizar }: TabelaGarantiasProps) {
     <div className="space-y-4">
       <div className="overflow-hidden rounded-kx-painel border border-kx-painel-borda bg-kx-cartao">
         <Table className="min-w-[1600px]">
-          <TableHeader>
+          <TableHeader className="sticky top-0 z-kx-sticky bg-kx-cartao">
             <TableRow className="hover:bg-transparent">
               <TableHead>Nº OS</TableHead>
               <TableHead>Cliente</TableHead>
