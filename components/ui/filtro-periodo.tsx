@@ -656,6 +656,38 @@ function PainelFiltroPeriodo({
     identificarPresetAtivo(intervaloRascunho, fusoHorario) ??
     (identificarMesEspecifico(intervaloRascunho) ? "mes-especifico" : "personalizado");
 
+  /**
+   * Os chips de preset (`Hoje`.."Período customizado") — extraído numa
+   * função à parte porque o layout de DOIS calendários (barra lateral) e o
+   * layout COMPACTO (linha horizontal no topo) mostram exatamente os
+   * MESMOS chips, só dentro de containers/orientações diferentes. Escolher
+   * qualquer um aqui continua chamando os mesmos handlers que já mexem em
+   * `intervaloRascunho`/`textoInicio`/`textoFim`/o mês exibido — a
+   * reordenação do layout compacto não muda NADA do comportamento, só
+   * ONDE os chips aparecem visualmente.
+   */
+  function renderizarChipsDePresets() {
+    return (
+      <>
+        {PRESETS_PERIODO.map((preset) => (
+          <ChipPreset
+            key={preset.chave}
+            ativo={chaveVisualAtiva === preset.chave}
+            onClick={() => aoClicarPreset(preset.chave)}
+          >
+            {preset.rotulo}
+          </ChipPreset>
+        ))}
+        <ChipPreset ativo={chaveVisualAtiva === "mes-especifico"} onClick={aoAbrirSeletorDeMes}>
+          Selecionar mês
+        </ChipPreset>
+        <ChipPreset ativo={chaveVisualAtiva === "personalizado"} onClick={aoVoltarParaPeriodoCustomizado}>
+          Período customizado
+        </ChipPreset>
+      </>
+    );
+  }
+
   const mostrarSeletorDeCampo = Boolean(campos && campos.length > 1);
   const numeroDeCalendarios = variante === "folha" || compacto ? 1 : 2;
 
@@ -704,6 +736,25 @@ function PainelFiltroPeriodo({
         sempre visível, sem exigir rolar até o fim pra achá-lo.
       */}
       <div className={cn("flex w-full min-h-0 flex-1 overflow-y-auto", ladoALado ? "flex-row" : "flex-col")}>
+        {/*
+          Layout COMPACTO (um calendário só — popover estreito/curto ou a
+          folha mobile): presets primeiro, ANTES dos campos/calendário —
+          pedido do dono do projeto depois de testar ao vivo: "Este mês"/
+          "Mês passado" são as ações mais usadas, e no layout de baixo pra
+          cima anterior (calendário inteiro, DEPOIS os presets) chegar nelas
+          exigia rolar por baixo do calendário primeiro. Uma linha só,
+          `flex-nowrap` + `overflow-x-auto` (nunca quebra em várias linhas —
+          diferente da versão anterior, que usava `flex-wrap`). Só nesta
+          orientação: o layout de DOIS calendários mantém os presets na
+          barra lateral de sempre, sem mudança (ver o outro bloco de
+          presets, mais abaixo, fora deste `!ladoALado`).
+        */}
+        {!ladoALado && (
+          <div className="flex shrink-0 flex-nowrap gap-1.5 overflow-x-auto border-b border-kx-painel-borda bg-popover p-3">
+            {renderizarChipsDePresets()}
+          </div>
+        )}
+
         <div className="flex flex-1 flex-col gap-2 p-3">
           {mostrarSeletorDeCampo && (
             <SeletorDeCampo campos={campos!} valor={campoRascunho} aoSelecionar={setCampoRascunho} />
@@ -861,30 +912,12 @@ function PainelFiltroPeriodo({
           )}
         </div>
 
-        <div
-          className={cn(
-            "flex shrink-0 gap-1.5 bg-popover p-3",
-            ladoALado
-              ? "w-44 flex-col border-l border-kx-painel-borda"
-              : "w-full flex-wrap border-t border-kx-painel-borda"
-          )}
-        >
-          {PRESETS_PERIODO.map((preset) => (
-            <ChipPreset
-              key={preset.chave}
-              ativo={chaveVisualAtiva === preset.chave}
-              onClick={() => aoClicarPreset(preset.chave)}
-            >
-              {preset.rotulo}
-            </ChipPreset>
-          ))}
-          <ChipPreset ativo={chaveVisualAtiva === "mes-especifico"} onClick={aoAbrirSeletorDeMes}>
-            Selecionar mês
-          </ChipPreset>
-          <ChipPreset ativo={chaveVisualAtiva === "personalizado"} onClick={aoVoltarParaPeriodoCustomizado}>
-            Período customizado
-          </ChipPreset>
-        </div>
+        {/* Layout de DOIS calendários: presets na barra lateral de sempre — só o layout COMPACTO (bloco no topo, acima) mudou de lugar. */}
+        {ladoALado && (
+          <div className="flex w-44 shrink-0 flex-col gap-1.5 border-l border-kx-painel-borda bg-popover p-3">
+            {renderizarChipsDePresets()}
+          </div>
+        )}
       </div>
 
       {/* Fora da área rolável de propósito (ver comentário acima) — o
