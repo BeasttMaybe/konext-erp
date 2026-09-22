@@ -3,23 +3,11 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  Search,
-  Trash2,
-  CreditCard,
-  BarChart3,
-  RefreshCw,
-  Wallet,
-  Lock,
-  Wrench,
-} from "lucide-react";
+import { BarChart3, Lock, RefreshCw, Wallet } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  ModalPagamento,
-  DadosPagamento,
-} from "@/components/pdv/modal-pagamento";
 import {
   Sheet,
   SheetContent,
@@ -45,14 +33,23 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ChipsCategoriaPdv } from "@/components/pdv/balcao/chips-categoria-pdv";
-import { ListaProdutosPdv } from "@/components/pdv/balcao/lista-produtos-pdv";
-import { CartaoVincularOS } from "@/components/pdv/balcao/cartao-vincular-os";
-import { ListaItensCarrinho } from "@/components/pdv/balcao/lista-itens-carrinho";
-import { ControleDescontoPdv } from "@/components/pdv/balcao/controle-desconto-pdv";
+import { BarraEtapasPdv } from "@/components/pdv/balcao/barra-etapas-pdv";
+import { ResumoVendaPdv } from "@/components/pdv/balcao/resumo-venda-pdv";
+import { EtapaProdutoPdv } from "@/components/pdv/balcao/etapa-produto-pdv";
+import { EtapaClientePdv } from "@/components/pdv/balcao/etapa-cliente-pdv";
+import { EtapaPagamentoPdv } from "@/components/pdv/balcao/etapa-pagamento-pdv";
+import { ModalVendaConcluidaPdv } from "@/components/pdv/balcao/modal-venda-concluida-pdv";
 import { useCartStore, ProdutoPDV } from "@/store/useCartStore";
 import { useTemPermissao } from "@/contextos/contexto-permissoes";
 import { calcularLimiteDesconto } from "@/lib/dominio/pdv/desconto-input";
+import type { EtapaPdv } from "@/lib/dominio/pdv/etapas-pdv";
+import { usePagamentoPdv, type DadosPagamento } from "@/lib/pdv/hooks/usar-pagamento-pdv";
+import { MENSAGEM_CLIENTE_OBRIGATORIO_PARA_PRAZO } from "@/lib/pdv/formatacao-pagamento-pdv";
+import { ehPagamentoPrazo } from "@/lib/pdv/pagamentos";
+import {
+  DADOS_CLIENTE_CONSUMIDOR_FINAL,
+  exigeClienteRealParaFinalizarVenda,
+} from "@/lib/dominio/crm/consumidor-final";
 import {
   listarClientesPDV,
   listarProdutosPDV,
@@ -72,7 +69,6 @@ import {
   obterResumoCaixaAbertoAtual,
   verificarStatusCaixa,
 } from "@/app/actions/caixa-pdv";
-import { toast } from "sonner";
 
 const formatarMoeda = (valor: number): string =>
   new Intl.NumberFormat("pt-BR", {
@@ -103,9 +99,18 @@ const formatarFormaPagamento = (formaPagamento: string): string => {
   return mapa[formaPagamento] ?? formaPagamento;
 };
 
+const MENSAGEM_VINCULAR_OS =
+  'Para vincular uma OS, abra a OS e use "Enviar para o PDV" por lá.';
+
 /**
- * Página do módulo PDV (Ponto de Venda)
- * Catálogo de produtos + carrinho com descontos
+ * Página do módulo PDV (Ponto de Venda) — fluxo de balcão em 3 etapas
+ * (Produto → Cliente → Pagamento), referência aprovada em
+ * docs/design/referencia-pdv-tres-etapas.html. Orquestra: qual etapa está
+ * ativa, o estado do carrinho (useCartStore), busca de produto/cliente,
+ * vínculo de OS, desconto, abertura/status de caixa e o pagamento (delegado
+ * a lib/pdv/hooks/usar-pagamento-pdv.ts, chamado aqui porque o botão
+ * primário da coluna "Resumo da venda" precisa acionar a confirmação
+ * também na Etapa Pagamento).
  */
 export default function PDVPage() {
   return (
@@ -122,6 +127,13 @@ function PDVPageConteudo() {
   const buscaProdutoRef = useRef<HTMLInputElement>(null);
   const buscaClienteRef = useRef<HTMLInputElement>(null);
 
+  const [etapaAtual, setEtapaAtual] = useState<EtapaPdv>("produto");
+  // Incrementa a cada NOVA TENTATIVA de venda (nova venda após sucesso,
+  // "Cancelar venda") — ver lib/pdv/hooks/usar-pagamento-pdv.ts.
+  const [tentativaVendaId, setTentativaVendaId] = useState(0);
+  const [confirmarCancelamentoVendaAberto, setConfirmarCancelamentoVendaAberto] = useState(false);
+  const [descontoPainelAberto, setDescontoPainelAberto] = useState(false);
+
   const [busca, setBusca] = useState("");
   const [categoriaAtiva, setCategoriaAtiva] = useState<string | null>(null);
   const [produtosCatalogo, setProdutosCatalogo] = useState<ProdutoPDV[]>([]);
@@ -130,12 +142,10 @@ function PDVPageConteudo() {
   const [clientes, setClientes] = useState<ClientePDV[]>([]);
   const [clienteSelecionadoId, setClienteSelecionadoId] = useState<string>("");
   const [carregandoClientes, setCarregandoClientes] = useState(false);
-  const [modalPagamentoAberto, setModalPagamentoAberto] = useState(false);
   const [modalAbrirCaixaAberto, setModalAbrirCaixaAberto] = useState(false);
   const [pedidoOS, setPedidoOS] = useState<PedidoOSPDV | null>(null);
   const [carregandoPedidoOS, setCarregandoPedidoOS] = useState(false);
   const [sheetResumoAberto, setSheetResumoAberto] = useState(false);
-  const [confirmarLimpezaAberto, setConfirmarLimpezaAberto] = useState(false);
   const [valorAberturaCaixa, setValorAberturaCaixa] = useState<string>("0");
   // Indica que o status do caixa ainda está sendo verificado ao carregar a página
   const [carregandoStatusCaixa, setCarregandoStatusCaixa] = useState(true);
@@ -236,6 +246,11 @@ function PDVPageConteudo() {
     };
 
     carregarPedidoOS();
+    // limparCarrinho vem do useCartStore (zustand): a referência da action é
+    // estável entre renders (definida uma única vez em create()), então
+    // incluí-la na lista de dependências não mudaria quando este efeito
+    // dispara — só adicionaria ruído.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [osIdNaUrl, router]);
 
   useEffect(() => {
@@ -384,52 +399,6 @@ function PDVPageConteudo() {
     [adicionarItem]
   );
 
-  const finalizarVenda = () => {
-    if (itens.length === 0 && !pedidoOS) return;
-
-    if (!caixaAberto) {
-      toast.error("Abra o caixa para finalizar a venda.");
-      return;
-    }
-
-    // Cliente volta a ser opcional (Fase 3-2C — consumidor final): sem
-    // selecao, a venda cai no Consumidor Final — ver o resumo do carrinho
-    // logo acima do botao e a trava de credidario/boleto dentro do modal.
-    setModalPagamentoAberto(true);
-  };
-
-  const focarBuscaCliente = () => {
-    setModalPagamentoAberto(false);
-    // Um instante pro modal fechar antes de mover o foco, senao o
-    // focus-trap do Dialog ainda ativo rouba o foco de volta.
-    setTimeout(() => buscaClienteRef.current?.focus(), 80);
-  };
-
-  const finalizarVendaRef = useRef(finalizarVenda);
-  useEffect(() => {
-    finalizarVendaRef.current = finalizarVenda;
-  });
-
-  // F2 foca a busca de produto, F9 finaliza a venda (referencia: leitor de
-  // codigo de barras digita como teclado — o foco precisa voltar sempre pra
-  // cá; ver onAdicionarProduto abaixo). finalizarVendaRef existe porque este
-  // efeito so roda uma vez ([]), mas finalizarVenda fecha sobre estado
-  // (caixaAberto, clienteSelecionadoId...) que muda a cada render.
-  useEffect(() => {
-    const aoTeclar = (evento: KeyboardEvent) => {
-      if (evento.key === "F2") {
-        evento.preventDefault();
-        buscaProdutoRef.current?.focus();
-      }
-      if (evento.key === "F9") {
-        evento.preventDefault();
-        finalizarVendaRef.current();
-      }
-    };
-    document.addEventListener("keydown", aoTeclar);
-    return () => document.removeEventListener("keydown", aoTeclar);
-  }, []);
-
   // O servidor nunca confia no preco/total do navegador (F-04/F-33): so
   // aceita id do produto + quantidade, e recalcula tudo a partir do banco.
   // O desconto pedido pelo operador (controle de desconto) vira um PEDIDO,
@@ -458,11 +427,15 @@ function PDVPageConteudo() {
             chaveIdempotencia: dados.chaveIdempotencia,
           });
 
-      // Venda salva com sucesso — limpa automaticamente o PDV antes de retornar
-      limparCarrinho();           // reseta itens, desconto e tipoDesconto
-      setClienteSelecionadoId(""); // remove o cliente selecionado
-      setBuscaCliente("");         // limpa o campo de busca de cliente
-      setPedidoOS(null);           // desvincula a OS, se houver
+      // Venda salva com sucesso — limpa o carrinho/cliente/OS já aqui (o
+      // modal de sucesso guarda o total/id da venda no próprio estado local,
+      // não depende mais desses valores). A ETAPA só volta pra "produto"
+      // quando o operador clicar "Nova venda" no modal de sucesso — ver
+      // iniciarNovaTentativa.
+      limparCarrinho();
+      setClienteSelecionadoId("");
+      setBuscaCliente("");
+      setPedidoOS(null);
 
       toast.success(orderServiceSale ? "Ordem de Serviço faturada com sucesso!" : "Venda finalizada! PDV liberado para o próximo cliente.", {
         description: orderServiceSale
@@ -497,33 +470,186 @@ function PDVPageConteudo() {
     }
   };
 
-  const aoNovaVenda = () => {
-    // Limpa o carrinho (inclui itens, desconto e tipoDesconto via limparCarrinho)
+  const focarBuscaClienteEmSeguida = () => {
+    setEtapaAtual("cliente");
+    setTimeout(() => buscaClienteRef.current?.focus(), 80);
+  };
+
+  const pagamento = usePagamentoPdv({
+    total: totalGeral,
+    descontoAplicado: resumo.descontoAplicado,
+    configuracaoPagamento: configuracaoPagamentosPdv,
+    temClienteSelecionado: Boolean(clienteSelecionadoId),
+    tentativaVendaId,
+    aoConfirmar: aoConfirmarPagamento,
+    aoPrecisarDeCliente: focarBuscaClienteEmSeguida,
+  });
+
+  // Boleto/crediário sem cliente real (Fase 3-2C — consumidor final): a
+  // mesma trava autoritativa do servidor (processarVenda), checada aqui
+  // proativamente pra bloquear o avanço da Etapa Cliente e mostrar o aviso
+  // ANTES da tentativa de confirmar — ver components/pdv/balcao/etapa-cliente-pdv.tsx.
+  const temPagamentoPrazoSelecionado = exigeClienteRealParaFinalizarVenda(pagamento.linhas, ehPagamentoPrazo);
+  const precisaClienteRealEtapaCliente = !clienteSelecionadoId && temPagamentoPrazoSelecionado;
+
+  const produtoEtapaCompleta = itens.length > 0 || Boolean(pedidoOS);
+  const clienteEtapaCompleta = Boolean(clienteSelecionadoId) || !temPagamentoPrazoSelecionado;
+  const pagamentoEtapaCompleta = pagamento.vendaFinalizada;
+
+  const clienteResumo = clienteSelecionado
+    ? clienteSelecionado.nomeRazaoSocial
+    : DADOS_CLIENTE_CONSUMIDOR_FINAL.nomeRazaoSocial;
+
+  const iniciarNovaTentativa = () => {
     limparCarrinho();
-    // Limpa o cliente selecionado e o campo de busca
     setClienteSelecionadoId("");
     setBuscaCliente("");
-    // Limpa o pedido de OS vinculado e remove o param da URL
     setPedidoOS(null);
+    setEtapaAtual("produto");
+    setDescontoPainelAberto(false);
+    setTentativaVendaId((id) => id + 1);
     router.replace("/pdv");
   };
+
+  const aoSelecionarCliente = (clienteId: string) => {
+    setClienteSelecionadoId(clienteId);
+    const cliente = clientes.find((c) => c.id === clienteId);
+    setBuscaCliente(cliente ? cliente.nomeRazaoSocial : "");
+  };
+
+  const aoClienteCriado = (cliente: ClientePDV) => {
+    setClientes((atual) => [cliente, ...atual]);
+    setClienteSelecionadoId(cliente.id);
+    setBuscaCliente(cliente.nomeRazaoSocial);
+  };
+
+  const aoVincularOS = useCallback(() => {
+    toast.info(MENSAGEM_VINCULAR_OS);
+  }, []);
+
+  const tentarConfirmarVenda = useCallback(() => {
+    if (itens.length === 0 && !pedidoOS) return;
+
+    if (!caixaAberto) {
+      toast.error("Abra o caixa para finalizar a venda.");
+      return;
+    }
+
+    if (descontoBloqueiaVenda) {
+      toast.error("Desconto acima do limite do seu cargo. Ajuste o desconto para continuar.");
+      return;
+    }
+
+    pagamento.handleConfirmar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itens.length, pedidoOS, caixaAberto, descontoBloqueiaVenda, pagamento.handleConfirmar]);
+
+  const aoClicarBotaoPrimario = () => {
+    if (etapaAtual === "produto") {
+      setEtapaAtual("cliente");
+      return;
+    }
+
+    if (etapaAtual === "cliente") {
+      if (precisaClienteRealEtapaCliente) {
+        toast.error(MENSAGEM_CLIENTE_OBRIGATORIO_PARA_PRAZO);
+        return;
+      }
+      setEtapaAtual("pagamento");
+      return;
+    }
+
+    tentarConfirmarVenda();
+  };
+
+  const rotuloBotaoPrimario =
+    etapaAtual === "produto"
+      ? "Continuar"
+      : etapaAtual === "cliente"
+        ? "Ir para pagamento"
+        : !caixaAberto
+          ? "Abra o Caixa"
+          : "Confirmar venda";
+
+  const atalhoBotaoPrimario = etapaAtual === "pagamento" ? "F9" : "";
+
+  const botaoPrimarioDesabilitado =
+    (etapaAtual === "produto" && !produtoEtapaCompleta) ||
+    (etapaAtual === "cliente" && precisaClienteRealEtapaCliente) ||
+    (etapaAtual === "pagamento" && (!caixaAberto || !pagamento.podeConfirmar || descontoBloqueiaVenda));
+
+  const dicaBotaoPrimario =
+    etapaAtual === "produto"
+      ? "F2 busca produto · F4 vincula OS · Alt+2 vai pro cliente."
+      : etapaAtual === "cliente"
+        ? precisaClienteRealEtapaCliente
+          ? MENSAGEM_CLIENTE_OBRIGATORIO_PARA_PRAZO
+          : "F3 busca cliente · Consumidor Final já está selecionado."
+        : "F9 confirma a venda de qualquer etapa quando os pagamentos fecharem o total.";
+
+  // Alt+1/2/3 trocam de etapa (navegação livre — não força sequência); F2
+  // busca produto, F3 busca cliente, F4 vincula OS, F6 abre o desconto, F9
+  // confirma a venda de qualquer etapa (leitor de código de barras "digita"
+  // como teclado — o foco de F2 precisa voltar sempre pra lá; ver
+  // onAdicionarProduto acima). *Ref existe porque este efeito só roda uma
+  // vez ([]), mas as funções fecham sobre estado que muda a cada render.
+  const tentarConfirmarVendaRef = useRef(tentarConfirmarVenda);
+  useEffect(() => {
+    tentarConfirmarVendaRef.current = tentarConfirmarVenda;
+  });
+
+  useEffect(() => {
+    const aoTeclar = (evento: KeyboardEvent) => {
+      if (evento.key === "F2") {
+        evento.preventDefault();
+        setEtapaAtual("produto");
+        setTimeout(() => buscaProdutoRef.current?.focus(), 0);
+      }
+      if (evento.key === "F3") {
+        evento.preventDefault();
+        setEtapaAtual("cliente");
+        setTimeout(() => buscaClienteRef.current?.focus(), 0);
+      }
+      if (evento.key === "F4") {
+        evento.preventDefault();
+        setEtapaAtual("produto");
+        toast.info(MENSAGEM_VINCULAR_OS);
+      }
+      if (evento.key === "F6") {
+        evento.preventDefault();
+        setDescontoPainelAberto(true);
+      }
+      if (evento.key === "F9") {
+        evento.preventDefault();
+        tentarConfirmarVendaRef.current();
+      }
+      if (evento.altKey && evento.key === "1") {
+        evento.preventDefault();
+        setEtapaAtual("produto");
+      }
+      if (evento.altKey && evento.key === "2") {
+        evento.preventDefault();
+        setEtapaAtual("cliente");
+      }
+      if (evento.altKey && evento.key === "3") {
+        evento.preventDefault();
+        setEtapaAtual("pagamento");
+      }
+    };
+    document.addEventListener("keydown", aoTeclar);
+    return () => document.removeEventListener("keydown", aoTeclar);
+  }, []);
 
   const atualizarResumoCaixa = async () => {
     try {
       setCarregandoResumoCaixa(true);
-      const resumo = await obterResumoCaixaDiario();
-      setResumoCaixaDiario(resumo);
+      const resumoDia = await obterResumoCaixaDiario();
+      setResumoCaixaDiario(resumoDia);
     } catch {
       toast.error("Nao foi possivel atualizar o resumo do caixa.");
     } finally {
       setCarregandoResumoCaixa(false);
     }
-  };
-
-  const confirmarLimpezaCarrinho = () => {
-    limparCarrinho();
-    toast.success("Carrinho limpo com sucesso.");
-    setConfirmarLimpezaAberto(false);
   };
 
   const abrirCaixa = async () => {
@@ -548,47 +674,38 @@ function PDVPageConteudo() {
     <div
       // Altura travada por viewport, nao por herança de `h-full` (Fase 3-2C):
       // o wrapper de `<main>` no shell (components/shell/shell-dashboard.tsx)
-      // nao tem altura própria, entao `h-full` aqui cairia pra `auto` e o
-      // balcão cresceria pro tamanho do conteúdo em vez de ficar preso ao
-      // viewport — testado e revertido: mudar o shell pra dar `h-full` a
-      // ele quebrou a rolagem do Kanban de OS (regressão real, não algo
-      // hipotético). 72px é a altura da barra superior; 0/16px/24px são as
-      // margens do cartão flutuante nos mesmos breakpoints do shell.
-      className="flex h-[calc(100vh-72px)] w-full flex-col gap-4 overflow-hidden bg-kx-fundo p-5 lg:h-[calc(100vh-104px)] lg:p-6 xl:h-[calc(100vh-120px)]"
+      // nao tem altura própria — ver o comentário original desta decisão no
+      // histórico do arquivo (Fase PDV 3 etapas manteve a mesma disciplina).
+      className="flex h-[calc(100vh-72px)] w-full flex-col gap-3.5 overflow-hidden bg-kx-fundo p-5 lg:h-[calc(100vh-104px)] lg:p-6 xl:h-[calc(100vh-120px)]"
     >
       {/* Cabeçalho */}
-      <div className="flex flex-wrap items-center gap-4">
-        <div className="flex flex-col">
+      <div className="flex shrink-0 flex-wrap items-center gap-4">
+        <div className="flex flex-col gap-0.5">
           {caixaAbertoResumoTexto(caixaAberto, caixaAbertaDesde)}
-          <span className="text-[22px] font-extrabold tracking-tight text-kx-texto">PDV · balcão</span>
+          <span className="text-[21px] font-extrabold tracking-tight text-kx-texto">PDV · nova venda</span>
         </div>
 
         <div className="ml-auto flex flex-wrap gap-2.5">
           <Button
             type="button"
-            variant={caixaAberto ? "secondary" : "outline"}
-            onClick={() => setModalAbrirCaixaAberto(true)}
-            disabled={caixaAberto}
-            className="h-[42px] rounded-kx-botao"
+            variant="outline"
+            className="h-10 rounded-kx-botao"
+            onClick={() => setConfirmarCancelamentoVendaAberto(true)}
+            disabled={itens.length === 0 && !pedidoOS}
           >
-            <Wallet className="h-4 w-4 mr-2" />
-            {caixaAberto ? "Caixa Aberto" : "Abrir Caixa"}
+            Cancelar venda
           </Button>
 
-          {/* Substitui o antigo modal de "Fechamento de Caixa" (Fase 3-2C,
-              Parte 3): a contagem as cegas e o resumo do dia agora moram na
-              tela dedicada, que também é onde fica a visão "Caixa aberto"
-              (3 cartões + movimentações) que o modal nunca teve. */}
           {caixaAberto && !carregandoStatusCaixa ? (
             <Link
               href="/pdv/caixa"
-              className="flex h-[42px] items-center rounded-kx-botao border border-kx-painel-borda px-4 text-sm font-semibold text-kx-texto hover:bg-kx-cartao"
+              className="flex h-10 items-center rounded-kx-botao border border-kx-painel-borda px-4 text-sm font-semibold text-kx-texto hover:bg-kx-cartao"
             >
               <Lock className="h-4 w-4 mr-2" />
               Caixa e fechamento
             </Link>
           ) : (
-            <Button type="button" variant="outline" className="h-[42px] rounded-kx-botao" disabled>
+            <Button type="button" variant="outline" className="h-10 rounded-kx-botao" disabled>
               {carregandoStatusCaixa ? (
                 <>
                   <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
@@ -603,276 +720,104 @@ function PDVPageConteudo() {
             </Button>
           )}
 
-          <Button
-            type="button"
-            variant="outline"
-            className="h-[42px] rounded-kx-botao"
-            onClick={() => setConfirmarLimpezaAberto(true)}
-            disabled={itens.length === 0}
-          >
-            <Trash2 className="h-4 w-4 mr-2" />
-            Limpar Carrinho
-          </Button>
+          {!caixaAberto && !carregandoStatusCaixa && (
+            <Button type="button" variant="secondary" className="h-10 rounded-kx-botao" onClick={() => setModalAbrirCaixaAberto(true)}>
+              <Wallet className="h-4 w-4 mr-2" />
+              Abrir Caixa
+            </Button>
+          )}
 
-          <Button
-            type="button"
-            variant="secondary"
-            className="h-[42px] rounded-kx-botao"
-            onClick={() => setSheetResumoAberto(true)}
-          >
+          <Button type="button" variant="secondary" className="h-10 rounded-kx-botao" onClick={() => setSheetResumoAberto(true)}>
             <BarChart3 className="h-4 w-4 mr-2" />
             Resumo do Dia
           </Button>
         </div>
       </div>
 
-      {/* Conteúdo */}
-      <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1fr)_420px]">
-        {/* Catálogo de Produtos */}
-        <div className="flex min-h-0 flex-col gap-3.5">
-          <div className="flex gap-2.5">
-            <label className="flex h-[54px] flex-1 items-center gap-3 rounded-kx-cartao border border-kx-destaque bg-kx-painel px-4">
-              <Search className="h-5 w-5 shrink-0 text-kx-link" aria-hidden="true" />
-              <input
-                ref={buscaProdutoRef}
-                placeholder="Passe o leitor ou digite o nome, SKU ou código de barras"
-                value={busca}
-                onChange={(evento) => setBusca(evento.target.value)}
-                className="flex-1 bg-transparent text-[15px] text-kx-texto outline-none placeholder:text-kx-placeholder"
-              />
-              <span className="shrink-0 rounded-md border border-kx-campo-borda px-2 py-0.5 text-xs text-kx-legenda">F2</span>
-            </label>
-            <Button
-              type="button"
-              variant="outline"
-              disabled
-              title="Chega numa fase futura — ainda não é possível lançar um serviço avulso pelo balcão."
-              className="h-[54px] shrink-0 rounded-kx-botao px-4"
-            >
-              Vender serviço avulso
-            </Button>
-          </div>
+      <div className="shrink-0">
+        <BarraEtapasPdv
+          etapaAtual={etapaAtual}
+          quantidadeItens={itens.length}
+          clienteResumo={clienteResumo}
+          totalFormatado={formatarMoeda(totalGeral)}
+          produtoCompleta={produtoEtapaCompleta}
+          clienteCompleta={clienteEtapaCompleta}
+          pagamentoCompleta={pagamentoEtapaCompleta}
+          onEscolher={setEtapaAtual}
+        />
+      </div>
 
-          <ChipsCategoriaPdv categorias={categorias} categoriaAtiva={categoriaAtiva} onEscolher={setCategoriaAtiva} />
-
-          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-            <ListaProdutosPdv produtos={produtosFiltrados} carregando={carregandoProdutos} onAdicionar={onAdicionarProduto} />
-
-            {pedidoOS && (
-              <p className="mt-3 text-xs text-kx-sucesso-texto">
-                Modo OS ativo: você pode adicionar capa, cabo, película e outros produtos junto com esta OS no mesmo pedido.
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* Carrinho */}
-        <aside
-          aria-label="Carrinho"
-          className="flex min-h-0 flex-col gap-3 rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-4"
-        >
-          <div className="flex shrink-0 items-center gap-2.5">
-            <span className="text-[17px] font-extrabold text-kx-texto">Carrinho</span>
-            <span className="rounded-kx-pilula bg-kx-cartao px-2.5 py-0.5 text-xs font-bold tabular-nums text-kx-texto-2">
-              {itens.length} {itens.length === 1 ? "item" : "itens"}
-            </span>
-            {itens.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setConfirmarLimpezaAberto(true)}
-                className="ml-auto text-[13px] font-bold text-kx-erro-icone hover:opacity-80"
-              >
-                Limpar
-              </button>
-            )}
-          </div>
-
-          {/*
-            OS/cliente + lista de itens compartilham UMA única região rolável
-            (em vez da lista ter seu próprio flex-1 isolado). Motivo: com o
-            painel do carrinho preso a calc(100vh-Npx), telas mais baixas (ou
-            um navegador não maximizado) somam o cabeçalho, o cartão de
-            OS/cliente e o bloco de desconto+totais a um total que pode
-            ultrapassar a altura disponível — e um flex-1 isolado pra lista,
-            sem piso mínimo, resolve isso encolhendo a lista até 0px de
-            altura real (os itens continuam no DOM, só ficam com 0px de
-            espaço visível — reproduzido via Playwright em 1366×700).
-            Agrupando tudo numa única área com overflow-y-auto e mantendo só
-            o cabeçalho e o bloco de totais como shrink-0, a lista de itens
-            nunca mais colapsa: na pior hipótese o operador rola um pouco mais
-            pra ver os itens, mas eles sempre aparecem — e o Subtotal/Total/
-            Finalizar continuam sempre visíveis, fixos embaixo do painel.
-
-            A LISTA DE ITENS VEM PRIMEIRO dentro dessa região (antes do
-            cartão de OS/cliente) por um motivo medido, não estético: essa
-            região rolável abre sempre com scrollTop=0. Com o cartão "Vincular
-            uma OS" + busca de cliente + aviso de Consumidor Final ANTES da
-            lista (ordem original, batendo com a referência visual), o
-            conteúdo desses blocos sozinho já passava da altura visível da
-            região em telas baixas (medido: 1366×700, 1 item só — o cartão do
-            item nascia em y=373 enquanto a janela rolável ia só até y=362,
-            ou seja, o item ficava 100% fora da área visível sem NENHUM
-            indício de que dava pra rolar pra baixo pra achá-lo). Isso é pior
-            que o bug original: a lista não estava mais colapsada a 0px, mas
-            também não aparecia sem uma rolagem que nada sugeria ser
-            necessária. Pondo a lista primeiro, ela ocupa o topo da região
-            (sempre visível na posição de rolagem inicial) e o que fica
-            "abaixo da dobra" em telas curtas é o bloco de OS/cliente — menos
-            crítico pro operador do que ver o que já está no carrinho.
-          */}
-          <div className="flex min-h-[84px] flex-1 flex-col gap-3 overflow-y-auto pr-1">
-            <ListaItensCarrinho
+      <section className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="flex min-h-0 flex-col overflow-hidden rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-4 lg:p-5">
+          {etapaAtual === "produto" && (
+            <EtapaProdutoPdv
+              busca={busca}
+              onBuscaChange={setBusca}
+              buscaProdutoRef={buscaProdutoRef}
+              categorias={categorias}
+              categoriaAtiva={categoriaAtiva}
+              onCategoriaChange={setCategoriaAtiva}
+              produtosFiltrados={produtosFiltrados}
+              carregandoProdutos={carregandoProdutos}
+              onAdicionarProduto={onAdicionarProduto}
               itens={itens}
               onDiminuir={(item) => alterarQuantidade(item.id, item.quantidade - 1)}
               onAumentar={(item) => alterarQuantidade(item.id, item.quantidade + 1)}
               onRemover={(item) => removerItem(item.id)}
+              onVincularOS={aoVincularOS}
+              pedidoOS={pedidoOS}
+              carregandoPedidoOS={carregandoPedidoOS}
             />
+          )}
 
-            {carregandoPedidoOS && <p className="text-xs text-kx-legenda">Carregando dados da OS...</p>}
+          {etapaAtual === "cliente" && (
+            <EtapaClientePdv
+              buscaCliente={buscaCliente}
+              onBuscaClienteChange={setBuscaCliente}
+              buscaClienteRef={buscaClienteRef}
+              clientesFiltrados={clientesFiltrados}
+              carregandoClientes={carregandoClientes}
+              clienteSelecionadoId={clienteSelecionadoId}
+              onSelecionarCliente={aoSelecionarCliente}
+              onClienteCriado={aoClienteCriado}
+              precisaClienteReal={precisaClienteRealEtapaCliente}
+            />
+          )}
 
-            {!carregandoPedidoOS && !pedidoOS && <CartaoVincularOS />}
+          {etapaAtual === "pagamento" && <EtapaPagamentoPdv pagamento={pagamento} />}
+        </div>
 
-            {!carregandoPedidoOS && pedidoOS && (
-              <div className="flex flex-col gap-1.5 rounded-kx-cartao border border-kx-destaque/40 bg-kx-cartao p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="flex items-center gap-1.5 text-xs font-bold text-kx-destaque">
-                    <Wrench className="h-3.5 w-3.5" aria-hidden="true" />
-                    OS #{pedidoOS.numeroOs}
-                  </p>
-                  <span className="rounded-kx-pilula bg-kx-entregue-fundo px-2 py-0.5 text-[10px] font-bold text-kx-entregue-texto">
-                    Vinculada
-                  </span>
-                </div>
-                <p className="truncate text-sm font-semibold text-kx-texto">{pedidoOS.nomeCliente}</p>
-                <p className="truncate text-xs text-kx-texto-2">Equipamento: {pedidoOS.aparelho}</p>
-                <p className="line-clamp-2 text-xs text-kx-legenda">Defeito: {pedidoOS.defeito}</p>
-                <div className="flex items-center justify-between border-t border-kx-painel-borda pt-1.5 text-xs">
-                  <span className="text-kx-legenda">Valor OS</span>
-                  <span className="font-bold text-kx-destaque">{formatarMoeda(pedidoOS.valor)}</span>
-                </div>
-              </div>
-            )}
+        <ResumoVendaPdv
+          quantidadeItens={itens.length}
+          subtotal={resumo.subtotal + (pedidoOS?.valor ?? 0)}
+          descontoAplicado={resumo.descontoAplicado}
+          clienteResumo={clienteResumo}
+          total={totalGeral}
+          dica={dicaBotaoPrimario}
+          rotuloBotaoPrimario={rotuloBotaoPrimario}
+          atalhoBotaoPrimario={atalhoBotaoPrimario}
+          botaoPrimarioDesabilitado={botaoPrimarioDesabilitado}
+          botaoPrimarioProcessando={etapaAtual === "pagamento" && pagamento.processando}
+          onClickBotaoPrimario={aoClicarBotaoPrimario}
+          configuracaoPagamentosPdv={configuracaoPagamentosPdv}
+          desconto={desconto}
+          tipoDesconto={tipoDesconto}
+          limiteDesconto={limiteDesconto}
+          descontoBloqueiaVenda={descontoBloqueiaVenda}
+          descontoTextoEmEdicao={descontoTextoEmEdicao}
+          onTextoEmEdicaoChange={setDescontoTextoEmEdicao}
+          onDescontoChange={setDesconto}
+          onTipoDescontoChange={setTipoDesconto}
+          descontoPainelAberto={descontoPainelAberto}
+          onDescontoPainelAbertoChange={setDescontoPainelAberto}
+        />
+      </section>
 
-            <div className="flex items-center gap-2.5 rounded-kx-cartao bg-kx-superficie px-3.5 py-3">
-              <Search className="h-[18px] w-[18px] shrink-0 text-kx-legenda" aria-hidden="true" />
-              <input
-                ref={buscaClienteRef}
-                placeholder="Cliente (opcional) — nome, CPF ou telefone"
-                value={buscaCliente}
-                onChange={(evento) => setBuscaCliente(evento.target.value)}
-                className="flex-1 bg-transparent text-[13px] text-kx-texto outline-none placeholder:text-kx-legenda"
-              />
-            </div>
-
-            {!clienteSelecionado && !buscaCliente.trim() && (
-              <p className="text-xs text-kx-legenda">
-                Sem cliente selecionado — a venda será registrada para <strong className="text-kx-texto-2">Consumidor Final</strong>.
-              </p>
-            )}
-
-            {!clienteSelecionado && !!buscaCliente.trim() && (
-              <div className="max-h-36 overflow-y-auto rounded-kx-botao border border-kx-painel-borda bg-kx-painel">
-                {carregandoClientes && <p className="p-3 text-xs text-kx-legenda">Carregando clientes...</p>}
-                {!carregandoClientes && clientesFiltrados.length === 0 && (
-                  <p className="p-3 text-xs text-kx-legenda">Nenhum cliente encontrado.</p>
-                )}
-                {!carregandoClientes &&
-                  clientesFiltrados.map((cliente) => (
-                    <button
-                      key={cliente.id}
-                      type="button"
-                      onClick={() => {
-                        setClienteSelecionadoId(cliente.id);
-                        setBuscaCliente(cliente.nomeRazaoSocial);
-                      }}
-                      className="w-full border-b border-kx-painel-borda px-3 py-2 text-left last:border-b-0 hover:bg-kx-cartao"
-                    >
-                      <p className="truncate text-sm font-semibold text-kx-texto">{cliente.nomeRazaoSocial}</p>
-                      <p className="truncate text-[11px] text-kx-legenda">
-                        {cliente.documento || cliente.telefone || "Sem documento informado"}
-                      </p>
-                    </button>
-                  ))}
-              </div>
-            )}
-
-            {clienteSelecionado && (
-              <div className="flex items-center justify-between gap-3 rounded-kx-cartao bg-kx-sucesso-fundo px-3 py-2">
-                <p className="truncate text-sm font-semibold text-kx-sucesso-texto">{clienteSelecionado.nomeRazaoSocial}</p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setClienteSelecionadoId("");
-                    setBuscaCliente("");
-                  }}
-                  className="shrink-0 text-xs font-bold text-kx-sucesso-texto hover:opacity-80"
-                >
-                  Limpar
-                </button>
-              </div>
-            )}
-          </div>
-
-          <div className="flex shrink-0 flex-col gap-3 border-t border-kx-painel-borda pt-3">
-            {configuracaoPagamentosPdv && (
-              <ControleDescontoPdv
-                desconto={desconto}
-                tipoDesconto={tipoDesconto}
-                subtotal={resumo.subtotal}
-                configuracaoPagamentosPdv={configuracaoPagamentosPdv}
-                limiteDesconto={limiteDesconto}
-                descontoBloqueiaVenda={descontoBloqueiaVenda}
-                descontoTextoEmEdicao={descontoTextoEmEdicao}
-                onTextoEmEdicaoChange={setDescontoTextoEmEdicao}
-                onDescontoChange={setDesconto}
-                onTipoDescontoChange={setTipoDesconto}
-              />
-            )}
-
-            <div className="flex justify-between text-[13px] text-kx-texto-2">
-              <span>Subtotal</span>
-              <span className="tabular-nums">{formatarMoeda(resumo.subtotal)}</span>
-            </div>
-            {pedidoOS && (
-              <div className="-mt-2 flex justify-between text-[13px] text-kx-destaque">
-                <span>OS enviada para PDV</span>
-                <span className="tabular-nums">{formatarMoeda(pedidoOS.valor)}</span>
-              </div>
-            )}
-            <div className="-mt-2 flex justify-between text-[13px] text-kx-sucesso-texto">
-              <span>Desconto</span>
-              <span className="tabular-nums">- {formatarMoeda(resumo.descontoAplicado)}</span>
-            </div>
-
-            <div className="flex items-baseline justify-between rounded-kx-cartao bg-kx-entregue-fundo px-3.5 py-3">
-              <span className="text-sm font-bold text-kx-texto">Total</span>
-              <span className="text-[26px] font-extrabold tabular-nums text-kx-texto">{formatarMoeda(totalGeral)}</span>
-            </div>
-
-            <Button
-              className="h-[52px] w-full rounded-kx-botao text-base font-bold"
-              disabled={(itens.length === 0 && !pedidoOS) || descontoBloqueiaVenda}
-              onClick={finalizarVenda}
-            >
-              <CreditCard className="mr-2 h-4 w-4" />
-              {caixaAberto ? "Finalizar venda" : "Abra o Caixa"}
-              {caixaAberto && <span className="ml-2 text-xs opacity-80">F9</span>}
-            </Button>
-          </div>
-        </aside>
-      </div>
-
-      {/* Modal de pagamento */}
-      <ModalPagamento
-        aberto={modalPagamentoAberto}
-        total={totalGeral}
-        descontoAplicado={resumo.descontoAplicado}
-        configuracaoPagamento={configuracaoPagamentosPdv}
-        temClienteSelecionado={Boolean(clienteSelecionadoId)}
-        aoFechar={() => setModalPagamentoAberto(false)}
-        aoConfirmar={aoConfirmarPagamento}
-        aoNovaVenda={aoNovaVenda}
-        aoPrecisarDeCliente={focarBuscaCliente}
+      <ModalVendaConcluidaPdv
+        aberto={pagamento.vendaFinalizada}
+        vendaIdGerada={pagamento.vendaIdGerada}
+        totalVendaFinalizada={pagamento.totalVendaFinalizada}
+        aoNovaVenda={iniciarNovaTentativa}
       />
 
       <Dialog open={modalAbrirCaixaAberto} onOpenChange={setModalAbrirCaixaAberto}>
@@ -910,17 +855,25 @@ function PDVPageConteudo() {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={confirmarLimpezaAberto} onOpenChange={setConfirmarLimpezaAberto}>
+      <AlertDialog open={confirmarCancelamentoVendaAberto} onOpenChange={setConfirmarCancelamentoVendaAberto}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Limpar carrinho</AlertDialogTitle>
+            <AlertDialogTitle>Cancelar venda</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja limpar todo o carrinho?
+              Isso limpa todos os itens, o cliente selecionado e a OS vinculada, voltando pro passo 1 vazio. Não é possível desfazer.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmarLimpezaCarrinho}>Limpar Carrinho</AlertDialogAction>
+            <AlertDialogCancel>Voltar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                iniciarNovaTentativa();
+                setConfirmarCancelamentoVendaAberto(false);
+                toast.success("Venda cancelada.");
+              }}
+            >
+              Cancelar venda
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
