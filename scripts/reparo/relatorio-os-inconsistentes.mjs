@@ -26,6 +26,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { avaliarFinalizacao } from "../../lib/dominio/os/regras-finalizacao.ts";
 import { obterDefaultsConfiguracaoOsGarantias } from "../../lib/configuracoes-os-garantias.ts";
+import { deDecimal, formatarReais } from "../../lib/dinheiro.ts";
 import {
   abrirConexaoSomenteLeitura,
   extrairHostMascarado,
@@ -276,7 +277,7 @@ function montarLinhaAB(item) {
     atualizadoEm: formatarDataHora(item.atualizadoEmSnapshot),
     termo: item.termo ? `${formatarDataHora(item.termo.dataInicioGarantia)} -> ${formatarDataHora(item.termo.dataFimGarantia)}` : "(sem termo)",
     pagamentoConfirmado: item.pagamentoConfirmado
-      ? `R$ ${item.pagamentoConfirmado.valorTotal.toFixed(2)} em ${formatarDataHora(item.pagamentoConfirmado.ultimaData)}`
+      ? `${formatarReais(deDecimal(item.pagamentoConfirmado.valorTotal))} em ${formatarDataHora(item.pagamentoConfirmado.ultimaData)}`
       : "(nenhum)",
     ultimaEntregaAuditada: item.ultimaTransicaoEntregueAuditada ? formatarDataHora(item.ultimaTransicaoEntregueAuditada.criadoEm) : "(sem evento auditado)",
     acaoSugerida: `${fmtSugestaoAB(item)} [data: ${dataDecidida.valor ? formatarDataHora(dataDecidida.valor) : "?"} / ${dataDecidida.fonte}]`,

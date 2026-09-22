@@ -1,3 +1,11 @@
+// `paraCentavos`/`paraMoeda` viviam neste arquivo antes da Fase 2A-2. A
+// fórmula de arredondamento de centavo agora tem UMA única implementação em
+// lib/dinheiro.ts (o módulo de dinheiro da fase); este arquivo só reexporta
+// os dois nomes, pra não quebrar nenhum import existente (app/actions/pdv.ts,
+// lib/dominio/pdv/calcular-venda.ts, etc.).
+import { paraCentavos, paraMoeda } from "@/lib/dinheiro";
+export { paraCentavos, paraMoeda };
+
 export type FormaPagamentoPdv =
   | "PIX"
   | "TED"
@@ -118,9 +126,6 @@ export const CONFIG_PAGAMENTOS_PDV: ConfigPagamentoPdv[] = [
 ];
 
 const mapaConfiguracao = new Map(CONFIG_PAGAMENTOS_PDV.map((item) => [item.formaPagamento, item]));
-
-export const paraCentavos = (valor: number) => Math.round((valor + Number.EPSILON) * 100);
-export const paraMoeda = (centavos: number) => centavos / 100;
 
 /**
  * Trecho fixo usado em toda mensagem de erro do PDV causada por dados
