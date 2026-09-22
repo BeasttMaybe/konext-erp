@@ -6,6 +6,7 @@ import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 import { ErroPermissao, exigirPermissao } from "@/lib/auth/permissoes";
+import { deDecimal, dividirEmParcelas, paraMoeda } from "@/lib/dinheiro";
 
 const tiposPecaValidos: TipoPeca[] = [
   "TELA",
@@ -188,14 +189,16 @@ async function sincronizarTotaisFinanceirosOS(
   }
 
   const totalNormalizado = arredondarMoeda(totalOS);
-  const valorBase = arredondarMoeda(totalNormalizado / contasDaOs.length);
+  // Centavo-exato (Fase 2A-2 cont.): dividirEmParcelas (lib/dinheiro.ts) é o
+  // único lugar autorizado a partir um total em N contas que somam
+  // exatamente o total. A divisão manual anterior, além de reimplementar a
+  // fórmula fora do módulo, jogava o resto na ÚLTIMA conta — invertendo a
+  // convenção do projeto (resto vai pras PRIMEIRAS parcelas).
+  const valoresParcelasCentavos = dividirEmParcelas(deDecimal(totalNormalizado), contasDaOs.length);
 
   for (let indice = 0; indice < contasDaOs.length; indice += 1) {
     const conta = contasDaOs[indice];
-    const valorParcela =
-      indice === contasDaOs.length - 1
-        ? arredondarMoeda(totalNormalizado - valorBase * (contasDaOs.length - 1))
-        : valorBase;
+    const valorParcela = paraMoeda(valoresParcelasCentavos[indice]);
 
     await contaReceberDelegate.update({
       where: { id: conta.id },

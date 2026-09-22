@@ -52,6 +52,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { createPedidoVenda } from "@/app/actions/vendas";
 import { cn } from "@/lib/utils";
+import { deDecimal, dividirEmParcelas, paraMoeda } from "@/lib/dinheiro";
 
 const tabValues = [
   "dados-gerais",
@@ -545,20 +546,19 @@ export function NewSalesOrderWizard({
     const normalizedInstallmentCount = Math.max(1, Math.floor(installmentCount));
     const normalizedIntervalDays = Math.max(1, Math.floor(installmentIntervalDays));
     const baseDate = watchedSalesDate ?? today;
-    const totalCents = Math.round(grandTotal * 100);
-    const baseInstallmentCents = Math.floor(totalCents / normalizedInstallmentCount);
-    const remainderCents = totalCents - baseInstallmentCents * normalizedInstallmentCount;
+    // Centavo-exato (Fase 2A-2 cont.): dividirEmParcelas (lib/dinheiro.ts) é
+    // a única forma sancionada de partir um total em N parcelas que somam
+    // exatamente o total — a divisão manual anterior (Math.floor + resto na
+    // ÚLTIMA parcela) duplicava essa fórmula fora do módulo autorizado.
+    const parcelasCentavos = dividirEmParcelas(deDecimal(grandTotal), normalizedInstallmentCount);
 
-    const nextInstallments = Array.from({ length: normalizedInstallmentCount }, (_, index) => {
+    const nextInstallments = parcelasCentavos.map((centavos, index) => {
       const dueDate = new Date(baseDate);
       dueDate.setDate(dueDate.getDate() + normalizedIntervalDays * (index + 1));
 
-      const installmentCents =
-        baseInstallmentCents + (index === normalizedInstallmentCount - 1 ? remainderCents : 0);
-
       return {
         vencimento: dueDate,
-        valor: installmentCents / 100,
+        valor: paraMoeda(centavos),
       };
     });
 

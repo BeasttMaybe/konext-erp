@@ -8,6 +8,7 @@ import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 import { paraMensagemSegura } from "@/lib/erros";
 import { comoDataDeCalendario, dataDeCalendario, FUSO_HORARIO_PADRAO, fimDoMes, inicioDoMes } from "@/lib/datas";
+import { dividirEmParcelas } from "@/lib/dinheiro";
 
 /** Ver o comentario equivalente em financeiro-receber.ts (Fase 1B-UI, Parte 1). */
 export type ResultadoAcaoDespesa = { sucesso: true } | { sucesso: false; mensagem: string };
@@ -171,22 +172,18 @@ function gerarParcelas(
   }
 
   const totalCentavos = paraCentavos(valorTotal);
-  const parcelaBaseCentavos = Math.floor(totalCentavos / qtdParcelas);
-  let restanteCentavos = totalCentavos - parcelaBaseCentavos * qtdParcelas;
+  // Centavo-exato (Fase 2A-2 cont.): dividirEmParcelas (lib/dinheiro.ts) é o
+  // único lugar autorizado a decidir como o resto em centavos é distribuído
+  // — a divisão manual anterior chegava ao mesmo resultado (resto nas
+  // primeiras parcelas) mas reimplementava a fórmula fora do módulo.
+  const valoresParcelasCentavos = dividirEmParcelas(totalCentavos, qtdParcelas);
 
-  return Array.from({ length: qtdParcelas }, (_, indice) => {
-    const acrescimo = restanteCentavos > 0 ? 1 : 0;
-    if (restanteCentavos > 0) {
-      restanteCentavos -= 1;
-    }
-
-    return {
-      numeroParcela: indice + 1,
-      valor: paraMoeda(parcelaBaseCentavos + acrescimo),
-      dataVencimento: adicionarMeses(dataVencimentoBase, indice),
-      status: "PENDENTE" as const,
-    };
-  });
+  return Array.from({ length: qtdParcelas }, (_, indice) => ({
+    numeroParcela: indice + 1,
+    valor: paraMoeda(valoresParcelasCentavos[indice]),
+    dataVencimento: adicionarMeses(dataVencimentoBase, indice),
+    status: "PENDENTE" as const,
+  }));
 }
 
 export async function criarDespesa(data: DadosCriarDespesa): Promise<ResultadoAcaoDespesa> {

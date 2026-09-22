@@ -37,7 +37,7 @@ import {
 import { exigeClienteRealParaFinalizarVenda } from "@/lib/dominio/crm/consumidor-final";
 import { obterDefaultsConfiguracaoPdv, type ConfiguracaoPdvPagamentos } from "@/lib/configuracoes-pdv";
 import type { ConfiguracaoPagamentosPDV } from "@/app/actions/pdv";
-import { deDecimal, formatarReais, paraMoeda, somar, subtrair } from "@/lib/dinheiro";
+import { deDecimal, dividirEmParcelas, formatarReais, paraMoeda, somar, subtrair } from "@/lib/dinheiro";
 
 export interface DadosPagamento {
   pagamentos: EntradaPagamentoPdv[];
@@ -57,6 +57,35 @@ const formatarMoeda = (valor: number): string => formatarReais(deDecimal(valor))
 const paraCentavos = deDecimal;
 
 const formatarDecimalPtBr = (valor: number): string => valor.toFixed(2).replace(".", ",");
+
+// Rotulo de parcelamento SEMPRE via dividirEmParcelas (lib/dinheiro.ts) —
+// nunca "valorBruto / parcelas" direto (ponto flutuante: p.ex. R$109,90 em
+// 3x vira "36,63 x 3 = R$109,89", um centavo a menos que o total real).
+// Quando o resto em centavos cai nas primeiras parcelas (convencao do
+// projeto) e elas ficam diferentes das demais, o rotulo precisa dizer isso
+// explicitamente em vez de generalizar "3x de R$36,64" escondendo que só a
+// primeira é diferente.
+function formatarRotuloParcelas(valorBruto: number, parcelas: number): string {
+  const quantidadeParcelas = Math.max(1, Math.trunc(parcelas));
+
+  if (quantidadeParcelas <= 1) {
+    return formatarReais(deDecimal(valorBruto));
+  }
+
+  const partesCentavos = dividirEmParcelas(deDecimal(valorBruto), quantidadeParcelas);
+  const valorMaior = partesCentavos[0];
+  const valorMenor = partesCentavos[partesCentavos.length - 1];
+
+  if (valorMaior === valorMenor) {
+    return `${quantidadeParcelas}x de ${formatarReais(valorMaior)}`;
+  }
+
+  const quantidadeMaior = partesCentavos.filter((valor) => valor === valorMaior).length;
+  const quantidadeMenor = quantidadeParcelas - quantidadeMaior;
+  const rotuloMaior = quantidadeMaior === 1 ? "1ª" : `${quantidadeMaior}x`;
+
+  return `${quantidadeParcelas}x — ${rotuloMaior} de ${formatarReais(valorMaior)} e ${quantidadeMenor}x de ${formatarReais(valorMenor)}`;
+}
 
 const sanitizarEntradaMonetaria = (valor: string): string => {
   const apenasPermitidos = valor.replace(/[^\d,\.]/g, "");
@@ -885,7 +914,7 @@ export function ModalPagamento({
       }
 
       if (linha.formaPagamento === "CARTAO_CREDITO" && linha.parcelas > 1) {
-        itens.push({ texto: `Parcelado em ${linha.parcelas}x de ${formatarMoeda(linha.valorBruto / linha.parcelas)}.`, tom: "neutro" });
+        itens.push({ texto: `Parcelado em ${formatarRotuloParcelas(linha.valorBruto, linha.parcelas)}.`, tom: "neutro" });
       }
 
       if ((linha.formaPagamento === "BOLETO" || linha.formaPagamento === "CREDIARIO") && calculado.dataVencimento) {
@@ -1117,7 +1146,7 @@ export function ModalPagamento({
                         linha.formaPagamento === "DINHEIRO"
                           ? `Recebido ${formatarMoeda(valorRecebidoDinheiro)}${troco > 0 ? ` • Troco ${formatarMoeda(troco)}` : ""}`
                           : linha.formaPagamento === "CARTAO_CREDITO"
-                            ? `${linha.parcelas}x de ${formatarMoeda(valorDaForma / Math.max(1, linha.parcelas))}`
+                            ? formatarRotuloParcelas(valorDaForma, linha.parcelas)
                             : linha.formaPagamento === "BOLETO" || linha.formaPagamento === "CREDIARIO"
                               ? `${linha.diasVencimento} dias • venc. ${dataVencimento}`
                               : rotuloFormaPagamentoCurto(linha.formaPagamento);
@@ -1311,7 +1340,7 @@ export function ModalPagamento({
                                     <div className="flex items-center justify-between">
                                       <Label className="text-[11px] uppercase tracking-wide text-kx-legenda">Parcelas</Label>
                                       <p className="text-xs text-kx-legenda">
-                                        {linha.parcelas}x de {formatarMoeda(linha.valorBruto / Math.max(1, linha.parcelas))}
+                                        {formatarRotuloParcelas(linha.valorBruto, linha.parcelas)}
                                       </p>
                                     </div>
                                     <div>
