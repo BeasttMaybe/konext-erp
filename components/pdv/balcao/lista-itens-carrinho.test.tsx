@@ -36,7 +36,15 @@ describe("ListaItensCarrinho", () => {
 
     expect(screen.queryByText("Carrinho vazio")).not.toBeInTheDocument();
     expect(screen.getByText("CABO USB KAIDI 2M IOS")).toBeVisible();
-    expect(screen.getByText("R$ 34,90")).toBeVisible();
+    // Fase "PDV em 3 etapas": a linha virou tabela (produto, quantidade,
+    // unitário, total, remover) — com 1 unidade, unitário e total mostram o
+    // mesmo valor formatado, então aparecem DUAS vezes na linha (colunas
+    // distintas), não uma só como no cartão empilhado antigo.
+    const valoresFormatados = screen.getAllByText("R$ 34,90");
+    expect(valoresFormatados).toHaveLength(2);
+    for (const valor of valoresFormatados) {
+      expect(valor).toBeVisible();
+    }
   });
 
   it("varios itens (cenario que expos o bug real: 4 produtos) renderizam uma linha por item", () => {

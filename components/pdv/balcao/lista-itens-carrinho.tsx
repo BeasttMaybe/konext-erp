@@ -31,6 +31,19 @@ export function ListaItensCarrinho({ itens, onDiminuir, onAumentar, onRemover }:
         </div>
       )}
 
+      {itens.length > 0 && (
+        <div
+          className="grid gap-2.5 px-3 text-xs font-semibold text-kx-legenda"
+          style={{ gridTemplateColumns: "minmax(0, 1fr) 150px 130px 130px 50px" }}
+        >
+          <span>Produto</span>
+          <span className="text-center">Quantidade</span>
+          <span className="text-right">Unitário</span>
+          <span className="text-right">Total</span>
+          <span />
+        </div>
+      )}
+
       {itens.map((item) => (
         <LinhaItemCarrinho
           key={item.id}
