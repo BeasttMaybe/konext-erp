@@ -138,9 +138,6 @@ export async function createProposta(
     const descontoTotalCentavos = somar(...itensComCentavos.map((item) => item.linhaDescontoCentavos));
     const valorTotalCentavos = Math.max(0, subtrair(subtotalBrutoCentavos, descontoTotalCentavos));
 
-    const subtotalBruto = paraMoeda(subtotalBrutoCentavos);
-    const descontoTotal = paraMoeda(descontoTotalCentavos);
-    const valorTotal = paraMoeda(valorTotalCentavos);
     const paymentSummary = [validated.condicoesPagamento, validated.detalhesPagamento]
       .filter((value): value is string => Boolean(value && value.trim().length > 0))
       .join(" | ");
