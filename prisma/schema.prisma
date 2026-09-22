@@ -90,7 +90,7 @@ model Configuracao {
   permitirVendaSemEstoque   Boolean  @default(false)
   permitirPagamentoMisto    Boolean  @default(true)
   permitirDescontoPDV       Boolean  @default(true)
-  descontoMaximoPDVPercentual Decimal @default(0) @db.Decimal(5, 2)
+  descontoMaximoPDVPercentual Decimal @default(0) @db.Decimal(7, 4)
   permitirVendaFiado        Boolean  @default(false)
   habilitarPix              Boolean  @default(true)
   habilitarDinheiro         Boolean  @default(true)
@@ -98,19 +98,19 @@ model Configuracao {
   habilitarCartaoCredito    Boolean  @default(true)
   habilitarBoleto           Boolean  @default(false)
   habilitarCrediario        Boolean  @default(false)
-  taxaCartaoDebitoPercentual Decimal @default(0) @db.Decimal(5, 2)
-  taxaCartaoCredito1xPercentual Decimal @default(0) @db.Decimal(5, 2)
-  taxaCartaoCredito2xPercentual Decimal @default(0) @db.Decimal(5, 2)
-  taxaCartaoCredito3xPercentual Decimal @default(0) @db.Decimal(5, 2)
-  taxaCartaoCredito4xPercentual Decimal @default(0) @db.Decimal(5, 2)
-  taxaCartaoCredito5xPercentual Decimal @default(0) @db.Decimal(5, 2)
-  taxaCartaoCredito6xPercentual Decimal @default(0) @db.Decimal(5, 2)
-  taxaCartaoCredito7xPercentual Decimal @default(0) @db.Decimal(5, 2)
-  taxaCartaoCredito8xPercentual Decimal @default(0) @db.Decimal(5, 2)
-  taxaCartaoCredito9xPercentual Decimal @default(0) @db.Decimal(5, 2)
-  taxaCartaoCredito10xPercentual Decimal @default(0) @db.Decimal(5, 2)
-  taxaCartaoCredito11xPercentual Decimal @default(0) @db.Decimal(5, 2)
-  taxaCartaoCredito12xPercentual Decimal @default(0) @db.Decimal(5, 2)
+  taxaCartaoDebitoPercentual Decimal @default(0) @db.Decimal(7, 4)
+  taxaCartaoCredito1xPercentual Decimal @default(0) @db.Decimal(7, 4)
+  taxaCartaoCredito2xPercentual Decimal @default(0) @db.Decimal(7, 4)
+  taxaCartaoCredito3xPercentual Decimal @default(0) @db.Decimal(7, 4)
+  taxaCartaoCredito4xPercentual Decimal @default(0) @db.Decimal(7, 4)
+  taxaCartaoCredito5xPercentual Decimal @default(0) @db.Decimal(7, 4)
+  taxaCartaoCredito6xPercentual Decimal @default(0) @db.Decimal(7, 4)
+  taxaCartaoCredito7xPercentual Decimal @default(0) @db.Decimal(7, 4)
+  taxaCartaoCredito8xPercentual Decimal @default(0) @db.Decimal(7, 4)
+  taxaCartaoCredito9xPercentual Decimal @default(0) @db.Decimal(7, 4)
+  taxaCartaoCredito10xPercentual Decimal @default(0) @db.Decimal(7, 4)
+  taxaCartaoCredito11xPercentual Decimal @default(0) @db.Decimal(7, 4)
+  taxaCartaoCredito12xPercentual Decimal @default(0) @db.Decimal(7, 4)
   prazoPadraoBoletoDias     Int      @default(7)
   prazoPadraoCrediarioDias  Int      @default(30)
   maxParcelasCartaoCredito  Int      @default(12)
@@ -204,7 +204,7 @@ enum CategoriaCliente {
 model Oportunidade {
   id             String        @id @default(uuid())
   titulo         String
-  valor          Decimal       @default(0)
+  valor          Decimal       @default(0) @db.Decimal(12, 2)
   estagio        EstagioFunil  @default(PROSPECCAO)
   dataFechamento DateTime?
 
@@ -247,9 +247,9 @@ model PropostaComercial {
   condicoesPagamento  String?
   termosGarantia      String?
   observacoesInternas String?
-  subtotalBruto       Float
-  descontoTotal       Float
-  valorTotal          Float
+  subtotalBruto       Decimal                 @db.Decimal(12, 2)
+  descontoTotal       Decimal                 @db.Decimal(12, 2)
+  valorTotal          Decimal                 @db.Decimal(12, 2)
   status              StatusPropostaComercial @default(RASCUNHO)
   criadoEm            DateTime                @default(now()) @db.Timestamptz(3)
   atualizadoEm        DateTime                @updatedAt @db.Timestamptz(3)
@@ -266,9 +266,9 @@ model PropostaItem {
   proposta          PropostaComercial @relation(fields: [propostaId], references: [id], onDelete: Cascade)
   descricao         String
   quantidade        Int
-  precoUnitario     Float
-  descontoPercentual Float
-  subtotal          Float
+  precoUnitario     Decimal           @db.Decimal(12, 2)
+  descontoPercentual Decimal          @db.Decimal(7, 4)
+  subtotal          Decimal           @db.Decimal(12, 2)
   criadoEm          DateTime          @default(now()) @db.Timestamptz(3)
   atualizadoEm      DateTime          @updatedAt @db.Timestamptz(3)
 
@@ -355,7 +355,7 @@ model TecnicoOS {
   os           OrdemServico @relation(fields: [osId], references: [id], onDelete: Cascade)
   usuarioId    String
   usuario      Usuario      @relation("TecnicosDaOS", fields: [usuarioId], references: [id])
-  participacaoPercentual Decimal @default(0) @db.Decimal(5, 2)
+  participacaoPercentual Decimal @default(0) @db.Decimal(7, 4)
   principal    Boolean      @default(false)
   criadoEm     DateTime     @default(now()) @db.Timestamptz(3)
 
@@ -401,7 +401,7 @@ model RetornoGarantiaOS {
   pecasAdicionais String?
   houveTroca     Boolean                  @default(false)
   houveCobranca  Boolean                  @default(false)
-  valorAdicional Decimal?
+  valorAdicional Decimal? @db.Decimal(12, 2)
   observacoesTecnicas String?
   finalizadoEm   DateTime? @db.Timestamptz(3)
   finalizadoPorId String?
@@ -434,8 +434,8 @@ model ItemOS {
 
   descricao    String
   tipoPeca     TipoPeca
-  custoPeca    Float
-  valorCobrado Float
+  custoPeca    Decimal      @db.Decimal(12, 2)
+  valorCobrado Decimal      @db.Decimal(12, 2)
   criadoEm     DateTime @default(now()) @db.Timestamptz(3)
 }
 
@@ -484,7 +484,7 @@ enum TipoPeca {
 model ContaReceber {
   id        String @id @default(uuid())
   descricao String @default("")
-  valor     Float
+  valor     Decimal @db.Decimal(12, 2)
   observacaoLancamento String?
   observacaoPagamento  String?
 
@@ -569,7 +569,7 @@ model Despesa {
   id           String      @id @default(uuid())
   fornecedor   String
   descricao    String
-  valorTotal   Float
+  valorTotal   Decimal     @db.Decimal(12, 2)
   tipo         TipoDespesa
   qtdParcelas  Int
 
@@ -593,11 +593,11 @@ model ParcelaDespesa {
   despesaId      String
   despesa        Despesa              @relation(fields: [despesaId], references: [id], onDelete: Cascade)
   numeroParcela  Int
-  valor          Float
+  valor          Decimal              @db.Decimal(12, 2)
   dataVencimento DateTime
   dataPagamento  DateTime? @db.Timestamptz(3)
   status         StatusParcelaDespesa @default(PENDENTE)
-  valorPago      Float?
+  valorPago      Decimal?             @db.Decimal(12, 2)
   criadoEm       DateTime             @default(now()) @db.Timestamptz(3)
 }
 
@@ -620,7 +620,7 @@ model NotaFiscal {
   id          String           @id @default(uuid())
   numero      String
   chaveAcesso String?
-  valorTotal  Float
+  valorTotal  Decimal          @db.Decimal(12, 2)
   status      StatusNotaFiscal @default(PENDENTE)
 
   clienteId String?
@@ -650,8 +650,8 @@ model Produto {
   itensVenda ItemVenda[]
   pedidoVendaItens PedidoVendaItem[]
 
-  custo      Float // Preço de compra do fornecedor
-  precoVenda Float // Preço final para o cliente
+  custo      Decimal @db.Decimal(12, 2) // Preço de compra do fornecedor
+  precoVenda Decimal @db.Decimal(12, 2) // Preço final para o cliente
 
   quantidadeEstoque Int @default(0)
   estoqueMinimo     Int @default(3) // Alerta quando estiver acabando
@@ -673,7 +673,7 @@ enum TipoCliente {
 model Conta {
   id          String   @id @default(cuid())
   descricao   String
-  valor       Float
+  valor       Decimal  @db.Decimal(12, 2)
   vencimento  DateTime
   status      String   // PAGO, PENDENTE, ATRASADO
   tipo        String   // RECEBER ou PAGAR
@@ -721,7 +721,7 @@ model PedidoVenda {
   venda   Venda?  @relation(fields: [vendaId], references: [id])
 
   vendedor       String
-  total          Float
+  total          Decimal         @db.Decimal(12, 2)
   origem         OrigemPedido    @default(VENDAS)
   formaPagamento FormaPagamento?
   dataCriacao    DateTime @default(now()) @db.Timestamptz(3)
@@ -747,9 +747,9 @@ model PedidoVendaItem {
 
   nome                 String
   quantidade           Int
-  precoUnitario        Float
-  descontoPorcentagem  Float @default(0)
-  subtotal             Float
+  precoUnitario        Decimal @db.Decimal(12, 2)
+  descontoPorcentagem  Decimal @default(0) @db.Decimal(7, 4)
+  subtotal             Decimal @db.Decimal(12, 2)
 
   criadoEm     DateTime @default(now()) @db.Timestamptz(3)
   atualizadoEm DateTime @updatedAt @db.Timestamptz(3)
@@ -764,7 +764,7 @@ model PedidoVendaParcela {
   pedidoId String
   pedido   PedidoVenda @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
 
-  valor          Float
+  valor          Decimal  @db.Decimal(12, 2)
   dataVencimento DateTime
 
   criadoEm     DateTime @default(now()) @db.Timestamptz(3)
@@ -787,8 +787,8 @@ model Venda {
   contasReceber ContaReceber[]
 
   formaPagamento FormaPagamento
-  valorTotal     Float
-  desconto       Float          @default(0)
+  valorTotal     Decimal        @db.Decimal(12, 2)
+  desconto       Decimal        @default(0) @db.Decimal(12, 2)
 
   criadoEm       DateTime      @default(now()) @db.Timestamptz(3)
   caixaSession   CaixaSession? @relation(fields: [caixaSessionId], references: [id])
@@ -801,10 +801,10 @@ model VendaPagamento {
   venda          Venda          @relation(fields: [vendaId], references: [id], onDelete: Cascade)
 
   formaPagamento FormaPagamento
-  valorBruto     Float
-  percentualTaxa Float          @default(0)
-  valorTaxa      Float          @default(0)
-  valorLiquido   Float
+  valorBruto     Decimal        @db.Decimal(12, 2)
+  percentualTaxa Decimal        @default(0) @db.Decimal(7, 4)
+  valorTaxa      Decimal        @default(0) @db.Decimal(12, 2)
+  valorLiquido   Decimal        @db.Decimal(12, 2)
   parcelas       Int            @default(1)
   diasVencimento Int?
   dataVencimento DateTime?
@@ -831,9 +831,9 @@ model ItemVenda {
   descricao String @default("")
 
   quantidade    Int
-  custoUnitario Float @default(0)
-  precoUnitario Float
-  subtotal      Float
+  custoUnitario Decimal @default(0) @db.Decimal(12, 2)
+  precoUnitario Decimal @db.Decimal(12, 2)
+  subtotal      Decimal @db.Decimal(12, 2)
 }
 
 // ==========================================
@@ -844,8 +844,8 @@ model CaixaSession {
 
   status CaixaStatus @default(ABERTO)
 
-  valorAbertura   Float // Saldo inicial/troco
-  valorFechamento Float? // Saldo final conferido
+  valorAbertura   Decimal  @db.Decimal(12, 2) // Saldo inicial/troco
+  valorFechamento Decimal? @db.Decimal(12, 2) // Saldo final conferido
 
   dataAbertura   DateTime  @default(now()) @db.Timestamptz(3)
   dataFechamento DateTime? @db.Timestamptz(3)
