@@ -1,7 +1,14 @@
 import type { TipoPeca } from "@prisma/client";
+import { deDecimal, multiplicarPorQuantidade, paraMoeda, somar } from "@/lib/dinheiro";
 
-function arredondarParaMoeda(valor: number): number {
-  return Number(valor.toFixed(2));
+/** `custo + custo * fator` (markup multiplicativo) — centavo-exato via lib/dinheiro.ts. */
+function comMarkupMultiplicativo(custoCentavos: number, fator: number): number {
+  return multiplicarPorQuantidade(custoCentavos, 1 + fator);
+}
+
+/** `custo + acrescimoReais` (markup fixo em reais) — centavo-exato via lib/dinheiro.ts. */
+function comMarkupFixo(custoCentavos: number, acrescimoReais: number): number {
+  return somar(custoCentavos, deDecimal(acrescimoReais));
 }
 
 export function calcularPrecoVendaPeca(tipoPeca: TipoPeca, custo: number): number {
@@ -9,27 +16,29 @@ export function calcularPrecoVendaPeca(tipoPeca: TipoPeca, custo: number): numbe
     throw new Error("O custo da peca deve ser um numero valido e maior ou igual a zero.");
   }
 
+  const custoCentavos = deDecimal(custo);
+
   switch (tipoPeca) {
     case "TELA": {
-      if (custo <= 150) return arredondarParaMoeda(custo + custo * 2.0);
-      if (custo <= 250) return arredondarParaMoeda(custo + custo * 1.75);
-      return arredondarParaMoeda(custo + custo * 1.5);
+      if (custo <= 150) return paraMoeda(comMarkupMultiplicativo(custoCentavos, 2.0));
+      if (custo <= 250) return paraMoeda(comMarkupMultiplicativo(custoCentavos, 1.75));
+      return paraMoeda(comMarkupMultiplicativo(custoCentavos, 1.5));
     }
 
     case "BATERIA": {
-      if (custo <= 80) return arredondarParaMoeda(custo + custo * 2.0);
-      if (custo <= 140) return arredondarParaMoeda(custo + custo * 1.75);
-      return arredondarParaMoeda(custo + custo * 1.5);
+      if (custo <= 80) return paraMoeda(comMarkupMultiplicativo(custoCentavos, 2.0));
+      if (custo <= 140) return paraMoeda(comMarkupMultiplicativo(custoCentavos, 1.75));
+      return paraMoeda(comMarkupMultiplicativo(custoCentavos, 1.5));
     }
 
     case "CONECTOR_CARGA":
-      return arredondarParaMoeda(custo + 100);
+      return paraMoeda(comMarkupFixo(custoCentavos, 100));
 
     case "TAMPA_IPHONE":
-      return arredondarParaMoeda(custo + 200);
+      return paraMoeda(comMarkupFixo(custoCentavos, 200));
 
     case "TAMPA_ANDROID":
-      return arredondarParaMoeda(custo + 80);
+      return paraMoeda(comMarkupFixo(custoCentavos, 80));
 
     case "OUTROS":
       return 0;

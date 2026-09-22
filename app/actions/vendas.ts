@@ -6,6 +6,7 @@ import { z } from "zod";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { exigirPermissao } from "@/lib/auth/permissoes";
 import { paraMensagemSegura } from "@/lib/erros";
+import { aplicarPercentual, deDecimal, multiplicarPorQuantidade, paraDecimal, somar, subtrair } from "@/lib/dinheiro";
 
 const pedidoVendaItemSchema = z.object({
   produtoId: z.string().optional(),
@@ -101,18 +102,29 @@ export async function createPedidoVenda(
     const validatedData = pedidoVendaActionSchema.parse(data);
     const paymentMethod = mapOrderPaymentMethod(validatedData.formaPagamento);
 
-    const itemsSubtotal = validatedData.itens.reduce((total, item) => {
-      const itemSubtotal = item.quantidade * item.precoUnitario * (1 - item.descontoPorcentagem / 100);
-      return total + itemSubtotal;
-    }, 0);
+    // Centavo-exato (Fase 2A-2): antes, item.quantidade * item.precoUnitario *
+    // (1 - desconto/100) era somado em ponto flutuante puro, sem nenhum
+    // arredondamento — o único fluxo de "venda"/"pedido" no app que não
+    // passava por lib/dinheiro.ts nem por paraCentavos/paraMoeda.
+    const itemsSubtotalCentavos = somar(
+      ...validatedData.itens.map((item) => {
+        const precoUnitarioCentavos = deDecimal(item.precoUnitario);
+        const brutoCentavos = multiplicarPorQuantidade(precoUnitarioCentavos, item.quantidade);
+        const descontoCentavos = aplicarPercentual(brutoCentavos, item.descontoPorcentagem);
+        return subtrair(brutoCentavos, descontoCentavos);
+      })
+    );
 
-    const total = Math.max(0, itemsSubtotal + validatedData.acrescimos - validatedData.descontos);
+    const totalCentavos = Math.max(
+      0,
+      subtrair(somar(itemsSubtotalCentavos, deDecimal(validatedData.acrescimos)), deDecimal(validatedData.descontos))
+    );
 
     const createdOrder = await prisma.pedidoVenda.create({
       data: {
         clienteId: validatedData.cliente,
         vendedor: validatedData.vendedor,
-        total,
+        total: paraDecimal(totalCentavos),
         status: "PENDENTE",
         origem: "VENDAS",
         formaPagamento: paymentMethod,
@@ -122,14 +134,14 @@ export async function createPedidoVenda(
             produtoId: item.produtoId || null,
             nome: item.nome,
             quantidade: item.quantidade,
-            precoUnitario: item.precoUnitario,
+            precoUnitario: paraDecimal(deDecimal(item.precoUnitario)),
             descontoPorcentagem: item.descontoPorcentagem,
-            subtotal: item.subtotal,
+            subtotal: paraDecimal(deDecimal(item.subtotal)),
           })),
         },
         parcelas: {
           create: validatedData.parcelas.map((installment) => ({
-            valor: installment.valor,
+            valor: paraDecimal(deDecimal(installment.valor)),
             dataVencimento: installment.vencimento,
           })),
         },

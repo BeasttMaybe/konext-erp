@@ -37,6 +37,7 @@ import {
 import { exigeClienteRealParaFinalizarVenda } from "@/lib/dominio/crm/consumidor-final";
 import { obterDefaultsConfiguracaoPdv, type ConfiguracaoPdvPagamentos } from "@/lib/configuracoes-pdv";
 import type { ConfiguracaoPagamentosPDV } from "@/app/actions/pdv";
+import { deDecimal, formatarReais, paraMoeda, somar, subtrair } from "@/lib/dinheiro";
 
 export interface DadosPagamento {
   pagamentos: EntradaPagamentoPdv[];
@@ -47,13 +48,13 @@ export interface DadosPagamento {
   troco?: number;
 }
 
-const formatarMoeda = (valor: number): string =>
-  new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  }).format(valor);
+// Formatação/conversão de dinheiro delega inteiramente pra lib/dinheiro.ts
+// (Fase 2A-2) — nenhuma fórmula de arredondamento de centavo própria neste
+// componente. `lib/dinheiro.ts` não depende de Prisma/Node, então é seguro
+// importar direto num Client Component.
+const formatarMoeda = (valor: number): string => formatarReais(deDecimal(valor));
 
-const paraCentavos = (valor: number) => Math.round((valor + Number.EPSILON) * 100);
+const paraCentavos = deDecimal;
 
 const formatarDecimalPtBr = (valor: number): string => valor.toFixed(2).replace(".", ",");
 
@@ -449,8 +450,11 @@ export function ModalPagamento({
       .reduce((acc, item) => acc + paraCentavos(item.valorBruto), 0) / 100;
   }, [pagamentosCalculados]);
 
-  const troco = totalDinheiro > 0 ? Math.max(0, valorRecebidoDinheiro - totalDinheiro) : 0;
-  const saldoCentavos = paraCentavos(total) - paraCentavos(totalInformado);
+  const troco =
+    totalDinheiro > 0
+      ? paraMoeda(Math.max(0, subtrair(paraCentavos(valorRecebidoDinheiro), paraCentavos(totalDinheiro))))
+      : 0;
+  const saldoCentavos = subtrair(paraCentavos(total), paraCentavos(totalInformado));
   const totalAntesDesconto = total + Math.max(0, descontoAplicado);
   const percentualTaxaEstimado = totalInformado > 0 ? (totalTaxas / totalInformado) * 100 : 0;
   const estadoFechamento = calcularEstadoFechamento({
@@ -629,9 +633,13 @@ export function ModalPagamento({
   };
 
   const valorInformadoPorForma = (forma: FormaPagamentoPdv): number => {
-    return linhas
-      .filter((linha) => linha.formaPagamento === forma)
-      .reduce((acc, linha) => acc + linha.valorBruto, 0);
+    return paraMoeda(
+      somar(
+        ...linhas
+          .filter((linha) => linha.formaPagamento === forma)
+          .map((linha) => paraCentavos(linha.valorBruto))
+      )
+    );
   };
 
   const linhaSelecionada = linhas.find((linha) => linha.id === linhaEmEdicaoId) ?? null;
