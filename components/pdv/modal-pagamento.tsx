@@ -46,6 +46,8 @@ export interface DadosPagamento {
   totalCobrado: number;
   valorRecebidoDinheiro?: number;
   troco?: number;
+  /** Item 2b — ver o comentário junto ao `useState` de `chaveIdempotencia` acima. */
+  chaveIdempotencia?: string;
 }
 
 // Formatação/conversão de dinheiro delega inteiramente pra lib/dinheiro.ts
@@ -364,6 +366,21 @@ export function ModalPagamento({
   const [linhaEmEdicaoId, setLinhaEmEdicaoId] = useState<string | null>(null);
   const [seletorFormaAberto, setSeletorFormaAberto] = useState(false);
   const [pagamentoInicialAutomatico, setPagamentoInicialAutomatico] = useState(true);
+  // Item 2b (envio duplicado de venda) — UMA chave por TENTATIVA de venda,
+  // nao por clique: gerada quando o modal abre (carrinho "congelado" pra
+  // pagamento) e reusada em qualquer reenvio da MESMA tentativa enquanto o
+  // modal continuar aberto (retry apos erro, clique duplo que escape do
+  // `disabled`, etc.) — so troca quando o modal fecha e reabre do zero
+  // (nova tentativa, carrinho seguinte). Enviada ao servidor em
+  // DadosPagamento.chaveIdempotencia -> processarVenda/
+  // processarVendaComOSNoPDV, que devolvem a MESMA venda em vez de criar
+  // outra se a chave ja foi usada (lib/dominio/pdv/idempotencia-venda.ts).
+  // Derivado de `aberto` durante a renderização (useMemo), não estado
+  // setado num useEffect: fica estável enquanto `aberto` não mudar — mesmo
+  // que outros re-renders aconteçam por `linhas`/`total` mudando — e troca
+  // sozinho quando o modal fecha (vira null) e reabre (nova chave). Sem
+  // isso violaria `react-hooks/set-state-in-effect`.
+  const chaveIdempotencia = useMemo(() => (aberto ? crypto.randomUUID() : null), [aberto]);
 
   useEffect(() => {
     if (!aberto) return;
@@ -836,6 +853,7 @@ export function ModalPagamento({
       totalCobrado: totalInformado,
       valorRecebidoDinheiro: totalDinheiro > 0 ? valorRecebidoDinheiro : undefined,
       troco: totalDinheiro > 0 ? troco : undefined,
+      chaveIdempotencia: chaveIdempotencia ?? undefined,
     };
 
     try {

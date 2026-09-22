@@ -790,6 +790,14 @@ model Venda {
   valorTotal     Decimal        @db.Decimal(12, 2)
   desconto       Decimal        @default(0) @db.Decimal(12, 2)
 
+  // Fase 2A-2 cont. (item 2b — envio duplicado de venda): chave gerada pelo
+  // cliente (crypto.randomUUID()) por TENTATIVA de venda, reenviada em
+  // qualquer reenvio da MESMA tentativa (mesmo carrinho/modal ainda aberto).
+  // Opcional e única — NULL para vendas antigas e qualquer chamador que não
+  // a envie; Postgres permite múltiplos NULL numa coluna UNIQUE. Ver
+  // lib/dominio/pdv/idempotencia-venda.ts e app/actions/pdv.ts.
+  chaveIdempotencia String? @unique
+
   criadoEm       DateTime      @default(now()) @db.Timestamptz(3)
   caixaSession   CaixaSession? @relation(fields: [caixaSessionId], references: [id])
   caixaSessionId String?

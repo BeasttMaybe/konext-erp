@@ -37,6 +37,10 @@ import {
   exigeClienteRealParaFinalizarVenda,
   resolverClienteEfetivoPdv,
 } from "@/lib/dominio/crm/consumidor-final";
+import {
+  ehViolacaoDeChaveUnica,
+  processarVendaComIdempotencia,
+} from "@/lib/dominio/pdv/idempotencia-venda";
 
 export interface ClientePDV {
   id: string;
@@ -361,8 +365,8 @@ async function createSalesHistoryMirror(
 }
 
 type ClientePrismaAny = Prisma.TransactionClient & Record<string, unknown> & {
-  venda?: { create?: (args: unknown) => Promise<unknown> };
-  Venda?: { create?: (args: unknown) => Promise<unknown> };
+  venda?: { create?: (args: unknown) => Promise<unknown>; findFirst?: (args: unknown) => Promise<unknown> };
+  Venda?: { create?: (args: unknown) => Promise<unknown>; findFirst?: (args: unknown) => Promise<unknown> };
   itemVenda?: { create?: (args: unknown) => Promise<unknown> };
   ItemVenda?: { create?: (args: unknown) => Promise<unknown> };
   contaReceber?: { create?: (args: unknown) => Promise<unknown> };
@@ -578,6 +582,90 @@ async function criarVendaComFallbackFormaPagamento(
       return vendaDelegate.create?.({
         data: dadosBase,
       });
+    }
+
+    throw erro;
+  }
+}
+
+/**
+ * Busca uma venda já criada com esta chave de idempotência (item 2b —
+ * reenvio da mesma tentativa de venda por perda da resposta original).
+ * `null` se a chave não foi informada, se nenhuma venda existe com ela, OU
+ * se este tenant ainda não rodou a migração que adiciona a coluna
+ * (rollout escalonado por tenant — ver docs/operacao/migrations.md §5):
+ * neste último caso, trata como "não existe" em vez de derrubar a venda
+ * inteira por causa só da checagem de idempotência.
+ *
+ * Chamada tanto SEM transação (pre-check em `processarVenda`/
+ * `processarVendaComOSNoPDV`, antes de abrir `prisma.$transaction`, via
+ * `processarVendaComIdempotencia` — lib/dominio/pdv/idempotencia-venda.ts)
+ * quanto de novo, também sem transação, depois que uma corrida real (ver
+ * `criarVendaComFallbackIdempotencia`) derruba a transação perdedora — por
+ * isso recebe `tx`/`root` já resolvidos pelo chamador em vez de abrir uma
+ * transação própria.
+ */
+async function buscarVendaPorChaveIdempotencia(
+  tx: ClientePrismaAny,
+  root: ClientePrismaAny,
+  chaveIdempotencia: string | undefined
+): Promise<{ id: string } | null> {
+  if (!chaveIdempotencia) return null;
+
+  const delegate = (tx.venda ?? tx.Venda ?? root.venda ?? root.Venda) as
+    | { findFirst?: (args: unknown) => Promise<unknown> }
+    | undefined;
+
+  if (!delegate?.findFirst) return null;
+
+  try {
+    const encontrada = await delegate.findFirst({
+      where: { chaveIdempotencia },
+      select: { id: true },
+    });
+    return (encontrada as { id: string } | null) ?? null;
+  } catch (erro) {
+    const mensagem = erro instanceof Error ? erro.message : "";
+    if (mensagem.includes("Unknown argument") || mensagem.includes("does not exist")) {
+      return null;
+    }
+    throw erro;
+  }
+}
+
+/**
+ * Cria a venda com `chaveIdempotencia` (quando informada), com o mesmo
+ * fallback defensivo de `criarVendaComFallbackFormaPagamento` (schema
+ * desatualizado nalgum tenant): se o runtime deste tenant ainda não conhece
+ * a coluna nova (`Unknown argument \`chaveIdempotencia\``), cria sem ela em
+ * vez de falhar a venda inteira.
+ *
+ * Uma violação de UNIQUE de verdade (duas chamadas concorrentes com a
+ * MESMA chave — `ehViolacaoDeChaveUnica`) NÃO é engolida aqui: sobe pra
+ * fora da transação (`prisma.$transaction` rejeita, Prisma faz o rollback
+ * sozinho) pra `processarVendaComIdempotencia` reconhecer e buscar de novo
+ * a venda vencedora — nunca dentro da própria transação, que já estaria
+ * abortada no Postgres depois da violação (só ROLLBACK é válido a partir
+ * daí, nunca um retorno normal seguido de COMMIT).
+ */
+async function criarVendaComFallbackIdempotencia(
+  vendaDelegate: { create?: (args: unknown) => Promise<unknown> },
+  dadosBase: Record<string, unknown>,
+  formaPagamentoBanco: Parameters<typeof criarVendaComFallbackFormaPagamento>[2],
+  chaveIdempotencia: string | undefined
+) {
+  const dadosComChave = chaveIdempotencia ? { ...dadosBase, chaveIdempotencia } : dadosBase;
+
+  try {
+    return await criarVendaComFallbackFormaPagamento(vendaDelegate, dadosComChave, formaPagamentoBanco);
+  } catch (erro) {
+    if (!chaveIdempotencia || ehViolacaoDeChaveUnica(erro)) {
+      throw erro;
+    }
+
+    const mensagem = erro instanceof Error ? erro.message : "";
+    if (mensagem.includes("Unknown argument `chaveIdempotencia`")) {
+      return criarVendaComFallbackFormaPagamento(vendaDelegate, dadosBase, formaPagamentoBanco);
     }
 
     throw erro;
@@ -1005,6 +1093,14 @@ export async function processarVenda(
   opcoes?: {
     clienteId?: string;
     desconto?: DescontoPdvInput | null;
+    /**
+     * Item 2b — envio duplicado de venda: gerada pelo cliente
+     * (`crypto.randomUUID()`) uma vez por TENTATIVA de venda (quando a tela
+     * de pagamento abre) e reenviada em qualquer reenvio da MESMA
+     * tentativa. Ver components/pdv/modal-pagamento.tsx e
+     * lib/dominio/pdv/idempotencia-venda.ts.
+     */
+    chaveIdempotencia?: string;
   }
 ) {
   // C1: somente operadores autenticados podem registrar vendas.
@@ -1014,6 +1110,7 @@ export async function processarVenda(
   const sessionUser = contexto.usuarioOperacional;
   const clienteId = opcoes?.clienteId;
   const desconto = opcoes?.desconto ?? null;
+  const chaveIdempotencia = opcoes?.chaveIdempotencia?.trim() || undefined;
   // Venda de balcao sem cliente selecionado vai pro Consumidor Final, nunca
   // fica com clienteId nulo (fase 3-2C — consumidor final). clienteId (o
   // valor cru informado) continua guardado a parte, porque a trava de
@@ -1025,12 +1122,19 @@ export async function processarVenda(
   }
 
   const configuracaoPdv = await obterConfiguracaoPagamentosInterna(prisma);
+  const prismaAnyFora = prisma as unknown as ClientePrismaAny;
 
   try {
-    const venda = await prisma.$transaction(async (tx) => {
-      const txAny = tx as unknown as ClientePrismaAny;
-      const prismaAny = prisma as unknown as ClientePrismaAny;
-      const caixaAberto = await obterCaixaSessionAberta(tx);
+    const venda = await processarVendaComIdempotencia(chaveIdempotencia, {
+      // Sem transação (pre-check ANTES de abrir `prisma.$transaction`, e
+      // nova tentativa DEPOIS que uma corrida real derruba a transação
+      // perdedora — ver criarVendaComFallbackIdempotencia).
+      buscarPorChave: (chave) => buscarVendaPorChaveIdempotencia(prismaAnyFora, prismaAnyFora, chave),
+      criar: () =>
+        prisma.$transaction(async (tx) => {
+          const txAny = tx as unknown as ClientePrismaAny;
+          const prismaAny = prisma as unknown as ClientePrismaAny;
+          const caixaAberto = await obterCaixaSessionAberta(tx);
 
       // C2: preco, custo e ativo vem SEMPRE do banco, nunca do payload do
       // cliente — este e o nucleo da correcao F-04/F-33.
@@ -1083,10 +1187,11 @@ export async function processarVenda(
         desconto: paraMoeda(resultadoCalculo.descontoCentavos),
       };
 
-      const novaVenda = await criarVendaComFallbackFormaPagamento(
+      const novaVenda = await criarVendaComFallbackIdempotencia(
         vendaDelegate,
         dadosVendaBase,
-        formaPagamentoBanco
+        formaPagamentoBanco,
+        chaveIdempotencia
       );
 
       if (!novaVenda) {
@@ -1212,7 +1317,8 @@ export async function processarVenda(
         }
       );
 
-      return { id: vendaId };
+          return { id: vendaId };
+        }),
     });
 
     revalidatePath("/");
@@ -1416,6 +1522,8 @@ export async function processarVendaComOSNoPDV(
   pagamentos: PagamentoPdvInput[],
   opcoes?: {
     desconto?: DescontoPdvInput | null;
+    /** Item 2b — ver o mesmo campo em `processarVenda` acima. */
+    chaveIdempotencia?: string;
   }
 ) {
   // C1: somente operadores autenticados podem faturar OS no PDV.
@@ -1424,6 +1532,7 @@ export async function processarVendaComOSNoPDV(
   const prisma = contexto.prisma;
   const sessionUser = contexto.usuarioOperacional;
   const desconto = opcoes?.desconto ?? null;
+  const chaveIdempotencia = opcoes?.chaveIdempotencia?.trim() || undefined;
 
   // Interno, nao a versao exportada: a venda precisa do custo REAL de cada
   // item para gravar custoUnitario, mesmo quando quem vende nao tem
@@ -1431,12 +1540,19 @@ export async function processarVendaComOSNoPDV(
   const pedido = await obterPedidoOSParaPDVInterno(osId);
   const totalOSCentavos = paraCentavos(pedido.valor);
   const configuracaoPdv = await obterConfiguracaoPagamentosInterna(prisma);
+  const prismaAnyFora = prisma as unknown as ClientePrismaAny;
 
   try {
-    const resultado = await prisma.$transaction(async (tx) => {
-      const txAny = tx as unknown as ClientePrismaAny;
-      const prismaAny = prisma as unknown as ClientePrismaAny;
-      const caixaAberto = await obterCaixaSessionAberta(tx);
+    const resultado = await processarVendaComIdempotencia(chaveIdempotencia, {
+      buscarPorChave: async (chave) => {
+        const existente = await buscarVendaPorChaveIdempotencia(prismaAnyFora, prismaAnyFora, chave);
+        return existente ? { vendaId: existente.id } : null;
+      },
+      criar: () =>
+        prisma.$transaction(async (tx) => {
+          const txAny = tx as unknown as ClientePrismaAny;
+          const prismaAny = prisma as unknown as ClientePrismaAny;
+          const caixaAberto = await obterCaixaSessionAberta(tx);
 
       const vendaDelegate = obterDelegateComFallback(txAny, prismaAny, ["venda", "Venda"], "venda");
       const contaReceberDelegate = obterDelegateComFallback(
@@ -1494,7 +1610,7 @@ export async function processarVendaComOSNoPDV(
         throw new Error(MENSAGEM_OS_JA_VINCULADA_PDV);
       }
 
-      const novaVenda = await criarVendaComFallbackFormaPagamento(
+      const novaVenda = await criarVendaComFallbackIdempotencia(
         vendaDelegate,
         {
           cliente: {
@@ -1505,7 +1621,8 @@ export async function processarVendaComOSNoPDV(
           valorTotal: paraMoeda(totalVendaCentavos),
           desconto: paraMoeda(descontoProdutosCentavos),
         },
-        formaPagamentoBanco
+        formaPagamentoBanco,
+        chaveIdempotencia
       );
 
       if (!novaVenda) {
@@ -1658,7 +1775,8 @@ export async function processarVendaComOSNoPDV(
         }
       );
 
-      return { vendaId };
+          return { vendaId };
+        }),
     });
 
     revalidatePath("/pdv");

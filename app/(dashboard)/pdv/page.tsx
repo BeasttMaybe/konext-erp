@@ -451,10 +451,12 @@ function PDVPageConteudo() {
       const venda = pedidoOS
         ? await processarVendaComOSNoPDV(pedidoOS.osId, itensParaServidor, dados.pagamentos, {
             desconto: descontoParaServidor,
+            chaveIdempotencia: dados.chaveIdempotencia,
           })
         : await processarVenda(itensParaServidor, dados.pagamentos, {
             clienteId: clienteSelecionadoId || undefined,
             desconto: descontoParaServidor,
+            chaveIdempotencia: dados.chaveIdempotencia,
           });
 
       // Venda salva com sucesso — limpa automaticamente o PDV antes de retornar
