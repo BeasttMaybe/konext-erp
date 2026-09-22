@@ -2,8 +2,13 @@ import { defineConfig } from "vitest/config";
 import { fileURLToPath } from "node:url";
 
 /**
- * Testes de dominio puro. Nao sobem Next, nao tocam banco e nao precisam de
- * variavel de ambiente: `lib/dominio/**` nao importa Prisma nem React.
+ * Ambiente padrao "node": a maioria dos testes daqui e de dominio puro
+ * (`lib/**`) — nao sobem Next, nao tocam banco e nao precisam de variavel de
+ * ambiente. Testes de componente React (`components/**\/*.test.tsx`) pedem
+ * DOM de verdade pra @testing-library/react; em vez de trocar o ambiente
+ * global (o que deixaria os testes de dominio mais lentos a toa), cada
+ * arquivo de componente declara `// @vitest-environment jsdom` no topo —
+ * ver components/pdv/balcao/lista-itens-carrinho.test.tsx.
  */
 export default defineConfig({
   resolve: {
@@ -13,6 +18,6 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["lib/**/*.test.ts"],
+    include: ["lib/**/*.test.ts", "components/**/*.test.tsx"],
   },
 });
