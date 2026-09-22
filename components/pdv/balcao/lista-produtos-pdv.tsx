@@ -64,13 +64,17 @@ export function ListaProdutosPdv({ produtos, carregando, onAdicionar }: PropsLis
             onClick={() => onAdicionar(produto)}
             disabled={semEstoque}
             title={produto.nome}
-            className="flex min-h-[68px] items-center gap-3 rounded-kx-cartao border border-kx-painel-borda bg-kx-cartao px-3 py-2.5 text-left transition-colors hover:border-kx-destaque disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex min-h-[68px] items-start gap-3 rounded-kx-cartao border border-kx-painel-borda bg-kx-cartao px-3 py-2.5 text-left transition-colors hover:border-kx-destaque disabled:cursor-not-allowed disabled:opacity-50"
           >
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-kx-botao bg-kx-superficie text-[11px] font-extrabold text-kx-texto-2">
               {siglaProduto(produto.nome)}
             </span>
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <span className="truncate text-[13px] font-bold leading-tight text-kx-texto">{produto.nome}</span>
+              {/* line-clamp-2 (nao truncate de 1 linha so): nomes como "CABO USB
+                  KAIDI 2M IOS" vs "CABO USB KAIDI 2M V8" cortavam ambos pra
+                  "CABO U…" em 1 linha e ficavam visualmente identicos no
+                  balcao — duas linhas da espaco suficiente pra diferenciar. */}
+              <span className="line-clamp-2 text-[13px] font-bold leading-tight text-kx-texto">{produto.nome}</span>
               {textoEstoque && <span className={`text-[11px] tabular-nums ${corEstoque}`}>{textoEstoque}</span>}
             </span>
             <span className="shrink-0 text-[15px] font-extrabold tabular-nums text-kx-destaque">
