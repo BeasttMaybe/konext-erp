@@ -702,8 +702,32 @@ function PDVPageConteudo() {
             nunca mais colapsa: na pior hipótese o operador rola um pouco mais
             pra ver os itens, mas eles sempre aparecem — e o Subtotal/Total/
             Finalizar continuam sempre visíveis, fixos embaixo do painel.
+
+            A LISTA DE ITENS VEM PRIMEIRO dentro dessa região (antes do
+            cartão de OS/cliente) por um motivo medido, não estético: essa
+            região rolável abre sempre com scrollTop=0. Com o cartão "Vincular
+            uma OS" + busca de cliente + aviso de Consumidor Final ANTES da
+            lista (ordem original, batendo com a referência visual), o
+            conteúdo desses blocos sozinho já passava da altura visível da
+            região em telas baixas (medido: 1366×700, 1 item só — o cartão do
+            item nascia em y=373 enquanto a janela rolável ia só até y=362,
+            ou seja, o item ficava 100% fora da área visível sem NENHUM
+            indício de que dava pra rolar pra baixo pra achá-lo). Isso é pior
+            que o bug original: a lista não estava mais colapsada a 0px, mas
+            também não aparecia sem uma rolagem que nada sugeria ser
+            necessária. Pondo a lista primeiro, ela ocupa o topo da região
+            (sempre visível na posição de rolagem inicial) e o que fica
+            "abaixo da dobra" em telas curtas é o bloco de OS/cliente — menos
+            crítico pro operador do que ver o que já está no carrinho.
           */}
-          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
+          <div className="flex min-h-[84px] flex-1 flex-col gap-3 overflow-y-auto pr-1">
+            <ListaItensCarrinho
+              itens={itens}
+              onDiminuir={(item) => alterarQuantidade(item.id, item.quantidade - 1)}
+              onAumentar={(item) => alterarQuantidade(item.id, item.quantidade + 1)}
+              onRemover={(item) => removerItem(item.id)}
+            />
+
             {carregandoPedidoOS && <p className="text-xs text-kx-legenda">Carregando dados da OS...</p>}
 
             {!carregandoPedidoOS && !pedidoOS && <CartaoVincularOS />}
@@ -787,13 +811,6 @@ function PDVPageConteudo() {
                 </button>
               </div>
             )}
-
-            <ListaItensCarrinho
-              itens={itens}
-              onDiminuir={(item) => alterarQuantidade(item.id, item.quantidade - 1)}
-              onAumentar={(item) => alterarQuantidade(item.id, item.quantidade + 1)}
-              onRemover={(item) => removerItem(item.id)}
-            />
           </div>
 
           <div className="flex shrink-0 flex-col gap-3 border-t border-kx-painel-borda pt-3">
