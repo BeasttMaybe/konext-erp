@@ -6,7 +6,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   Search,
   Trash2,
-  ShoppingCart,
   CreditCard,
   BarChart3,
   RefreshCw,
@@ -49,7 +48,7 @@ import {
 import { ChipsCategoriaPdv } from "@/components/pdv/balcao/chips-categoria-pdv";
 import { ListaProdutosPdv } from "@/components/pdv/balcao/lista-produtos-pdv";
 import { CartaoVincularOS } from "@/components/pdv/balcao/cartao-vincular-os";
-import { LinhaItemCarrinho } from "@/components/pdv/balcao/linha-item-carrinho";
+import { ListaItensCarrinho } from "@/components/pdv/balcao/lista-itens-carrinho";
 import { ControleDescontoPdv } from "@/components/pdv/balcao/controle-desconto-pdv";
 import { useCartStore, ProdutoPDV } from "@/store/useCartStore";
 import { useTemPermissao } from "@/contextos/contexto-permissoes";
@@ -672,7 +671,7 @@ function PDVPageConteudo() {
           aria-label="Carrinho"
           className="flex min-h-0 flex-col gap-3 rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-4"
         >
-          <div className="flex items-center gap-2.5">
+          <div className="flex shrink-0 items-center gap-2.5">
             <span className="text-[17px] font-extrabold text-kx-texto">Carrinho</span>
             <span className="rounded-kx-pilula bg-kx-cartao px-2.5 py-0.5 text-xs font-bold tabular-nums text-kx-texto-2">
               {itens.length} {itens.length === 1 ? "item" : "itens"}
@@ -688,111 +687,116 @@ function PDVPageConteudo() {
             )}
           </div>
 
-          {carregandoPedidoOS && <p className="text-xs text-kx-legenda">Carregando dados da OS...</p>}
+          {/*
+            OS/cliente + lista de itens compartilham UMA única região rolável
+            (em vez da lista ter seu próprio flex-1 isolado). Motivo: com o
+            painel do carrinho preso a calc(100vh-Npx), telas mais baixas (ou
+            um navegador não maximizado) somam o cabeçalho, o cartão de
+            OS/cliente e o bloco de desconto+totais a um total que pode
+            ultrapassar a altura disponível — e um flex-1 isolado pra lista,
+            sem piso mínimo, resolve isso encolhendo a lista até 0px de
+            altura real (os itens continuam no DOM, só ficam com 0px de
+            espaço visível — reproduzido via Playwright em 1366×700).
+            Agrupando tudo numa única área com overflow-y-auto e mantendo só
+            o cabeçalho e o bloco de totais como shrink-0, a lista de itens
+            nunca mais colapsa: na pior hipótese o operador rola um pouco mais
+            pra ver os itens, mas eles sempre aparecem — e o Subtotal/Total/
+            Finalizar continuam sempre visíveis, fixos embaixo do painel.
+          */}
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
+            {carregandoPedidoOS && <p className="text-xs text-kx-legenda">Carregando dados da OS...</p>}
 
-          {!carregandoPedidoOS && !pedidoOS && <CartaoVincularOS />}
+            {!carregandoPedidoOS && !pedidoOS && <CartaoVincularOS />}
 
-          {!carregandoPedidoOS && pedidoOS && (
-            <div className="flex flex-col gap-1.5 rounded-kx-cartao border border-kx-destaque/40 bg-kx-cartao p-3">
-              <div className="flex items-center justify-between gap-2">
-                <p className="flex items-center gap-1.5 text-xs font-bold text-kx-destaque">
-                  <Wrench className="h-3.5 w-3.5" aria-hidden="true" />
-                  OS #{pedidoOS.numeroOs}
-                </p>
-                <span className="rounded-kx-pilula bg-kx-entregue-fundo px-2 py-0.5 text-[10px] font-bold text-kx-entregue-texto">
-                  Vinculada
-                </span>
-              </div>
-              <p className="truncate text-sm font-semibold text-kx-texto">{pedidoOS.nomeCliente}</p>
-              <p className="truncate text-xs text-kx-texto-2">Equipamento: {pedidoOS.aparelho}</p>
-              <p className="line-clamp-2 text-xs text-kx-legenda">Defeito: {pedidoOS.defeito}</p>
-              <div className="flex items-center justify-between border-t border-kx-painel-borda pt-1.5 text-xs">
-                <span className="text-kx-legenda">Valor OS</span>
-                <span className="font-bold text-kx-destaque">{formatarMoeda(pedidoOS.valor)}</span>
-              </div>
-            </div>
-          )}
-
-          <div className="flex items-center gap-2.5 rounded-kx-cartao bg-kx-superficie px-3.5 py-3">
-            <Search className="h-[18px] w-[18px] shrink-0 text-kx-legenda" aria-hidden="true" />
-            <input
-              ref={buscaClienteRef}
-              placeholder="Cliente (opcional) — nome, CPF ou telefone"
-              value={buscaCliente}
-              onChange={(evento) => setBuscaCliente(evento.target.value)}
-              className="flex-1 bg-transparent text-[13px] text-kx-texto outline-none placeholder:text-kx-legenda"
-            />
-          </div>
-
-          {!clienteSelecionado && !buscaCliente.trim() && (
-            <p className="text-xs text-kx-legenda">
-              Sem cliente selecionado — a venda será registrada para <strong className="text-kx-texto-2">Consumidor Final</strong>.
-            </p>
-          )}
-
-          {!clienteSelecionado && !!buscaCliente.trim() && (
-            <div className="max-h-36 overflow-y-auto rounded-kx-botao border border-kx-painel-borda bg-kx-painel">
-              {carregandoClientes && <p className="p-3 text-xs text-kx-legenda">Carregando clientes...</p>}
-              {!carregandoClientes && clientesFiltrados.length === 0 && (
-                <p className="p-3 text-xs text-kx-legenda">Nenhum cliente encontrado.</p>
-              )}
-              {!carregandoClientes &&
-                clientesFiltrados.map((cliente) => (
-                  <button
-                    key={cliente.id}
-                    type="button"
-                    onClick={() => {
-                      setClienteSelecionadoId(cliente.id);
-                      setBuscaCliente(cliente.nomeRazaoSocial);
-                    }}
-                    className="w-full border-b border-kx-painel-borda px-3 py-2 text-left last:border-b-0 hover:bg-kx-cartao"
-                  >
-                    <p className="truncate text-sm font-semibold text-kx-texto">{cliente.nomeRazaoSocial}</p>
-                    <p className="truncate text-[11px] text-kx-legenda">
-                      {cliente.documento || cliente.telefone || "Sem documento informado"}
-                    </p>
-                  </button>
-                ))}
-            </div>
-          )}
-
-          {clienteSelecionado && (
-            <div className="flex items-center justify-between gap-3 rounded-kx-cartao bg-kx-sucesso-fundo px-3 py-2">
-              <p className="truncate text-sm font-semibold text-kx-sucesso-texto">{clienteSelecionado.nomeRazaoSocial}</p>
-              <button
-                type="button"
-                onClick={() => {
-                  setClienteSelecionadoId("");
-                  setBuscaCliente("");
-                }}
-                className="shrink-0 text-xs font-bold text-kx-sucesso-texto hover:opacity-80"
-              >
-                Limpar
-              </button>
-            </div>
-          )}
-
-          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
-            {itens.length === 0 && (
-              <div className="flex flex-col items-center gap-2 rounded-kx-cartao border border-dashed border-kx-campo-borda px-4 py-8 text-center">
-                <ShoppingCart className="h-5 w-5 text-kx-legenda" aria-hidden="true" />
-                <p className="text-sm font-semibold text-kx-texto">Seu carrinho está vazio</p>
-                <p className="text-xs text-kx-legenda">Clique em um produto para adicionar.</p>
+            {!carregandoPedidoOS && pedidoOS && (
+              <div className="flex flex-col gap-1.5 rounded-kx-cartao border border-kx-destaque/40 bg-kx-cartao p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="flex items-center gap-1.5 text-xs font-bold text-kx-destaque">
+                    <Wrench className="h-3.5 w-3.5" aria-hidden="true" />
+                    OS #{pedidoOS.numeroOs}
+                  </p>
+                  <span className="rounded-kx-pilula bg-kx-entregue-fundo px-2 py-0.5 text-[10px] font-bold text-kx-entregue-texto">
+                    Vinculada
+                  </span>
+                </div>
+                <p className="truncate text-sm font-semibold text-kx-texto">{pedidoOS.nomeCliente}</p>
+                <p className="truncate text-xs text-kx-texto-2">Equipamento: {pedidoOS.aparelho}</p>
+                <p className="line-clamp-2 text-xs text-kx-legenda">Defeito: {pedidoOS.defeito}</p>
+                <div className="flex items-center justify-between border-t border-kx-painel-borda pt-1.5 text-xs">
+                  <span className="text-kx-legenda">Valor OS</span>
+                  <span className="font-bold text-kx-destaque">{formatarMoeda(pedidoOS.valor)}</span>
+                </div>
               </div>
             )}
 
-            {itens.map((item) => (
-              <LinhaItemCarrinho
-                key={item.id}
-                item={item}
-                onDiminuir={() => alterarQuantidade(item.id, item.quantidade - 1)}
-                onAumentar={() => alterarQuantidade(item.id, item.quantidade + 1)}
-                onRemover={() => removerItem(item.id)}
+            <div className="flex items-center gap-2.5 rounded-kx-cartao bg-kx-superficie px-3.5 py-3">
+              <Search className="h-[18px] w-[18px] shrink-0 text-kx-legenda" aria-hidden="true" />
+              <input
+                ref={buscaClienteRef}
+                placeholder="Cliente (opcional) — nome, CPF ou telefone"
+                value={buscaCliente}
+                onChange={(evento) => setBuscaCliente(evento.target.value)}
+                className="flex-1 bg-transparent text-[13px] text-kx-texto outline-none placeholder:text-kx-legenda"
               />
-            ))}
+            </div>
+
+            {!clienteSelecionado && !buscaCliente.trim() && (
+              <p className="text-xs text-kx-legenda">
+                Sem cliente selecionado — a venda será registrada para <strong className="text-kx-texto-2">Consumidor Final</strong>.
+              </p>
+            )}
+
+            {!clienteSelecionado && !!buscaCliente.trim() && (
+              <div className="max-h-36 overflow-y-auto rounded-kx-botao border border-kx-painel-borda bg-kx-painel">
+                {carregandoClientes && <p className="p-3 text-xs text-kx-legenda">Carregando clientes...</p>}
+                {!carregandoClientes && clientesFiltrados.length === 0 && (
+                  <p className="p-3 text-xs text-kx-legenda">Nenhum cliente encontrado.</p>
+                )}
+                {!carregandoClientes &&
+                  clientesFiltrados.map((cliente) => (
+                    <button
+                      key={cliente.id}
+                      type="button"
+                      onClick={() => {
+                        setClienteSelecionadoId(cliente.id);
+                        setBuscaCliente(cliente.nomeRazaoSocial);
+                      }}
+                      className="w-full border-b border-kx-painel-borda px-3 py-2 text-left last:border-b-0 hover:bg-kx-cartao"
+                    >
+                      <p className="truncate text-sm font-semibold text-kx-texto">{cliente.nomeRazaoSocial}</p>
+                      <p className="truncate text-[11px] text-kx-legenda">
+                        {cliente.documento || cliente.telefone || "Sem documento informado"}
+                      </p>
+                    </button>
+                  ))}
+              </div>
+            )}
+
+            {clienteSelecionado && (
+              <div className="flex items-center justify-between gap-3 rounded-kx-cartao bg-kx-sucesso-fundo px-3 py-2">
+                <p className="truncate text-sm font-semibold text-kx-sucesso-texto">{clienteSelecionado.nomeRazaoSocial}</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setClienteSelecionadoId("");
+                    setBuscaCliente("");
+                  }}
+                  className="shrink-0 text-xs font-bold text-kx-sucesso-texto hover:opacity-80"
+                >
+                  Limpar
+                </button>
+              </div>
+            )}
+
+            <ListaItensCarrinho
+              itens={itens}
+              onDiminuir={(item) => alterarQuantidade(item.id, item.quantidade - 1)}
+              onAumentar={(item) => alterarQuantidade(item.id, item.quantidade + 1)}
+              onRemover={(item) => removerItem(item.id)}
+            />
           </div>
 
-          <div className="flex flex-col gap-3 border-t border-kx-painel-borda pt-3">
+          <div className="flex shrink-0 flex-col gap-3 border-t border-kx-painel-borda pt-3">
             {configuracaoPagamentosPdv && (
               <ControleDescontoPdv
                 desconto={desconto}
