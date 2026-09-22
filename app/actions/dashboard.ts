@@ -14,6 +14,7 @@ import {
   inicioDoDia as inicioDoDiaNaLoja,
   inicioDoMes as inicioDoMesNaLoja,
   somarDias,
+  somarDiasEmDataDeCalendario,
 } from "@/lib/datas";
 
 /** "custom" (Fase 2A-1): período livre escolhido no `FiltroPeriodo` — só a pill "Personalizado" da home escreve isso na URL; exige `intervaloCustom` (ver `resolverIntervaloPeriodo`) pra ter efeito, senão cai no mesmo comportamento de "hoje". */
@@ -484,30 +485,62 @@ function diferencaEmDias(inicio: Date, fim: Date): number {
  * ramos abaixo (`fimDoDia`/`inicioDoDia` sobre `agora`). Sem `intervaloCustom`,
  * `periodo === "custom"` cai no mesmo intervalo de "hoje" — nunca fica sem
  * janela nenhuma.
+ *
+ * Devolve DOIS pares de fronteira (correção da Fase 2A-2 — Caso 2 do
+ * relatório da Fase 2A-1): `inicio`/`fim` (INSTANTE, no fuso da loja — pra
+ * colunas que são instante de verdade, ex. `criadoEm`/`dataPagamento`) e
+ * `inicioCalendario`/`fimCalendario` (DATA DE CALENDÁRIO, meia-noite UTC —
+ * pra colunas de calendário, ex. `dataVencimento`). Antes desta correção,
+ * só o par de instante existia e era reaproveitado pros dois tipos de
+ * coluna em `obterDespesasPeriodo` — deslocando por até 3h (UTC−3) uma
+ * parcela pendente vencendo perto da virada do dia.
+ *
+ * `intervaloCustom.inicio`/`.fim` JÁ chegam como data de calendário — viram
+ * `inicioCalendario`/`fimCalendario` direto, sem passar por
+ * `comoDataDeCalendario` (que assumiria um INSTANTE e deslocaria o dia,
+ * exatamente o erro que essa função existe pra evitar — ver o comentário
+ * de `comoDataDeCalendario` em lib/datas.ts). Nos outros ramos, `agora` é
+ * um instante de verdade, então `comoDataDeCalendario`/
+ * `somarDiasEmDataDeCalendario` são a forma correta de derivar o par de
+ * calendário a partir dele.
  */
 function resolverIntervaloPeriodo(
   periodo: PeriodoDashboard,
   agora: Date,
   fusoHorario: string = FUSO_HORARIO_PADRAO,
   intervaloCustom?: { inicio: Date; fim: Date }
-): { inicio: Date; fim: Date } {
+): { inicio: Date; fim: Date; inicioCalendario: Date; fimCalendario: Date } {
   if (periodo === "custom" && intervaloCustom) {
     return {
       inicio: inicioDoDia(intervaloCustom.inicio, fusoHorario),
       fim: fimDoDia(intervaloCustom.fim, fusoHorario),
+      inicioCalendario: intervaloCustom.inicio,
+      fimCalendario: intervaloCustom.fim,
     };
   }
 
   const fim = fimDoDia(agora, fusoHorario);
+  const hojeCalendario = comoDataDeCalendario(agora, fusoHorario);
 
   if (periodo === "mes") {
-    return { inicio: inicioDoMes(agora, fusoHorario), fim };
+    const inicioMes = inicioDoMes(agora, fusoHorario);
+    return {
+      inicio: inicioMes,
+      fim,
+      inicioCalendario: comoDataDeCalendario(inicioMes, fusoHorario),
+      fimCalendario: hojeCalendario,
+    };
   }
 
   const diasParaTras = periodo === "7d" ? 6 : periodo === "30d" ? 29 : 0;
   const inicio = inicioDoDia(somarDias(agora, -diasParaTras, fusoHorario), fusoHorario);
 
-  return { inicio, fim };
+  return {
+    inicio,
+    fim,
+    inicioCalendario: somarDiasEmDataDeCalendario(hojeCalendario, -diasParaTras),
+    fimCalendario: hojeCalendario,
+  };
 }
 
 async function obterTicketMedioEntreguesPeriodo(
@@ -612,7 +645,9 @@ type LinhaDespesasPeriodo = {
 async function obterDespesasPeriodo(
   prismaClient: PrismaDashboardClient,
   inicio: Date,
-  fim: Date
+  fim: Date,
+  inicioCalendario: Date,
+  fimCalendario: Date
 ): Promise<{ operacionais: number; custoPecas: number; custoPdv: number }> {
   const linhas = await prismaClient.$queryRaw<LinhaDespesasPeriodo[]>`
     SELECT
@@ -623,7 +658,7 @@ async function obterDespesasPeriodo(
         LEFT JOIN "Cliente" c ON c.id = d."clienteId"
         WHERE (
             (pd."status"::text = 'PAGO' AND pd."dataPagamento" >= ${inicio} AND pd."dataPagamento" <= ${fim})
-            OR (pd."status"::text = 'PENDENTE' AND pd."dataVencimento" >= ${inicio} AND pd."dataVencimento" <= ${fim})
+            OR (pd."status"::text = 'PENDENTE' AND pd."dataVencimento" >= ${inicioCalendario} AND pd."dataVencimento" <= ${fimCalendario})
           )
           AND (c.id IS NULL OR c."papel"::text = 'FORNECEDOR')
       ) AS "operacionais",
@@ -1140,7 +1175,14 @@ async function obterFaturamentoHome(
     ),
     executarComFallback(
       "faturamentoHome.despesasPeriodo",
-      () => obterDespesasPeriodo(prisma, intervaloPeriodo.inicio, intervaloPeriodo.fim),
+      () =>
+        obterDespesasPeriodo(
+          prisma,
+          intervaloPeriodo.inicio,
+          intervaloPeriodo.fim,
+          intervaloPeriodo.inicioCalendario,
+          intervaloPeriodo.fimCalendario
+        ),
       { operacionais: 0, custoPecas: 0, custoPdv: 0 }
     ),
     executarComFallback(
