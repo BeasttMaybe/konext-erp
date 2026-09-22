@@ -1,6 +1,7 @@
 import { NewSalesOrderWizard } from "@/components/vendas/new-sales-order-wizard";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { ID_CLIENTE_CONSUMIDOR_FINAL } from "@/lib/dominio/crm/consumidor-final";
+import { deDecimal, paraMoeda } from "@/lib/dinheiro";
 
 interface PageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -80,7 +81,7 @@ export default async function NewSalesOrderPage({ searchParams }: PageProps) {
   const productOptions = stockProducts.map((product) => ({
     id: product.id,
     name: product.nome,
-    price: product.precoVenda,
+    price: paraMoeda(deDecimal(product.precoVenda)),
   }));
 
   const initialData = proposalData
@@ -88,7 +89,11 @@ export default async function NewSalesOrderPage({ searchParams }: PageProps) {
         proposalId: proposalData.id,
         clientName: proposalData.cliente,
         paymentConditions: proposalData.condicoesPagamento,
-        items: proposalData.itens,
+        items: proposalData.itens.map((item) => ({
+          ...item,
+          precoUnitario: paraMoeda(deDecimal(item.precoUnitario)),
+          descontoPercentual: Number(item.descontoPercentual),
+        })),
       }
     : null;
 

@@ -6,6 +6,7 @@ import { z } from "zod";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { exigirPermissao } from "@/lib/auth/permissoes";
 import { propostaFormSchema, type PropostaFormValues } from "@/lib/validations/propostas";
+import { aplicarPercentual, deDecimal, multiplicarPorQuantidade, paraDecimal, paraMoeda, somar, subtrair } from "@/lib/dinheiro";
 
 type PropostaStatusInput = "RASCUNHO" | "ENVIADA";
 
@@ -77,7 +78,7 @@ export async function listarProdutosProposta(): Promise<ProdutoPropostaSugestao[
       take: 300,
     });
 
-    return produtos;
+    return produtos.map((produto) => ({ ...produto, precoVenda: paraMoeda(deDecimal(produto.precoVenda)) }));
   } catch (error) {
     console.error("Erro ao listar produtos para proposta:", error);
     return [];
@@ -119,17 +120,27 @@ export async function createProposta(
       };
     }
 
-    const subtotalBruto = normalizedItems.reduce(
-      (total, item) => total + item.quantidade * item.precoUnitario,
-      0
-    );
+    // Centavo-exato (Fase 2A-2): preço unitário/desconto vêm do formulário em
+    // reais/percentual, mas toda soma/multiplicação/desconto passa por
+    // lib/dinheiro.ts — nunca ponto flutuante direto (o subtotal bruto/total
+    // gravado tinha que bater, item a item, com a soma dos subtotais de cada
+    // linha, e ponto flutuante puro não garante isso).
+    const itensComCentavos = normalizedItems.map((item) => {
+      const precoUnitarioCentavos = deDecimal(item.precoUnitario);
+      const linhaBrutaCentavos = multiplicarPorQuantidade(precoUnitarioCentavos, item.quantidade);
+      const linhaDescontoCentavos = aplicarPercentual(linhaBrutaCentavos, item.descontoPercentual);
+      const linhaSubtotalCentavos = Math.max(0, subtrair(linhaBrutaCentavos, linhaDescontoCentavos));
 
-    const descontoTotal = normalizedItems.reduce((total, item) => {
-      const lineGross = item.quantidade * item.precoUnitario;
-      return total + lineGross * (item.descontoPercentual / 100);
-    }, 0);
+      return { ...item, precoUnitarioCentavos, linhaBrutaCentavos, linhaDescontoCentavos, linhaSubtotalCentavos };
+    });
 
-    const valorTotal = Math.max(0, subtotalBruto - descontoTotal);
+    const subtotalBrutoCentavos = somar(...itensComCentavos.map((item) => item.linhaBrutaCentavos));
+    const descontoTotalCentavos = somar(...itensComCentavos.map((item) => item.linhaDescontoCentavos));
+    const valorTotalCentavos = Math.max(0, subtrair(subtotalBrutoCentavos, descontoTotalCentavos));
+
+    const subtotalBruto = paraMoeda(subtotalBrutoCentavos);
+    const descontoTotal = paraMoeda(descontoTotalCentavos);
+    const valorTotal = paraMoeda(valorTotalCentavos);
     const paymentSummary = [validated.condicoesPagamento, validated.detalhesPagamento]
       .filter((value): value is string => Boolean(value && value.trim().length > 0))
       .join(" | ");
@@ -147,23 +158,18 @@ export async function createProposta(
         condicoesPagamento: paymentSummary || null,
         termosGarantia: validated.termosGarantia,
         observacoesInternas: validated.observacoesInternas,
-        subtotalBruto,
-        descontoTotal,
-        valorTotal,
+        subtotalBruto: paraDecimal(subtotalBrutoCentavos),
+        descontoTotal: paraDecimal(descontoTotalCentavos),
+        valorTotal: paraDecimal(valorTotalCentavos),
         status,
         itens: {
-          create: normalizedItems.map((item) => {
-            const gross = item.quantidade * item.precoUnitario;
-            const subtotal = Math.max(0, gross - gross * (item.descontoPercentual / 100));
-
-            return {
-              descricao: item.descricao,
-              quantidade: item.quantidade,
-              precoUnitario: item.precoUnitario,
-              descontoPercentual: item.descontoPercentual,
-              subtotal,
-            };
-          }),
+          create: itensComCentavos.map((item) => ({
+            descricao: item.descricao,
+            quantidade: item.quantidade,
+            precoUnitario: paraDecimal(item.precoUnitarioCentavos),
+            descontoPercentual: item.descontoPercentual,
+            subtotal: paraDecimal(item.linhaSubtotalCentavos),
+          })),
         },
       },
       select: {

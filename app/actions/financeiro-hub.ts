@@ -17,9 +17,7 @@ import {
   somarDias,
   somarDiasEmDataDeCalendario,
 } from "@/lib/datas";
-
-const paraCentavos = (valor: number) => Math.round((valor + Number.EPSILON) * 100);
-const paraMoeda = (centavos: number) => centavos / 100;
+import { deDecimal, paraMoeda, somar, subtrair } from "@/lib/dinheiro";
 
 /** Nome que `os-itens.ts` grava em `Despesa.fornecedor` pra custo de peça vindo de uma OS — não existe campo de origem no schema, então é este texto exato que distingue "peça de OS" de despesa de loja de verdade (Fase 3-2D). */
 const FORNECEDOR_PECA_OS = "Custo de peça (OS)";
@@ -71,13 +69,13 @@ export async function obterSaldoEmCaixaHoje(): Promise<SaldoEmCaixaHoje> {
       AND vp."formaPagamento"::text = 'DINHEIRO'
   `;
 
-  const valorAberturaCentavos = paraCentavos(Number(caixaAberto.valorAbertura ?? 0));
-  const dinheiroVendasCentavos = paraCentavos(Number(pagamentosDinheiro[0]?.total ?? 0));
+  const valorAberturaCentavos = deDecimal(caixaAberto.valorAbertura ?? 0);
+  const dinheiroVendasCentavos = deDecimal(pagamentosDinheiro[0]?.total ?? 0);
 
   return {
-    valor: paraMoeda(valorAberturaCentavos + dinheiroVendasCentavos),
+    valor: paraMoeda(somar(valorAberturaCentavos, dinheiroVendasCentavos)),
     caixaAberto: true,
-    valorAbertura: Number(caixaAberto.valorAbertura ?? 0),
+    valorAbertura: paraMoeda(valorAberturaCentavos),
   };
 }
 
@@ -100,12 +98,18 @@ export interface AbertoComAtraso {
 
 export async function obterReceberEmAberto(): Promise<AbertoComAtraso> {
   const resumo = await obterResumoReceber({ todoPeriodo: true });
-  return { total: resumo.totalPendente + resumo.totalAtrasado, atrasado: resumo.totalAtrasado };
+  return {
+    total: paraMoeda(somar(deDecimal(resumo.totalPendente), deDecimal(resumo.totalAtrasado))),
+    atrasado: resumo.totalAtrasado,
+  };
 }
 
 export async function obterPagarEmAberto(): Promise<AbertoComAtraso> {
   const resumo = await obterResumoPagar({ todoPeriodo: true });
-  return { total: resumo.totalPendente + resumo.totalAtrasado, atrasado: resumo.totalAtrasado };
+  return {
+    total: paraMoeda(somar(deDecimal(resumo.totalPendente), deDecimal(resumo.totalAtrasado))),
+    atrasado: resumo.totalAtrasado,
+  };
 }
 
 /**
@@ -138,16 +142,13 @@ export async function obterResultadoDoMes(): Promise<ResultadoDoMes> {
     }),
   ]);
 
-  const saidasCentavos = saidasBrutas.reduce(
-    (acc, parcela) => acc + paraCentavos(Number(parcela.valorPago ?? parcela.valor ?? 0)),
-    0
-  );
-  const entradasCentavos = paraCentavos(entradas);
+  const saidasCentavos = somar(...saidasBrutas.map((parcela) => deDecimal(parcela.valorPago ?? parcela.valor ?? 0)));
+  const entradasCentavos = deDecimal(entradas);
 
   return {
     entradas,
     saidas: paraMoeda(saidasCentavos),
-    resultado: paraMoeda(entradasCentavos - saidasCentavos),
+    resultado: paraMoeda(subtrair(entradasCentavos, saidasCentavos)),
   };
 }
 
@@ -174,19 +175,29 @@ export async function obterFluxoDeCaixaSemanal(): Promise<SemanaFluxoCaixa[]> {
   const { inicio, fim } = inicioFimDoMes(hoje, contexto.fusoHorario);
 
   // Semanas parciais dentro do mês, no fuso da loja — nunca `setDate`/
-  // `setHours` crus (fuso do processo). Nota: `receber`/`dataVencimento`
-  // abaixo são DATA DE CALENDÁRIO, então comparar contra estas fronteiras
-  // de INSTANTE pode divergir por algumas horas perto da virada do dia; a
-  // correção completa (separar fronteira de instante e de calendário aqui
-  // também, como em obterProjecaoSaldo) fica para um follow-up — ver
-  // relatório da Fase 2A-1.
-  const semanas: { inicio: Date; fim: Date; projetado: boolean }[] = [];
+  // `setHours` crus (fuso do processo). Cada semana carrega DOIS pares de
+  // fronteira (correção da Fase 2A-2, Parte 1 do relatório — Caso 1): um
+  // par de INSTANTE (`inicio`/`fim`, timestamptz no fuso da loja — usado só
+  // contra `criadoEm`/`dataPagamento`, que são instantes de verdade) e um
+  // par de DATA DE CALENDÁRIO (`inicioCalendario`/`fimCalendario`, meia-noite
+  // UTC pura via `comoDataDeCalendario` — usado contra `dataVencimento`, que
+  // é sempre calendário). Antes desta correção, o par de instante era
+  // reaproveitado pros dois tipos de coluna, deslocando por até 3h (UTC−3)
+  // uma parcela vencendo bem na virada do dia — mesmo padrão já corrigido em
+  // `obterProjecaoSaldo`, agora replicado aqui.
+  const semanas: { inicio: Date; fim: Date; inicioCalendario: Date; fimCalendario: Date; projetado: boolean }[] = [];
   let cursor = inicio;
   let numero = 1;
   while (cursor <= fim) {
     const fimSemanaBruto = fimDoDia(somarDias(cursor, 6, contexto.fusoHorario), contexto.fusoHorario);
     const fimReal = fimSemanaBruto > fim ? fim : fimSemanaBruto;
-    semanas.push({ inicio: cursor, fim: fimReal, projetado: fimReal > hoje });
+    semanas.push({
+      inicio: cursor,
+      fim: fimReal,
+      inicioCalendario: comoDataDeCalendario(cursor, contexto.fusoHorario),
+      fimCalendario: comoDataDeCalendario(fimReal, contexto.fusoHorario),
+      projetado: fimReal > hoje,
+    });
     cursor = inicioDoDia(somarDias(fimReal, 1, contexto.fusoHorario), contexto.fusoHorario);
     numero += 1;
     if (numero > 6) break; // guarda-corpo — meses têm no máximo 5-6 semanas parciais
@@ -205,26 +216,29 @@ export async function obterFluxoDeCaixaSemanal(): Promise<SemanaFluxoCaixa[]> {
             select: { valorPago: true, valor: true },
           }),
         ]);
-        const entradasCentavos = vendas.reduce((acc, v) => acc + paraCentavos(Number(v.valorTotal ?? 0)), 0);
-        const saidasCentavos = pagas.reduce(
-          (acc, p) => acc + paraCentavos(Number(p.valorPago ?? p.valor ?? 0)),
-          0
-        );
+        const entradasCentavos = somar(...vendas.map((v) => deDecimal(v.valorTotal ?? 0)));
+        const saidasCentavos = somar(...pagas.map((p) => deDecimal(p.valorPago ?? p.valor ?? 0)));
         return { entradas: paraMoeda(entradasCentavos), saidas: paraMoeda(saidasCentavos) };
       }
 
       const [receber, pagar] = await Promise.all([
         prisma.contaReceber.findMany({
-          where: { status: "PENDENTE", dataVencimento: { gte: semana.inicio, lte: semana.fim } },
+          where: {
+            status: "PENDENTE",
+            dataVencimento: { gte: semana.inicioCalendario, lte: semana.fimCalendario },
+          },
           select: { valor: true },
         }),
         prisma.parcelaDespesa.findMany({
-          where: { status: "PENDENTE", dataVencimento: { gte: semana.inicio, lte: semana.fim } },
+          where: {
+            status: "PENDENTE",
+            dataVencimento: { gte: semana.inicioCalendario, lte: semana.fimCalendario },
+          },
           select: { valor: true },
         }),
       ]);
-      const entradasCentavos = receber.reduce((acc, c) => acc + paraCentavos(Number(c.valor ?? 0)), 0);
-      const saidasCentavos = pagar.reduce((acc, p) => acc + paraCentavos(Number(p.valor ?? 0)), 0);
+      const entradasCentavos = somar(...receber.map((c) => deDecimal(c.valor ?? 0)));
+      const saidasCentavos = somar(...pagar.map((p) => deDecimal(p.valor ?? 0)));
       return { entradas: paraMoeda(entradasCentavos), saidas: paraMoeda(saidasCentavos) };
     })
   );
@@ -264,11 +278,11 @@ export async function obterSaidasPorCategoria(): Promise<FatiaCategoria[]> {
   let pecaOsCentavos = 0;
   let lojaCentavos = 0;
   for (const parcela of pagas) {
-    const valorCentavos = paraCentavos(Number(parcela.valorPago ?? parcela.valor ?? 0));
+    const valorCentavos = deDecimal(parcela.valorPago ?? parcela.valor ?? 0);
     if (parcela.despesa?.fornecedor === FORNECEDOR_PECA_OS) {
-      pecaOsCentavos += valorCentavos;
+      pecaOsCentavos = somar(pecaOsCentavos, valorCentavos);
     } else {
-      lojaCentavos += valorCentavos;
+      lojaCentavos = somar(lojaCentavos, valorCentavos);
     }
   }
 
@@ -310,7 +324,7 @@ export async function obterEntradasPorForma(): Promise<FatiaCategoria[]> {
   const porRotulo = new Map<string, number>();
   for (const linha of linhas) {
     const rotulo = rotulos[linha.formaPagamento] ?? linha.formaPagamento;
-    porRotulo.set(rotulo, (porRotulo.get(rotulo) ?? 0) + paraCentavos(Number(linha.total ?? 0)));
+    porRotulo.set(rotulo, somar(porRotulo.get(rotulo) ?? 0, deDecimal(linha.total ?? 0)));
   }
 
   return Array.from(porRotulo.entries())
@@ -365,7 +379,7 @@ export async function obterPrecisaDeAtencao(limite = 8): Promise<ItemAtencao[]> 
     id: conta.id,
     tipo: "receber",
     titulo: conta.cliente?.nomeRazaoSocial || conta.descricao || "Conta a receber",
-    valor: conta.valor,
+    valor: paraMoeda(deDecimal(conta.valor)),
     dataVencimento: conta.dataVencimento,
     diasAtraso: diasDeAtraso(conta.dataVencimento),
   }));
@@ -374,7 +388,7 @@ export async function obterPrecisaDeAtencao(limite = 8): Promise<ItemAtencao[]> 
     id: parcela.id,
     tipo: "pagar",
     titulo: parcela.despesa?.fornecedor || parcela.despesa?.descricao || "Despesa",
-    valor: parcela.valor,
+    valor: paraMoeda(deDecimal(parcela.valor)),
     dataVencimento: parcela.dataVencimento,
     diasAtraso: diasDeAtraso(parcela.dataVencimento),
   }));

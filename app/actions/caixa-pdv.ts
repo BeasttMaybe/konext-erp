@@ -7,11 +7,12 @@ import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { exigirPermissao } from "@/lib/auth/permissoes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
+import { deDecimal, type EntradaDecimal, paraDecimal, paraMoeda, somar, subtrair } from "@/lib/dinheiro";
 
 type CaixaDelegate = {
-  findFirst?: (args: unknown) => Promise<{ id?: string; valorAbertura?: number; dataAbertura?: Date } | null>;
-  create?: (args: unknown) => Promise<{ id: string; valorAbertura: number; dataAbertura: Date }>;
-  update?: (args: unknown) => Promise<{ id: string; valorFechamento?: number; dataFechamento?: Date | null }>;
+  findFirst?: (args: unknown) => Promise<{ id?: string; valorAbertura?: EntradaDecimal; dataAbertura?: Date } | null>;
+  create?: (args: unknown) => Promise<{ id: string; valorAbertura: EntradaDecimal; dataAbertura: Date }>;
+  update?: (args: unknown) => Promise<{ id: string; valorFechamento?: EntradaDecimal; dataFechamento?: Date | null }>;
 };
 
 type SqlExecutor = {
@@ -56,14 +57,15 @@ async function buscarCaixaAbertoViaSql(client: SqlExecutor): Promise<{ id: strin
   return { id: String(resultado[0].id) };
 }
 
-async function criarCaixaViaSql(client: SqlExecutor, valorAbertura: number, abertoPorId: string | null) {
+async function criarCaixaViaSql(client: SqlExecutor, valorAberturaCentavos: number, abertoPorId: string | null) {
   const id = randomUUID();
+  const valorAberturaDecimal = paraDecimal(valorAberturaCentavos);
 
   const resultado = await client.$queryRaw<
-    Array<{ id: string; valorAbertura: number; dataAbertura: Date }>
+    Array<{ id: string; valorAbertura: EntradaDecimal; dataAbertura: Date }>
   >`
     INSERT INTO "CaixaSession" (id, status, "valorAbertura", "abertoPorId", "criadoEm", "atualizadoEm")
-    VALUES (${id}, 'ABERTO', ${valorAbertura}, ${abertoPorId}, NOW(), NOW())
+    VALUES (${id}, 'ABERTO', ${valorAberturaDecimal}::numeric, ${abertoPorId}, NOW(), NOW())
     RETURNING id, "valorAbertura", "dataAbertura"
   `;
 
@@ -74,19 +76,21 @@ async function criarCaixaViaSql(client: SqlExecutor, valorAbertura: number, aber
   const novo = resultado[0];
   return {
     id: String(novo.id),
-    valorAbertura: Number(novo.valorAbertura),
+    valorAberturaCentavos: deDecimal(novo.valorAbertura),
     dataAbertura: new Date(novo.dataAbertura).toISOString(),
   };
 }
 
-async function fecharCaixaViaSql(client: SqlExecutor, caixaId: string, valorFechamento: number) {
+async function fecharCaixaViaSql(client: SqlExecutor, caixaId: string, valorFechamentoCentavos: number) {
+  const valorFechamentoDecimal = paraDecimal(valorFechamentoCentavos);
+
   const resultado = await client.$queryRaw<
-    Array<{ id: string; valorFechamento: number; dataFechamento: Date }>
+    Array<{ id: string; valorFechamento: EntradaDecimal; dataFechamento: Date }>
   >`
     UPDATE "CaixaSession"
     SET
       status = 'FECHADO',
-      "valorFechamento" = ${valorFechamento},
+      "valorFechamento" = ${valorFechamentoDecimal}::numeric,
       "dataFechamento" = NOW(),
       "atualizadoEm" = NOW()
     WHERE id = ${caixaId}
@@ -100,14 +104,14 @@ async function fecharCaixaViaSql(client: SqlExecutor, caixaId: string, valorFech
   const caixaFechado = resultado[0];
   return {
     id: String(caixaFechado.id),
-    valorFechamento: Number(caixaFechado.valorFechamento),
+    valorFechamentoCentavos: deDecimal(caixaFechado.valorFechamento),
     dataFechamento: new Date(caixaFechado.dataFechamento).toISOString(),
   };
 }
 
 async function obterResumoCaixaAbertoAtualViaSql(client: SqlExecutor): Promise<ResumoCaixaAbertoAtual> {
   const caixaAberto = await client.$queryRaw<
-    Array<{ id: string; valorAbertura: number; dataAbertura: Date }>
+    Array<{ id: string; valorAbertura: EntradaDecimal; dataAbertura: Date }>
   >`
     SELECT id, "valorAbertura", "dataAbertura"
     FROM "CaixaSession"
@@ -121,22 +125,22 @@ async function obterResumoCaixaAbertoAtualViaSql(client: SqlExecutor): Promise<R
   }
 
   const caixaId = String(caixaAberto[0].id);
-  const valorAbertura = Number(caixaAberto[0].valorAbertura ?? 0);
+  const valorAberturaCentavos = deDecimal(caixaAberto[0].valorAbertura ?? 0);
   const dataAbertura = new Date(caixaAberto[0].dataAbertura).toISOString();
 
-  const totaisVenda = await client.$queryRaw<Array<{ total: number }>>`
+  const totaisVenda = await client.$queryRaw<Array<{ total: EntradaDecimal }>>`
     SELECT COALESCE(SUM("valorTotal"), 0) AS total
     FROM "Venda"
     WHERE "caixaSessionId" = ${caixaId}
   `;
 
-  const totalVendasSessao = Number(totaisVenda?.[0]?.total ?? 0);
+  const totalVendasSessaoCentavos = deDecimal(totaisVenda?.[0]?.total ?? 0);
 
   return {
     caixaId,
-    valorAbertura,
-    totalVendasSessao,
-    valorSugeridoFechamento: valorAbertura + totalVendasSessao,
+    valorAbertura: paraMoeda(valorAberturaCentavos),
+    totalVendasSessao: paraMoeda(totalVendasSessaoCentavos),
+    valorSugeridoFechamento: paraMoeda(somar(valorAberturaCentavos, totalVendasSessaoCentavos)),
     dataAbertura,
   };
 }
@@ -163,20 +167,20 @@ async function obterResumoCaixaAbertoAtualInterno(client: CaixaClient): Promise<
       throw new Error("Nao existe caixa aberto para fechamento.");
     }
 
-    const totaisVenda = await client.$queryRaw<Array<{ total: number }>>`
+    const totaisVenda = await client.$queryRaw<Array<{ total: EntradaDecimal }>>`
       SELECT COALESCE(SUM("valorTotal"), 0) AS total
       FROM "Venda"
       WHERE "caixaSessionId" = ${String(caixaAberto.id)}
     `;
 
-    const valorAbertura = Number(caixaAberto.valorAbertura ?? 0);
-    const totalVendasSessao = Number(totaisVenda?.[0]?.total ?? 0);
+    const valorAberturaCentavos = deDecimal(caixaAberto.valorAbertura ?? 0);
+    const totalVendasSessaoCentavos = deDecimal(totaisVenda?.[0]?.total ?? 0);
 
     return {
       caixaId: String(caixaAberto.id),
-      valorAbertura,
-      totalVendasSessao,
-      valorSugeridoFechamento: valorAbertura + totalVendasSessao,
+      valorAbertura: paraMoeda(valorAberturaCentavos),
+      totalVendasSessao: paraMoeda(totalVendasSessaoCentavos),
+      valorSugeridoFechamento: paraMoeda(somar(valorAberturaCentavos, totalVendasSessaoCentavos)),
       dataAbertura: new Date(caixaAberto.dataAbertura).toISOString(),
     };
   }
@@ -217,16 +221,20 @@ export async function abrirNovaCaixaSession(valorAbertura: number) {
   exigirPermissao(contexto, "caixa.abrir");
   const { prisma } = contexto;
 
-  const valorNumerico = Number(valorAbertura);
+  // Canonicaliza o valor recebido do formulario (reais, possivelmente com
+  // ruido de ponto flutuante) atraves de centavos ANTES de gravar — nunca
+  // grava o float cru, mesmo que a coluna Decimal(12,2) tambem arredondasse
+  // sozinha no INSERT (defesa em profundidade, ver lib/dinheiro.ts).
+  const valorAberturaCentavos = deDecimal(valorAbertura);
 
-  if (!Number.isFinite(valorNumerico) || valorNumerico < 0) {
+  if (!Number.isFinite(valorAberturaCentavos) || valorAberturaCentavos < 0) {
     throw new Error("Informe um valor inicial válido para abrir o caixa.");
   }
 
   const novaSessao = await prisma.$transaction(async (tx) => {
     const txAny = tx as CaixaClient;
     const txCaixaDelegate = obterCaixaDelegate(txAny);
-    let resultado: { id: string; valorAbertura: number; dataAbertura: string };
+    let resultado: { id: string; valorAberturaCentavos: number; dataAbertura: string };
 
     if (txCaixaDelegate?.findFirst && txCaixaDelegate?.create) {
       const caixaAberto = await txCaixaDelegate.findFirst({
@@ -245,7 +253,7 @@ export async function abrirNovaCaixaSession(valorAbertura: number) {
       const sessao = await txCaixaDelegate.create({
         data: {
           status: "ABERTO",
-          valorAbertura: valorNumerico,
+          valorAbertura: paraDecimal(valorAberturaCentavos),
           abertoPorId: contexto.usuarioOperacional.id || null,
         },
         select: {
@@ -257,7 +265,7 @@ export async function abrirNovaCaixaSession(valorAbertura: number) {
 
       resultado = {
         id: String(sessao.id),
-        valorAbertura: Number(sessao.valorAbertura),
+        valorAberturaCentavos: deDecimal(sessao.valorAbertura),
         dataAbertura: new Date(sessao.dataAbertura).toISOString(),
       };
     } else {
@@ -267,7 +275,7 @@ export async function abrirNovaCaixaSession(valorAbertura: number) {
         throw new Error("Ja existe um caixa aberto. Feche o caixa atual antes de abrir um novo.");
       }
 
-      resultado = await criarCaixaViaSql(txAny, valorNumerico, contexto.usuarioOperacional.id || null);
+      resultado = await criarCaixaViaSql(txAny, valorAberturaCentavos, contexto.usuarioOperacional.id || null);
     }
 
     await registrarLogAuditoria(
@@ -278,7 +286,7 @@ export async function abrirNovaCaixaSession(valorAbertura: number) {
         entidade: ENTIDADES_AUDITORIA.CAIXA_SESSION,
         entidadeId: resultado.id,
         dadosDepois: {
-          valorAberturaCentavos: Math.round(resultado.valorAbertura * 100),
+          valorAberturaCentavos: resultado.valorAberturaCentavos,
           dataAbertura: resultado.dataAbertura,
         },
       }
@@ -291,7 +299,7 @@ export async function abrirNovaCaixaSession(valorAbertura: number) {
 
   return {
     id: novaSessao.id,
-    valorAbertura: novaSessao.valorAbertura,
+    valorAbertura: paraMoeda(novaSessao.valorAberturaCentavos),
     dataAbertura: novaSessao.dataAbertura,
   };
 }
@@ -302,14 +310,6 @@ export async function obterResumoCaixaAbertoAtual(): Promise<ResumoCaixaAbertoAt
   const prismaAny = contexto.prisma as CaixaClient;
   return obterResumoCaixaAbertoAtualInterno(prismaAny);
 }
-
-// Soma de muitos valores em ponto flutuante (um por venda) acumula erro de
-// arredondamento (0.1 + 0.2 !== 0.3) — o suficiente pra "contagem bate
-// exatamente" nunca fechar em zero. Mesmo padrão centavos-inteiros de
-// app/actions/caixa.ts, duplicado aqui (não importado) porque os dois
-// arquivos são deliberadamente desacoplados nesta fase.
-const paraCentavos = (valor: number) => Math.round((valor + Number.EPSILON) * 100);
-const paraMoeda = (centavos: number) => centavos / 100;
 
 export interface FormaPagamentoResumoSessao {
   formaPagamento: string;
@@ -363,11 +363,13 @@ export async function obterResumoSessaoAbertaDetalhado(): Promise<ResumoSessaoAb
   });
 
   const idsVenda = vendas.map((venda) => venda.id);
-  let pagamentos: Array<{ vendaId: string; formaPagamento: string; valorBruto: number }> = [];
+  let pagamentos: Array<{ vendaId: string; formaPagamento: string; valorBruto: EntradaDecimal }> = [];
 
   if (idsVenda.length > 0) {
     try {
-      pagamentos = await prisma.$queryRaw<Array<{ vendaId: string; formaPagamento: string; valorBruto: number }>>`
+      pagamentos = await prisma.$queryRaw<
+        Array<{ vendaId: string; formaPagamento: string; valorBruto: EntradaDecimal }>
+      >`
         SELECT vp."vendaId" AS "vendaId", vp."formaPagamento"::text AS "formaPagamento", vp."valorBruto" AS "valorBruto"
         FROM "VendaPagamento" vp
         WHERE vp."vendaId" IN (${Prisma.join(idsVenda)})
@@ -377,26 +379,26 @@ export async function obterResumoSessaoAbertaDetalhado(): Promise<ResumoSessaoAb
     }
   }
 
-  const mapaPagamentosPorVenda = new Map<string, Array<{ formaPagamento: string; valorBruto: number }>>();
+  const mapaPagamentosPorVenda = new Map<string, Array<{ formaPagamento: string; valorBrutoCentavos: number }>>();
   for (const pagamento of pagamentos) {
     const lista = mapaPagamentosPorVenda.get(pagamento.vendaId) ?? [];
-    lista.push({ formaPagamento: pagamento.formaPagamento, valorBruto: Number(pagamento.valorBruto ?? 0) });
+    lista.push({ formaPagamento: pagamento.formaPagamento, valorBrutoCentavos: deDecimal(pagamento.valorBruto ?? 0) });
     mapaPagamentosPorVenda.set(pagamento.vendaId, lista);
   }
 
   const mapaTotaisPorFormaCentavos = new Map<string, number>();
-  const registrarForma = (forma: string, valor: number) => {
-    mapaTotaisPorFormaCentavos.set(forma, (mapaTotaisPorFormaCentavos.get(forma) ?? 0) + paraCentavos(valor));
+  const registrarForma = (forma: string, valorCentavos: number) => {
+    mapaTotaisPorFormaCentavos.set(forma, somar(mapaTotaisPorFormaCentavos.get(forma) ?? 0, valorCentavos));
   };
 
   for (const venda of vendas) {
     const pagamentosDaVenda = mapaPagamentosPorVenda.get(venda.id) ?? [];
     if (pagamentosDaVenda.length > 0) {
       for (const pagamento of pagamentosDaVenda) {
-        registrarForma(pagamento.formaPagamento || "NAO_INFORMADO", pagamento.valorBruto);
+        registrarForma(pagamento.formaPagamento || "NAO_INFORMADO", pagamento.valorBrutoCentavos);
       }
     } else {
-      registrarForma(venda.formaPagamento || "NAO_INFORMADO", venda.valorTotal);
+      registrarForma(venda.formaPagamento || "NAO_INFORMADO", deDecimal(venda.valorTotal));
     }
   }
 
@@ -404,21 +406,22 @@ export async function obterResumoSessaoAbertaDetalhado(): Promise<ResumoSessaoAb
     .map(([formaPagamento, totalCentavos]) => ({ formaPagamento, total: paraMoeda(totalCentavos) }))
     .sort((a, b) => b.total - a.total);
 
-  const totalVendasSessaoCentavos = paraCentavos(resumoBase.totalVendasSessao);
+  const totalVendasSessaoCentavos = deDecimal(resumoBase.totalVendasSessao);
   const totalDinheiroCentavos = mapaTotaisPorFormaCentavos.get("DINHEIRO") ?? 0;
   // Tudo que nao e dinheiro (cartao, PIX, boleto, crediario, empenho...) vira
   // "Cartao e PIX" nos 3 cartoes — rotulo pragmatico pro balde de "nao esta
   // na gaveta", nao uma enumeracao literal dos 10 valores de FormaPagamento.
   const totalDinheiroSessao = paraMoeda(totalDinheiroCentavos);
-  const totalCartaoPixSessao = paraMoeda(Math.max(totalVendasSessaoCentavos - totalDinheiroCentavos, 0));
+  const totalCartaoPixSessao = paraMoeda(Math.max(subtrair(totalVendasSessaoCentavos, totalDinheiroCentavos), 0));
   const quantidadeVendas = vendas.length;
-  const ticketMedio = quantidadeVendas > 0 ? resumoBase.totalVendasSessao / quantidadeVendas : 0;
+  const ticketMedio =
+    quantidadeVendas > 0 ? paraMoeda(Math.round(totalVendasSessaoCentavos / quantidadeVendas)) : 0;
 
   const movimentos: MovimentoCaixaSessao[] = vendas.map((venda) => ({
     id: venda.id,
     hora: new Date(venda.criadoEm).toISOString(),
     descricao: venda.cliente?.nomeRazaoSocial ?? "Cliente não identificado",
-    valor: venda.valorTotal,
+    valor: paraMoeda(deDecimal(venda.valorTotal)),
   }));
 
   return {
@@ -434,7 +437,7 @@ export async function obterResumoSessaoAbertaDetalhado(): Promise<ResumoSessaoAb
     // Soma em centavos inteiros: em float puro, "abertura + dinheiro" as
     // vezes fecha em 1409.8899999999999 em vez de 1409.89, e a contagem as
     // cegas nunca bate mesmo quando o operador digita o valor certo.
-    dinheiroEsperadoGaveta: paraMoeda(paraCentavos(resumoBase.valorAbertura) + totalDinheiroCentavos),
+    dinheiroEsperadoGaveta: paraMoeda(somar(deDecimal(resumoBase.valorAbertura), totalDinheiroCentavos)),
     porForma,
     movimentos,
   };
@@ -446,16 +449,17 @@ export async function fecharCaixaSessionAtual(valorFechamento?: number | null, o
   exigirPermissao(contexto, "caixa.fechar");
   const { prisma } = contexto;
 
-  const valorInformado = Number(valorFechamento);
+  const valorInformadoCentavos = valorFechamento != null ? deDecimal(valorFechamento) : null;
 
   const fechamento = await prisma.$transaction(async (tx) => {
     const txAny = tx as CaixaClient;
     const txCaixaDelegate = obterCaixaDelegate(txAny);
     const resumoAtual = await obterResumoCaixaAbertoAtualInterno(txAny);
-    const valorFinal = Number.isFinite(valorInformado) && valorInformado >= 0
-      ? valorInformado
-      : resumoAtual.valorSugeridoFechamento;
-    let resultado: { id: string; valorFechamento: number; dataFechamento: string };
+    const valorFinalCentavos =
+      valorInformadoCentavos !== null && valorInformadoCentavos >= 0
+        ? valorInformadoCentavos
+        : deDecimal(resumoAtual.valorSugeridoFechamento);
+    let resultado: { id: string; valorFechamentoCentavos: number; dataFechamento: string };
 
     if (txCaixaDelegate?.findFirst && txCaixaDelegate?.update) {
       const caixaFechado = await txCaixaDelegate.update({
@@ -464,7 +468,7 @@ export async function fecharCaixaSessionAtual(valorFechamento?: number | null, o
         },
         data: {
           status: "FECHADO",
-          valorFechamento: valorFinal,
+          valorFechamento: paraDecimal(valorFinalCentavos),
           dataFechamento: new Date(),
         },
         select: {
@@ -476,11 +480,11 @@ export async function fecharCaixaSessionAtual(valorFechamento?: number | null, o
 
       resultado = {
         id: String(caixaFechado.id),
-        valorFechamento: Number(caixaFechado.valorFechamento ?? valorFinal),
+        valorFechamentoCentavos: deDecimal(caixaFechado.valorFechamento ?? paraDecimal(valorFinalCentavos)),
         dataFechamento: new Date(caixaFechado.dataFechamento ?? new Date()).toISOString(),
       };
     } else {
-      resultado = await fecharCaixaViaSql(txAny, resumoAtual.caixaId, valorFinal);
+      resultado = await fecharCaixaViaSql(txAny, resumoAtual.caixaId, valorFinalCentavos);
     }
 
     // CaixaSession nao tem campo de observacao (sem migração nesta fase) — o
@@ -499,9 +503,9 @@ export async function fecharCaixaSessionAtual(valorFechamento?: number | null, o
         entidadeId: resultado.id,
         motivo: observacaoNormalizada,
         dadosDepois: {
-          valorAberturaCentavos: Math.round(resumoAtual.valorAbertura * 100),
-          valorFechamentoCentavos: Math.round(resultado.valorFechamento * 100),
-          totalVendasSessaoCentavos: Math.round(resumoAtual.totalVendasSessao * 100),
+          valorAberturaCentavos: deDecimal(resumoAtual.valorAbertura),
+          valorFechamentoCentavos: resultado.valorFechamentoCentavos,
+          totalVendasSessaoCentavos: deDecimal(resumoAtual.totalVendasSessao),
           dataFechamento: resultado.dataFechamento,
         },
       }
@@ -512,5 +516,9 @@ export async function fecharCaixaSessionAtual(valorFechamento?: number | null, o
 
   revalidatePath("/pdv");
 
-  return fechamento;
+  return {
+    id: fechamento.id,
+    valorFechamento: paraMoeda(fechamento.valorFechamentoCentavos),
+    dataFechamento: fechamento.dataFechamento,
+  };
 }

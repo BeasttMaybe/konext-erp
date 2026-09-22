@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { exigirPermissao } from "@/lib/auth/permissoes";
 import { mensagemDeErroConhecido } from "@/lib/erros";
+import { deDecimal, paraMoeda } from "@/lib/dinheiro";
 
 export interface ContaReceberFinanceiro {
   id: string;
@@ -56,7 +57,7 @@ export async function listarContasReceber(): Promise<ContaReceberFinanceiro[]> {
       },
     });
 
-    return contas;
+    return contas.map((conta) => ({ ...conta, valor: paraMoeda(deDecimal(conta.valor)) }));
   } catch (erro) {
     console.error("Erro ao listar contas a receber:", erro);
     return [];

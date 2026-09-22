@@ -4,6 +4,7 @@ import PropostaPdfViewer from "@/components/pdf/proposta-pdf-viewer";
 import type { CompanyPdfInfo, ProposalPdfData } from "@/components/pdf/PropostaPDF";
 import { montarResumoEmpresaDocumentos } from "@/lib/configuracoes-documentos";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
+import { deDecimal, paraMoeda } from "@/lib/dinheiro";
 
 type ProposalPrintPageProps = {
   params: Promise<{ id: string }>;
@@ -67,17 +68,17 @@ export default async function ProposalPrintPage({ params }: ProposalPrintPagePro
     equipamento: proposal.equipamento,
     defeito: proposal.defeito,
     introducao: proposal.introducao,
-    subtotalBruto: proposal.subtotalBruto,
-    descontoTotal: proposal.descontoTotal,
-    valorTotal: proposal.valorTotal,
+    subtotalBruto: paraMoeda(deDecimal(proposal.subtotalBruto)),
+    descontoTotal: paraMoeda(deDecimal(proposal.descontoTotal)),
+    valorTotal: paraMoeda(deDecimal(proposal.valorTotal)),
     condicoesPagamento: proposal.condicoesPagamento,
     termosGarantia: proposal.termosGarantia,
     itens: proposal.itens.map((item) => ({
       id: item.id,
       descricao: item.descricao,
       quantidade: item.quantidade,
-      precoUnitario: item.precoUnitario,
-      subtotal: item.subtotal,
+      precoUnitario: paraMoeda(deDecimal(item.precoUnitario)),
+      subtotal: paraMoeda(deDecimal(item.subtotal)),
     })),
   };
 

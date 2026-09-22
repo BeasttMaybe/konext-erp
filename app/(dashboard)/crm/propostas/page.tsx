@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ProposalActionsCell } from "@/components/crm/proposal-actions-cell";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
+import { deDecimal, type EntradaDecimal, formatarReais } from "@/lib/dinheiro";
 import {
   Table,
   TableBody,
@@ -40,11 +41,7 @@ const statusClassMap: Record<ProposalStatus, string> = {
   REJEITADA: "border-rose-500/30 bg-rose-500/10 text-rose-300",
 };
 
-const formatCurrency = (value: number) =>
-  new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  }).format(value);
+const formatCurrency = (value: EntradaDecimal) => formatarReais(deDecimal(value));
 
 const formatDate = (value: Date) =>
   new Intl.DateTimeFormat("pt-BR", {

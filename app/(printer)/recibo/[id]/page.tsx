@@ -3,6 +3,7 @@ import { obterConfiguracoes } from "@/app/actions/configuracoes";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { ImpressaoAutomaticaRecibo } from "@/components/pdv/impressao-automatica-recibo";
 import { montarResumoEmpresaDocumentos } from "@/lib/configuracoes-documentos";
+import { deDecimal, formatarReais, paraMoeda, somar } from "@/lib/dinheiro";
 
 type PropsReciboPage = {
   params: Promise<{
@@ -40,11 +41,11 @@ type VendaReciboView = {
   }>;
 };
 
-const formatarMoeda = (valor: number) =>
-  new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  }).format(valor);
+// Formatação de dinheiro delega inteiramente pra lib/dinheiro.ts (Fase
+// 2A-2) — `venda.valorTotal`/`desconto`/item.*/pagamento.valorBruto já
+// chegam convertidos pra número (reais) na borda (carregarVendaRecibo
+// abaixo), então formatar aqui é só reconverter pra centavos e formatar.
+const formatarMoeda = (valorEmReais: number) => formatarReais(deDecimal(valorEmReais));
 
 const formatarDataHora = (data: Date) =>
   new Intl.DateTimeFormat("pt-BR", {
@@ -136,8 +137,8 @@ export default async function ReciboPage({ params, searchParams }: PropsReciboPa
         id: vendaComPagamentos.id,
         criadoEm: vendaComPagamentos.criadoEm,
         formaPagamento: vendaComPagamentos.formaPagamento,
-        valorTotal: vendaComPagamentos.valorTotal,
-        desconto: vendaComPagamentos.desconto ?? 0,
+        valorTotal: paraMoeda(deDecimal(vendaComPagamentos.valorTotal)),
+        desconto: paraMoeda(deDecimal(vendaComPagamentos.desconto ?? 0)),
         cliente: vendaComPagamentos.cliente
           ? {
               nomeRazaoSocial: vendaComPagamentos.cliente.nomeRazaoSocial,
@@ -148,13 +149,13 @@ export default async function ReciboPage({ params, searchParams }: PropsReciboPa
           id: item.id,
           descricao: item.descricao,
           quantidade: item.quantidade,
-          precoUnitario: item.precoUnitario,
-          subtotal: item.subtotal,
+          precoUnitario: paraMoeda(deDecimal(item.precoUnitario)),
+          subtotal: paraMoeda(deDecimal(item.subtotal)),
           produto: item.produto ? { nome: item.produto.nome } : null,
         })),
         pagamentos: vendaComPagamentos.pagamentos.map((pagamento) => ({
           formaPagamento: pagamento.formaPagamento,
-          valorBruto: pagamento.valorBruto,
+          valorBruto: paraMoeda(deDecimal(pagamento.valorBruto)),
         })),
       };
     } catch {
@@ -165,8 +166,8 @@ export default async function ReciboPage({ params, searchParams }: PropsReciboPa
         id: vendaLegada.id,
         criadoEm: vendaLegada.criadoEm,
         formaPagamento: vendaLegada.formaPagamento,
-        valorTotal: vendaLegada.valorTotal,
-        desconto: vendaLegada.desconto ?? 0,
+        valorTotal: paraMoeda(deDecimal(vendaLegada.valorTotal)),
+        desconto: paraMoeda(deDecimal(vendaLegada.desconto ?? 0)),
         cliente: vendaLegada.cliente
           ? {
               nomeRazaoSocial: vendaLegada.cliente.nomeRazaoSocial,
@@ -177,8 +178,8 @@ export default async function ReciboPage({ params, searchParams }: PropsReciboPa
           id: item.id,
           descricao: item.descricao,
           quantidade: item.quantidade,
-          precoUnitario: item.precoUnitario,
-          subtotal: item.subtotal,
+          precoUnitario: paraMoeda(deDecimal(item.precoUnitario)),
+          subtotal: paraMoeda(deDecimal(item.subtotal)),
           produto: item.produto ? { nome: item.produto.nome } : null,
         })),
         pagamentos: [],
@@ -318,7 +319,7 @@ export default async function ReciboPage({ params, searchParams }: PropsReciboPa
         <div className="space-y-1 text-sm">
           <div className="flex items-center justify-between">
             <span>Subtotal</span>
-            <span>{formatarMoeda(venda.valorTotal + (venda.desconto ?? 0))}</span>
+            <span>{formatarMoeda(paraMoeda(somar(deDecimal(venda.valorTotal), deDecimal(venda.desconto ?? 0))))}</span>
           </div>
           <div className="flex items-center justify-between">
             <span>Desconto</span>

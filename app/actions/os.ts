@@ -36,6 +36,7 @@ import {
   type RegrasConfiguracaoFinalizacao,
 } from "@/lib/dominio/os/regras-finalizacao";
 import { ErroNegocio, paraMensagemSegura } from "@/lib/erros";
+import { deDecimal, type EntradaDecimal, paraDecimal, paraMoeda, somar } from "@/lib/dinheiro";
 
 type PrismaTenant = Awaited<ReturnType<typeof exigirContextoTenant>>["prisma"];
 
@@ -139,14 +140,11 @@ function mapearOrdemServicoDashboard(order: RawOrdemServico, podeVerCustos: bool
     descricao: String(item.descricao ?? ""),
     // F-41: custo/margem só vai para o cliente com os.ver_custos. Omitido no
     // mapeamento do servidor — nunca filtrado na UI.
-    custoPeca: podeVerCustos ? Number(item.custoPeca ?? 0) : null,
-    valorCobrado: Number(item.valorCobrado ?? 0),
+    custoPeca: podeVerCustos ? paraMoeda(deDecimal(item.custoPeca as EntradaDecimal ?? 0)) : null,
+    valorCobrado: paraMoeda(deDecimal(item.valorCobrado as EntradaDecimal ?? 0)),
   }));
 
-  const totalOrcamento = itensOrcamento.reduce(
-    (total: number, item: { valorCobrado: number }) => total + item.valorCobrado,
-    0
-  );
+  const totalOrcamento = paraMoeda(somar(...itensOrcamento.map((item) => deDecimal(item.valorCobrado))));
 
   return {
     id: String(order.id),
@@ -210,7 +208,7 @@ type ItemOSCreateManyDelegate = {
 };
 
 type OrdemServicoPedidoItem = {
-  valorCobrado?: number | null;
+  valorCobrado?: EntradaDecimal | null;
 };
 
 type OrdemServicoPedido = {
@@ -2125,10 +2123,8 @@ export async function gerarPedidoVendaPorOS(osId: string) {
     throw new Error("Para enviar ao PDV, cadastre pelo menos uma peca ou servico na OS.");
   }
 
-  const totalPedido = (os.itens ?? []).reduce((acumulado: number, item: OrdemServicoPedidoItem) => {
-    const valor = typeof item.valorCobrado === "number" ? item.valorCobrado : Number(item.valorCobrado ?? 0);
-    return acumulado + (Number.isFinite(valor) ? valor : 0);
-  }, 0);
+  const totalPedidoCentavos = somar(...(os.itens ?? []).map((item: OrdemServicoPedidoItem) => deDecimal(item.valorCobrado ?? 0)));
+  const totalPedido = paraMoeda(totalPedidoCentavos);
 
   if (totalPedido <= 0) {
     throw new Error("Nao foi possivel gerar o pedido: a OS nao possui valor de itens maior que zero.");
@@ -2152,8 +2148,8 @@ export async function gerarPedidoVendaPorOS(osId: string) {
       data: {
         clienteId: String(os.clienteId),
         formaPagamento: "PIX",
-        valorTotal: totalPedido,
-        desconto: 0,
+        valorTotal: paraDecimal(totalPedidoCentavos),
+        desconto: paraDecimal(0),
       },
       select: {
         id: true,
@@ -2163,7 +2159,7 @@ export async function gerarPedidoVendaPorOS(osId: string) {
     await txContaReceber.create({
       data: {
         descricao: `OS #${String(os.numeroOs)} - Pedido de venda`,
-        valor: totalPedido,
+        valor: paraDecimal(totalPedidoCentavos),
         clienteId: String(os.clienteId),
         ordemServicoId: String(os.id),
         vendaId: String(novaVenda.id),

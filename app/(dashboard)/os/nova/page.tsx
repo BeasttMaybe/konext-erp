@@ -1,5 +1,6 @@
 import { OrdemServicoForm, type OrdemServicoFormInitialData } from "@/components/os/ordem-servico-form";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
+import { deDecimal, paraMoeda } from "@/lib/dinheiro";
 
 interface OSNewPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -49,7 +50,12 @@ export default async function OSNewPage({ searchParams }: OSNewPageProps) {
         clientName: proposal.cliente,
         equipment: proposal.equipamento,
         reportedDefect: proposal.defeito,
-        items: proposal.itens,
+        items: proposal.itens.map((item) => ({
+          ...item,
+          precoUnitario: paraMoeda(deDecimal(item.precoUnitario)),
+          subtotal: paraMoeda(deDecimal(item.subtotal)),
+          descontoPercentual: Number(item.descontoPercentual),
+        })),
       }
     : null;
 

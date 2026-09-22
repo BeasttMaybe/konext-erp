@@ -7,6 +7,7 @@ import { mensagemDeErroConhecido } from "@/lib/erros";
 import { obterIdUsuarioOperacionalOuNulo } from "@/lib/tenant/usuario-operacional";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
+import { deDecimal, paraMoeda } from "@/lib/dinheiro";
 import {
   agoraNaLoja,
   FUSO_HORARIO_PADRAO,
@@ -590,7 +591,7 @@ async function executarCalculoMetaAutomatica(
         _sum: { valor: true },
       });
 
-      return { sucesso: true, valorAtual: agregado._sum.valor ?? 0 };
+      return { sucesso: true, valorAtual: agregado._sum.valor !== null ? paraMoeda(deDecimal(agregado._sum.valor)) : 0 };
     }
 
     if (meta.metricaAutomatica === "QUANTIDADE_OS_FINALIZADAS") {
@@ -634,7 +635,7 @@ async function executarCalculoMetaAutomatica(
         _avg: { valor: true },
       });
 
-      return { sucesso: true, valorAtual: agregado._avg.valor ?? 0 };
+      return { sucesso: true, valorAtual: agregado._avg.valor !== null ? paraMoeda(deDecimal(agregado._avg.valor)) : 0 };
     }
 
     if (meta.metricaAutomatica === "RETORNOS_GARANTIA") {
@@ -693,7 +694,7 @@ async function executarCalculoMetaAutomatica(
       }
 
       const agregado = await prismaClient.contaReceber.aggregate({ where, _sum: { valor: true } });
-      return { sucesso: true, valorAtual: agregado._sum.valor ?? 0 };
+      return { sucesso: true, valorAtual: agregado._sum.valor !== null ? paraMoeda(deDecimal(agregado._sum.valor)) : 0 };
     }
 
     if (meta.metricaAutomatica === "DESPESAS_FINANCEIRO") {
@@ -707,7 +708,10 @@ async function executarCalculoMetaAutomatica(
         _sum: { valorPago: true },
       });
 
-      return { sucesso: true, valorAtual: agregado._sum.valorPago ?? 0 };
+      return {
+        sucesso: true,
+        valorAtual: agregado._sum.valorPago !== null ? paraMoeda(deDecimal(agregado._sum.valorPago)) : 0,
+      };
     }
 
     if (meta.metricaAutomatica === "FATURAMENTO_PDV") {
@@ -721,7 +725,7 @@ async function executarCalculoMetaAutomatica(
       }
 
       const agregado = await prismaClient.contaReceber.aggregate({ where, _sum: { valor: true } });
-      return { sucesso: true, valorAtual: agregado._sum.valor ?? 0 };
+      return { sucesso: true, valorAtual: agregado._sum.valor !== null ? paraMoeda(deDecimal(agregado._sum.valor)) : 0 };
     }
 
     if (meta.metricaAutomatica === "QUANTIDADE_VENDAS") {

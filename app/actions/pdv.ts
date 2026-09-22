@@ -30,6 +30,7 @@ import {
 } from "@/lib/dominio/pdv/calcular-venda";
 import { registrarLogAuditoria, contextoAuditoriaDoUsuario } from "@/lib/auditoria";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
+import { deDecimal } from "@/lib/dinheiro";
 import {
   ID_CLIENTE_CONSUMIDOR_FINAL,
   ehClienteConsumidorFinal,
@@ -812,7 +813,7 @@ export async function listarProdutosPDV(): Promise<ProdutoPDVBanco[]> {
   return produtos.map((produto) => ({
     id: produto.id,
     nome: produto.nome,
-    preco: produto.precoVenda,
+    preco: paraMoeda(deDecimal(produto.precoVenda)),
     imagemUrl: produto.imagemUrl,
     categoria: produto.categoria,
     quantidadeEstoque: produto.quantidadeEstoque,
@@ -854,7 +855,16 @@ async function carregarProdutosParaVenda(
     },
   });
 
-  const mapa = new Map(produtos.map((produto) => [produto.id, produto]));
+  const mapa = new Map(
+    produtos.map((produto) => [
+      produto.id,
+      {
+        ...produto,
+        precoVenda: paraMoeda(deDecimal(produto.precoVenda)),
+        custo: paraMoeda(deDecimal(produto.custo)),
+      },
+    ])
+  );
 
   for (const id of idsProdutos) {
     const produto = mapa.get(id);

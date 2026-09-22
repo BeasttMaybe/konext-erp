@@ -5,18 +5,20 @@ import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { exigirPermissao } from "@/lib/auth/permissoes";
 import { escopoCaixaSession } from "@/lib/auth/escopos";
 import { fimDoDia, inicioDoDia } from "@/lib/datas";
+import { deDecimal, type EntradaDecimal, paraMoeda, somar, subtrair } from "@/lib/dinheiro";
 
-type OrdemServicoCustoItem = { custoPeca?: number | null };
+type OrdemServicoCustoItem = { custoPeca?: EntradaDecimal | null };
 type OrdemServicoCustoRow = { itens?: OrdemServicoCustoItem[] };
 
 type OrdemServicoResumoDelegate = {
   findMany?: (args: unknown) => Promise<OrdemServicoCustoRow[]>;
 };
 
-type VendaResumoItem = { custoUnitario?: number | null; quantidade?: number | null; subtotal?: number | null };
-type VendaResumoPagamento = { formaPagamento?: string | null; valorBruto?: number | null };
+type VendaResumoItem = { custoUnitario?: EntradaDecimal | null; quantidade?: number | null; subtotal?: EntradaDecimal | null };
+type VendaResumoPagamento = { formaPagamento?: string | null; valorBruto?: EntradaDecimal | null };
 type VendaResumoRow = {
-  valorTotal?: number | null;
+  id: string;
+  valorTotal?: EntradaDecimal | null;
   formaPagamento?: string | null;
   pagamentos?: VendaResumoPagamento[];
   itens?: VendaResumoItem[];
@@ -64,9 +66,6 @@ export interface SessaoFechadaResumoDiario {
   valorEsperadoFechamento: number;
   diferencaFechamento: number;
 }
-
-const paraCentavos = (valor: number) => Math.round((valor + Number.EPSILON) * 100);
-const paraMoeda = (centavos: number) => centavos / 100;
 
 export async function obterResumoCaixaDiario(): Promise<ResumoCaixaDiario> {
   const contexto = await exigirContextoTenant();
@@ -121,9 +120,11 @@ export async function obterResumoCaixaDiario(): Promise<ResumoCaixaDiario> {
       return vendasBase.map((venda) => ({ ...venda, pagamentos: [] as VendaResumoPagamento[] }));
     }
 
-    let pagamentos: Array<{ vendaId: string; formaPagamento: string; valorBruto: number }> = [];
+    let pagamentos: Array<{ vendaId: string; formaPagamento: string; valorBruto: EntradaDecimal }> = [];
     try {
-      pagamentos = await prisma.$queryRaw<Array<{ vendaId: string; formaPagamento: string; valorBruto: number }>>`
+      pagamentos = await prisma.$queryRaw<
+        Array<{ vendaId: string; formaPagamento: string; valorBruto: EntradaDecimal }>
+      >`
         SELECT vp."vendaId" AS "vendaId", vp."formaPagamento"::text AS "formaPagamento", vp."valorBruto" AS "valorBruto"
         FROM "VendaPagamento" vp
         WHERE vp."vendaId" IN (${Prisma.join(idsVenda)})
@@ -138,7 +139,7 @@ export async function obterResumoCaixaDiario(): Promise<ResumoCaixaDiario> {
       const listaAtual = mapaPagamentos.get(pagamento.vendaId) ?? [];
       listaAtual.push({
         formaPagamento: pagamento.formaPagamento,
-        valorBruto: Number(pagamento.valorBruto ?? 0),
+        valorBruto: pagamento.valorBruto ?? 0,
       });
       mapaPagamentos.set(pagamento.vendaId, listaAtual);
     }
@@ -165,48 +166,45 @@ export async function obterResumoCaixaDiario(): Promise<ResumoCaixaDiario> {
       : Promise.resolve([]),
   ]);
 
-  const totalVendasCentavos = vendasHoje.reduce(
-    (acumulado: number, venda: typeof vendasHoje[number]) => acumulado + paraCentavos(venda.valorTotal),
-    0
+  const totalVendasCentavos = somar(
+    ...vendasHoje.map((venda: typeof vendasHoje[number]) => deDecimal(venda.valorTotal))
   );
 
   // Custo PDV: custoUnitario * quantidade por item de venda
-  const custoPdvCentavos = vendasHoje.reduce((acumuladoVendas: number, venda: typeof vendasHoje[number]) => {
-    const custoVendaCentavos = venda.itens.reduce((acumuladoItens: number, item: typeof venda.itens[number]) => {
-      const custoUnitarioCentavos = paraCentavos(item.custoUnitario);
-      return acumuladoItens + custoUnitarioCentavos * item.quantidade;
-    }, 0);
-
-    return acumuladoVendas + custoVendaCentavos;
-  }, 0);
+  const custoPdvCentavos = somar(
+    ...vendasHoje.map((venda: typeof vendasHoje[number]) =>
+      somar(
+        ...venda.itens.map((item: typeof venda.itens[number]) => deDecimal(item.custoUnitario) * item.quantidade)
+      )
+    )
+  );
 
   // Custo OS: soma de custoPeca de cada ItemOS das OS entregues hoje
-  const custoOsCentavos = osEntreguesHoje.reduce((accOs: number, os: OrdemServicoCustoRow) => {
-    return accOs + (os.itens ?? []).reduce(
-      (accItens: number, item: OrdemServicoCustoItem) => accItens + paraCentavos(Number(item.custoPeca ?? 0)),
-      0
-    );
-  }, 0);
+  const custoOsCentavos = somar(
+    ...osEntreguesHoje.map((os: OrdemServicoCustoRow) =>
+      somar(...(os.itens ?? []).map((item: OrdemServicoCustoItem) => deDecimal(item.custoPeca ?? 0)))
+    )
+  );
 
-  const custoTotalCentavos = custoPdvCentavos + custoOsCentavos;
+  const custoTotalCentavos = somar(custoPdvCentavos, custoOsCentavos);
 
-  const lucroBrutoCentavos = totalVendasCentavos - custoTotalCentavos;
+  const lucroBrutoCentavos = subtrair(totalVendasCentavos, custoTotalCentavos);
 
   const vendas: VendaResumoDiario[] = vendasHoje.map((venda) => ({
     id: venda.id,
     criadoEm: venda.criadoEm,
-    valorTotal: venda.valorTotal,
+    valorTotal: paraMoeda(deDecimal(venda.valorTotal)),
     formaPagamento: venda.formaPagamento || "NAO_INFORMADO",
     pagamentos: (venda.pagamentos ?? []).map((pagamento) => ({
       formaPagamento: pagamento.formaPagamento || "NAO_INFORMADO",
-      valorBruto: Number(pagamento.valorBruto ?? 0),
+      valorBruto: paraMoeda(deDecimal(pagamento.valorBruto ?? 0)),
     })),
     nomeCliente: venda.cliente?.nomeRazaoSocial ?? null,
     itens: venda.itens.map((item) => ({
       id: item.id,
       quantidade: item.quantidade,
-      custoUnitario: item.custoUnitario,
-      subtotal: item.subtotal,
+      custoUnitario: paraMoeda(deDecimal(item.custoUnitario)),
+      subtotal: paraMoeda(deDecimal(item.subtotal)),
       nomeProduto: item.descricao || item.produto?.nome || "Item sem descricao",
     })),
   }));
@@ -218,17 +216,14 @@ export async function obterResumoCaixaDiario(): Promise<ResumoCaixaDiario> {
       for (const pagamento of venda.pagamentos ?? []) {
         const formaPagamento = pagamento.formaPagamento || "NAO_INFORMADO";
         const acumuladoAtual = mapaTotaisPorForma.get(formaPagamento) ?? 0;
-        mapaTotaisPorForma.set(
-          formaPagamento,
-          acumuladoAtual + paraCentavos(Number(pagamento.valorBruto ?? 0))
-        );
+        mapaTotaisPorForma.set(formaPagamento, somar(acumuladoAtual, deDecimal(pagamento.valorBruto ?? 0)));
       }
       continue;
     }
 
     const formaPagamento = venda.formaPagamento || "NAO_INFORMADO";
     const acumuladoAtual = mapaTotaisPorForma.get(formaPagamento) ?? 0;
-    mapaTotaisPorForma.set(formaPagamento, acumuladoAtual + paraCentavos(venda.valorTotal));
+    mapaTotaisPorForma.set(formaPagamento, somar(acumuladoAtual, deDecimal(venda.valorTotal)));
   }
 
   const totaisPorFormaPagamento: TotalPorFormaPagamentoDiario[] = Array.from(
@@ -243,9 +238,9 @@ export async function obterResumoCaixaDiario(): Promise<ResumoCaixaDiario> {
       id: string;
       dataAbertura: Date;
       dataFechamento: Date;
-      valorAbertura: number;
-      valorFechamento: number;
-      totalVendasSessao: number;
+      valorAbertura: EntradaDecimal;
+      valorFechamento: EntradaDecimal;
+      totalVendasSessao: EntradaDecimal;
     }>
   >`
     SELECT
@@ -265,10 +260,10 @@ export async function obterResumoCaixaDiario(): Promise<ResumoCaixaDiario> {
   `;
 
   const sessoesFechadasHoje: SessaoFechadaResumoDiario[] = sessoesFechadasRaw.map((sessao) => {
-    const valorAberturaCentavos = paraCentavos(Number(sessao.valorAbertura ?? 0));
-    const totalVendasSessaoCentavos = paraCentavos(Number(sessao.totalVendasSessao ?? 0));
-    const valorFechamentoCentavos = paraCentavos(Number(sessao.valorFechamento ?? 0));
-    const valorEsperadoCentavos = valorAberturaCentavos + totalVendasSessaoCentavos;
+    const valorAberturaCentavos = deDecimal(sessao.valorAbertura ?? 0);
+    const totalVendasSessaoCentavos = deDecimal(sessao.totalVendasSessao ?? 0);
+    const valorFechamentoCentavos = deDecimal(sessao.valorFechamento ?? 0);
+    const valorEsperadoCentavos = somar(valorAberturaCentavos, totalVendasSessaoCentavos);
 
     return {
       id: String(sessao.id),
@@ -278,7 +273,7 @@ export async function obterResumoCaixaDiario(): Promise<ResumoCaixaDiario> {
       valorFechamento: paraMoeda(valorFechamentoCentavos),
       totalVendasSessao: paraMoeda(totalVendasSessaoCentavos),
       valorEsperadoFechamento: paraMoeda(valorEsperadoCentavos),
-      diferencaFechamento: paraMoeda(valorFechamentoCentavos - valorEsperadoCentavos),
+      diferencaFechamento: paraMoeda(subtrair(valorFechamentoCentavos, valorEsperadoCentavos)),
     };
   });
 
@@ -368,9 +363,9 @@ export async function obterHistoricoFechamentos(
     Array<{
       id: string;
       dataFechamento: Date;
-      valorAbertura: number;
-      valorFechamento: number;
-      totalVendasSessao: number;
+      valorAbertura: EntradaDecimal;
+      valorFechamento: EntradaDecimal;
+      totalVendasSessao: EntradaDecimal;
       abertoPorNome: string | null;
     }>
   >`
@@ -394,17 +389,17 @@ export async function obterHistoricoFechamentos(
   `;
 
   const data = linhas.map((row) => {
-    const valorAberturaCentavos = paraCentavos(Number(row.valorAbertura ?? 0));
-    const totalVendasCentavos = paraCentavos(Number(row.totalVendasSessao ?? 0));
-    const valorFechamentoCentavos = paraCentavos(Number(row.valorFechamento ?? 0));
-    const valorEsperadoCentavos = valorAberturaCentavos + totalVendasCentavos;
+    const valorAberturaCentavos = deDecimal(row.valorAbertura ?? 0);
+    const totalVendasCentavos = deDecimal(row.totalVendasSessao ?? 0);
+    const valorFechamentoCentavos = deDecimal(row.valorFechamento ?? 0);
+    const valorEsperadoCentavos = somar(valorAberturaCentavos, totalVendasCentavos);
 
     return {
       id: String(row.id),
       dataFechamento: new Date(row.dataFechamento),
       valorFechamento: paraMoeda(valorFechamentoCentavos),
       totalVendas: paraMoeda(totalVendasCentavos),
-      diferenca: paraMoeda(valorFechamentoCentavos - valorEsperadoCentavos),
+      diferenca: paraMoeda(subtrair(valorFechamentoCentavos, valorEsperadoCentavos)),
       abertoPorNome: row.abertoPorNome ?? null,
     };
   });
@@ -447,7 +442,7 @@ export async function obterResumoDataEspecifica(
   const ordemServicoDelegate = prismaAny.ordemServico ?? prismaAny.OrdemServico;
 
   const buscarVendasData = async () => {
-    const vendasBase = await prisma.venda.findMany({
+    const vendasBase: VendaResumoRow[] = await prisma.venda.findMany({
       where: { criadoEm: { gte: inicioData, lte: fimData } },
       select: {
         id: true,
@@ -462,9 +457,11 @@ export async function obterResumoDataEspecifica(
       return vendasBase.map((venda) => ({ ...venda, pagamentos: [] as VendaResumoPagamento[] }));
     }
 
-    let pagamentos: Array<{ vendaId: string; formaPagamento: string; valorBruto: number }> = [];
+    let pagamentos: Array<{ vendaId: string; formaPagamento: string; valorBruto: EntradaDecimal }> = [];
     try {
-      pagamentos = await prisma.$queryRaw<Array<{ vendaId: string; formaPagamento: string; valorBruto: number }>>`
+      pagamentos = await prisma.$queryRaw<
+        Array<{ vendaId: string; formaPagamento: string; valorBruto: EntradaDecimal }>
+      >`
         SELECT vp."vendaId" AS "vendaId", vp."formaPagamento"::text AS "formaPagamento", vp."valorBruto" AS "valorBruto"
         FROM "VendaPagamento" vp
         WHERE vp."vendaId" IN (${Prisma.join(idsVenda)})
@@ -479,7 +476,7 @@ export async function obterResumoDataEspecifica(
       const listaAtual = mapaPagamentos.get(pagamento.vendaId) ?? [];
       listaAtual.push({
         formaPagamento: pagamento.formaPagamento,
-        valorBruto: Number(pagamento.valorBruto ?? 0),
+        valorBruto: pagamento.valorBruto ?? 0,
       });
       mapaPagamentos.set(pagamento.vendaId, listaAtual);
     }
@@ -500,26 +497,25 @@ export async function obterResumoDataEspecifica(
       : Promise.resolve([]),
   ]);
 
-  const totalVendasCentavos = vendasData.reduce((acc: number, v: VendaResumoRow) => {
-    return acc + paraCentavos(Number(v.valorTotal ?? 0));
-  }, 0);
+  const totalVendasCentavos = somar(...vendasData.map((v: VendaResumoRow) => deDecimal(v.valorTotal ?? 0)));
 
-  const custoPdvCentavos = vendasData.reduce((accV: number, v: VendaResumoRow) => {
-    return accV + (v.itens ?? []).reduce(
-      (accI: number, item: VendaResumoItem) =>
-        accI + paraCentavos(Number(item.custoUnitario ?? 0)) * Number(item.quantidade ?? 1),
-      0
-    );
-  }, 0);
+  const custoPdvCentavos = somar(
+    ...vendasData.map((v: VendaResumoRow) =>
+      somar(
+        ...(v.itens ?? []).map(
+          (item: VendaResumoItem) => deDecimal(item.custoUnitario ?? 0) * Number(item.quantidade ?? 1)
+        )
+      )
+    )
+  );
 
-  const custoOsCentavos = osEntreguesData.reduce((accOs: number, os: OrdemServicoCustoRow) => {
-    return accOs + (os.itens ?? []).reduce(
-      (accI: number, item: OrdemServicoCustoItem) => accI + paraCentavos(Number(item.custoPeca ?? 0)),
-      0
-    );
-  }, 0);
+  const custoOsCentavos = somar(
+    ...osEntreguesData.map((os: OrdemServicoCustoRow) =>
+      somar(...(os.itens ?? []).map((item: OrdemServicoCustoItem) => deDecimal(item.custoPeca ?? 0)))
+    )
+  );
 
-  const custoTotalCentavos = custoPdvCentavos + custoOsCentavos;
+  const custoTotalCentavos = somar(custoPdvCentavos, custoOsCentavos);
 
   // Agrupa por forma de pagamento
   const mapaFormas: Record<string, number> = {};
@@ -527,13 +523,13 @@ export async function obterResumoDataEspecifica(
     if ((v.pagamentos?.length ?? 0) > 0) {
       v.pagamentos?.forEach((pagamento) => {
         const forma = String(pagamento.formaPagamento ?? "OUTROS");
-        mapaFormas[forma] = (mapaFormas[forma] ?? 0) + paraCentavos(Number(pagamento.valorBruto ?? 0));
+        mapaFormas[forma] = somar(mapaFormas[forma] ?? 0, deDecimal(pagamento.valorBruto ?? 0));
       });
       return;
     }
 
     const forma = String(v.formaPagamento ?? "OUTROS");
-    mapaFormas[forma] = (mapaFormas[forma] ?? 0) + paraCentavos(Number(v.valorTotal ?? 0));
+    mapaFormas[forma] = somar(mapaFormas[forma] ?? 0, deDecimal(v.valorTotal ?? 0));
   });
 
   const totaisPorFormaPagamento: TotalPorFormaPagamentoDiario[] = Object.entries(mapaFormas)
@@ -546,7 +542,7 @@ export async function obterResumoDataEspecifica(
   return {
     totalVendas: paraMoeda(totalVendasCentavos),
     custoTotal: paraMoeda(custoTotalCentavos),
-    lucroBruto: paraMoeda(totalVendasCentavos - custoTotalCentavos),
+    lucroBruto: paraMoeda(subtrair(totalVendasCentavos, custoTotalCentavos)),
     totaisPorFormaPagamento,
   };
 }

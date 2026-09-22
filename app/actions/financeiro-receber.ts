@@ -8,6 +8,7 @@ import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 import { paraMensagemSegura } from "@/lib/erros";
 import { comoDataDeCalendario, dataDeCalendario, FUSO_HORARIO_PADRAO, fimDoMes, inicioDoMes } from "@/lib/datas";
+import { deDecimal, dividirEmParcelas, paraDecimal, paraMoeda, somar } from "@/lib/dinheiro";
 
 /**
  * Antes, criarContaReceber/darBaixaConta/editarContaReceber/excluirContaReceber
@@ -18,14 +19,6 @@ import { comoDataDeCalendario, dataDeCalendario, FUSO_HORARIO_PADRAO, fimDoMes, 
  * a mensagem como dado (Fase 1B-UI, Parte 1).
  */
 export type ResultadoAcaoContaReceber = { sucesso: true } | { sucesso: false; mensagem: string };
-
-function paraCentavos(valor: number) {
-  return Math.round((valor + Number.EPSILON) * 100);
-}
-
-function paraMoeda(centavos: number) {
-  return centavos / 100;
-}
 
 function adicionarMeses(dataBase: Date, meses: number) {
   const data = new Date(dataBase);
@@ -101,16 +94,18 @@ export async function listarContasReceber(): Promise<ContaReceberFinanceiro[]> {
     RECEBIDO: 4,
   };
 
-  return contas.sort((a, b) => {
-    const prioridadeA = prioridadePorStatus[a.status];
-    const prioridadeB = prioridadePorStatus[b.status];
+  return contas
+    .map((conta) => ({ ...conta, valor: paraMoeda(deDecimal(conta.valor)) }))
+    .sort((a, b) => {
+      const prioridadeA = prioridadePorStatus[a.status];
+      const prioridadeB = prioridadePorStatus[b.status];
 
-    if (prioridadeA !== prioridadeB) {
-      return prioridadeA - prioridadeB;
-    }
+      if (prioridadeA !== prioridadeB) {
+        return prioridadeA - prioridadeB;
+      }
 
-    return a.dataVencimento.getTime() - b.dataVencimento.getTime();
-  });
+      return a.dataVencimento.getTime() - b.dataVencimento.getTime();
+    });
 }
 
 export interface CriarContaReceberInput {
@@ -142,23 +137,20 @@ async function criarContaReceberInterno(input: CriarContaReceberInput): Promise<
   const usuario = contexto.usuarioOperacional;
 
   const qtdParcelas = Math.max(1, Math.trunc(input.qtdParcelas || 1));
-  const valorTotalCentavos = paraCentavos(input.valorTotal);
+  const valorTotalCentavos = deDecimal(input.valorTotal);
 
   if (valorTotalCentavos <= 0) {
     throw new Error("Valor total invalido para criar conta a receber.");
   }
 
-  const valorBaseCentavos = Math.floor(valorTotalCentavos / qtdParcelas);
-  const restoCentavos = valorTotalCentavos - valorBaseCentavos * qtdParcelas;
+  const parcelasCentavos = dividirEmParcelas(valorTotalCentavos, qtdParcelas);
   const parcelamentoId = qtdParcelas > 1 ? crypto.randomUUID() : null;
   const observacaoLancamento = input.observacaoLancamento?.trim() || null;
 
-  const contas = Array.from({ length: qtdParcelas }).map((_, indice) => {
-    const valorParcelaCentavos = valorBaseCentavos + (indice < restoCentavos ? 1 : 0);
-
+  const contas = parcelasCentavos.map((valorParcelaCentavos, indice) => {
     return {
       descricao: input.descricao,
-      valor: paraMoeda(valorParcelaCentavos),
+      valor: paraDecimal(valorParcelaCentavos),
       clienteId: input.clienteId || null,
       dataVencimento: adicionarMeses(input.dataVencimentoPrimeiraParcela, indice),
       formaRecebimento: input.formaRecebimento,
@@ -243,7 +235,7 @@ async function aplicarBaixaConta(
   id: string,
   observacaoPagamento: string | undefined,
   usuario: { id?: string | null } | null | undefined
-): Promise<{ valor: number }> {
+): Promise<{ valorCentavos: number }> {
   const momentoBaixa = new Date();
   const observacao = observacaoPagamento?.trim() || null;
 
@@ -289,7 +281,7 @@ async function aplicarBaixaConta(
         },
       }
     );
-    return { valor: contaAtual.valor };
+    return { valorCentavos: deDecimal(contaAtual.valor) };
   }
 
   const pendentesNoGrupo = await tx.contaReceber.count({
@@ -332,7 +324,7 @@ async function aplicarBaixaConta(
     }
   );
 
-  return { valor: contaAtual.valor };
+  return { valorCentavos: deDecimal(contaAtual.valor) };
 }
 
 export type ResultadoAcaoLote =
@@ -367,8 +359,8 @@ export async function darBaixaContasEmLote(
       let acumuladoCentavos = 0;
 
       for (const id of idsUnicos) {
-        const { valor } = await aplicarBaixaConta(tx, id, observacaoPagamento, usuario);
-        acumuladoCentavos += paraCentavos(valor);
+        const { valorCentavos } = await aplicarBaixaConta(tx, id, observacaoPagamento, usuario);
+        acumuladoCentavos = somar(acumuladoCentavos, valorCentavos);
       }
 
       const idLote = crypto.randomUUID();
@@ -444,7 +436,7 @@ async function editarContaReceberInterno(id: string, input: EditarContaReceberIn
     where: { id },
     data: {
       dataVencimento: input.dataVencimento,
-      valor: input.valor,
+      valor: paraDecimal(deDecimal(input.valor)),
     },
   });
 
@@ -612,12 +604,14 @@ export async function listarContasReceberFiltradas(
     RECEBIDO: 4,
   };
 
-  return (contas as unknown as ContaReceberFinanceiro[]).sort((a, b) => {
-    const pa = prioridadePorStatus[a.status];
-    const pb = prioridadePorStatus[b.status];
-    if (pa !== pb) return pa - pb;
-    return new Date(a.dataVencimento).getTime() - new Date(b.dataVencimento).getTime();
-  });
+  return (contas as unknown as ContaReceberFinanceiro[])
+    .map((conta) => ({ ...conta, valor: paraMoeda(deDecimal(conta.valor)) }))
+    .sort((a, b) => {
+      const pa = prioridadePorStatus[a.status];
+      const pb = prioridadePorStatus[b.status];
+      if (pa !== pb) return pa - pb;
+      return new Date(a.dataVencimento).getTime() - new Date(b.dataVencimento).getTime();
+    });
 }
 
 /**
@@ -639,13 +633,14 @@ export async function obterResumoReceber(filtros?: FiltrosReceber): Promise<Resu
   // como instante. Ver lib/datas.ts (`comoDataDeCalendario`).
   const hoje = comoDataDeCalendario(new Date(), fusoHorario);
 
-  let totalPendente = 0;
-  let totalAtrasado = 0;
-  let totalRecebido = 0;
-  let totalPeriodo = 0;
+  let totalPendenteCentavos = 0;
+  let totalAtrasadoCentavos = 0;
+  let totalRecebidoCentavos = 0;
+  let totalPeriodoCentavos = 0;
 
   for (const conta of contas) {
-    totalPeriodo += conta.valor;
+    const valorCentavos = deDecimal(conta.valor);
+    totalPeriodoCentavos = somar(totalPeriodoCentavos, valorCentavos);
     // dataVencimento já é uma DATA DE CALENDÁRIO (meia-noite UTC) — nunca
     // reconverter via comoDataDeCalendario, que assumiria um instante
     // qualquer e deslocaria o dia. Compara direto contra `hoje`, que já
@@ -653,13 +648,18 @@ export async function obterResumoReceber(filtros?: FiltrosReceber): Promise<Resu
     const vencimento = conta.dataVencimento;
 
     if (conta.status === "RECEBIDO") {
-      totalRecebido += conta.valor;
+      totalRecebidoCentavos = somar(totalRecebidoCentavos, valorCentavos);
     } else if (conta.status === "ATRASADO" || vencimento < hoje) {
-      totalAtrasado += conta.valor;
+      totalAtrasadoCentavos = somar(totalAtrasadoCentavos, valorCentavos);
     } else if (conta.status === "PENDENTE" || conta.status === "RENEGOCIADO") {
-      totalPendente += conta.valor;
+      totalPendenteCentavos = somar(totalPendenteCentavos, valorCentavos);
     }
   }
 
-  return { totalPendente, totalAtrasado, totalRecebido, totalPeriodo };
+  return {
+    totalPendente: paraMoeda(totalPendenteCentavos),
+    totalAtrasado: paraMoeda(totalAtrasadoCentavos),
+    totalRecebido: paraMoeda(totalRecebidoCentavos),
+    totalPeriodo: paraMoeda(totalPeriodoCentavos),
+  };
 }

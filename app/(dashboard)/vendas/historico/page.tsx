@@ -30,15 +30,12 @@ import { FiltroPeriodoPagina } from "@/components/ui/filtro-periodo-pagina";
 import { calcularPresetEsteMes, validarIntervalo } from "@/lib/filtro-periodo";
 import { dataDeCalendario, fimDoDia, inicioDoDia } from "@/lib/datas";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
+import { deDecimal, type EntradaDecimal, formatarReais, paraMoeda } from "@/lib/dinheiro";
 
 const ITEMS_PER_PAGE = 10;
 type PrismaTenant = Awaited<ReturnType<typeof exigirContextoTenant>>["prisma"];
 
-const formatCurrency = (value: number) =>
-  new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  }).format(value);
+const formatCurrency = (value: EntradaDecimal) => formatarReais(deDecimal(value));
 
 const paymentMethodLabelMap: Record<string, string> = {
   PIX: "PIX",
@@ -188,7 +185,17 @@ async function carregarPedidosHistorico(
       take,
     });
 
-    return pedidos;
+    return pedidos.map((pedido) => ({
+      ...pedido,
+      venda: pedido.venda
+        ? {
+            pagamentos: pedido.venda.pagamentos.map((pagamento) => ({
+              formaPagamento: pagamento.formaPagamento,
+              valorBruto: paraMoeda(deDecimal(pagamento.valorBruto)),
+            })),
+          }
+        : null,
+    }));
   } catch {
     const pedidosLegado = await prisma.pedidoVenda.findMany({
       where,
@@ -211,7 +218,7 @@ async function carregarPedidosHistorico(
     const pagamentosPorVenda = await prisma.$queryRaw<Array<{
       vendaId: string;
       formaPagamento: string;
-      valorBruto: number;
+      valorBruto: Prisma.Decimal;
     }>>`
       SELECT vp."vendaId" AS "vendaId", vp."formaPagamento"::text AS "formaPagamento", vp."valorBruto" AS "valorBruto"
       FROM "VendaPagamento" vp
@@ -224,7 +231,7 @@ async function carregarPedidosHistorico(
       const atual = mapaPagamentos.get(pagamento.vendaId) ?? [];
       atual.push({
         formaPagamento: pagamento.formaPagamento,
-        valorBruto: Number(pagamento.valorBruto ?? 0),
+        valorBruto: paraMoeda(deDecimal(pagamento.valorBruto ?? 0)),
       });
       mapaPagamentos.set(pagamento.vendaId, atual);
     }
@@ -616,7 +623,7 @@ export default async function SalesHistoryPage({ searchParams }: PageProps) {
                                 numeroPedido: order.numeroPedido,
                                 status: order.status,
                                 origem: order.origem,
-                                total: order.total,
+                                total: paraMoeda(deDecimal(order.total)),
                                 vendedor: order.vendedor,
                                 formaPagamento: order.formaPagamento,
                                 pagamentos: orderPayments,
@@ -624,9 +631,13 @@ export default async function SalesHistoryPage({ searchParams }: PageProps) {
                                   order.cliente?.nomeFantasia?.trim() ||
                                   order.cliente?.nomeRazaoSocial ||
                                   "Cliente não informado",
-                                itens: order.itens,
+                                itens: order.itens.map((item) => ({
+                                  ...item,
+                                  precoUnitario: paraMoeda(deDecimal(item.precoUnitario)),
+                                })),
                                 parcelas: order.parcelas.map((installment) => ({
                                   ...installment,
+                                  valor: paraMoeda(deDecimal(installment.valor)),
                                   dataVencimento: installment.dataVencimento.toISOString(),
                                 })),
                               }}

@@ -13,9 +13,7 @@ import {
   somarDias,
   somarDiasEmDataDeCalendario,
 } from "@/lib/datas";
-
-const paraCentavos = (valor: number) => Math.round((valor + Number.EPSILON) * 100);
-const paraMoeda = (centavos: number) => centavos / 100;
+import { deDecimal, paraMoeda, somar, subtrair } from "@/lib/dinheiro";
 
 /** Chave "yyyy-MM-dd" de uma DATA DE CALENDÁRIO (meia-noite UTC) — sempre lida em UTC, nunca no fuso do processo. */
 function chaveDiaCalendario(data: Date): string {
@@ -86,16 +84,16 @@ export async function obterProjecaoSaldo(dias = 30): Promise<ProjecaoSaldo> {
   const entradasPorDia = new Map<string, number>();
   for (const conta of receber) {
     const chave = chaveDiaCalendario(conta.dataVencimento);
-    entradasPorDia.set(chave, (entradasPorDia.get(chave) ?? 0) + paraCentavos(conta.valor));
+    entradasPorDia.set(chave, somar(entradasPorDia.get(chave) ?? 0, deDecimal(conta.valor)));
   }
 
   const saidasPorDia = new Map<string, number>();
   for (const parcela of pagar) {
     const chave = chaveDiaCalendario(parcela.dataVencimento);
-    saidasPorDia.set(chave, (saidasPorDia.get(chave) ?? 0) + paraCentavos(parcela.valor));
+    saidasPorDia.set(chave, somar(saidasPorDia.get(chave) ?? 0, deDecimal(parcela.valor)));
   }
 
-  let saldoCentavos = paraCentavos(saldoHoje.valor);
+  let saldoCentavos = deDecimal(saldoHoje.valor);
   const pontos: PontoProjecaoSaldo[] = [];
 
   for (let indice = 0; indice <= dias; indice += 1) {
@@ -103,7 +101,7 @@ export async function obterProjecaoSaldo(dias = 30): Promise<ProjecaoSaldo> {
     const chave = chaveDiaCalendario(data);
     const entradasCentavos = entradasPorDia.get(chave) ?? 0;
     const saidasCentavos = saidasPorDia.get(chave) ?? 0;
-    saldoCentavos += entradasCentavos - saidasCentavos;
+    saldoCentavos = somar(saldoCentavos, subtrair(entradasCentavos, saidasCentavos));
 
     pontos.push({
       data,
@@ -161,7 +159,7 @@ export async function obterProximosLancamentos(dias = 7): Promise<ProximosLancam
     id: conta.id,
     tipo: "receber",
     titulo: conta.cliente?.nomeRazaoSocial || conta.descricao || "Conta a receber",
-    valor: conta.valor,
+    valor: paraMoeda(deDecimal(conta.valor)),
     dataVencimento: conta.dataVencimento,
   }));
 
@@ -169,7 +167,7 @@ export async function obterProximosLancamentos(dias = 7): Promise<ProximosLancam
     id: parcela.id,
     tipo: "pagar",
     titulo: parcela.despesa?.fornecedor || parcela.despesa?.descricao || "Despesa",
-    valor: parcela.valor,
+    valor: paraMoeda(deDecimal(parcela.valor)),
     dataVencimento: parcela.dataVencimento,
   }));
 
@@ -178,7 +176,7 @@ export async function obterProximosLancamentos(dias = 7): Promise<ProximosLancam
   );
 
   const resultadoCentavos = itens.reduce((acc, item) => {
-    const valorCentavos = paraCentavos(item.valor);
+    const valorCentavos = deDecimal(item.valor);
     return acc + (item.tipo === "receber" ? valorCentavos : -valorCentavos);
   }, 0);
 
@@ -199,7 +197,7 @@ export async function obterPrevistoXRecebido(): Promise<PrevistoXRecebido> {
     return { percentual: 0, naoRecebido: 0 };
   }
   const percentual = Math.round((resumo.totalRecebido / resumo.totalPeriodo) * 100);
-  const naoRecebidoCentavos = paraCentavos(resumo.totalPendente) + paraCentavos(resumo.totalAtrasado);
+  const naoRecebidoCentavos = somar(deDecimal(resumo.totalPendente), deDecimal(resumo.totalAtrasado));
   return { percentual, naoRecebido: paraMoeda(naoRecebidoCentavos) };
 }
 
@@ -224,7 +222,7 @@ async function calcularEntradasSaidas(inicio: Date, fim: Date, prisma: PrismaTen
       select: { valorPago: true, valor: true },
     }),
   ]);
-  const saidasCentavos = saidasBrutas.reduce((acc, p) => acc + paraCentavos(Number(p.valorPago ?? p.valor ?? 0)), 0);
+  const saidasCentavos = somar(...saidasBrutas.map((p) => deDecimal(p.valorPago ?? p.valor ?? 0)));
   return { entradas, saidas: paraMoeda(saidasCentavos) };
 }
 
@@ -249,9 +247,9 @@ export async function obterResultadoDoPeriodo(referencia: Date = new Date()): Pr
     calcularEntradasSaidas(inicioAnterior, fimAnterior, prisma),
   ]);
 
-  const entradasCentavos = paraCentavos(atual.entradas);
-  const saidasCentavos = paraCentavos(atual.saidas);
-  const sobrouCentavos = entradasCentavos - saidasCentavos;
+  const entradasCentavos = deDecimal(atual.entradas);
+  const saidasCentavos = deDecimal(atual.saidas);
+  const sobrouCentavos = subtrair(entradasCentavos, saidasCentavos);
 
   return {
     entradas: atual.entradas,
@@ -308,9 +306,9 @@ export async function obterServicoXProduto(referencia: Date = new Date()): Promi
     GROUP BY base."ehServico"
   `;
 
-  const servicoCentavos = paraCentavos(Number(linhas.find((l) => l.ehServico)?.total ?? 0));
-  const produtoCentavos = paraCentavos(Number(linhas.find((l) => !l.ehServico)?.total ?? 0));
-  const totalCentavos = servicoCentavos + produtoCentavos;
+  const servicoCentavos = deDecimal(linhas.find((l) => l.ehServico)?.total ?? 0);
+  const produtoCentavos = deDecimal(linhas.find((l) => !l.ehServico)?.total ?? 0);
+  const totalCentavos = somar(servicoCentavos, produtoCentavos);
 
   if (totalCentavos <= 0) {
     return { servicoPercentual: 0, produtoPercentual: 0, temDados: false };
@@ -395,10 +393,10 @@ export async function obterQuantoSobrouPorOS(referencia: Date = new Date(), limi
 
   const linhas: LinhaSobraPorOS[] = ordens
     .map((os) => {
-      const cobradoCentavos = os.transacoes.reduce((acc, t) => acc + paraCentavos(t.valor), 0);
-      const pecaCentavos = os.itens.reduce((acc, item) => acc + paraCentavos(item.custoPeca), 0);
-      const taxaCentavos = os.transacoes.reduce((acc, t) => acc + paraCentavos(t.vendaPagamento?.valorTaxa ?? 0), 0);
-      const sobraCentavos = cobradoCentavos - pecaCentavos - taxaCentavos;
+      const cobradoCentavos = somar(...os.transacoes.map((t) => deDecimal(t.valor)));
+      const pecaCentavos = somar(...os.itens.map((item) => deDecimal(item.custoPeca)));
+      const taxaCentavos = somar(...os.transacoes.map((t) => deDecimal(t.vendaPagamento?.valorTaxa ?? 0)));
+      const sobraCentavos = subtrair(subtrair(cobradoCentavos, pecaCentavos), taxaCentavos);
 
       return {
         osId: os.id,
@@ -413,8 +411,8 @@ export async function obterQuantoSobrouPorOS(referencia: Date = new Date(), limi
     })
     .sort((a, b) => b.cobrado - a.cobrado);
 
-  const somaSobraCentavos = linhas.reduce((acc, l) => acc + paraCentavos(l.sobra), 0);
-  const somaCobradoCentavos = linhas.reduce((acc, l) => acc + paraCentavos(l.cobrado), 0);
+  const somaSobraCentavos = somar(...linhas.map((l) => deDecimal(l.sobra)));
+  const somaCobradoCentavos = somar(...linhas.map((l) => deDecimal(l.cobrado)));
 
   return {
     linhas,
@@ -442,9 +440,9 @@ export async function obterDadosFluxoDeCaixa(): Promise<DadosFluxoDeCaixa> {
     obterPrevistoXRecebido(),
   ]);
 
-  const aReceber7DiasCentavos = proximosLancamentos.itens
-    .filter((item) => item.tipo === "receber")
-    .reduce((acc, item) => acc + paraCentavos(item.valor), 0);
+  const aReceber7DiasCentavos = somar(
+    ...proximosLancamentos.itens.filter((item) => item.tipo === "receber").map((item) => deDecimal(item.valor))
+  );
 
   return {
     saldoHoje,

@@ -15,6 +15,7 @@ import { CartaoEntradaOS } from "@/components/os/detalhe/cartao-entrada-os";
 import { SecaoFotosOS } from "@/components/os/detalhe/secao-fotos-os";
 import { HistoricoOS } from "@/components/os/detalhe/historico-os";
 import type { EtapaOS, SituacaoOS, TecnicoDaOS } from "@/types/os";
+import { deDecimal, type EntradaDecimal, paraMoeda, somar } from "@/lib/dinheiro";
 
 type PropsPaginaDetalheOS = {
   params: Promise<{
@@ -63,16 +64,16 @@ type OrdemServicoDetalhe = {
     id: string;
     descricao?: string | null;
     tipoPeca?: string | null;
-    custoPeca?: number | null;
-    valorCobrado?: number | null;
+    custoPeca?: EntradaDecimal | null;
+    valorCobrado?: EntradaDecimal | null;
     criadoEm?: Date | string | null;
   }>;
   transacoes?: Array<{
     vendaId?: string | null;
     origem?: string | null;
-    valor?: number | null;
+    valor?: EntradaDecimal | null;
     status?: string | null;
-    venda?: { id?: string | null; valorTotal?: number | null } | null;
+    venda?: { id?: string | null; valorTotal?: EntradaDecimal | null } | null;
   }>;
   termoGarantia?: { id?: string | null; prazoGarantiaDias?: number | null } | null;
   tecnicos?: Array<{
@@ -170,10 +171,10 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
     const numeroOsSlug = extrairNumeroOsDoSlug(id);
 
     if (numeroOsSlug !== null && delegateOrdemServico.findFirst) {
-      osBanco = await delegateOrdemServico.findFirst({
+      osBanco = (await delegateOrdemServico.findFirst({
         where: { numeroOs: numeroOsSlug, ...escopoOS },
         include: INCLUDE_DETALHE_OS,
-      });
+      })) as OrdemServicoDetalhe | null;
     }
   }
 
@@ -189,8 +190,8 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
       descricao: String(item.descricao ?? ""),
       tipoPeca: String(item.tipoPeca ?? "OUTROS") as ItemOSCarregado["tipoPeca"],
       // F-41: custo/margem só vai para o cliente com os.ver_custos.
-      custoPeca: podeVerCustos ? Number(item.custoPeca ?? 0) : null,
-      valorCobrado: Number(item.valorCobrado ?? 0),
+      custoPeca: podeVerCustos ? paraMoeda(deDecimal(item.custoPeca ?? 0)) : null,
+      valorCobrado: paraMoeda(deDecimal(item.valorCobrado ?? 0)),
       criadoEm: new Date(item.criadoEm ?? osBanco?.criadoEm ?? new Date()).toISOString(),
     }))
     .sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime());
@@ -231,14 +232,13 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
   const possuiPedidoVenda = Boolean(transacaoPdvVinculada);
   const podeEnviarAoPdv = statusAtual === "PRONTO" && !possuiPedidoVenda;
   const podeGerarPedidoVenda = podeEnviarAoPdv && possuiItens;
-  const valorVendaVinculada =
-    typeof transacaoPdvVinculada?.venda?.valorTotal === "number"
-      ? transacaoPdvVinculada.venda.valorTotal
-      : Number(transacaoPdvVinculada?.valor ?? 0);
+  const valorVendaVinculada = paraMoeda(
+    deDecimal(transacaoPdvVinculada?.venda?.valorTotal ?? transacaoPdvVinculada?.valor ?? 0)
+  );
 
-  const totalOS = itensNormalizados.reduce((total, item) => total + item.valorCobrado, 0);
+  const totalOS = paraMoeda(somar(...itensNormalizados.map((item) => deDecimal(item.valorCobrado))));
   const custoTotalOS = podeVerCustos
-    ? itensNormalizados.reduce((total, item) => total + (item.custoPeca ?? 0), 0)
+    ? paraMoeda(somar(...itensNormalizados.map((item) => deDecimal(item.custoPeca ?? 0))))
     : null;
   const garantiaDias = osBanco.termoGarantia?.prazoGarantiaDias ?? config.prazoGarantiaPadraoDias;
 

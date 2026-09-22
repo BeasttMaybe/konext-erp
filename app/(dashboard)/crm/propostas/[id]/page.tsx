@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
+import { deDecimal, type EntradaDecimal, formatarReais } from "@/lib/dinheiro";
 import {
   Table,
   TableBody,
@@ -64,11 +65,10 @@ const statusClassMap: Record<ProposalStatus, string> = {
   REJEITADA: "border-rose-500/30 bg-rose-500/10 text-rose-300",
 };
 
-const formatCurrency = (value: number) =>
-  new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  }).format(value);
+// Formatação de dinheiro delega pra lib/dinheiro.ts (Fase 2A-2) — aceita
+// tanto `number` (reais) quanto `Prisma.Decimal` direto da query, sem
+// nenhum `.toNumber()`/`Number()` solto fora do módulo autorizado.
+const formatCurrency = (value: EntradaDecimal) => formatarReais(deDecimal(value));
 
 const formatDate = (value: Date) =>
   new Intl.DateTimeFormat("pt-BR", {
@@ -187,7 +187,7 @@ export default async function ProposalDetailsPage({ params }: ProposalDetailsPag
                       <TableCell className="text-slate-100">{item.descricao}</TableCell>
                       <TableCell className="text-slate-300">{item.quantidade}</TableCell>
                       <TableCell className="text-slate-300">{formatCurrency(item.precoUnitario)}</TableCell>
-                      <TableCell className="text-slate-300">{item.descontoPercentual}%</TableCell>
+                      <TableCell className="text-slate-300">{Number(item.descontoPercentual)}%</TableCell>
                       <TableCell className="text-right font-medium text-slate-100">{formatCurrency(item.subtotal)}</TableCell>
                     </TableRow>
                   ))}

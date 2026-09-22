@@ -6,6 +6,7 @@ import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { exigirPermissao, temPermissao } from "@/lib/auth/permissoes";
 import { mensagemDeErroConhecido } from "@/lib/erros";
 import { formProdutoSchema, type FormProduto } from "@/lib/validations/estoque";
+import { deDecimal, paraMoeda } from "@/lib/dinheiro";
 
 type ResultadoCriarProduto =
   | { sucesso: true; mensagem: string }
@@ -99,7 +100,8 @@ export async function listarProdutos() {
 
   return produtos.map((produto) => ({
     ...produto,
-    custo: podeVerCustos ? produto.custo : null,
+    custo: podeVerCustos ? paraMoeda(deDecimal(produto.custo)) : null,
+    precoVenda: paraMoeda(deDecimal(produto.precoVenda)),
   }));
 }
 
@@ -177,7 +179,8 @@ export async function listarProdutosPaginado(
     // Omitido no mapeamento do servidor — nunca filtrado na UI.
     data: produtos.map((produto) => ({
       ...produto,
-      custo: podeVerCustos ? produto.custo : null,
+      custo: podeVerCustos && produto.custo !== null ? paraMoeda(deDecimal(produto.custo)) : null,
+      precoVenda: paraMoeda(deDecimal(produto.precoVenda)),
     })),
     total,
     page,
