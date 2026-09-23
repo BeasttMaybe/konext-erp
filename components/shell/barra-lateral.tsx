@@ -51,6 +51,15 @@ const useEfeitoDeLayout = typeof window !== "undefined" ? useLayoutEffect : useE
  * cartão flutuante do app (`ShellDashboard`), com a altura vindo do
  * `stretch` padrão do flex — o cartão que a contém já tem `overflow-hidden`
  * e altura travada, então não precisa mais se ancorar no viewport sozinha.
+ * Continua `relative` + `z-kx-barra-lateral` mesmo sem ser `fixed`: um
+ * `position` + `z-index` explícito aqui é o que estabelece um contexto de
+ * empilhamento PRÓPRIO pra esta barra — sem ele, o `z-index` negativo do
+ * indicador ativo (`.kx-notch-ativo`, ver comentário mais abaixo) escapa
+ * pra fora da barra e passa a pintar atrás do fundo (`bg-kx-painel`) dela
+ * mesma, porque esse fundo, sem a barra ser posicionada, deixa de ser a raiz
+ * do contexto de empilhamento e vira só mais um irmão pintado por cima do
+ * indicador — foi exatamente essa regressão que sumiu com o indicador
+ * quando a barra virou item flex sem `position` nenhum.
  *
  * O item ativo "entalha" na área de conteúdo (Fase 3-2A, Spec B — porte
  * fiel de `docs/design/referencia-menu-lateral.html`, a referência
@@ -133,7 +142,7 @@ export function BarraLateral() {
   }, []);
 
   return (
-    <aside className="hidden w-[72px] shrink-0 flex-col bg-kx-painel lg:flex xl:w-[248px]">
+    <aside className="relative z-kx-barra-lateral hidden w-[72px] shrink-0 flex-col bg-kx-painel lg:flex xl:w-[248px]">
       <div className="flex h-16 shrink-0 items-center justify-center gap-2.5 px-2 xl:justify-start xl:px-5">
         {logoUrl && !falhaLogo ? (
           // eslint-disable-next-line @next/next/no-img-element -- URL de logo enviada pelo tenant, fora do domínio otimizado pelo next/image.
