@@ -80,3 +80,20 @@ Log in as each role (via the users you created above) and confirm the table belo
 A failing row (a control visible that should be hidden, or vice versa) is a regression in the permission wiring — check the corresponding `useTemPermissao(...)` call in that screen's component against the matrix in `lib/auth/permissoes.ts`.
 
 Server-side enforcement is the actual security boundary and does not depend on this checklist — hiding a button is UX, not access control. If in doubt, confirm the underlying action still rejects the call with `ErroPermissao` even when a button is (incorrectly) visible.
+
+---
+
+## 3. Sidebar active-item indicator (Playwright, on demand)
+
+`scripts/verificacao/verificar-indicador-menu-lateral.mjs` checks that the sidebar's sliding active-item indicator (`.kx-notch-ativo` in `components/shell/barra-lateral.tsx`) is actually painted on top of the sidebar — not just that its CSSOM background-color is correct.
+
+This distinction matters: the regression fixed in `fix-regressao-menu-kpi` (the `<aside>` losing `position`/`z-index` in `6cb2ad5`, so the indicator's negative `z-index` escaped its stacking context and got painted *behind* the sidebar's own background) left `getComputedStyle` reporting the right color the whole time — only the actual rendered pixel was wrong. `jsdom` never paints anything, so this class of bug is invisible to a regular Vitest/Testing Library test; the script drives a real headless Chromium (via `playwright-core`, already in this repo's dependency tree) and samples the actual screenshot pixel where the indicator should be.
+
+This project has no `@playwright/test` dependency, no Playwright config, and no CI wiring for it — the script is **not** picked up by `npx vitest run` and is not run in CI. It's a manual/on-demand check: run it locally after touching `barra-lateral.tsx`, `shell-dashboard.tsx`, or the `--kx-z-*`/`--kx-fundo` tokens.
+
+```bash
+npm run dev                                              # terminal 1
+node scripts/verificacao/verificar-indicador-menu-lateral.mjs   # terminal 2
+```
+
+Needs a test user (see §1 above); defaults to `agente.teste@konext.local` / `AgenteTeste1234` (`--papel ADMIN`, `--empresa konext-principal`) — override with `EMAIL_TESTE`/`SENHA_TESTE`/`BASE_URL` env vars if yours differs. Checks the first, a middle, and the last nav item, plus that the slide transition is disabled under `prefers-reduced-motion: reduce`.
