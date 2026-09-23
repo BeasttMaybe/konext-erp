@@ -8,6 +8,7 @@ export interface ProdutoPDV {
   categoria?: string;
   quantidadeEstoque?: number;
   estoqueMinimo?: number;
+  codigoBarras?: string | null;
 }
 
 export interface ItemCarrinho extends ProdutoPDV {

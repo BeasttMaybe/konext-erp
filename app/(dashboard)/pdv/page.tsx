@@ -41,7 +41,7 @@ import { EtapaPagamentoPdv } from "@/components/pdv/balcao/etapa-pagamento-pdv";
 import { ModalVendaConcluidaPdv } from "@/components/pdv/balcao/modal-venda-concluida-pdv";
 import { useCartStore, ProdutoPDV } from "@/store/useCartStore";
 import { useTemPermissao } from "@/contextos/contexto-permissoes";
-import { calcularLimiteDesconto } from "@/lib/dominio/pdv/desconto-input";
+import { calcularLimiteDesconto, converterDescontoEntreUnidades } from "@/lib/dominio/pdv/desconto-input";
 import type { EtapaPdv } from "@/lib/dominio/pdv/etapas-pdv";
 import { usePagamentoPdv, type DadosPagamento } from "@/lib/pdv/hooks/usar-pagamento-pdv";
 import { MENSAGEM_CLIENTE_OBRIGATORIO_PARA_PRAZO } from "@/lib/pdv/formatacao-pagamento-pdv";
@@ -135,7 +135,6 @@ function PDVPageConteudo() {
   const [descontoPainelAberto, setDescontoPainelAberto] = useState(false);
 
   const [busca, setBusca] = useState("");
-  const [categoriaAtiva, setCategoriaAtiva] = useState<string | null>(null);
   const [produtosCatalogo, setProdutosCatalogo] = useState<ProdutoPDV[]>([]);
   const [carregandoProdutos, setCarregandoProdutos] = useState(false);
   const [buscaCliente, setBuscaCliente] = useState("");
@@ -170,22 +169,18 @@ function PDVPageConteudo() {
     getResumo,
   } = useCartStore();
 
-  const categorias = useMemo(() => {
-    const vistas = new Set<string>();
-    for (const produto of produtosCatalogo) {
-      if (produto.categoria) vistas.add(produto.categoria);
-    }
-    return Array.from(vistas);
-  }, [produtosCatalogo]);
-
+  // Etapa Produto (modelo Bling): busca por nome OU código de barras — sem
+  // filtro de categoria (os chips de categoria saíram da etapa nesta fase;
+  // ver components/pdv/balcao/chips-categoria-pdv.tsx, que ficou sem uso).
   const produtosFiltrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
+    if (!termo) return [];
     return produtosCatalogo.filter((p) => {
-      const bateBusca = !termo || p.nome.toLowerCase().includes(termo);
-      const bateCategoria = !categoriaAtiva || p.categoria === categoriaAtiva;
-      return bateBusca && bateCategoria;
+      const bateNome = p.nome.toLowerCase().includes(termo);
+      const bateCodigo = Boolean(p.codigoBarras && p.codigoBarras.toLowerCase().includes(termo));
+      return bateNome || bateCodigo;
     });
-  }, [busca, categoriaAtiva, produtosCatalogo]);
+  }, [busca, produtosCatalogo]);
 
   const normalizarBuscaCliente = (valor: string) =>
     valor
@@ -388,15 +383,51 @@ function PDVPageConteudo() {
   });
   const descontoBloqueiaVenda = limiteDesconto.acimaDoLimite && !podeAplicarDescontoAcimaDoLimite;
 
-  const onAdicionarProduto = useCallback(
-    (produto: ProdutoPDV) => {
-      adicionarItem(produto);
+  // Etapa Produto (modelo Bling): insere/atualiza uma linha do pedido.
+  // `modoEdicao` true (veio do botao "Editar" de uma linha existente)
+  // SOBRESCREVE a quantidade; false (selecao nova na busca, ou leitor de
+  // codigo de barras) SOMA a quantidade pedida a quantidade ja existente do
+  // mesmo produto — reaproveita adicionarItem/alterarQuantidade do
+  // useCartStore sem precisar de uma acao nova na store.
+  //
+  // "Desconto no item" (painel esquerdo) nao e um conceito separado no
+  // dominio do servidor (calcularVendaPdv aceita desconto por item, mas
+  // ItemCarrinhoPdvInput hoje so envia produtoId+quantidade — ver
+  // app/actions/pdv.ts): em vez de estender o contrato do servidor so pra
+  // isso, o valor pedido no painel e somado ao MESMO desconto global ja
+  // existente (controle-desconto-pdv.tsx), convertido sempre para R$. O
+  // total final cobrado continua exatamente certo e validado pelo mesmo
+  // limite de desconto por cargo — so a granularidade "quanto foi descontado
+  // de qual item" nao fica registrada em separado.
+  const onInserirItemProduto = useCallback(
+    (produto: ProdutoPDV, quantidade: number, descontoItemReais: number, modoEdicao: boolean) => {
+      const existente = itens.find((item) => item.id === produto.id);
+      const quantidadeFinal = modoEdicao || !existente ? quantidade : existente.quantidade + quantidade;
+
+      if (existente) {
+        alterarQuantidade(produto.id, quantidadeFinal);
+      } else {
+        adicionarItem(produto);
+        if (quantidade > 1) alterarQuantidade(produto.id, quantidade);
+      }
+
+      if (descontoItemReais > 0) {
+        const descontoAtualEmReais = converterDescontoEntreUnidades({
+          valor: desconto,
+          deUnidade: tipoDesconto === "PERCENTUAL" ? "PERCENTUAL" : "VALOR",
+          paraUnidade: "VALOR",
+          subtotal: resumo.subtotal,
+        });
+        setTipoDesconto("FIXO");
+        setDesconto(descontoAtualEmReais + descontoItemReais);
+      }
+
       // Leitor de codigo de barras "digita" no campo ativo — o foco precisa
-      // voltar pra busca depois de cada adicao, senao o proximo produto lido
-      // vai parar em qualquer campo que estiver focado.
+      // voltar pra busca depois de cada insercao, senao o proximo produto
+      // lido vai parar em qualquer campo que estiver focado.
       buscaProdutoRef.current?.focus();
     },
-    [adicionarItem]
+    [itens, adicionarItem, alterarQuantidade, desconto, tipoDesconto, resumo.subtotal, setDesconto, setTipoDesconto]
   );
 
   // O servidor nunca confia no preco/total do navegador (F-04/F-33): so
@@ -564,14 +595,14 @@ function PDVPageConteudo() {
 
   const rotuloBotaoPrimario =
     etapaAtual === "produto"
-      ? "Continuar"
+      ? "Ir para cliente"
       : etapaAtual === "cliente"
         ? "Ir para pagamento"
         : !caixaAberto
           ? "Abra o Caixa"
           : "Confirmar venda";
 
-  const atalhoBotaoPrimario = etapaAtual === "pagamento" ? "F9" : "";
+  const atalhoBotaoPrimario = etapaAtual === "produto" ? "Alt+2" : etapaAtual === "pagamento" ? "F9" : "";
 
   const botaoPrimarioDesabilitado =
     (etapaAtual === "produto" && !produtoEtapaCompleta) ||
@@ -747,71 +778,92 @@ function PDVPageConteudo() {
         />
       </div>
 
-      <section className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="flex min-h-0 flex-col overflow-hidden rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-4 lg:p-5">
-          {etapaAtual === "produto" && (
-            <EtapaProdutoPdv
-              busca={busca}
-              onBuscaChange={setBusca}
-              buscaProdutoRef={buscaProdutoRef}
-              categorias={categorias}
-              categoriaAtiva={categoriaAtiva}
-              onCategoriaChange={setCategoriaAtiva}
-              produtosFiltrados={produtosFiltrados}
-              carregandoProdutos={carregandoProdutos}
-              onAdicionarProduto={onAdicionarProduto}
-              itens={itens}
-              onDiminuir={(item) => alterarQuantidade(item.id, item.quantidade - 1)}
-              onAumentar={(item) => alterarQuantidade(item.id, item.quantidade + 1)}
-              onRemover={(item) => removerItem(item.id)}
-              onVincularOS={aoVincularOS}
-              pedidoOS={pedidoOS}
-              carregandoPedidoOS={carregandoPedidoOS}
-            />
-          )}
+      {etapaAtual === "produto" ? (
+        // Etapa Produto (modelo Bling): sem a coluna "Resumo da venda" ao
+        // lado — o rodapé (cliente/desconto/total/botão) fica embutido no
+        // próprio painel de itens, então o total NUNCA aparece duas vezes
+        // nesta etapa (mesma regra que já valia pra ResumoVendaPdv, ver o
+        // comentário lá). As etapas Cliente/Pagamento (branch abaixo)
+        // continuam exatamente como estavam, com a coluna à parte.
+        <section className="grid min-h-0 flex-1 grid-cols-1">
+          <EtapaProdutoPdv
+            busca={busca}
+            onBuscaChange={setBusca}
+            buscaProdutoRef={buscaProdutoRef}
+            produtosFiltrados={produtosFiltrados}
+            carregandoProdutos={carregandoProdutos}
+            itens={itens}
+            onInserirItem={onInserirItemProduto}
+            onRemover={(item) => removerItem(item.id)}
+            onVincularOS={aoVincularOS}
+            pedidoOS={pedidoOS}
+            carregandoPedidoOS={carregandoPedidoOS}
+            clienteResumo={clienteResumo}
+            total={totalGeral}
+            rotuloBotaoPrimario={rotuloBotaoPrimario}
+            atalhoBotaoPrimario={atalhoBotaoPrimario}
+            botaoPrimarioDesabilitado={botaoPrimarioDesabilitado}
+            onClickBotaoPrimario={aoClicarBotaoPrimario}
+            configuracaoPagamentosPdv={configuracaoPagamentosPdv}
+            desconto={desconto}
+            tipoDesconto={tipoDesconto}
+            subtotalGlobal={resumo.subtotal + (pedidoOS?.valor ?? 0)}
+            limiteDesconto={limiteDesconto}
+            descontoBloqueiaVenda={descontoBloqueiaVenda}
+            descontoTextoEmEdicao={descontoTextoEmEdicao}
+            onTextoEmEdicaoChange={setDescontoTextoEmEdicao}
+            onDescontoChange={setDesconto}
+            onTipoDescontoChange={setTipoDesconto}
+            descontoPainelAberto={descontoPainelAberto}
+            onDescontoPainelAbertoChange={setDescontoPainelAberto}
+          />
+        </section>
+      ) : (
+        <section className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="flex min-h-0 flex-col overflow-hidden rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-4 lg:p-5">
+            {etapaAtual === "cliente" && (
+              <EtapaClientePdv
+                buscaCliente={buscaCliente}
+                onBuscaClienteChange={setBuscaCliente}
+                buscaClienteRef={buscaClienteRef}
+                clientesFiltrados={clientesFiltrados}
+                carregandoClientes={carregandoClientes}
+                clienteSelecionadoId={clienteSelecionadoId}
+                onSelecionarCliente={aoSelecionarCliente}
+                onClienteCriado={aoClienteCriado}
+                precisaClienteReal={precisaClienteRealEtapaCliente}
+              />
+            )}
 
-          {etapaAtual === "cliente" && (
-            <EtapaClientePdv
-              buscaCliente={buscaCliente}
-              onBuscaClienteChange={setBuscaCliente}
-              buscaClienteRef={buscaClienteRef}
-              clientesFiltrados={clientesFiltrados}
-              carregandoClientes={carregandoClientes}
-              clienteSelecionadoId={clienteSelecionadoId}
-              onSelecionarCliente={aoSelecionarCliente}
-              onClienteCriado={aoClienteCriado}
-              precisaClienteReal={precisaClienteRealEtapaCliente}
-            />
-          )}
+            {etapaAtual === "pagamento" && <EtapaPagamentoPdv pagamento={pagamento} />}
+          </div>
 
-          {etapaAtual === "pagamento" && <EtapaPagamentoPdv pagamento={pagamento} />}
-        </div>
-
-        <ResumoVendaPdv
-          quantidadeItens={itens.length}
-          subtotal={resumo.subtotal + (pedidoOS?.valor ?? 0)}
-          descontoAplicado={resumo.descontoAplicado}
-          clienteResumo={clienteResumo}
-          total={totalGeral}
-          dica={dicaBotaoPrimario}
-          rotuloBotaoPrimario={rotuloBotaoPrimario}
-          atalhoBotaoPrimario={atalhoBotaoPrimario}
-          botaoPrimarioDesabilitado={botaoPrimarioDesabilitado}
-          botaoPrimarioProcessando={etapaAtual === "pagamento" && pagamento.processando}
-          onClickBotaoPrimario={aoClicarBotaoPrimario}
-          configuracaoPagamentosPdv={configuracaoPagamentosPdv}
-          desconto={desconto}
-          tipoDesconto={tipoDesconto}
-          limiteDesconto={limiteDesconto}
-          descontoBloqueiaVenda={descontoBloqueiaVenda}
-          descontoTextoEmEdicao={descontoTextoEmEdicao}
-          onTextoEmEdicaoChange={setDescontoTextoEmEdicao}
-          onDescontoChange={setDesconto}
-          onTipoDescontoChange={setTipoDesconto}
-          descontoPainelAberto={descontoPainelAberto}
-          onDescontoPainelAbertoChange={setDescontoPainelAberto}
-        />
-      </section>
+          <ResumoVendaPdv
+            quantidadeItens={itens.length}
+            subtotal={resumo.subtotal + (pedidoOS?.valor ?? 0)}
+            descontoAplicado={resumo.descontoAplicado}
+            clienteResumo={clienteResumo}
+            total={totalGeral}
+            dica={dicaBotaoPrimario}
+            rotuloBotaoPrimario={rotuloBotaoPrimario}
+            atalhoBotaoPrimario={atalhoBotaoPrimario}
+            botaoPrimarioDesabilitado={botaoPrimarioDesabilitado}
+            botaoPrimarioProcessando={etapaAtual === "pagamento" && pagamento.processando}
+            onClickBotaoPrimario={aoClicarBotaoPrimario}
+            configuracaoPagamentosPdv={configuracaoPagamentosPdv}
+            desconto={desconto}
+            tipoDesconto={tipoDesconto}
+            limiteDesconto={limiteDesconto}
+            descontoBloqueiaVenda={descontoBloqueiaVenda}
+            descontoTextoEmEdicao={descontoTextoEmEdicao}
+            onTextoEmEdicaoChange={setDescontoTextoEmEdicao}
+            onDescontoChange={setDesconto}
+            onTipoDescontoChange={setTipoDesconto}
+            descontoPainelAberto={descontoPainelAberto}
+            onDescontoPainelAbertoChange={setDescontoPainelAberto}
+          />
+        </section>
+      )}
 
       <ModalVendaConcluidaPdv
         aberto={pagamento.vendaFinalizada}

@@ -23,28 +23,32 @@ function criarItem(sobrescreve: Partial<ItemCarrinho> = {}): ItemCarrinho {
 
 describe("ListaItensCarrinho", () => {
   it("carrinho vazio mostra o estado vazio, nao uma linha", () => {
-    render(<ListaItensCarrinho itens={[]} onDiminuir={vi.fn()} onAumentar={vi.fn()} onRemover={vi.fn()} />);
+    render(<ListaItensCarrinho itens={[]} onEditar={vi.fn()} onRemover={vi.fn()} />);
 
     expect(screen.getByText("Carrinho vazio")).toBeInTheDocument();
-    expect(screen.getByText("Passe o leitor ou clique em um produto.")).toBeInTheDocument();
   });
 
   it("adicionar um item renderiza uma linha visivel no carrinho (regressao: painel colapsava a lista pra 0px)", () => {
-    render(
-      <ListaItensCarrinho itens={[criarItem()]} onDiminuir={vi.fn()} onAumentar={vi.fn()} onRemover={vi.fn()} />
-    );
+    render(<ListaItensCarrinho itens={[criarItem()]} onEditar={vi.fn()} onRemover={vi.fn()} />);
 
     expect(screen.queryByText("Carrinho vazio")).not.toBeInTheDocument();
     expect(screen.getByText("CABO USB KAIDI 2M IOS")).toBeVisible();
-    // Fase "PDV em 3 etapas": a linha virou tabela (produto, quantidade,
-    // unitário, total, remover) — com 1 unidade, unitário e total mostram o
-    // mesmo valor formatado, então aparecem DUAS vezes na linha (colunas
-    // distintas), não uma só como no cartão empilhado antigo.
+    // Fase "modelo Bling": a linha mostra unitário e subtotal em colunas
+    // distintas — com 1 unidade os dois valores formatados coincidem, então
+    // aparecem DUAS vezes na linha (colunas diferentes), nao uma só.
     const valoresFormatados = screen.getAllByText("R$ 34,90");
     expect(valoresFormatados).toHaveLength(2);
     for (const valor of valoresFormatados) {
       expect(valor).toBeVisible();
     }
+  });
+
+  it("mostra o codigo/SKU do produto embaixo do nome quando existe", () => {
+    render(
+      <ListaItensCarrinho itens={[criarItem({ codigoBarras: "789000111222" })]} onEditar={vi.fn()} onRemover={vi.fn()} />
+    );
+
+    expect(screen.getByText("789000111222")).toBeVisible();
   });
 
   it("varios itens (cenario que expos o bug real: 4 produtos) renderizam uma linha por item", () => {
@@ -55,27 +59,24 @@ describe("ListaItensCarrinho", () => {
       criarItem({ id: "p4", nome: "CABO USB KAIDI IOS" }),
     ];
 
-    render(<ListaItensCarrinho itens={itens} onDiminuir={vi.fn()} onAumentar={vi.fn()} onRemover={vi.fn()} />);
+    render(<ListaItensCarrinho itens={itens} onEditar={vi.fn()} onRemover={vi.fn()} />);
 
     for (const item of itens) {
       expect(screen.getByText(item.nome)).toBeVisible();
     }
   });
 
-  it("aciona onAumentar/onDiminuir/onRemover com o item certo", () => {
-    const aoAumentar = vi.fn();
-    const aoDiminuir = vi.fn();
+  it("aciona onEditar/onRemover com o item certo", () => {
+    const aoEditar = vi.fn();
     const aoRemover = vi.fn();
     const item = criarItem();
 
-    render(<ListaItensCarrinho itens={[item]} onDiminuir={aoDiminuir} onAumentar={aoAumentar} onRemover={aoRemover} />);
+    render(<ListaItensCarrinho itens={[item]} onEditar={aoEditar} onRemover={aoRemover} />);
 
-    fireEvent.click(screen.getByLabelText("Aumentar quantidade"));
-    fireEvent.click(screen.getByLabelText("Diminuir quantidade"));
+    fireEvent.click(screen.getByLabelText("Editar item"));
     fireEvent.click(screen.getByLabelText("Remover item"));
 
-    expect(aoAumentar).toHaveBeenCalledWith(item);
-    expect(aoDiminuir).toHaveBeenCalledWith(item);
+    expect(aoEditar).toHaveBeenCalledWith(item);
     expect(aoRemover).toHaveBeenCalledWith(item);
   });
 });
