@@ -663,11 +663,19 @@ export function usePagamentoPdv({
           ? configuracaoAtiva.prazoPadraoCrediarioDias
           : 0;
 
+    // Forma já lançada em alguma linha: nunca duplica — abre o editor DA
+    // LINHA EXISTENTE de verdade (mesmo caminho de "Editar", inclusive
+    // pré-preenchendo valoresPagamentosEmEdicao/valorRecebidoEmEdicao) e
+    // conta com o foco automático do campo Valor no componente de
+    // apresentação (abre porque `selecionada` passa a existir, o input é
+    // remontado com autoFocus). O toast informativo só pode ficar em cima
+    // dessa chamada — nunca sozinho — senão vira mensagem sem saída (regra
+    // #5 do bug de troca de forma de pagamento).
     const existente = linhas.find((linha) => linha.formaPagamento === formaPagamento);
     if (existente) {
-      selecionarPagamento(existente.id);
+      abrirEditorLinha(existente);
       setSeletorFormaAberto(false);
-      toast("Esta forma ja foi adicionada. Edite o valor na lista de pagamentos.");
+      toast("Esta forma ja foi adicionada. Ajuste o valor nesta linha.");
       if (formaPagamento === "DINHEIRO") {
         setValorRecebidoDinheiro(Math.max(total, totalInformado));
         setValorRecebidoEmEdicao(formatarDecimalPtBr(Math.max(total, totalInformado)));

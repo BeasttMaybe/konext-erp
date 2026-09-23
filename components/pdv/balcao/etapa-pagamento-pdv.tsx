@@ -293,11 +293,19 @@ function LinhaPagamentoInformado({
       </div>
 
       {selecionada && (
-        <div className="mt-3 rounded-kx-botao border border-kx-painel-borda bg-kx-superficie p-3">
+        <div
+          className="mt-3 rounded-kx-botao border border-kx-painel-borda bg-kx-superficie p-3"
+          onKeyDown={(evento) => {
+            if (evento.key === "Escape") {
+              evento.stopPropagation();
+              onFecharEditor();
+            }
+          }}
+        >
           <div className="mb-3 flex items-start justify-between gap-3">
             <div>
               <p className="text-sm font-semibold text-kx-texto">Ajustar {rotuloFormaPagamentoCurto(linha.formaPagamento)}</p>
-              <p className="text-[11px] text-kx-legenda">Ajuste os dados deste pagamento antes de confirmar.</p>
+              <p className="text-[11px] text-kx-legenda">Ajuste os dados deste pagamento antes de confirmar. Esc fecha.</p>
             </div>
             <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs text-kx-legenda" onClick={onFecharEditor}>
               Fechar
@@ -317,6 +325,7 @@ function LinhaPagamentoInformado({
                 <Input
                   type="text"
                   inputMode="decimal"
+                  autoFocus
                   className="h-10 border-kx-campo-borda bg-kx-painel text-kx-texto"
                   value={valorEditado}
                   onChange={(e) => onAlterarValorTexto(sanitizarEntradaMonetaria(e.target.value))}
