@@ -565,13 +565,35 @@ export function usePagamentoPdv({
   const selecionarPagamento = (pagamentoId: string) => setLinhaEmEdicaoId(pagamentoId);
 
   const removerPagamento = (pagamentoId: string) => {
-    setLinhas((estadoAtual) => {
-      if (estadoAtual.length === 1) return estadoAtual;
-      const restante = estadoAtual.filter((linha) => linha.id !== pagamentoId);
-      return distribuirValoresPagamentos(restante, total);
+    if (linhas.length <= 1) return;
+
+    const restante = linhas.filter((linha) => linha.id !== pagamentoId);
+    const proximasLinhas = distribuirValoresPagamentos(restante, total);
+
+    setLinhas(proximasLinhas);
+    setLinhaEmEdicaoId((atual) => (atual === pagamentoId ? null : atual));
+    setValoresPagamentosEmEdicao((estadoAtual) => {
+      if (!Object.prototype.hasOwnProperty.call(estadoAtual, pagamentoId)) return estadoAtual;
+      const proximo = { ...estadoAtual };
+      delete proximo[pagamentoId];
+      return proximo;
     });
 
-    setLinhaEmEdicaoId((atual) => (atual === pagamentoId ? null : atual));
+    // Remover a penúltima linha devolve a tela pro estado "escolher uma
+    // forma" — sem lixo de estado de uma forma que não existe mais: se a
+    // linha que sobrou é DINHEIRO, o valor recebido sincroniza com o novo
+    // total (igual substituirPagamentoUnico); se não é, zera o valor
+    // recebido em vez de deixar um número órfão de uma forma removida.
+    if (proximasLinhas.length === 1) {
+      const linhaFinal = proximasLinhas[0];
+      if (linhaFinal.formaPagamento === "DINHEIRO") {
+        setValorRecebidoDinheiro(linhaFinal.valorBruto);
+        setValorRecebidoEmEdicao(formatarDecimalPtBr(linhaFinal.valorBruto));
+      } else {
+        setValorRecebidoDinheiro(0);
+        setValorRecebidoEmEdicao(null);
+      }
+    }
   };
 
   const editarPagamento = (pagamentoId: string, patch: Partial<LinhaPagamento>) => {
