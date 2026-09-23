@@ -3,6 +3,7 @@
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { exigirPermissao, temPermissao } from "@/lib/auth/permissoes";
 import { obterReceitaTotalPadrao } from "@/lib/dashboard/regras-financeiras";
+import { montarComparativo, type ComparativoKpi, type DirecaoBoaKpi } from "@/lib/dashboard/comparativo-kpi";
 import { escopoOrdemServico } from "@/lib/auth/escopos";
 import { paraEstagio, type EtapaOS } from "@/lib/dominio/os/etapas";
 import { Prisma } from "@prisma/client";
@@ -62,15 +63,10 @@ export type OperacaoDashboard = {
   };
 };
 
-/** Para qual lado a variação é boa. Nunca inferido do sinal. */
-export type DirecaoBoaKpi = "cima" | "baixo";
-
-export type ComparativoKpi = {
-  valor: number | null;
-  anterior: number | null;
-  variacaoPercentual: number | null;
-  direcaoBoa: DirecaoBoaKpi;
-};
+// Reexportados por compatibilidade — a definição real (tipos + regra de
+// comparação) vive em lib/dashboard/comparativo-kpi.ts (módulo puro, sem
+// Prisma, testado em lib/dashboard/comparativo-kpi.test.ts).
+export type { ComparativoKpi, DirecaoBoaKpi };
 
 export type MetasResumoDashboard = {
   emAndamento: number;
@@ -284,25 +280,6 @@ function somarMapas(...mapas: Map<string, number>[]): Map<string, number> {
   }
 
   return resultado;
-}
-
-/**
- * Comparação com o período anterior. Sem base (zero, nula ou métrica indefinida)
- * a variação fica nula e a tela mostra "—" — nunca "−100,0%".
- */
-function montarComparativo(
-  valor: number | null,
-  anterior: number | null,
-  direcaoBoa: DirecaoBoaKpi
-): ComparativoKpi {
-  const temBase = valor !== null && anterior !== null && anterior !== 0;
-
-  return {
-    valor,
-    anterior,
-    variacaoPercentual: temBase ? ((valor - anterior) / Math.abs(anterior)) * 100 : null,
-    direcaoBoa,
-  };
 }
 
 /**
