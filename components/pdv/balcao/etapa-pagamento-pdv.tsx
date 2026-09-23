@@ -254,6 +254,18 @@ function LinhaPagamentoInformado({
       className={`rounded-kx-cartao border px-3 py-2.5 transition-colors ${
         selecionada ? "border-kx-primaria bg-kx-primaria/8" : "border-kx-painel-borda bg-kx-cartao"
       }`}
+      onKeyDown={(evento) => {
+        // No card inteiro (não só dentro do painel do editor): o foco pode
+        // estar no botão "Editar", num atalho de valor ou em qualquer
+        // campo quando o operador aperta Esc — restringir o handler só ao
+        // painel interno deixava Esc sem efeito sempre que o foco não
+        // estivesse EXATAMENTE dentro dele (ex.: reabrir "Editar" com o
+        // editor já aberto deixa o foco no próprio botão, fora do painel).
+        if (evento.key === "Escape" && selecionada) {
+          evento.stopPropagation();
+          onFecharEditor();
+        }
+      }}
     >
       <div
         role="button"
@@ -293,15 +305,7 @@ function LinhaPagamentoInformado({
       </div>
 
       {selecionada && (
-        <div
-          className="mt-3 rounded-kx-botao border border-kx-painel-borda bg-kx-superficie p-3"
-          onKeyDown={(evento) => {
-            if (evento.key === "Escape") {
-              evento.stopPropagation();
-              onFecharEditor();
-            }
-          }}
-        >
+        <div className="mt-3 rounded-kx-botao border border-kx-painel-borda bg-kx-superficie p-3">
           <div className="mb-3 flex items-start justify-between gap-3">
             <div>
               <p className="text-sm font-semibold text-kx-texto">Ajustar {rotuloFormaPagamentoCurto(linha.formaPagamento)}</p>
