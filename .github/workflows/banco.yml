@@ -102,12 +102,17 @@ jobs:
             exit 1
           fi
 
-          node scripts/neon/criar-ponto-restauracao.mjs \
-            --prefixo "antes-${{ inputs.ambiente }}" 2>&1 | tee /tmp/restauracao.log
+          codificar() { sed -e 's/%/%25/g' -e 's/\r/%0D/g' | awk '{printf "%s%%0A", $0}'; }
+
+          if ! node scripts/neon/criar-ponto-restauracao.mjs \
+              --prefixo "antes-${{ inputs.ambiente }}" 2>&1 | tee /tmp/restauracao.log; then
+            echo "::error::Falha ao criar o ponto de restauracao:%0A$(tail -40 /tmp/restauracao.log | codificar)"
+            exit 1
+          fi
 
           PONTO=$(grep -oP '^PONTO_RESTAURACAO=\K.*' /tmp/restauracao.log | tail -1)
           if [ -z "$PONTO" ]; then
-            echo "::error::o script nao devolveu um ponto de restauracao."
+            echo "::error::O script terminou sem devolver um ponto de restauracao:%0A$(tail -40 /tmp/restauracao.log | codificar)"
             exit 1
           fi
           echo "ponto=$PONTO" >> "$GITHUB_OUTPUT"
