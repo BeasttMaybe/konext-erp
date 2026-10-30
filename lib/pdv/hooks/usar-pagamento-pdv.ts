@@ -245,7 +245,6 @@ export function usePagamentoPdv({
   const [recebidoTocado, setRecebidoTocado] = useState(false);
   const [linhaEmEdicaoId, setLinhaEmEdicaoId] = useState<string | null>(null);
   const [seletorFormaAberto, setSeletorFormaAberto] = useState(false);
-  const [pagamentoInicialAutomatico, setPagamentoInicialAutomatico] = useState(true);
 
   // Sempre reflete o `tentativaVendaId` mais recente (atualizado a cada
   // render, nunca dispara re-render sozinho). `handleConfirmar` usa isto pra
@@ -329,7 +328,6 @@ export function usePagamentoPdv({
     setRecebidoTocado(false);
     setLinhaEmEdicaoId(null);
     setSeletorFormaAberto(false);
-    setPagamentoInicialAutomatico(true);
   }
 
   // 2) Mantém a linha única sincronizada com o total do servidor — e o valor
@@ -522,8 +520,6 @@ export function usePagamentoPdv({
   };
 
   const atualizarValorLinha = (id: string, valorBruto: number) => {
-    setPagamentoInicialAutomatico(false);
-
     setLinhas((estadoAtual) => {
       const indiceEditado = estadoAtual.findIndex((linha) => linha.id === id);
       if (indiceEditado < 0) return estadoAtual;
@@ -569,19 +565,39 @@ export function usePagamentoPdv({
   const selecionarPagamento = (pagamentoId: string) => setLinhaEmEdicaoId(pagamentoId);
 
   const removerPagamento = (pagamentoId: string) => {
-    setLinhas((estadoAtual) => {
-      if (estadoAtual.length === 1) return estadoAtual;
-      const restante = estadoAtual.filter((linha) => linha.id !== pagamentoId);
-      return distribuirValoresPagamentos(restante, total);
+    if (linhas.length <= 1) return;
+
+    const restante = linhas.filter((linha) => linha.id !== pagamentoId);
+    const proximasLinhas = distribuirValoresPagamentos(restante, total);
+
+    setLinhas(proximasLinhas);
+    setLinhaEmEdicaoId((atual) => (atual === pagamentoId ? null : atual));
+    setValoresPagamentosEmEdicao((estadoAtual) => {
+      if (!Object.prototype.hasOwnProperty.call(estadoAtual, pagamentoId)) return estadoAtual;
+      const proximo = { ...estadoAtual };
+      delete proximo[pagamentoId];
+      return proximo;
     });
 
-    setLinhaEmEdicaoId((atual) => (atual === pagamentoId ? null : atual));
-    setPagamentoInicialAutomatico(false);
+    // Remover a penúltima linha devolve a tela pro estado "escolher uma
+    // forma" — sem lixo de estado de uma forma que não existe mais: se a
+    // linha que sobrou é DINHEIRO, o valor recebido sincroniza com o novo
+    // total (igual substituirPagamentoUnico); se não é, zera o valor
+    // recebido em vez de deixar um número órfão de uma forma removida.
+    if (proximasLinhas.length === 1) {
+      const linhaFinal = proximasLinhas[0];
+      if (linhaFinal.formaPagamento === "DINHEIRO") {
+        setValorRecebidoDinheiro(linhaFinal.valorBruto);
+        setValorRecebidoEmEdicao(formatarDecimalPtBr(linhaFinal.valorBruto));
+      } else {
+        setValorRecebidoDinheiro(0);
+        setValorRecebidoEmEdicao(null);
+      }
+    }
   };
 
   const editarPagamento = (pagamentoId: string, patch: Partial<LinhaPagamento>) => {
     atualizarLinha(pagamentoId, patch);
-    setPagamentoInicialAutomatico(false);
   };
 
   const abrirEditorLinha = (linha: LinhaPagamento) => {
@@ -627,7 +643,6 @@ export function usePagamentoPdv({
     setLinhas([linhaUnica]);
     setLinhaEmEdicaoId(null);
     setSeletorFormaAberto(false);
-    setPagamentoInicialAutomatico(false);
 
     if (formaPagamento === "DINHEIRO") {
       setValorRecebidoDinheiro(total);
@@ -646,7 +661,6 @@ export function usePagamentoPdv({
 
     setLinhas((estadoAtual) => distribuirValoresPagamentos([...estadoAtual, novaLinha], total));
     setSeletorFormaAberto(false);
-    setPagamentoInicialAutomatico(false);
 
     if (valorBrutoInicial <= 0) {
       abrirEditorLinha(novaLinha);
@@ -671,11 +685,19 @@ export function usePagamentoPdv({
           ? configuracaoAtiva.prazoPadraoCrediarioDias
           : 0;
 
+    // Forma já lançada em alguma linha: nunca duplica — abre o editor DA
+    // LINHA EXISTENTE de verdade (mesmo caminho de "Editar", inclusive
+    // pré-preenchendo valoresPagamentosEmEdicao/valorRecebidoEmEdicao) e
+    // conta com o foco automático do campo Valor no componente de
+    // apresentação (abre porque `selecionada` passa a existir, o input é
+    // remontado com autoFocus). O toast informativo só pode ficar em cima
+    // dessa chamada — nunca sozinho — senão vira mensagem sem saída (regra
+    // #5 do bug de troca de forma de pagamento).
     const existente = linhas.find((linha) => linha.formaPagamento === formaPagamento);
     if (existente) {
-      selecionarPagamento(existente.id);
+      abrirEditorLinha(existente);
       setSeletorFormaAberto(false);
-      toast("Esta forma ja foi adicionada. Edite o valor na lista de pagamentos.");
+      toast("Esta forma ja foi adicionada. Ajuste o valor nesta linha.");
       if (formaPagamento === "DINHEIRO") {
         setValorRecebidoDinheiro(Math.max(total, totalInformado));
         setValorRecebidoEmEdicao(formatarDecimalPtBr(Math.max(total, totalInformado)));
@@ -687,21 +709,34 @@ export function usePagamentoPdv({
       const linhaAtual = linhas[0];
       const linhaAtualCobreTotal = linhaAtual ? paraCentavos(linhaAtual.valorBruto) === paraCentavos(total) : false;
 
-      if (!configuracaoAtiva.permitirPagamentoMisto && linhaAtual && linhaAtual.formaPagamento !== formaPagamento) {
-        toast("Pagamento misto esta desativado. A forma anterior sera substituida.");
-      }
-
-      if (configuracaoAtiva.permitirPagamentoMisto) {
-        if (pagamentoInicialAutomatico) {
-          substituirPagamentoUnico(formaPagamento, diasPadrao);
-          return;
+      // Pagamento misto desativado: só existe UMA linha possível, então
+      // trocar de forma sempre substitui a anterior — igual sempre foi,
+      // independente da linha cobrir o total ou não.
+      if (!configuracaoAtiva.permitirPagamentoMisto) {
+        if (linhaAtual && linhaAtual.formaPagamento !== formaPagamento) {
+          toast("Pagamento misto esta desativado. A forma anterior sera substituida.");
         }
-
-        adicionarLinhaPagamento(formaPagamento, linhaAtualCobreTotal ? 0 : valorRestante, diasPadrao);
+        substituirPagamentoUnico(formaPagamento, diasPadrao);
         return;
       }
 
-      substituirPagamentoUnico(formaPagamento, diasPadrao);
+      // Caso comum de balcão: exatamente um pagamento lançado, cobrindo o
+      // total inteiro (não importa se é o valor-padrão intocado ou se o
+      // operador já mexeu em algo antes) — trocar de forma SUBSTITUI esse
+      // pagamento, mantendo o valor. Antes disto só acontecia enquanto uma
+      // flag "pagamento inicial automático" continuava true, deixando o
+      // operador preso com uma segunda linha zerada assim que qualquer
+      // interação prévia zerava essa flag — bug relatado em produção.
+      if (linhaAtualCobreTotal) {
+        substituirPagamentoUnico(formaPagamento, diasPadrao);
+        toast(`Forma alterada para ${rotuloFormaPagamentoCurto(formaPagamento)}.`);
+        return;
+      }
+
+      // Só sobra este caso quando o operador já reduziu manualmente o
+      // valor da linha única (ainda sozinha, mas não cobre mais o total) —
+      // aí sim faz sentido dividir: a forma nova entra com o restante.
+      adicionarLinhaPagamento(formaPagamento, valorRestante, diasPadrao);
       return;
     }
 
