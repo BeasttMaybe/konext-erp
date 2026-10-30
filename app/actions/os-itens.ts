@@ -293,6 +293,17 @@ export async function adicionarItemOS(osId: string, data: DadosAdicionarItemOS) 
     throw new Error("Delegate Prisma de ItemOS nao disponivel.");
   }
 
+  // Lido fora da transacao de proposito: e so leitura de configuracao, e
+  // mante-la aqui evita mais uma ida ao banco dentro da transacao.
+  // `?? true` cobre o tenant que ainda nao tem a linha de Configuracao.
+  const custoPecaJaPago =
+    (
+      await prisma.configuracao.findFirst({
+        select: { custoPecaOSJaPago: true },
+        orderBy: { criadoEm: "asc" },
+      })
+    )?.custoPecaOSJaPago ?? true;
+
   // Usa transaction para garantir que o item e a despesa financeira sejam criados juntos.
   await prisma.$transaction(async (tx) => {
     const txAny = tx as typeof tx & {
@@ -327,7 +338,14 @@ export async function adicionarItemOS(osId: string, data: DadosAdicionarItemOS) 
     })) as { id?: string };
     const itemCriadoId = itemCriado?.id ? String(itemCriado.id) : null;
 
-    // 2. Cria despesa financeira automática caso a peça tenha custo registrado.
+    // 2. Lanca o custo da peca no financeiro, se houver custo registrado.
+    //
+    // A peca de conserto e comprada por servico e, nesta loja, paga no ato — por
+    // isso `custoPecaOSJaPago` nasce ligado. Com ele ligado, a despesa entra JA
+    // QUITADA: continua contando em relatorio, fluxo de caixa e apuracao de
+    // lucro, mas nao vira conta em aberto. Antes nascia sempre PENDENTE
+    // vencendo no mesmo dia, o que enchia Contas a Pagar de linhas que so
+    // esperavam alguem dar baixa em algo ja pago.
     if (custoPeca > 0 && txDespesa?.create && txParcelaDespesa?.create) {
       // Busca o número da OS para compor a descrição legível
       const osDelegate = txAny.ordemServico ?? txAny.OrdemServico;
@@ -345,14 +363,17 @@ export async function adicionarItemOS(osId: string, data: DadosAdicionarItemOS) 
         },
       });
 
-      // Cria a parcela única com vencimento para hoje e status PENDENTE
+      const agora = new Date();
+
       await txParcelaDespesa.create({
         data: {
           despesaId: despesa.id,
           numeroParcela: 1,
           valor: custoPeca,
-          dataVencimento: new Date(),
-          status: "PENDENTE",
+          dataVencimento: agora,
+          ...(custoPecaJaPago
+            ? { status: "PAGO", dataPagamento: agora, valorPago: custoPeca }
+            : { status: "PENDENTE" }),
         },
       });
     }

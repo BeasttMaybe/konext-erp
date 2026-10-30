@@ -126,3 +126,42 @@ describe("resumirSelecao", () => {
     expect(resumo.total).toBe(0.3);
   });
 });
+
+describe("resumirSelecao — valor que não é número", () => {
+  // O bug real: `valor` chegava como string (Decimal do Prisma serializado), a
+  // conta virava NaN e a tela mostrava "R$ 0,00" com 20 itens selecionados.
+  // Total de dinheiro errado em silêncio é pior que erro visível.
+  it("soma certo quando o valor chega como texto, em vez de virar NaN", () => {
+    // Era aqui que a tela quebrava: `Math.round(("110" + EPSILON) * 100)`
+    // concatenava e virava NaN, e o total aparecia como "R$ 0,00" com os itens
+    // todos selecionados. `deDecimal` entende texto numérico e devolve o valor.
+    const selecionados = new Set(["a", "b"]);
+    const itens = [
+      { id: "a", valor: "110" as unknown as number },
+      { id: "b", valor: "10" as unknown as number },
+    ];
+
+    expect(resumirSelecao(selecionados, itens)).toEqual({ quantidade: 2, total: 120 });
+  });
+
+  it("levanta erro quando o valor não é um decimal de jeito nenhum", () => {
+    const selecionados = new Set(["a"]);
+    const itens = [{ id: "a", valor: "cento e dez" as unknown as number }];
+
+    // Erro visível, não zero silencioso: total de dinheiro errado sem aviso é
+    // o pior resultado possível aqui.
+    expect(() => resumirSelecao(selecionados, itens)).toThrowError(/deDecimal/);
+  });
+
+  it("soma em centavos exatos, sem erro de ponto flutuante", () => {
+    const selecionados = new Set(["a", "b", "c"]);
+    const itens = [
+      { id: "a", valor: 1409.89 },
+      { id: "b", valor: 0.1 },
+      { id: "c", valor: 0.2 },
+    ];
+
+    // 0.1 + 0.2 em ponto flutuante daria 0.30000000000000004.
+    expect(resumirSelecao(selecionados, itens)).toEqual({ quantidade: 3, total: 1410.19 });
+  });
+});

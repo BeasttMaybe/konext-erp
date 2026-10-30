@@ -80,6 +80,7 @@ type ConfiguracaoRegistro = {
   exigirItemParaGarantia?: boolean | null;
   exigirItemParaEnviarPDV?: boolean | null;
   exigirDiagnosticoParaFinalizar?: boolean | null;
+  custoPecaOSJaPago?: boolean | null;
   permitirFinalizarSemPagamento?: boolean | null;
   permitirGarantiaPersonalizada?: boolean | null;
   textoCoberturaGarantia?: string | null;
@@ -182,6 +183,7 @@ export type DadosConfiguracoes = {
   exigirItemParaGarantia: boolean;
   exigirItemParaEnviarPDV: boolean;
   exigirDiagnosticoParaFinalizar: boolean;
+  custoPecaOSJaPago: boolean;
   permitirFinalizarSemPagamento: boolean;
   permitirGarantiaPersonalizada: boolean;
   textoCoberturaGarantia: string;
@@ -308,6 +310,7 @@ const schemaDadosConfiguracoes = z.object({
   exigirItemParaGarantia: z.boolean(),
   exigirItemParaEnviarPDV: z.boolean(),
   exigirDiagnosticoParaFinalizar: z.boolean(),
+  custoPecaOSJaPago: z.boolean(),
   permitirFinalizarSemPagamento: z.boolean(),
   permitirGarantiaPersonalizada: z.boolean(),
   textoCoberturaGarantia: z.string().trim().max(4000, "Texto de cobertura excede o limite de 4000 caracteres."),
@@ -420,6 +423,7 @@ function obterConfiguracoesPadrao(): DadosConfiguracoes {
     exigirItemParaGarantia: defaultsOsGarantias.exigirItemParaGarantia,
     exigirItemParaEnviarPDV: defaultsOsGarantias.exigirItemParaEnviarPDV,
     exigirDiagnosticoParaFinalizar: defaultsOsGarantias.exigirDiagnosticoParaFinalizar,
+    custoPecaOSJaPago: defaultsOsGarantias.custoPecaOSJaPago,
     permitirFinalizarSemPagamento: defaultsOsGarantias.permitirFinalizarSemPagamento,
     permitirGarantiaPersonalizada: defaultsOsGarantias.permitirGarantiaPersonalizada,
     textoCoberturaGarantia: defaultsOsGarantias.textoCoberturaGarantia,
@@ -436,6 +440,7 @@ type CamposOsGarantiaRaw = {
   exigirItemParaGarantia: boolean | null;
   exigirItemParaEnviarPDV: boolean | null;
   exigirDiagnosticoParaFinalizar: boolean | null;
+  custoPecaOSJaPago: boolean | null;
   permitirFinalizarSemPagamento: boolean | null;
   permitirGarantiaPersonalizada: boolean | null;
   textoCoberturaGarantia: string | null;
@@ -518,6 +523,7 @@ async function lerCamposOsGarantiaViaSql(
         "exigirItemParaGarantia",
         "exigirItemParaEnviarPDV",
         "exigirDiagnosticoParaFinalizar",
+        "custoPecaOSJaPago",
         "permitirFinalizarSemPagamento",
         "permitirGarantiaPersonalizada",
         "textoCoberturaGarantia",
@@ -605,6 +611,7 @@ export async function obterConfiguracoes(): Promise<{ id: string } & DadosConfig
           exigirItemParaGarantia: true,
           exigirItemParaEnviarPDV: true,
           exigirDiagnosticoParaFinalizar: false,
+          custoPecaOSJaPago: true,
           permitirFinalizarSemPagamento: true,
           permitirGarantiaPersonalizada: true,
           textoCoberturaGarantia: TEXTO_COBERTURA_GARANTIA_PADRAO,
@@ -770,6 +777,10 @@ export async function obterConfiguracoes(): Promise<{ id: string } & DadosConfig
       typeof camposOsGarantia?.exigirDiagnosticoParaFinalizar === "boolean"
         ? Boolean(camposOsGarantia.exigirDiagnosticoParaFinalizar)
         : defaults.exigirDiagnosticoParaFinalizar,
+    custoPecaOSJaPago:
+      typeof camposOsGarantia?.custoPecaOSJaPago === "boolean"
+        ? Boolean(camposOsGarantia.custoPecaOSJaPago)
+        : defaults.custoPecaOSJaPago,
     permitirFinalizarSemPagamento:
       typeof camposOsGarantia?.permitirFinalizarSemPagamento === "boolean"
         ? Boolean(camposOsGarantia.permitirFinalizarSemPagamento)
@@ -804,6 +815,7 @@ function houveMudancaCamposOsGarantia(antes: DadosConfiguracoes, depois: DadosCo
     antes.exigirItemParaGarantia !== depois.exigirItemParaGarantia ||
     antes.exigirItemParaEnviarPDV !== depois.exigirItemParaEnviarPDV ||
     antes.exigirDiagnosticoParaFinalizar !== depois.exigirDiagnosticoParaFinalizar ||
+    antes.custoPecaOSJaPago !== depois.custoPecaOSJaPago ||
     antes.permitirFinalizarSemPagamento !== depois.permitirFinalizarSemPagamento ||
     antes.permitirGarantiaPersonalizada !== depois.permitirGarantiaPersonalizada ||
     antes.textoCoberturaGarantia !== depois.textoCoberturaGarantia ||
@@ -851,6 +863,7 @@ async function atualizarCamposOsGarantiaComFallbackSql(prismaClient: PrismaOpera
   exigirItemParaGarantia: boolean;
   exigirItemParaEnviarPDV: boolean;
   exigirDiagnosticoParaFinalizar: boolean;
+  custoPecaOSJaPago: boolean;
   permitirFinalizarSemPagamento: boolean;
   permitirGarantiaPersonalizada: boolean;
   textoCoberturaGarantia: string | null;
@@ -867,6 +880,7 @@ async function atualizarCamposOsGarantiaComFallbackSql(prismaClient: PrismaOpera
       "exigirItemParaGarantia" = ${dados.exigirItemParaGarantia},
       "exigirItemParaEnviarPDV" = ${dados.exigirItemParaEnviarPDV},
       "exigirDiagnosticoParaFinalizar" = ${dados.exigirDiagnosticoParaFinalizar},
+      "custoPecaOSJaPago" = ${dados.custoPecaOSJaPago},
       "permitirFinalizarSemPagamento" = ${dados.permitirFinalizarSemPagamento},
       "permitirGarantiaPersonalizada" = ${dados.permitirGarantiaPersonalizada},
       "textoCoberturaGarantia" = ${dados.textoCoberturaGarantia},
@@ -1055,6 +1069,7 @@ export async function salvarConfiguracoes(data: DadosConfiguracoes) {
     exigirItemParaGarantia: dadosNormalizados.exigirItemParaGarantia,
     exigirItemParaEnviarPDV: dadosNormalizados.exigirItemParaEnviarPDV,
     exigirDiagnosticoParaFinalizar: dadosNormalizados.exigirDiagnosticoParaFinalizar,
+    custoPecaOSJaPago: dadosNormalizados.custoPecaOSJaPago,
     permitirFinalizarSemPagamento: dadosNormalizados.permitirFinalizarSemPagamento,
     permitirGarantiaPersonalizada: dadosNormalizados.permitirGarantiaPersonalizada,
     textoCoberturaGarantia: dadosNormalizados.textoCoberturaGarantia || null,
@@ -1151,6 +1166,7 @@ export async function salvarConfiguracoes(data: DadosConfiguracoes) {
           exigirItemParaGarantia: dadosAntes.exigirItemParaGarantia,
           exigirItemParaEnviarPDV: dadosAntes.exigirItemParaEnviarPDV,
           exigirDiagnosticoParaFinalizar: dadosAntes.exigirDiagnosticoParaFinalizar,
+          custoPecaOSJaPago: dadosAntes.custoPecaOSJaPago,
           permitirFinalizarSemPagamento: dadosAntes.permitirFinalizarSemPagamento,
           permitirGarantiaPersonalizada: dadosAntes.permitirGarantiaPersonalizada,
           habilitarMargemAutomatica: dadosAntes.habilitarMargemAutomatica,
@@ -1163,6 +1179,7 @@ export async function salvarConfiguracoes(data: DadosConfiguracoes) {
           exigirItemParaGarantia: dadosNormalizados.exigirItemParaGarantia,
           exigirItemParaEnviarPDV: dadosNormalizados.exigirItemParaEnviarPDV,
           exigirDiagnosticoParaFinalizar: dadosNormalizados.exigirDiagnosticoParaFinalizar,
+          custoPecaOSJaPago: dadosNormalizados.custoPecaOSJaPago,
           permitirFinalizarSemPagamento: dadosNormalizados.permitirFinalizarSemPagamento,
           permitirGarantiaPersonalizada: dadosNormalizados.permitirGarantiaPersonalizada,
           habilitarMargemAutomatica: dadosNormalizados.habilitarMargemAutomatica,

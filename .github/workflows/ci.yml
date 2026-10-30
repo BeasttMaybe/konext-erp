@@ -45,12 +45,26 @@ jobs:
 
       # `npm ci` já dispara o postinstall, que gera os dois clientes Prisma.
       - name: Instalar dependências
-        run: npm ci
+        run: |
+          set -o pipefail
+          codificar() { sed -e 's/%/%25/g' -e 's/\r/%0D/g' | awk '{printf "%s%%0A", $0}'; }
 
+          if ! npm ci 2>&1 | tee /tmp/npm.log; then
+            echo "::error::Falha em npm ci:%0A$(tail -40 /tmp/npm.log | codificar)"
+            exit 1
+          fi
+
+      # Mesmo envelope das demais: uma falha aqui chegava como "exit code 1"
+      # sem causa nenhuma, porque so as etapas seguintes publicavam anotacao.
       - name: Validar os dois schemas Prisma
         run: |
-          npx prisma validate
-          npm run prisma:central:validate
+          set -o pipefail
+          codificar() { sed -e 's/%/%25/g' -e 's/\r/%0D/g' | awk '{printf "%s%%0A", $0}'; }
+
+          if ! { npx prisma validate && npm run prisma:central:validate; } 2>&1 | tee /tmp/prisma.log; then
+            echo "::error::Falha ao validar os schemas Prisma:%0A$(tail -40 /tmp/prisma.log | codificar)"
+            exit 1
+          fi
 
       - name: Tipos
         run: npx tsc --noEmit

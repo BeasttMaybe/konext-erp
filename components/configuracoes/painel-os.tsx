@@ -19,6 +19,7 @@ type CampoToggleOs =
   | "exigirItemParaEnviarPDV"
   | "exigirDiagnosticoParaFinalizar"
   | "permitirFinalizarSemPagamento"
+  | "custoPecaOSJaPago"
   | "habilitarMargemAutomatica";
 
 type BlocoToggleOsProps = {
@@ -93,6 +94,12 @@ export function PainelOs({ control, configuracaoAtual }: PropsPainelOs) {
               campo="exigirDiagnosticoParaFinalizar"
               titulo="Exigir diagnóstico técnico para finalizar"
               descricao="Impede finalizar a OS enquanto o diagnóstico técnico estiver vazio."
+            />
+            <BlocoToggleOs
+              control={control}
+              campo="custoPecaOSJaPago"
+              titulo="Peça do conserto já vem paga"
+              descricao="O custo da peça entra no financeiro como despesa já quitada, em vez de conta a pagar esperando baixa. Desligue se você compra peça faturada."
             />
             <BlocoToggleOs
               control={control}
