@@ -71,8 +71,6 @@ export interface ParcelaDespesaComRelacao {
   };
 }
 
-const paraCentavos = (valor: number) => Math.round((valor + Number.EPSILON) * 100);
-const paraMoeda = (centavos: number) => centavos / 100;
 
 type DelegateDespesaCreate = {
   create: (args: unknown) => Promise<{ id: string }>;
@@ -188,7 +186,7 @@ function gerarParcelas(
     }));
   }
 
-  const totalCentavos = paraCentavos(valorTotal);
+  const totalCentavos = deDecimal(valorTotal);
   // Centavo-exato (Fase 2A-2 cont.): dividirEmParcelas (lib/dinheiro.ts) é o
   // único lugar autorizado a decidir como o resto em centavos é distribuído
   // — a divisão manual anterior chegava ao mesmo resultado (resto nas
