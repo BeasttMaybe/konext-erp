@@ -1,0 +1,121 @@
+name: Banco (sob demanda)
+
+# Migrations e scripts de banco rodam aqui porque o ambiente onde o Claude trabalha
+# não alcança o Neon (host bloqueado, e a porta 5432 não passa pelo proxy). O runner
+# do GitHub alcança, então este é o lugar onde `npm run db:*` roda sem precisar de
+# ninguém abrindo o Prompt de Comando.
+#
+# As travas NÃO estão neste arquivo — estão nos próprios scripts, onde sempre
+# estiveram: `--dry-run` é o padrão, `--aplicar` exige CONFIRMAR=SIM e
+# PONTO_RESTAURACAO, SQL destrutivo exige AUTORIZAR_DESTRUTIVO=SIM, e nenhuma
+# connection string com `-pooler` é aceita. O que este arquivo acrescenta é o
+# `environment`, que deixa você exigir aprovação manual para produção nas
+# configurações do repositório (Settings → Environments → producao → Required
+# reviewers).
+
+on:
+  workflow_dispatch:
+    inputs:
+      ambiente:
+        description: "Banco alvo"
+        type: choice
+        required: true
+        default: teste
+        options: [teste, producao]
+      comando:
+        description: "O que rodar"
+        type: choice
+        required: true
+        default: migrar-dry-run
+        options:
+          - verificar-ambiente
+          - diagnostico
+          - migrar-dry-run
+          - migrar-aplicar
+          - relatorio-os
+          - verificar-datas
+          - verificar-dinheiro
+      tenant:
+        description: "Slug de um único tenant (vazio = todos)"
+        type: string
+        required: false
+      ponto_restauracao:
+        description: "Nome do branch Neon de restauração — obrigatório para migrar-aplicar"
+        type: string
+        required: false
+      autorizar_destrutivo:
+        description: "Permitir SQL destrutivo (DROP, ALTER TYPE, UPDATE...)"
+        type: boolean
+        required: false
+        default: false
+
+concurrency:
+  # Nunca dois comandos de banco no mesmo ambiente ao mesmo tempo.
+  group: banco-${{ inputs.ambiente }}
+  cancel-in-progress: false
+
+jobs:
+  executar:
+    name: ${{ inputs.comando }} em ${{ inputs.ambiente }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: ${{ inputs.ambiente }}
+    env:
+      AMBIENTE: ${{ inputs.ambiente }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      CENTRAL_DATABASE_URL: ${{ secrets.CENTRAL_DATABASE_URL }}
+      TENANT_PRINCIPAL_DATABASE_URL: ${{ secrets.TENANT_PRINCIPAL_DATABASE_URL }}
+      TENANT_CUNHADO_DATABASE_URL: ${{ secrets.TENANT_CUNHADO_DATABASE_URL }}
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      # Falha cedo e com mensagem clara, em vez de deixar o script descobrir no meio.
+      - name: Conferir pré-requisitos do modo aplicar
+        if: inputs.comando == 'migrar-aplicar'
+        run: |
+          if [ -z "${{ inputs.ponto_restauracao }}" ]; then
+            echo "::error::migrar-aplicar exige ponto_restauracao: crie o branch de restauração no Neon a partir do banco alvo e passe o nome dele."
+            exit 1
+          fi
+
+      - name: Rodar
+        env:
+          PONTO_RESTAURACAO: ${{ inputs.ponto_restauracao }}
+          CONFIRMAR: ${{ inputs.comando == 'migrar-aplicar' && 'SIM' || '' }}
+          AUTORIZAR_DESTRUTIVO: ${{ inputs.autorizar_destrutivo && 'SIM' || '' }}
+        run: |
+          set -o pipefail
+          ALVO_TENANT=""
+          if [ -n "${{ inputs.tenant }}" ]; then
+            ALVO_TENANT="--tenant ${{ inputs.tenant }}"
+          fi
+
+          case "${{ inputs.comando }}" in
+            verificar-ambiente)   npm run verificar:ambiente ;;
+            diagnostico)          npm run db:diagnostico ;;
+            migrar-dry-run)       npm run db:migrar -- --dry-run $ALVO_TENANT ;;
+            migrar-aplicar)       npm run db:migrar -- --aplicar $ALVO_TENANT ;;
+            relatorio-os)         npm run db:relatorio-os ;;
+            verificar-datas)      npm run db:verificar-datas ;;
+            verificar-dinheiro)   npm run db:verificar-dinheiro ;;
+            *) echo "::error::comando desconhecido"; exit 1 ;;
+          esac
+
+      # Relatórios dos scripts de diagnóstico/verificação, para leitura depois.
+      - name: Guardar relatórios
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorios-${{ inputs.ambiente }}-${{ github.run_id }}
+          path: docs/diagnostico/
+          if-no-files-found: ignore
+          retention-days: 30
