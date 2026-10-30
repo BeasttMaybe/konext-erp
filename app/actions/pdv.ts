@@ -57,6 +57,8 @@ export interface ProdutoPDVBanco {
   categoria: string;
   quantidadeEstoque: number;
   estoqueMinimo: number;
+  /** Único identificador "de leitor" do produto hoje no schema — exibido como SKU/código na Etapa Produto do balcão. */
+  codigoBarras: string | null;
 }
 
 /**
@@ -892,6 +894,7 @@ export async function listarProdutosPDV(): Promise<ProdutoPDVBanco[]> {
       categoria: true,
       quantidadeEstoque: true,
       estoqueMinimo: true,
+      codigoBarras: true,
     },
     orderBy: {
       nome: "asc",
@@ -906,6 +909,7 @@ export async function listarProdutosPDV(): Promise<ProdutoPDVBanco[]> {
     categoria: produto.categoria,
     quantidadeEstoque: produto.quantidadeEstoque,
     estoqueMinimo: produto.estoqueMinimo,
+    codigoBarras: produto.codigoBarras,
   }));
 }
 

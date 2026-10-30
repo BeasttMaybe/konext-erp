@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Konext — referência: PDV etapa Produto (modelo Bling)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+  <style>
+    body { margin: 0; font-family: "Plus Jakarta Sans", "Segoe UI", system-ui, sans-serif; background: #1B1D38; color: #EEF0FB; }
+    a { color: #A5AAFF; text-decoration: none; } a:hover { color: #C7CAFF; }
+    .num { font-variant-numeric: tabular-nums; }
+    .nav-ativo { position: relative; }
+    .nav-ativo::before { content: ""; position: absolute; right: 0; top: -20px; width: 20px; height: 20px; border-bottom-right-radius: 20px; box-shadow: 8px 8px 0 8px #1B1D38; }
+    .nav-ativo::after { content: ""; position: absolute; right: 0; bottom: -20px; width: 20px; height: 20px; border-top-right-radius: 20px; box-shadow: 8px -8px 0 8px #1B1D38; }
+  </style>
+</head>
+<body>
+<!--
+  Konext — referência: PDV etapa Produto (modelo Bling)
+  REFERÊNCIA VISUAL APROVADA PELO DONO (substitui a etapa Produto da referencia-pdv-tres-etapas.html).
+  Abra no navegador e compare lado a lado com a tela real antes de dar a tarefa por concluída.
+  A barra lateral do app foi removida de propósito. Altura de 760px de propósito: a tela cabe sem rolagem de página.
+  As cores são os valores literais dos tokens --kx-*; no código use SEMPRE o token, nunca o hex.
+  A lógica interativa pode não rodar isolada — o que vale é o LAYOUT. Dados fictícios.
+-->
+
+<div style="width: 1440px; height: 760px; display: flex; background: #1B1D38; overflow: hidden;">
+
+  <main style="flex-grow: 1; display: flex; flex-direction: column; padding: 18px 24px 20px 24px; box-sizing: border-box; gap: 12px; min-width: 0;">
+    <header style="display: flex; align-items: center; gap: 14px; min-height: 42px;">
+      <div style="display: flex; flex-direction: column; gap: 2px;">
+        <span style="font-size: 12px; color: #A7AACE;">Caixa aberto desde 13:15</span>
+        <span style="font-size: 20px; font-weight: 800; letter-spacing: -0.02em;">PDV · nova venda</span>
+      </div>
+      <div style="margin-left: auto; display: flex; align-items: center; gap: 10px;">
+        <button type="button" style="height: 42px; padding: 0 16px; border-radius: 12px; border: 1px solid #45487A; background: transparent; color: #EEF0FB; font: inherit; font-size: 14px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; border-color: #7F3645; color: #FCA5A5;">Cancelar venda</button>
+        <button type="button" style="height: 42px; padding: 0 16px; border-radius: 12px; border: 1px solid #45487A; background: transparent; color: #EEF0FB; font: inherit; font-size: 14px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer;">Caixa e fechamento</button>
+      </div>
+    </header>
+    <div style="display: flex; gap: 6px;">
+      <sc-for list="{{etapas}}" as="e" hint-placeholder-count="3">
+        <button type="button" onClick="{{e.escolher}}" style="flex-grow: 1; height: 46px; border-radius: 12px; border: 1px solid {{e.borda}}; background: {{e.fundo}}; color: {{e.cor}}; font: inherit; display: flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer;">
+          <span style="width: 24px; height: 24px; border-radius: 50%; background: {{e.bolaFundo}}; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800;">{{e.numero}}</span>
+          <span style="font-size: 14px; font-weight: 800;">{{e.titulo}}</span>
+          <span style="font-size: 11px; color: #A7AACE;">{{e.atalho}}</span>
+        </button>
+      </sc-for>
+    </div>
+
+    <section style="flex-grow: 1; min-height: 0; display: grid; grid-template-columns: 460px minmax(0, 1fr); gap: 14px;">
+
+      <div style="padding: 16px 18px; border-radius: 22px; background: #2A2C50; border: 1px solid #353862; display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow: hidden;">
+        <label style="height: 52px; flex-shrink: 0; border-radius: 12px; background: #23254A; border: 1px solid #8B91FF; display: flex; align-items: center; gap: 10px; padding: 0 14px; box-sizing: border-box;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#A5AAFF" stroke-width="2" stroke-linecap="round"><path d="M3 5v14M7 5v14M11 5v14M15 5v9M19 5v14"></path></svg>
+          <input value="{{busca}}" placeholder="Leitor, nome, SKU ou código" style="flex-grow: 1; min-width: 0; background: transparent; border: none; outline: none; color: #EEF0FB; font: inherit; font-size: 15px;">
+          <span style="font-size: 12px; color: #A7AACE; border: 1px solid #45487A; border-radius: 6px; padding: 2px 8px; flex-shrink: 0;">F2</span>
+        </label>
+
+        <sc-if value="{{mostrarResultados}}" hint-placeholder-val="{{ true }}">
+          <div style="display: flex; flex-direction: column; gap: 5px; max-height: 210px; overflow: hidden;">
+            <sc-for list="{{resultados}}" as="r" hint-placeholder-count="4">
+              <button type="button" onClick="{{r.escolher}}" style="display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 0 12px; border-radius: 11px; border: 1px solid {{r.borda}}; background: {{r.fundo}}; color: #EEF0FB; font: inherit; text-align: left; cursor: pointer;">
+                <span style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column;">
+                  <span style="font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{r.nome}}</span>
+                  <span class="num" style="font-size: 11px; color: #A7AACE;">{{r.detalhe}}</span>
+                </span>
+                <span class="num" style="font-size: 14px; font-weight: 800; color: #C7CAFF; flex-shrink: 0;">{{r.preco}}</span>
+              </button>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <div style="flex-grow: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; padding: 14px; border-radius: 16px; background: #23254A; overflow: hidden;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="width: 54px; height: 54px; flex-shrink: 0; border-radius: 12px; background: #3A3D6A; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; color: #C3C6E4;">{{sigla}}</span>
+            <div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px;">
+              <span style="font-size: 15px; font-weight: 800; line-height: 1.25;">{{produtoNome}}</span>
+              <span class="num" style="font-size: 12px; color: {{estoqueCor}};">{{produtoDetalhe}}</span>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;">
+            <label style="display: flex; flex-direction: column; gap: 6px;">
+              <span style="font-size: 12px; font-weight: 700; color: #C3C6E4;">Quantidade</span>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <button type="button" aria-label="Diminuir" onClick="{{diminuir}}" style="width: 44px; height: 44px; flex-shrink: 0; border-radius: 11px; border: 1px solid #45487A; background: transparent; color: #EEF0FB; font: inherit; font-size: 18px; font-weight: 700; cursor: pointer;">−</button>
+                <input value="{{quantidade}}" class="num" style="height: 44px; border-radius: 12px; background: #23254A; border: 1px solid #383B66; padding: 0 14px; color: #EEF0FB; font: inherit; font-size: 14px; box-sizing: border-box; width: 100%; text-align: center; font-size: 16px; font-weight: 800;">
+                <button type="button" aria-label="Aumentar" onClick="{{aumentar}}" style="width: 44px; height: 44px; flex-shrink: 0; border-radius: 11px; border: 1px solid #45487A; background: transparent; color: #EEF0FB; font: inherit; font-size: 18px; font-weight: 700; cursor: pointer;">+</button>
+              </div>
+            </label>
+            <label style="display: flex; flex-direction: column; gap: 6px;">
+              <span style="font-size: 12px; font-weight: 700; color: #C3C6E4;">Valor unitário</span>
+              <input value="{{unitario}}" class="num" style="height: 44px; border-radius: 12px; background: #23254A; border: 1px solid #383B66; padding: 0 14px; color: #EEF0FB; font: inherit; font-size: 14px; box-sizing: border-box; width: 100%;">
+            </label>
+            <label style="display: flex; flex-direction: column; gap: 6px;">
+              <span style="font-size: 12px; font-weight: 700; color: #C3C6E4;">Desconto no item</span>
+              <input value="R$ 0,00" class="num" style="height: 44px; border-radius: 12px; background: #23254A; border: 1px solid #383B66; padding: 0 14px; color: #EEF0FB; font: inherit; font-size: 14px; box-sizing: border-box; width: 100%;">
+            </label>
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <span style="font-size: 12px; font-weight: 700; color: #C3C6E4;">Subtotal</span>
+              <div style="height: 44px; border-radius: 12px; background: #2E3158; border: 1px solid #3A3D6A; display: flex; align-items: center; justify-content: flex-end; padding: 0 14px; box-sizing: border-box;">
+                <span class="num" style="font-size: 15px; font-weight: 800; color: #C7CAFF;">{{subtotalItem}}</span>
+              </div>
+            </div>
+          </div>
+
+          <button type="button" style="margin-top: auto; height: 48px; border-radius: 12px; border: none; background: #5A5FE0; color: #FFFFFF; font: inherit; font-size: 15px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer;">
+            Inserir no pedido <span style="font-size: 12px; opacity: 0.8;">Enter</span>
+          </button>
+        </div>
+      </div>
+
+      <div style="padding: 16px 18px; border-radius: 22px; background: #2A2C50; border: 1px solid #353862; display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow: hidden;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 15px; font-weight: 700;">Itens do pedido</span>
+          <span class="num" style="padding: 2px 10px; border-radius: 999px; background: #33365F; font-size: 12px; font-weight: 700;">{{quantidadeItens}}</span>
+          <div style="margin-left: auto; display: flex; gap: 8px;">
+            <button type="button" style="height: 42px; padding: 0 16px; border-radius: 12px; border: 1px solid #45487A; background: transparent; color: #EEF0FB; font: inherit; font-size: 14px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; height: 34px; font-size: 12px;">Serviço avulso</button>
+            <button type="button" style="height: 42px; padding: 0 16px; border-radius: 12px; border: 1px solid #45487A; background: transparent; color: #EEF0FB; font: inherit; font-size: 14px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; height: 34px; font-size: 12px; border-color: #5A5FE0; color: #A5AAFF;">Vincular OS · F4</button>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: minmax(0, 1fr) 90px 120px 130px 60px; gap: 10px; padding: 0 12px; font-size: 12px; color: #A7AACE; font-weight: 600; flex-shrink: 0;">
+          <span>Produto</span><span style="text-align: center;">Qtd.</span><span style="text-align: right;">Unitário</span><span style="text-align: right;">Subtotal</span><span style="text-align: right;">Ações</span>
+        </div>
+
+        <div style="flex-grow: 1; min-height: 0; display: flex; flex-direction: column; gap: 5px; overflow: hidden;">
+          <sc-for list="{{itens}}" as="i" hint-placeholder-count="6">
+            <div style="display: grid; grid-template-columns: minmax(0, 1fr) 90px 120px 130px 60px; gap: 10px; align-items: center; min-height: 50px; padding: 0 12px; border-radius: 11px; background: {{i.fundo}}; font-size: 14px;">
+              <div style="display: flex; flex-direction: column; min-width: 0;">
+                <span style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{i.nome}}</span>
+                <span class="num" style="font-size: 11px; color: #A7AACE;">{{i.sku}}</span>
+              </div>
+              <span class="num" style="text-align: center; font-weight: 700;">{{i.qtd}}</span>
+              <span class="num" style="text-align: right; color: #C3C6E4;">{{i.unitario}}</span>
+              <span class="num" style="text-align: right; font-weight: 800;">{{i.total}}</span>
+              <span style="justify-self: end; display: flex; gap: 8px;">
+                <button type="button" aria-label="Editar" style="background: transparent; border: none; color: #A5AAFF; cursor: pointer; padding: 0;">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg>
+                </button>
+                <button type="button" aria-label="Remover" style="background: transparent; border: none; color: #FCA5A5; cursor: pointer; padding: 0;">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16"></path><path d="M9 7V4h6v3"></path><path d="M6 7l1 13h10l1-13"></path></svg>
+                </button>
+              </span>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 16px; padding-top: 10px; border-top: 1px solid #353862; flex-shrink: 0;">
+          <div style="display: flex; flex-direction: column; gap: 2px;">
+            <span style="font-size: 12px; color: #A7AACE;">Cliente</span>
+            <span style="font-size: 13px; font-weight: 700;">Consumidor Final</span>
+          </div>
+          <button type="button" style="height: 42px; padding: 0 16px; border-radius: 12px; border: 1px solid #45487A; background: transparent; color: #EEF0FB; font: inherit; font-size: 14px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; height: 36px; font-size: 12px;">Desconto · F6</button>
+          <div style="margin-left: auto; display: flex; align-items: baseline; gap: 12px;">
+            <span style="font-size: 13px; color: #A7AACE;">Total</span>
+            <span class="num" style="font-size: 22px; font-weight: 800; letter-spacing: -0.01em;">{{total}}</span>
+          </div>
+          <button type="button" style="height: 50px; padding: 0 22px; border-radius: 13px; border: none; background: #5A5FE0; color: #FFFFFF; font: inherit; font-size: 15px; font-weight: 800; display: flex; align-items: center; gap: 10px; cursor: pointer;">
+            Ir para cliente <span style="font-size: 12px; opacity: 0.8;">Alt+2</span>
+          </button>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script type="module">
+
+</script>
+</body>
+</html>
