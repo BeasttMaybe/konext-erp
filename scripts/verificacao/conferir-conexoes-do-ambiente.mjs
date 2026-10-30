@@ -15,10 +15,7 @@
 // checagem compara com os endpoints documentados em AGENTS.md — nomes de host,
 // nunca credenciais —, entao funciona em qualquer lugar.
 
-const ENDPOINTS = {
-  teste: { tenant: "ep-purple-field-aq2o0ful", central: "ep-weathered-rice-atb8kse4" },
-  producao: { tenant: "ep-orange-recipe-aq2e102u", central: "ep-broad-glade-atqpp0f4" },
-};
+import { ENDPOINTS_NEON as ENDPOINTS, ambienteOposto, ambienteValido } from "../lib/endpoints-neon.mjs";
 
 const VARIAVEIS_TENANT = ["DATABASE_URL", "TENANT_PRINCIPAL_DATABASE_URL", "TENANT_CUNHADO_DATABASE_URL"];
 const VARIAVEIS_CENTRAL = ["CENTRAL_DATABASE_URL"];
@@ -80,13 +77,13 @@ function conferir(nomeVariavel, esperado, oposto, obrigatoria) {
 
 const ambiente = lerArgumento("ambiente");
 
-if (!ambiente || !ENDPOINTS[ambiente]) {
+if (!ambiente || !ambienteValido(ambiente)) {
   console.error("[conferir-conexoes] --ambiente precisa ser 'teste' ou 'producao'.");
   process.exit(1);
 }
 
 const esperado = ENDPOINTS[ambiente];
-const oposto = ENDPOINTS[ambiente === "teste" ? "producao" : "teste"];
+const oposto = ENDPOINTS[ambienteOposto(ambiente)];
 
 for (const nome of VARIAVEIS_CENTRAL) {
   conferir(nome, esperado.central, oposto.central, true);

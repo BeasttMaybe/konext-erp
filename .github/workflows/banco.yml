@@ -89,6 +89,17 @@ jobs:
       # secrets.TESTE_X` cai calado no valor de TESTE quando o segredo PROD_
       # esta ausente — string vazia e falsa em expressao do GitHub. Um dry-run
       # de producao chegou a ler o banco de TESTE por causa disso.
+      # Pede as strings ao proprio Neon, do branch do ambiente, ja sem -pooler.
+      # Remove a necessidade de manter copias das credenciais em secrets: a
+      # NEON_API_KEY ja existe, e o Neon ja sabe qual e a string de cada branch.
+      # Nada e impresso — o script registra cada valor com ::add-mask:: antes de
+      # exportar.
+      - name: Resolver conexões pelo Neon
+        if: env.NEON_API_KEY != ''
+        run: node scripts/neon/exportar-conexoes.mjs --ambiente "${{ inputs.ambiente }}"
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+
       - name: Conferir que as conexões são do ambiente pedido
         run: |
           set -o pipefail
