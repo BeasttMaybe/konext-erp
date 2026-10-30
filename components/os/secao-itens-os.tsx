@@ -3,6 +3,8 @@
 import { useMemo, useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import type { TipoPeca } from "@prisma/client";
+import { exigeMarcaPeca, validarMarcaDoItem } from "@/lib/dominio/os/marcas-peca";
+import { CampoMarcaPeca, type MarcaDisponivel } from "./campo-marca-peca";
 import { MoreVertical, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { adicionarItemOS, atualizarItemOS, removerItemOS } from "@/app/actions/os-itens";
@@ -48,6 +50,9 @@ type ItemOSTabela = {
   /** null quando o usuário logado não tem a permissão os.ver_custos. */
   custoPeca: number | null;
   valorCobrado: number;
+  /** null em itens lançados antes do cadastro de marcas existir. */
+  marcaPecaId: string | null;
+  marcaPecaNome: string | null;
   criadoEm: string;
 };
 
@@ -55,6 +60,8 @@ type PropsSecaoItensOS = {
   osId: string;
   numeroOs: number;
   itens: ItemOSTabela[];
+  /** Só as marcas ativas — a do item em edição entra à parte, no próprio campo. */
+  marcasDisponiveis: MarcaDisponivel[];
   desabilitarCadastro?: boolean;
 };
 
@@ -72,7 +79,13 @@ const formatarMoeda = (valor: number) =>
 
 const COLUNAS_GRID = "grid-cols-[minmax(0,1.6fr)_100px_100px_100px_40px]";
 
-export function SecaoItensOS({ osId, numeroOs, itens, desabilitarCadastro = false }: PropsSecaoItensOS) {
+export function SecaoItensOS({
+  osId,
+  numeroOs,
+  itens,
+  marcasDisponiveis,
+  desabilitarCadastro = false,
+}: PropsSecaoItensOS) {
   const router = useRouter();
   const [isPendingAdicionar, startTransitionAdicionar] = useTransition();
   const [isPendingEditar, startTransitionEditar] = useTransition();
@@ -83,6 +96,7 @@ export function SecaoItensOS({ osId, numeroOs, itens, desabilitarCadastro = fals
   const [descricao, setDescricao] = useState("");
   const [custoPeca, setCustoPeca] = useState<string>("");
   const [valorManual, setValorManual] = useState<string>("");
+  const [marcaPecaId, setMarcaPecaId] = useState<string | null>(null);
 
   const [itemEmEdicao, setItemEmEdicao] = useState<ItemOSTabela | null>(null);
   const [itemParaRemover, setItemParaRemover] = useState<ItemOSTabela | null>(null);
@@ -90,6 +104,7 @@ export function SecaoItensOS({ osId, numeroOs, itens, desabilitarCadastro = fals
   const [descricaoEdicao, setDescricaoEdicao] = useState("");
   const [custoPecaEdicao, setCustoPecaEdicao] = useState<string>("");
   const [valorCobradoEdicao, setValorCobradoEdicao] = useState<string>("");
+  const [marcaPecaIdEdicao, setMarcaPecaIdEdicao] = useState<string | null>(null);
 
   const custoPecaNumero = Number(custoPeca || 0);
   const valorManualNumero = Number(valorManual || 0);
@@ -102,6 +117,7 @@ export function SecaoItensOS({ osId, numeroOs, itens, desabilitarCadastro = fals
     setCustoPeca("");
     setValorManual("");
     setTipoPeca("TELA");
+    setMarcaPecaId(null);
   };
 
   const aoSubmeter = (event: FormEvent<HTMLFormElement>) => {
@@ -132,6 +148,12 @@ export function SecaoItensOS({ osId, numeroOs, itens, desabilitarCadastro = fals
       return;
     }
 
+    const marcaValida = validarMarcaDoItem(tipoPeca, marcaPecaId);
+    if (!marcaValida.valido) {
+      toast.error(marcaValida.erro);
+      return;
+    }
+
     startTransitionAdicionar(async () => {
       try {
         await adicionarItemOS(osId, {
@@ -139,6 +161,7 @@ export function SecaoItensOS({ osId, numeroOs, itens, desabilitarCadastro = fals
           descricao,
           custoPeca: custoPecaNumero,
           valorManual: valorManualNumero,
+          marcaPecaId,
         });
 
         toast.success("Item adicionado com sucesso na ordem de servico.");
@@ -158,6 +181,7 @@ export function SecaoItensOS({ osId, numeroOs, itens, desabilitarCadastro = fals
     setDescricaoEdicao(item.descricao);
     setCustoPecaEdicao(String(item.custoPeca));
     setValorCobradoEdicao(String(item.valorCobrado));
+    setMarcaPecaIdEdicao(item.marcaPecaId);
   };
 
   const aoSalvarEdicao = () => {
@@ -181,11 +205,18 @@ export function SecaoItensOS({ osId, numeroOs, itens, desabilitarCadastro = fals
       return;
     }
 
+    const marcaValidaEdicao = validarMarcaDoItem(tipoPecaEdicao, marcaPecaIdEdicao);
+    if (!marcaValidaEdicao.valido) {
+      toast.error(marcaValidaEdicao.erro);
+      return;
+    }
+
     startTransitionEditar(async () => {
       const resultado = await atualizarItemOS({
         itemId: itemEmEdicao.id,
         osId,
         tipoPeca: tipoPecaEdicao,
+        marcaPecaId: marcaPecaIdEdicao,
         descricao: descricaoEdicao,
         custoPeca: custoNormalizado,
         valorCobrado: valorCobradoNormalizado,
@@ -257,9 +288,14 @@ export function SecaoItensOS({ osId, numeroOs, itens, desabilitarCadastro = fals
                 className={`grid ${COLUNAS_GRID} items-center gap-2.5 rounded-kx-cartao bg-kx-cartao px-2.5 py-2.5 text-sm`}
               >
                 <span className="truncate font-medium text-kx-texto">{item.descricao}</span>
-                <span className="w-fit truncate rounded-kx-pilula bg-kx-superficie px-2.5 py-0.5 text-xs font-bold text-kx-texto-2">
-                  {item.tipoPeca.replaceAll("_", " ")}
-                </span>
+                <div className="flex min-w-0 flex-col gap-0.5">
+                  <span className="w-fit truncate rounded-kx-pilula bg-kx-superficie px-2.5 py-0.5 text-xs font-bold text-kx-texto-2">
+                    {item.tipoPeca.replaceAll("_", " ")}
+                  </span>
+                  {item.marcaPecaNome ? (
+                    <span className="truncate pl-0.5 text-[11px] text-kx-legenda">{item.marcaPecaNome}</span>
+                  ) : null}
+                </div>
                 {mostraCusto && (
                   <span className="text-right tabular-nums text-kx-erro-icone">
                     {item.custoPeca === null ? "—" : formatarMoeda(item.custoPeca)}
@@ -328,6 +364,15 @@ export function SecaoItensOS({ osId, numeroOs, itens, desabilitarCadastro = fals
                 </SelectContent>
               </Select>
             </div>
+
+            <CampoMarcaPeca
+              idCampo="marca-peca-item"
+              marcas={marcasDisponiveis}
+              valor={marcaPecaId}
+              onChange={setMarcaPecaId}
+              exigida={exigeMarcaPeca(tipoPeca)}
+              desabilitado={isPendingAdicionar}
+            />
 
             <div className="space-y-2">
               <Label htmlFor="descricao-item">Descrição</Label>
@@ -401,6 +446,20 @@ export function SecaoItensOS({ osId, numeroOs, itens, desabilitarCadastro = fals
                 </SelectContent>
               </Select>
             </div>
+
+            <CampoMarcaPeca
+              idCampo="marca-peca-item-edicao"
+              marcas={marcasDisponiveis}
+              valor={marcaPecaIdEdicao}
+              onChange={setMarcaPecaIdEdicao}
+              exigida={exigeMarcaPeca(tipoPecaEdicao)}
+              desabilitado={isPendingEditar}
+              marcaAtual={
+                itemEmEdicao?.marcaPecaId && itemEmEdicao.marcaPecaNome
+                  ? { id: itemEmEdicao.marcaPecaId, nome: itemEmEdicao.marcaPecaNome }
+                  : null
+              }
+            />
 
             <div className="space-y-2">
               <Label htmlFor="descricao-edicao">Descricao</Label>

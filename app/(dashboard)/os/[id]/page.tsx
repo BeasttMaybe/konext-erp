@@ -5,6 +5,7 @@ import { escopoOrdemServico } from "@/lib/auth/escopos";
 import { obterConfiguracoes } from "@/app/actions/configuracoes";
 import { obterHistoricoOS } from "@/app/actions/os";
 import { SecaoItensOS } from "@/components/os/secao-itens-os";
+import { listarMarcasPecaAtivas } from "@/app/actions/marcas-peca";
 import { SecaoTecnicosOS } from "@/components/os/secao-tecnicos-os";
 import { AcaoGarantiaOS } from "@/components/os/garantias/acao-garantia-os";
 import { CabecalhoOS } from "@/components/os/detalhe/cabecalho-os";
@@ -30,6 +31,9 @@ type ItemOSCarregado = {
   /** null quando o usuário logado não tem a permissão os.ver_custos (F-41). */
   custoPeca: number | null;
   valorCobrado: number;
+  /** null em itens lançados antes do cadastro de marcas existir. */
+  marcaPecaId: string | null;
+  marcaPecaNome: string | null;
   criadoEm: string;
 };
 
@@ -108,7 +112,11 @@ const INCLUDE_DETALHE_OS = {
       isWhatsapp: true,
     },
   },
-  itens: true,
+  itens: {
+    include: {
+      marcaPeca: { select: { id: true, nome: true } },
+    },
+  },
   termoGarantia: {
     select: {
       id: true,
@@ -183,6 +191,9 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
   }
 
   const config = await obterConfiguracoes();
+  // Só as ativas: marca desativada sai do seletor, mas continua aparecendo nos
+  // itens antigos que já a usam (o nome vem do próprio item, acima).
+  const marcasAtivas = await listarMarcasPecaAtivas();
 
   const itensNormalizados: ItemOSCarregado[] = (osBanco.itens ?? [])
     .map((item) => ({
@@ -192,6 +203,8 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
       // F-41: custo/margem só vai para o cliente com os.ver_custos.
       custoPeca: podeVerCustos ? paraMoeda(deDecimal(item.custoPeca ?? 0)) : null,
       valorCobrado: paraMoeda(deDecimal(item.valorCobrado ?? 0)),
+      marcaPecaId: item.marcaPeca?.id ? String(item.marcaPeca.id) : null,
+      marcaPecaNome: item.marcaPeca?.nome ? String(item.marcaPeca.nome) : null,
       criadoEm: new Date(item.criadoEm ?? osBanco?.criadoEm ?? new Date()).toISOString(),
     }))
     .sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime());
@@ -305,7 +318,12 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
           <div className="flex flex-col gap-kx-4">
             <SecaoFotosOS />
             <SecaoTecnicosOS osId={idOs} numeroOs={numeroOsExibicao} tecnicos={tecnicosNormalizados} podeEditar={podeEditarOS} />
-            <SecaoItensOS osId={idOs} numeroOs={Number(osBanco.numeroOs)} itens={itensNormalizados} />
+            <SecaoItensOS
+              osId={idOs}
+              numeroOs={Number(osBanco.numeroOs)}
+              itens={itensNormalizados}
+              marcasDisponiveis={marcasAtivas}
+            />
             <HistoricoOS linhas={historico} />
           </div>
         </section>
