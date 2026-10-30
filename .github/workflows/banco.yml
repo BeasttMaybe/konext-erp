@@ -99,16 +99,34 @@ jobs:
             ALVO_TENANT="--tenant ${{ inputs.tenant }}"
           fi
 
-          case "${{ inputs.comando }}" in
-            verificar-ambiente)   npm run verificar:ambiente ;;
-            diagnostico)          npm run db:diagnostico ;;
-            migrar-dry-run)       npm run db:migrar -- --dry-run $ALVO_TENANT ;;
-            migrar-aplicar)       npm run db:migrar -- --aplicar $ALVO_TENANT ;;
-            relatorio-os)         npm run db:relatorio-os ;;
-            verificar-datas)      npm run db:verificar-datas ;;
-            verificar-dinheiro)   npm run db:verificar-dinheiro ;;
-            *) echo "::error::comando desconhecido"; exit 1 ;;
-          esac
+          # A saida vai tambem para anotacao porque o log bruto do run fica num
+          # blob externo que o ambiente do Claude nao alcanca — e o plano de uma
+          # migration precisa ser LIDO antes de decidir aplicar, nao so arquivado.
+          # Os scripts mascaram host e nunca imprimem credencial (ver
+          # scripts/lib/conexao-somente-leitura.mjs).
+          executar() {
+            case "${{ inputs.comando }}" in
+              verificar-ambiente)   npm run verificar:ambiente ;;
+              diagnostico)          npm run db:diagnostico ;;
+              migrar-dry-run)       npm run db:migrar -- --dry-run $ALVO_TENANT ;;
+              migrar-aplicar)       npm run db:migrar -- --aplicar $ALVO_TENANT ;;
+              relatorio-os)         npm run db:relatorio-os ;;
+              verificar-datas)      npm run db:verificar-datas ;;
+              verificar-dinheiro)   npm run db:verificar-dinheiro ;;
+              *) echo "comando desconhecido" >&2; return 1 ;;
+            esac
+          }
+
+          codificar() {
+            sed -e 's/%/%25/g' -e 's/\r/%0D/g' "$1" | awk '{printf "%s%%0A", $0}'
+          }
+
+          if executar 2>&1 | tee /tmp/banco.log; then
+            echo "::notice::Saida de ${{ inputs.comando }} em ${{ inputs.ambiente }}:%0A$(tail -120 /tmp/banco.log | codificar /dev/stdin)"
+          else
+            echo "::error::Falha em ${{ inputs.comando }} em ${{ inputs.ambiente }}:%0A$(tail -120 /tmp/banco.log | codificar /dev/stdin)"
+            exit 1
+          fi
 
       # Relatórios dos scripts de diagnóstico/verificação, para leitura depois.
       - name: Guardar relatórios
