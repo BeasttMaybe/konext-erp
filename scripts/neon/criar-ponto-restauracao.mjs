@@ -29,8 +29,10 @@ function lerArgumento(nome, padrao = null) {
 }
 
 async function chamarNeon(caminho, opcoes = {}) {
+  const { tolerarErro: _ignorado, ...opcoesDeRede } = opcoes;
+
   const resposta = await fetch(`${API}${caminho}`, {
-    ...opcoes,
+    ...opcoesDeRede,
     headers: {
       Authorization: `Bearer ${process.env.NEON_API_KEY}`,
       "Content-Type": "application/json",
@@ -40,6 +42,11 @@ async function chamarNeon(caminho, opcoes = {}) {
   });
 
   if (!resposta.ok) {
+    // `tolerarErro` serve so pra sondagem (descobrir se a conta tem
+    // organizacoes). Qualquer outra falha continua sendo fatal: criar ponto de
+    // restauracao "mais ou menos" nao protege nada.
+    if (opcoes.tolerarErro) return null;
+
     const corpo = await resposta.text().catch(() => "");
     // Nunca ecoa a chave; o corpo da Neon nao a contem.
     erro(`API do Neon respondeu ${resposta.status} em ${caminho}: ${corpo.slice(0, 400)}`);
@@ -65,8 +72,34 @@ function extrairIdDoEndpoint(connectionString) {
   }
 }
 
+/**
+ * Lista os projetos visiveis para a chave.
+ *
+ * Conta dentro de organizacao: `GET /projects` responde 400 pedindo `org_id`.
+ * Conta pessoal: `GET /projects` funciona direto. Aqui tentamos primeiro pelas
+ * organizacoes e so caimos no caminho direto quando nao ha nenhuma — assim o
+ * script serve aos dois formatos sem configuracao.
+ */
+async function listarProjetos() {
+  const organizacoes = await chamarNeon("/users/me/organizations", { tolerarErro: true });
+  const lista = organizacoes?.organizations ?? [];
+
+  if (lista.length === 0) {
+    const { projects } = await chamarNeon("/projects");
+    return projects ?? [];
+  }
+
+  const projetos = [];
+  for (const organizacao of lista) {
+    const { projects } = await chamarNeon(`/projects?org_id=${encodeURIComponent(organizacao.id)}`);
+    projetos.push(...(projects ?? []));
+  }
+
+  return projetos;
+}
+
 async function localizarEndpoint(idEndpoint) {
-  const { projects } = await chamarNeon("/projects");
+  const projects = await listarProjetos();
 
   for (const projeto of projects ?? []) {
     const { endpoints } = await chamarNeon(`/projects/${projeto.id}/endpoints`);
