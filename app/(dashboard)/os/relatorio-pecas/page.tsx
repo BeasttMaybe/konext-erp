@@ -1,5 +1,4 @@
 import { obterRelatorioPecas } from "@/app/actions/relatorio-pecas";
-import { obterConfiguracoes } from "@/app/actions/configuracoes";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { temPermissao } from "@/lib/auth/permissoes";
 import { formatarReais } from "@/lib/dinheiro";
@@ -40,10 +39,10 @@ export default async function RelatorioPecasPage({
   const params = await searchParams;
   const { intervalo } = deSearchParams(new URLSearchParams(params as Record<string, string>));
 
-  const [relatorio, configuracoes] = await Promise.all([
-    obterRelatorioPecas(intervalo?.inicio.toISOString(), intervalo?.fim.toISOString()),
-    obterConfiguracoes(),
-  ]);
+  const relatorio = await obterRelatorioPecas(
+    intervalo?.inicio.toISOString(),
+    intervalo?.fim.toISOString()
+  );
 
   const { linhas, totais } = relatorio;
 
@@ -61,7 +60,7 @@ export default async function RelatorioPecasPage({
       <div className="flex flex-wrap items-center gap-4">
         <FiltroPeriodoPagina
           campos={[{ valor: "lancadas-em", rotulo: "Peças lançadas em" }]}
-          fusoHorario={configuracoes.fusoHorario}
+          fusoHorario={contexto.fusoHorario}
         />
         <span className="text-xs text-kx-legenda">
           {formatarData(relatorio.inicio)} até {formatarData(relatorio.fim)}
