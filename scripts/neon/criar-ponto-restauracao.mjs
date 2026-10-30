@@ -113,6 +113,52 @@ async function localizarEndpoint(idEndpoint) {
   return null;
 }
 
+/**
+ * Quantos pontos de restauracao automaticos ficam guardados por projeto.
+ *
+ * Nao e numero chutado: tres cobre as ultimas tres migracoes, que e o alcance
+ * em que um ponto de restauracao ainda tem valor — passado isso, a migracao ja
+ * foi verificada em producao e o branch so ocupa cota. E a cota e finita: este
+ * script ja derrubou uma migracao com BRANCHES_LIMIT_EXCEEDED por criar sempre
+ * e nunca limpar.
+ */
+const PONTOS_GUARDADOS_POR_PROJETO = 3;
+
+/**
+ * So os branches que ESTE script criou, reconhecidos pelo formato exato que ele
+ * gera: `antes-<ambiente>-<endpoint>-<carimbo>`. Um ponto de restauracao criado
+ * a mao pelo dono (`antes-dinheiro-teste`, `antes-datas-producao-20260921`) nao
+ * casa com isso — e apagar o que outra pessoa criou, por conta propria, nao e
+ * limpeza, e perda.
+ */
+const PADRAO_NOSSO = /^antes-(teste|producao)-ep-[a-z0-9-]+-\d{12,14}$/;
+
+async function limparPontosAntigos(projetoId) {
+  const { branches } = await chamarNeon(`/projects/${projetoId}/branches`);
+
+  const nossos = (branches ?? [])
+    .filter((branch) => PADRAO_NOSSO.test(String(branch.name ?? "")))
+    // Mais novo primeiro.
+    .sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")));
+
+  const excedentes = nossos.slice(PONTOS_GUARDADOS_POR_PROJETO);
+
+  for (const branch of excedentes) {
+    const resposta = await chamarNeon(`/projects/${projetoId}/branches/${branch.id}`, {
+      method: "DELETE",
+      tolerarErro: true,
+    });
+
+    if (resposta === null) {
+      // Branch protegido, ou em uso: nao e motivo pra abortar a migracao.
+      console.log(`[ponto-restauracao] nao removi ${branch.name} (recusado pela API); seguindo.`);
+      continue;
+    }
+
+    console.log(`[ponto-restauracao] removido ponto antigo: ${branch.name}`);
+  }
+}
+
 async function criarBranchDeRestauracao(idEndpoint, prefixo, carimbo) {
   const local = await localizarEndpoint(idEndpoint);
 
@@ -124,6 +170,10 @@ async function criarBranchDeRestauracao(idEndpoint, prefixo, carimbo) {
   }
 
   const nome = `${prefixo}-${idEndpoint}-${carimbo}`;
+
+  // Antes de criar, abre espaco. A cota do Neon e finita e este script ja
+  // derrubou uma migracao por te-la estourado.
+  await limparPontosAntigos(local.projetoId);
 
   const criado = await chamarNeon(`/projects/${local.projetoId}/branches`, {
     method: "POST",
