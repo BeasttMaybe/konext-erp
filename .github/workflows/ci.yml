@@ -61,6 +61,74 @@ jobs:
       - name: Build
         run: npm run build
 
+  migrations:
+    name: Migrations reproduzem o schema
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Postgres descartável. Serve como shadow database: as migrations commitadas são
+    # aplicadas nele e o `migrate diff` contra o schema.prisma tem que sair vazio.
+    # É o que garante que uma migration escrita à mão (o `migrate dev` é proibido
+    # neste projeto, e o ambiente do Claude não roda o CLI do Prisma) realmente
+    # produz o schema declarado — sem depender de nenhum banco real.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: sombra
+          POSTGRES_DB: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:sombra@127.0.0.1:5432/tenant_sombra
+      CENTRAL_DATABASE_URL: postgresql://postgres:sombra@127.0.0.1:5432/central_sombra
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Criar os dois bancos de sombra
+        run: |
+          export PGPASSWORD=sombra
+          psql -h 127.0.0.1 -U postgres -d postgres -c 'CREATE DATABASE tenant_sombra;'
+          psql -h 127.0.0.1 -U postgres -d postgres -c 'CREATE DATABASE central_sombra;'
+
+      - name: Aplicar as migrations commitadas
+        run: |
+          npx prisma migrate deploy
+          npm run prisma:central:migrate:deploy
+
+      # --exit-code sai com 2 quando há diferença. Diferença aqui significa uma de
+      # duas coisas: o schema.prisma mudou sem migration, ou a migration escrita à
+      # mão não reproduz o schema. As duas são erro.
+      - name: Tenant — migrations em dia com o schema
+        run: |
+          npx prisma migrate diff \
+            --from-config-datasource \
+            --to-schema prisma/schema.prisma \
+            --script --exit-code > /tmp/diff-tenant.sql \
+          && echo "sem divergência" \
+          || { echo "::error::As migrations do tenant não reproduzem prisma/schema.prisma. SQL faltante:"; cat /tmp/diff-tenant.sql; exit 1; }
+
+      - name: Central — migrations em dia com o schema
+        run: |
+          npx prisma migrate diff \
+            --config prisma.central.config.ts \
+            --from-config-datasource \
+            --to-schema prisma/central/schema.prisma \
+            --script --exit-code > /tmp/diff-central.sql \
+          && echo "sem divergência" \
+          || { echo "::error::As migrations do central não reproduzem prisma/central/schema.prisma. SQL faltante:"; cat /tmp/diff-central.sql; exit 1; }
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
