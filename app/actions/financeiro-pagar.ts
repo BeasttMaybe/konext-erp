@@ -12,7 +12,7 @@ import {
 } from "@/lib/auditoria";
 import { paraMensagemSegura } from "@/lib/erros";
 import { comoDataDeCalendario, dataDeCalendario, FUSO_HORARIO_PADRAO, fimDoMes, inicioDoMes } from "@/lib/datas";
-import { deDecimal, dividirEmParcelas, paraMoeda, somar } from "@/lib/dinheiro";
+import { deDecimal, dividirEmParcelas, paraDecimal, paraMoeda, somar } from "@/lib/dinheiro";
 
 /** Ver o comentario equivalente em financeiro-receber.ts (Fase 1B-UI, Parte 1). */
 export type ResultadoAcaoDespesa = { sucesso: true } | { sucesso: false; mensagem: string };
@@ -294,6 +294,226 @@ async function criarDespesaInterno(data: DadosCriarDespesa) {
 
     return despesa;
   });
+}
+
+export type DadosEditarDespesa = {
+  fornecedor: string;
+  descricao: string;
+  clienteId?: string;
+  /** Só aceito enquanto nenhuma parcela estiver paga — ver a regra abaixo. */
+  valorTotal?: number;
+  dataVencimento?: Date;
+};
+
+/**
+ * Edita uma despesa.
+ *
+ * Duas camadas de regra, de propósito diferentes:
+ *
+ * - **Fornecedor, descrição e cliente** mudam sempre. São rótulos; corrigir um
+ *   nome errado não reescreve história financeira nenhuma.
+ * - **Valor e vencimento** só mudam enquanto NENHUMA parcela estiver paga.
+ *   Alterar o valor de algo já pago faria o registro mentir sobre quanto saiu
+ *   do caixa — e o certo nesse caso é lançar um ajuste, não reescrever o
+ *   passado. Mesmo espírito de `editarContaReceber`, que recusa editar conta
+ *   já baixada.
+ */
+export async function editarDespesa(
+  id: string,
+  data: DadosEditarDespesa
+): Promise<ResultadoAcaoDespesa> {
+  try {
+    const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "financeiro.editar");
+    const prisma = contexto.prisma;
+    const usuario = contexto.usuarioOperacional;
+
+    const fornecedor = data.fornecedor.trim();
+    const descricao = data.descricao.trim();
+
+    if (!fornecedor) throw new Error("Informe o fornecedor da despesa.");
+    if (!descricao) throw new Error("Informe a descricao da despesa.");
+
+    await prisma.$transaction(async (tx) => {
+      const despesa = await tx.despesa.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          fornecedor: true,
+          descricao: true,
+          clienteId: true,
+          valorTotal: true,
+          tipo: true,
+          qtdParcelas: true,
+          parcelas: {
+            select: { id: true, status: true, numeroParcela: true },
+            orderBy: { numeroParcela: "asc" },
+          },
+        },
+      });
+
+      if (!despesa) throw new Error("Despesa nao encontrada.");
+
+      const temParcelaPaga = despesa.parcelas.some((parcela) => parcela.status === "PAGO");
+      const querMudarValor = typeof data.valorTotal === "number";
+      const querMudarVencimento = data.dataVencimento instanceof Date;
+
+      if (temParcelaPaga && (querMudarValor || querMudarVencimento)) {
+        throw new Error(
+          "Esta despesa ja tem parcela paga: valor e vencimento nao podem ser alterados. " +
+            "Para corrigir, lance um ajuste."
+        );
+      }
+
+      if (querMudarValor && (!Number.isFinite(data.valorTotal) || (data.valorTotal ?? 0) <= 0)) {
+        throw new Error("Informe um valor total valido.");
+      }
+
+      await tx.despesa.update({
+        where: { id },
+        data: {
+          fornecedor,
+          descricao,
+          clienteId: data.clienteId || null,
+          ...(querMudarValor ? { valorTotal: paraDecimal(deDecimal(data.valorTotal as number)) } : {}),
+        },
+      });
+
+      // Valor novo precisa ser redistribuido entre as parcelas, em centavos
+      // exatos — `dividirEmParcelas` e o unico lugar autorizado a partir um
+      // total, e garante que a soma das partes seja igual ao todo.
+      if (querMudarValor) {
+        const valoresCentavos = dividirEmParcelas(
+          deDecimal(data.valorTotal as number),
+          despesa.parcelas.length
+        );
+
+        for (let indice = 0; indice < despesa.parcelas.length; indice += 1) {
+          await tx.parcelaDespesa.update({
+            where: { id: despesa.parcelas[indice].id },
+            data: { valor: paraDecimal(valoresCentavos[indice]) },
+          });
+        }
+      }
+
+      if (querMudarVencimento) {
+        // So a primeira parcela recebe a data informada; as demais mantem o
+        // espacamento que ja tinham, porque remontar o calendario inteiro a
+        // partir de uma edicao seria surpresa, nao correcao.
+        const primeira = despesa.parcelas[0];
+        if (primeira) {
+          await tx.parcelaDespesa.update({
+            where: { id: primeira.id },
+            data: { dataVencimento: data.dataVencimento as Date },
+          });
+        }
+      }
+
+      await registrarLogAuditoria(
+        tx,
+        contextoAuditoriaDoUsuario(usuario, "app/actions/financeiro-pagar.ts:editarDespesa"),
+        {
+          acao: ACOES_AUDITORIA.ATUALIZAR_STATUS,
+          entidade: ENTIDADES_AUDITORIA.CONTA_PAGAR,
+          entidadeId: id,
+          dadosAntes: {
+            fornecedor: despesa.fornecedor,
+            descricao: despesa.descricao,
+            clienteId: despesa.clienteId,
+            valorTotal: despesa.valorTotal,
+          },
+          dadosDepois: {
+            fornecedor,
+            descricao,
+            clienteId: data.clienteId || null,
+            valorTotal: querMudarValor ? data.valorTotal : despesa.valorTotal,
+          },
+        }
+      );
+    });
+
+    revalidatePath("/financeiro/pagar");
+    revalidatePath("/financeiro");
+    revalidatePath("/financeiro/fluxo");
+    revalidatePath("/");
+
+    return { sucesso: true };
+  } catch (erro) {
+    return { sucesso: false, mensagem: paraMensagemSegura(erro) };
+  }
+}
+
+/**
+ * Exclui uma despesa e as suas parcelas.
+ *
+ * Nao bloqueia despesa com parcela paga, e isso e deliberado: desde que o custo
+ * de peca passou a nascer quitado, bloquear ai impediria apagar um lancamento
+ * errado — que e justamente o caso em que apagar faz falta. O que a exclusao
+ * exige em troca e trilha: o registro de auditoria guarda a despesa inteira,
+ * com todas as parcelas e as que estavam pagas, para que "sumiu" nunca seja uma
+ * pergunta sem resposta.
+ */
+export async function excluirDespesa(id: string): Promise<ResultadoAcaoDespesa> {
+  try {
+    const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "financeiro.excluir");
+    const prisma = contexto.prisma;
+    const usuario = contexto.usuarioOperacional;
+
+    await prisma.$transaction(async (tx) => {
+      const despesa = await tx.despesa.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          fornecedor: true,
+          descricao: true,
+          valorTotal: true,
+          tipo: true,
+          qtdParcelas: true,
+          criadoEm: true,
+          parcelas: {
+            select: {
+              numeroParcela: true,
+              valor: true,
+              status: true,
+              dataVencimento: true,
+              dataPagamento: true,
+              valorPago: true,
+            },
+            orderBy: { numeroParcela: "asc" },
+          },
+        },
+      });
+
+      if (!despesa) throw new Error("Despesa nao encontrada.");
+
+      await registrarLogAuditoria(
+        tx,
+        contextoAuditoriaDoUsuario(usuario, "app/actions/financeiro-pagar.ts:excluirDespesa"),
+        {
+          acao: ACOES_AUDITORIA.EXCLUIR_FISICO,
+          entidade: ENTIDADES_AUDITORIA.CONTA_PAGAR,
+          entidadeId: id,
+          // A despesa inteira, nao um resumo: depois do delete, isto e tudo o
+          // que resta dela.
+          dadosAntes: despesa,
+          dadosDepois: null,
+        }
+      );
+
+      // As parcelas vao junto por onDelete: Cascade no schema.
+      await tx.despesa.delete({ where: { id } });
+    });
+
+    revalidatePath("/financeiro/pagar");
+    revalidatePath("/financeiro");
+    revalidatePath("/financeiro/fluxo");
+    revalidatePath("/");
+
+    return { sucesso: true };
+  } catch (erro) {
+    return { sucesso: false, mensagem: paraMensagemSegura(erro) };
+  }
 }
 
 export async function listarParcelasPagar(): Promise<ParcelaDespesaComRelacao[]> {

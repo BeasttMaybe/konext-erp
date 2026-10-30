@@ -8,6 +8,8 @@ import { toast } from "sonner";
 import type { ClienteBuscaCRM } from "@/app/actions/crm";
 import {
   criarDespesa,
+  editarDespesa,
+  excluirDespesa,
   pagarParcela,
   pagarParcelasEmLote,
   type ParcelaDespesaComRelacao,
@@ -125,6 +127,8 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
 
   const podeLancar = useTemPermissao("financeiro.lancar");
   const podeBaixar = useTemPermissao("financeiro.baixar");
+  const podeEditar = useTemPermissao("financeiro.editar");
+  const podeExcluir = useTemPermissao("financeiro.excluir");
 
   const [vista, setVista] = useState<VistaPagar>("PERIODO");
 
@@ -137,6 +141,11 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
   const [despesaSelecionadaId, setDespesaSelecionadaId] = useState<string | null>(null);
 
   const [dialogPagarAberto, setDialogPagarAberto] = useState(false);
+  const [dialogEditarAberto, setDialogEditarAberto] = useState(false);
+  const [dialogExcluirAberto, setDialogExcluirAberto] = useState(false);
+  const [formEditar, setFormEditar] = useState({ fornecedor: "", descricao: "", valorTotal: "", dataVencimento: "" });
+  const [salvandoEdicao, setSalvandoEdicao] = useState(false);
+  const [excluindo, setExcluindo] = useState(false);
   const [parcelaSelecionada, setParcelaSelecionada] = useState<ParcelaDespesaComRelacao | null>(null);
   const [valorPagamento, setValorPagamento] = useState("");
   const [pagandoParcela, setPagandoParcela] = useState(false);
@@ -316,6 +325,84 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
   function abrirGerenciamento(despesaId: string) {
     setDespesaSelecionadaId(despesaId);
     setSheetAberto(true);
+  }
+
+  // ── Handlers: editar e excluir despesa ───────────────────────────────────
+
+  /**
+   * Valor e vencimento só podem mudar enquanto nenhuma parcela estiver paga —
+   * a action recusa de qualquer forma, e desabilitar aqui evita o usuário
+   * digitar um número que vai ser rejeitado no envio.
+   */
+  const despesaTemParcelaPaga = parcelasDaDespesa.some((parcela) => parcela.status === "PAGO");
+
+  function abrirEdicaoDespesa() {
+    if (!despesaSelecionada) return;
+
+    const primeira = parcelasDaDespesa[0];
+    setFormEditar({
+      fornecedor: despesaSelecionada.fornecedor,
+      descricao: despesaSelecionada.descricao,
+      valorTotal: String(despesaSelecionada.valorTotal ?? ""),
+      dataVencimento: primeira ? format(new Date(primeira.dataVencimento), "yyyy-MM-dd") : "",
+    });
+    setDialogEditarAberto(true);
+  }
+
+  async function confirmarEdicaoDespesa() {
+    if (!despesaSelecionadaId) return;
+
+    setSalvandoEdicao(true);
+    try {
+      const valorNumero = Number(formEditar.valorTotal);
+      const resultado = await editarDespesa(despesaSelecionadaId, {
+        fornecedor: formEditar.fornecedor,
+        descricao: formEditar.descricao,
+        // Só manda valor e vencimento quando podem mudar: enviar o mesmo valor
+        // numa despesa já paga faria a action recusar sem motivo real.
+        ...(despesaTemParcelaPaga
+          ? {}
+          : {
+              ...(Number.isFinite(valorNumero) && valorNumero > 0 ? { valorTotal: valorNumero } : {}),
+              ...(formEditar.dataVencimento
+                ? { dataVencimento: new Date(`${formEditar.dataVencimento}T00:00:00`) }
+                : {}),
+            }),
+      });
+
+      if (!resultado.sucesso) {
+        toast.error(resultado.mensagem ?? "Não foi possível salvar a despesa.");
+        return;
+      }
+
+      toast.success("Despesa atualizada.");
+      setDialogEditarAberto(false);
+      router.refresh();
+    } finally {
+      setSalvandoEdicao(false);
+    }
+  }
+
+  async function confirmarExclusaoDespesa() {
+    if (!despesaSelecionadaId) return;
+
+    setExcluindo(true);
+    try {
+      const resultado = await excluirDespesa(despesaSelecionadaId);
+
+      if (!resultado.sucesso) {
+        toast.error(resultado.mensagem ?? "Não foi possível excluir a despesa.");
+        return;
+      }
+
+      toast.success("Despesa excluída.");
+      setDialogExcluirAberto(false);
+      setSheetAberto(false);
+      setDespesaSelecionadaId(null);
+      router.refresh();
+    } finally {
+      setExcluindo(false);
+    }
   }
 
   // ── Renderização ─────────────────────────────────────────────────────────
@@ -523,6 +610,31 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
                   </div>
                 </div>
 
+                {(podeEditar || podeExcluir) && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    {podeEditar && (
+                      <Button variant="outline" size="sm" onClick={abrirEdicaoDespesa}>
+                        Editar despesa
+                      </Button>
+                    )}
+                    {podeExcluir && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setDialogExcluirAberto(true)}
+                        className="text-destructive hover:text-destructive"
+                      >
+                        Excluir despesa
+                      </Button>
+                    )}
+                    {despesaTemParcelaPaga && podeEditar && (
+                      <span className="text-xs text-muted-foreground">
+                        Já há parcela paga: valor e vencimento não podem mais ser alterados.
+                      </span>
+                    )}
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   {parcelasDaDespesa.map((parcela) => {
                     const status = statusExibicaoParcela(parcela, hoje);
@@ -555,6 +667,97 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* Dialog: Editar Despesa */}
+      <Dialog open={dialogEditarAberto} onOpenChange={setDialogEditarAberto}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Editar despesa</DialogTitle>
+            <DialogDescription>
+              Fornecedor e descrição podem ser corrigidos a qualquer momento. Valor e vencimento só
+              enquanto nenhuma parcela estiver paga.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid grid-cols-1 gap-4 py-2 sm:grid-cols-2">
+            <div className="space-y-2 sm:col-span-2">
+              <Label>Fornecedor</Label>
+              <Input
+                value={formEditar.fornecedor}
+                onChange={(e) => setFormEditar((prev) => ({ ...prev, fornecedor: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2 sm:col-span-2">
+              <Label>Descrição</Label>
+              <Input
+                value={formEditar.descricao}
+                onChange={(e) => setFormEditar((prev) => ({ ...prev, descricao: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Valor Total</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                disabled={despesaTemParcelaPaga}
+                value={formEditar.valorTotal}
+                onChange={(e) => setFormEditar((prev) => ({ ...prev, valorTotal: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Primeiro Vencimento</Label>
+              <Input
+                type="date"
+                disabled={despesaTemParcelaPaga}
+                value={formEditar.dataVencimento}
+                onChange={(e) => setFormEditar((prev) => ({ ...prev, dataVencimento: e.target.value }))}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogEditarAberto(false)} disabled={salvandoEdicao}>
+              Cancelar
+            </Button>
+            <Button onClick={confirmarEdicaoDespesa} disabled={salvandoEdicao}>
+              {salvandoEdicao ? "Salvando..." : "Salvar alterações"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Excluir Despesa */}
+      <Dialog open={dialogExcluirAberto} onOpenChange={setDialogExcluirAberto}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Excluir esta despesa?</DialogTitle>
+            <DialogDescription>
+              A despesa e todas as suas parcelas saem do financeiro. A ação fica registrada na
+              auditoria, com os valores que existiam, mas não há como desfazer pela tela.
+            </DialogDescription>
+          </DialogHeader>
+
+          {despesaTemParcelaPaga && (
+            <p className="rounded-kx-botao border border-kx-painel-borda bg-kx-superficie px-3 py-2.5 text-sm text-kx-texto-2">
+              Atenção: há parcela já paga nesta despesa. Excluir apaga também o registro desse
+              pagamento.
+            </p>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogExcluirAberto(false)} disabled={excluindo}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={confirmarExclusaoDespesa} disabled={excluindo}>
+              {excluindo ? "Excluindo..." : "Excluir despesa"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Dialog: Nova Despesa */}
       <Dialog open={dialogNovaDespesaAberto} onOpenChange={setDialogNovaDespesaAberto}>
