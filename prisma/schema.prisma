@@ -128,6 +128,15 @@ model Configuracao {
   exigirItemParaGarantia    Boolean  @default(true)
   exigirItemParaEnviarPDV   Boolean  @default(true)
   exigirDiagnosticoParaFinalizar Boolean @default(false)
+  /**
+   * Peca de conserto costuma ser comprada e paga no ato, por servico. Com isto
+   * ligado (padrao), o custo lancado na OS entra no financeiro como despesa JA
+   * QUITADA: continua contando em relatorio, fluxo de caixa e apuracao de lucro,
+   * mas nao vira conta em aberto esperando baixa manual de algo que ja foi pago.
+   * Desligado, volta a nascer como parcela PENDENTE vencendo no dia — o caso de
+   * quem compra peca faturada.
+   */
+  custoPecaOSJaPago         Boolean  @default(true)
   permitirFinalizarSemPagamento Boolean @default(true)
   permitirGarantiaPersonalizada Boolean @default(true)
   textoCoberturaGarantia    String?
