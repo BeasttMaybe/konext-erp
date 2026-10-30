@@ -89,6 +89,56 @@ type PrismaFinanceiroPagarAny = Record<string, unknown> & {
   ParcelaDespesa?: DelegateParcelaDespesa;
 };
 
+/**
+ * Delegate de Despesa com as operacoes de leitura/alteracao/remocao.
+ *
+ * Existe pelo mesmo motivo dos acessores vizinhos: este arquivo nunca toca
+ * `prisma.despesa` direto, porque em runtime o delegate pode estar sob
+ * `despesa` ou `Despesa`. Escrever `tx.despesa.delete(...)` direto foi o que
+ * fez a exclusao falhar com a mensagem generica.
+ */
+type DelegateDespesaCompleto = {
+  findUnique?: (args: unknown) => Promise<Record<string, unknown> | null>;
+  update?: (args: unknown) => Promise<unknown>;
+  delete?: (args: unknown) => Promise<unknown>;
+};
+
+function obterDelegateDespesaCompleto(
+  tx: PrismaFinanceiroPagarAny,
+  root: PrismaFinanceiroPagarAny
+): DelegateDespesaCompleto {
+  for (const chave of ["despesa", "Despesa"] as const) {
+    const delegateTx = tx[chave] as DelegateDespesaCompleto | undefined;
+    if (delegateTx?.findUnique) return delegateTx;
+
+    const delegateRoot = root[chave] as DelegateDespesaCompleto | undefined;
+    if (delegateRoot?.findUnique) return delegateRoot;
+  }
+
+  throw new Error("Delegate Prisma de Despesa nao disponivel.");
+}
+
+/**
+ * Deixa o registro de auditoria com tipos simples. `Decimal` do Prisma e um
+ * objeto (`{s,e,d}`) e `Date` vira `{}` ao ser percorrido — os dois entrariam
+ * no JSON da trilha como lixo ilegivel, e o que a auditoria precisa guardar e
+ * o VALOR, nao a representacao interna.
+ */
+function paraAuditoria(valor: unknown): unknown {
+  if (valor === null || valor === undefined) return valor ?? null;
+  if (valor instanceof Date) return valor.toISOString();
+  if (typeof valor === "object" && typeof (valor as { toString?: unknown }).toString === "function") {
+    const texto = String(valor);
+    const numero = Number(texto);
+    if (texto !== "[object Object]" && Number.isFinite(numero)) return numero;
+  }
+  if (Array.isArray(valor)) return valor.map(paraAuditoria);
+  if (typeof valor === "object") {
+    return Object.fromEntries(Object.entries(valor).map(([k, v]) => [k, paraAuditoria(v)]));
+  }
+  return valor;
+}
+
 function obterDelegateDespesaCreate(
   tx: PrismaFinanceiroPagarAny,
   root: PrismaFinanceiroPagarAny
@@ -296,6 +346,17 @@ async function criarDespesaInterno(data: DadosCriarDespesa) {
   });
 }
 
+type DespesaParaEdicao = {
+  id: string;
+  fornecedor: string;
+  descricao: string;
+  clienteId: string | null;
+  valorTotal: unknown;
+  tipo: TipoDespesa;
+  qtdParcelas: number;
+  parcelas: Array<{ id: string; status: StatusParcelaDespesa; numeroParcela: number }>;
+};
+
 export type DadosEditarDespesa = {
   fornecedor: string;
   descricao: string;
@@ -335,7 +396,16 @@ export async function editarDespesa(
     if (!descricao) throw new Error("Informe a descricao da despesa.");
 
     await prisma.$transaction(async (tx) => {
-      const despesa = await tx.despesa.findUnique({
+      const delegate = obterDelegateDespesaCompleto(
+        tx as unknown as PrismaFinanceiroPagarAny,
+        prisma as unknown as PrismaFinanceiroPagarAny
+      );
+
+      if (!delegate.findUnique || !delegate.update) {
+        throw new Error("Delegate Prisma de Despesa nao disponivel para edicao.");
+      }
+
+      const despesa = (await delegate.findUnique({
         where: { id },
         select: {
           id: true,
@@ -350,7 +420,7 @@ export async function editarDespesa(
             orderBy: { numeroParcela: "asc" },
           },
         },
-      });
+      })) as DespesaParaEdicao | null;
 
       if (!despesa) throw new Error("Despesa nao encontrada.");
 
@@ -369,7 +439,7 @@ export async function editarDespesa(
         throw new Error("Informe um valor total valido.");
       }
 
-      await tx.despesa.update({
+      await delegate.update({
         where: { id },
         data: {
           fornecedor,
@@ -420,13 +490,13 @@ export async function editarDespesa(
             fornecedor: despesa.fornecedor,
             descricao: despesa.descricao,
             clienteId: despesa.clienteId,
-            valorTotal: despesa.valorTotal,
+            valorTotal: paraAuditoria(despesa.valorTotal),
           },
           dadosDepois: {
             fornecedor,
             descricao,
             clienteId: data.clienteId || null,
-            valorTotal: querMudarValor ? data.valorTotal : despesa.valorTotal,
+            valorTotal: querMudarValor ? data.valorTotal : paraAuditoria(despesa.valorTotal),
           },
         }
       );
@@ -461,7 +531,16 @@ export async function excluirDespesa(id: string): Promise<ResultadoAcaoDespesa> 
     const usuario = contexto.usuarioOperacional;
 
     await prisma.$transaction(async (tx) => {
-      const despesa = await tx.despesa.findUnique({
+      const delegate = obterDelegateDespesaCompleto(
+        tx as unknown as PrismaFinanceiroPagarAny,
+        prisma as unknown as PrismaFinanceiroPagarAny
+      );
+
+      if (!delegate.findUnique || !delegate.delete) {
+        throw new Error("Delegate Prisma de Despesa nao disponivel para exclusao.");
+      }
+
+      const despesa = (await delegate.findUnique({
         where: { id },
         select: {
           id: true,
@@ -483,7 +562,7 @@ export async function excluirDespesa(id: string): Promise<ResultadoAcaoDespesa> 
             orderBy: { numeroParcela: "asc" },
           },
         },
-      });
+      })) as Record<string, unknown> | null;
 
       if (!despesa) throw new Error("Despesa nao encontrada.");
 
@@ -495,14 +574,15 @@ export async function excluirDespesa(id: string): Promise<ResultadoAcaoDespesa> 
           entidade: ENTIDADES_AUDITORIA.CONTA_PAGAR,
           entidadeId: id,
           // A despesa inteira, nao um resumo: depois do delete, isto e tudo o
-          // que resta dela.
-          dadosAntes: despesa,
+          // que resta dela — com os valores legiveis, nao a representacao
+          // interna do Decimal.
+          dadosAntes: paraAuditoria(despesa),
           dadosDepois: null,
         }
       );
 
       // As parcelas vao junto por onDelete: Cascade no schema.
-      await tx.despesa.delete({ where: { id } });
+      await delegate.delete({ where: { id } });
     });
 
     revalidatePath("/financeiro/pagar");
