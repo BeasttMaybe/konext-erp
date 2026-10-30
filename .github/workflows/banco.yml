@@ -40,7 +40,7 @@ on:
         type: string
         required: false
       ponto_restauracao:
-        description: "Nome do branch Neon de restauração — obrigatório para migrar-aplicar"
+        description: "Branch Neon de restauração. Vazio = criado automaticamente pela API do Neon"
         type: string
         required: false
       autorizar_destrutivo:
@@ -78,18 +78,45 @@ jobs:
       - name: Instalar dependências
         run: npm ci
 
-      # Falha cedo e com mensagem clara, em vez de deixar o script descobrir no meio.
-      - name: Conferir pré-requisitos do modo aplicar
+      # Ponto de restauração: criado aqui, antes de qualquer escrita. A regra do
+      # projeto nunca foi "alguém cria à mão" — era "existe um ponto de
+      # restauração recém-criado". Criar pela API mantém a regra e remove a
+      # dependência de uma pessoa estar disponível para cada migração.
+      #
+      # Se `ponto_restauracao` vier preenchido, ele é respeitado como está: é a
+      # saída para quando o branch já foi criado à mão.
+      - name: Criar ponto de restauração no Neon
+        id: restauracao
         if: inputs.comando == 'migrar-aplicar'
         run: |
-          if [ -z "${{ inputs.ponto_restauracao }}" ]; then
-            echo "::error::migrar-aplicar exige ponto_restauracao: crie o branch de restauração no Neon a partir do banco alvo e passe o nome dele."
+          set -o pipefail
+
+          if [ -n "${{ inputs.ponto_restauracao }}" ]; then
+            echo "Usando o ponto de restauração informado: ${{ inputs.ponto_restauracao }}"
+            echo "ponto=${{ inputs.ponto_restauracao }}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ -z "${NEON_API_KEY:-}" ]; then
+            echo "::error::migrar-aplicar sem ponto_restauracao exige o secret NEON_API_KEY (para criar o branch automaticamente), ou informe ponto_restauracao com um branch criado à mão."
             exit 1
           fi
 
+          node scripts/neon/criar-ponto-restauracao.mjs \
+            --prefixo "antes-${{ inputs.ambiente }}" 2>&1 | tee /tmp/restauracao.log
+
+          PONTO=$(grep -oP '^PONTO_RESTAURACAO=\K.*' /tmp/restauracao.log | tail -1)
+          if [ -z "$PONTO" ]; then
+            echo "::error::o script nao devolveu um ponto de restauracao."
+            exit 1
+          fi
+          echo "ponto=$PONTO" >> "$GITHUB_OUTPUT"
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+
       - name: Rodar
         env:
-          PONTO_RESTAURACAO: ${{ inputs.ponto_restauracao }}
+          PONTO_RESTAURACAO: ${{ steps.restauracao.outputs.ponto }}
           CONFIRMAR: ${{ inputs.comando == 'migrar-aplicar' && 'SIM' || '' }}
           AUTORIZAR_DESTRUTIVO: ${{ inputs.autorizar_destrutivo && 'SIM' || '' }}
         run: |
