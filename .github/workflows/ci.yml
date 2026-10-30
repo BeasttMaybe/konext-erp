@@ -52,14 +52,33 @@ jobs:
           npx prisma validate
           npm run prisma:central:validate
 
+      # Cada etapa publica as ultimas linhas da saida como anotacao quando falha.
+      # Motivo: o log bruto do run fica num blob externo que o ambiente do Claude
+      # nao alcanca, enquanto a API de anotacoes alcanca. Sem isto, uma falha aqui
+      # chega como "exit code 1" sem causa, e o ciclo de corrigir sozinho se perde.
       - name: Tipos
-        run: npx tsc --noEmit
+        run: |
+          set -o pipefail
+          npx tsc --noEmit 2>&1 | tee /tmp/tipos.log || {
+            echo "::error::Falha em tsc --noEmit:%0A$(tail -60 /tmp/tipos.log | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | awk '{printf "%s%%0A", $0}')"
+            exit 1
+          }
 
       - name: Testes
-        run: npm test
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee /tmp/testes.log || {
+            echo "::error::Falha nos testes:%0A$(tail -60 /tmp/testes.log | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | awk '{printf "%s%%0A", $0}')"
+            exit 1
+          }
 
       - name: Build
-        run: npm run build
+        run: |
+          set -o pipefail
+          npm run build 2>&1 | tee /tmp/build.log || {
+            echo "::error::Falha no build:%0A$(tail -80 /tmp/build.log | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | awk '{printf "%s%%0A", $0}')"
+            exit 1
+          }
 
   migrations:
     name: Migrations reproduzem o schema

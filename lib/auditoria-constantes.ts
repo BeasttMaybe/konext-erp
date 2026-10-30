@@ -39,6 +39,11 @@ export const ACOES_AUDITORIA = {
   TRANSFERIR_PROPRIEDADE: "TRANSFERIR_PROPRIEDADE",
   // Fase 3-2D, Parte 5 — baixa/pagamento em lote no Financeiro.
   FINALIZAR_LOTE: "FINALIZAR_LOTE",
+  // Fase 4 — marcas de peca da OS. Criar reusa CRIAR; o resto e proprio porque
+  // marca usada nunca e apagada, so desativada.
+  RENOMEAR_MARCA_PECA: "RENOMEAR_MARCA_PECA",
+  DESATIVAR_MARCA_PECA: "DESATIVAR_MARCA_PECA",
+  REATIVAR_MARCA_PECA: "REATIVAR_MARCA_PECA",
 } as const;
 
 export const ENTIDADES_AUDITORIA = {
@@ -59,6 +64,8 @@ export const ENTIDADES_AUDITORIA = {
   USUARIO_EMPRESA: "USUARIO_EMPRESA",
   // Fase 1D-3 — protecao do dono.
   EMPRESA: "EMPRESA",
+  // Fase 4 — cadastro de marcas de peca.
+  MARCA_PECA: "MARCA_PECA",
 } as const;
 
 export type AcaoAuditoria = (typeof ACOES_AUDITORIA)[keyof typeof ACOES_AUDITORIA];

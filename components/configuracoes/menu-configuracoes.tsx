@@ -1,12 +1,22 @@
 "use client";
 
-import { Building2, FileText, Wrench, ShieldCheck, ShoppingCart, UserCog, type LucideIcon } from "lucide-react";
+import {
+  Building2,
+  FileText,
+  Wrench,
+  ShieldCheck,
+  ShoppingCart,
+  Tags,
+  UserCog,
+  type LucideIcon,
+} from "lucide-react";
 import type { ItemSecaoConfiguracoes, SecaoConfiguracoesId } from "./tipos";
 
 const iconesPorSecao: Record<SecaoConfiguracoesId, LucideIcon> = {
   empresa: Building2,
   documentos: FileText,
   os: Wrench,
+  "marcas-peca": Tags,
   garantias: ShieldCheck,
   "pdv-caixa": ShoppingCart,
   usuarios: UserCog,

@@ -19,6 +19,8 @@ import { MenuConfiguracoes } from "./menu-configuracoes";
 import { PainelDocumentos } from "./painel-documentos";
 import { PainelEmpresa } from "./painel-empresa";
 import { PainelGarantias } from "./painel-garantias";
+import { PainelMarcasPeca } from "./painel-marcas-peca";
+import type { MarcaPecaListada } from "@/app/actions/marcas-peca";
 import { PainelOs } from "./painel-os";
 import { PainelPdv } from "./painel-pdv";
 import { SecaoUsuariosCargos } from "./usuarios/secao-usuarios-cargos";
@@ -26,6 +28,8 @@ import { SECOES_CONFIGURACOES, type SecaoConfiguracoesId } from "./tipos";
 
 type PropsLayoutConfiguracoes = {
   defaultValues: DadosConfiguracoes;
+  /** `null` quando o usuario nao tem configuracoes.sistema — a secao some. */
+  marcasPeca: MarcaPecaListada[] | null;
 };
 
 function montarEnderecoCompleto(dados: {
@@ -42,11 +46,16 @@ function montarEnderecoCompleto(dados: {
   return [parteRua, parteLocal, parteCep].filter(Boolean).join(" | ");
 }
 
-export function LayoutConfiguracoes({ defaultValues }: PropsLayoutConfiguracoes) {
+export function LayoutConfiguracoes({ defaultValues, marcasPeca }: PropsLayoutConfiguracoes) {
   const podeVerUsuariosCargos = useTemPermissao("configuracoes.usuarios");
   const secoesVisiveis = useMemo(
-    () => SECOES_CONFIGURACOES.filter((secao) => secao.id !== "usuarios" || podeVerUsuariosCargos),
-    [podeVerUsuariosCargos]
+    () =>
+      SECOES_CONFIGURACOES.filter((secao) => {
+        if (secao.id === "usuarios") return podeVerUsuariosCargos;
+        if (secao.id === "marcas-peca") return marcasPeca !== null;
+        return true;
+      }),
+    [podeVerUsuariosCargos, marcasPeca]
   );
 
   const [secaoAtiva, setSecaoAtiva] = useState<SecaoConfiguracoesId>("empresa");
@@ -199,6 +208,10 @@ export function LayoutConfiguracoes({ defaultValues }: PropsLayoutConfiguracoes)
             configuracaoAtual={configuracaoAtual}
           />
         );
+      case "marcas-peca":
+        // Cadastro proprio, com as suas acoes: nao participa do formulario de
+        // Configuracoes nem da barra de salvar (ver secaoComPersistenciaAtiva).
+        return marcasPeca ? <PainelMarcasPeca marcas={marcasPeca} /> : null;
       case "usuarios":
         return podeVerUsuariosCargos ? <SecaoUsuariosCargos /> : null;
       default:
