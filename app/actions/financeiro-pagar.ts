@@ -5,10 +5,14 @@ import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { exigirPermissao } from "@/lib/auth/permissoes";
 import { escopoDespesa } from "@/lib/auth/escopos";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
-import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
+import {
+  contextoAuditoriaDoUsuario,
+  registrarLogAuditoria,
+  registrarLogsAuditoriaEmLote,
+} from "@/lib/auditoria";
 import { paraMensagemSegura } from "@/lib/erros";
 import { comoDataDeCalendario, dataDeCalendario, FUSO_HORARIO_PADRAO, fimDoMes, inicioDoMes } from "@/lib/datas";
-import { dividirEmParcelas } from "@/lib/dinheiro";
+import { deDecimal, dividirEmParcelas, paraMoeda, somar } from "@/lib/dinheiro";
 
 /** Ver o comentario equivalente em financeiro-receber.ts (Fase 1B-UI, Parte 1). */
 export type ResultadoAcaoDespesa = { sucesso: true } | { sucesso: false; mensagem: string };
@@ -24,6 +28,19 @@ export interface DadosCriarDespesa {
   tipo: TipoDespesa;
   qtdParcelas?: number;
   dataVencimento: Date;
+}
+
+/**
+ * A MESMA linha, do lado do banco: `valor`, `valorPago` e `valorTotal` chegam
+ * como `Decimal` do Prisma. Separar os dois tipos e o que impede o cast
+ * mentiroso de voltar — o compilador agora recusa tratar um como o outro.
+ */
+type DecimalPrisma = { toString(): string };
+
+interface ParcelaDespesaPrisma extends Omit<ParcelaDespesaComRelacao, "valor" | "valorPago" | "despesa"> {
+  valor: DecimalPrisma;
+  valorPago: DecimalPrisma | null;
+  despesa: Omit<ParcelaDespesaComRelacao["despesa"], "valorTotal"> & { valorTotal: DecimalPrisma };
 }
 
 export interface ParcelaDespesaComRelacao {
@@ -414,7 +431,32 @@ export async function listarParcelasPagarFiltradas(
     orderBy: { dataVencimento: "asc" },
   });
 
-  return parcelas as unknown as ParcelaDespesaComRelacao[];
+  return parcelas.map(converterParcelaParaTela);
+}
+
+/**
+ * Converte a linha do Prisma para o formato que a tela consome.
+ *
+ * Existe porque antes havia `parcelas as unknown as ParcelaDespesaComRelacao[]`
+ * no lugar. Aquele cast MENTIA para o TypeScript: o tipo declara `valor:
+ * number`, mas o Prisma devolve `Decimal` nas 49 colunas de dinheiro do schema.
+ * Como o compilador acreditava no tipo, ninguém via o problema — e somar
+ * `Decimal` com `+` concatena texto em vez de somar. Era de onde saía o
+ * "R$ 1.101.065.160,10" na tela de Contas a Pagar: "110" + "10" + "65"...
+ *
+ * A conversão acontece AQUI, na fronteira, e não em cada lugar que lê: é o
+ * único ponto por onde esses dados saem do banco para a tela.
+ */
+function converterParcelaParaTela(parcela: ParcelaDespesaPrisma): ParcelaDespesaComRelacao {
+  return {
+    ...parcela,
+    valor: paraMoeda(deDecimal(parcela.valor)),
+    valorPago: parcela.valorPago === null ? null : paraMoeda(deDecimal(parcela.valorPago)),
+    despesa: {
+      ...parcela.despesa,
+      valorTotal: paraMoeda(deDecimal(parcela.despesa.valorTotal)),
+    },
+  };
 }
 
 /**
@@ -435,29 +477,39 @@ export async function obterResumoPagar(filtros?: FiltrosPagar): Promise<ResumoPa
   // instante. Ver lib/datas.ts (`comoDataDeCalendario`).
   const hoje = comoDataDeCalendario(new Date(), fusoHorario);
 
-  let totalPendente = 0;
-  let totalAtrasado = 0;
-  let venceHoje = 0;
-  let totalPeriodo = 0;
+  // Centavos inteiros do início ao fim, convertidos para reais só no retorno.
+  // Somar em ponto flutuante aqui reintroduziria o erro de arredondamento que
+  // a Fase 2A-2 tirou do caixa; somar o `Decimal` cru reintroduziria a
+  // concatenação de texto que quebrou esta tela.
+  let pendenteCentavos = 0;
+  let atrasadoCentavos = 0;
+  let venceHojeCentavos = 0;
+  let periodoCentavos = 0;
 
   for (const parcela of parcelas) {
     // Já é DATA DE CALENDÁRIO — nunca reconverter via comoDataDeCalendario.
     const venc = parcela.dataVencimento;
+    const valorCentavos = deDecimal(parcela.valor);
 
-    totalPeriodo += parcela.valor;
+    periodoCentavos = somar(periodoCentavos, valorCentavos);
 
     if (parcela.status === "PAGO") continue;
 
     if (parcela.status === "ATRASADO" || venc < hoje) {
-      totalAtrasado += parcela.valor;
+      atrasadoCentavos = somar(atrasadoCentavos, valorCentavos);
     } else if (venc.getTime() === hoje.getTime() && parcela.status === "PENDENTE") {
-      venceHoje += parcela.valor;
+      venceHojeCentavos = somar(venceHojeCentavos, valorCentavos);
     } else if (parcela.status === "PENDENTE") {
-      totalPendente += parcela.valor;
+      pendenteCentavos = somar(pendenteCentavos, valorCentavos);
     }
   }
 
-  return { totalPendente, totalAtrasado, venceHoje, totalPeriodo };
+  return {
+    totalPendente: paraMoeda(pendenteCentavos),
+    totalAtrasado: paraMoeda(atrasadoCentavos),
+    venceHoje: paraMoeda(venceHojeCentavos),
+    totalPeriodo: paraMoeda(periodoCentavos),
+  };
 }
 
 // ── Pagar Parcela ────────────────────────────────────────────────────────────
@@ -605,21 +657,71 @@ export async function pagarParcelasEmLote(ids: string[]): Promise<ResultadoAcaoL
 
   try {
     const totalCentavos = await prisma.$transaction(async (tx) => {
-      let acumuladoCentavos = 0;
+      // Uma leitura para todas as parcelas, em vez de uma por item. O caminho
+      // anterior chamava `aplicarPagamentoParcela` em sequencia: 3 idas ao
+      // banco por parcela (ler, atualizar, auditar). Com 20 selecionadas eram
+      // 60 idas em serie dentro da MESMA transacao interativa, que expira em 5
+      // segundos por padrao — com o banco na rede, isso estourava sempre. Era
+      // o "Nao foi possivel concluir a operacao" que o dono reportou: nenhum
+      // pagamento acontecia, e a mensagem nao dizia por que.
+      const parcelas = await tx.parcelaDespesa.findMany({
+        where: { id: { in: idsUnicos } },
+        select: { id: true, status: true, valor: true, valorPago: true },
+      });
 
-      for (const id of idsUnicos) {
-        const { valor } = await aplicarPagamentoParcela(tx, prisma, id, undefined, usuario);
-        acumuladoCentavos += paraCentavos(valor);
+      // As mesmas validacoes de antes, agora em memoria. Continuam parando o
+      // lote inteiro: tudo-ou-nada e a regra, e pagar 19 de 20 em silencio
+      // seria pior que nao pagar nenhuma.
+      const encontradas = new Set(parcelas.map((parcela) => parcela.id));
+      const ausente = idsUnicos.find((id) => !encontradas.has(id));
+      if (ausente) {
+        throw new Error("Parcela nao encontrada para pagamento.");
       }
 
-      const idLote = crypto.randomUUID();
+      const jaPaga = parcelas.find((parcela) => parcela.status === "PAGO");
+      if (jaPaga) {
+        throw new Error("Esta parcela ja foi paga.");
+      }
+
+      const dataPagamento = new Date();
+
+      // Uma unica atualizacao para todas. `valorPago` recebe o proprio `valor`
+      // de cada linha — que e exatamente a regra do lote: cada parcela pelo seu
+      // valor original, sem desconto nem juros. `updateMany` do Prisma nao
+      // sabe copiar coluna para coluna, dai o SQL direto.
+      await tx.$executeRaw`
+        UPDATE "ParcelaDespesa"
+           SET "status" = 'PAGO',
+               "dataPagamento" = ${dataPagamento},
+               "valorPago" = "valor"
+         WHERE "id" = ANY(${idsUnicos})
+      `;
+
+      // Uma unica gravacao de auditoria para os itens, mais a do lote.
+      await registrarLogsAuditoriaEmLote(
+        tx,
+        contextoAuditoriaDoUsuario(usuario, "app/actions/financeiro-pagar.ts:pagarParcelasEmLote"),
+        parcelas.map((parcela) => ({
+          acao: ACOES_AUDITORIA.FINALIZAR,
+          entidade: ENTIDADES_AUDITORIA.CONTA_PAGAR,
+          entidadeId: parcela.id,
+          dadosAntes: { status: parcela.status, valorPago: parcela.valorPago, valor: parcela.valor },
+          dadosDepois: { status: "PAGO", valorPago: parcela.valor, dataPagamento },
+        }))
+      );
+
+      const acumuladoCentavos = parcelas.reduce(
+        (total, parcela) => somar(total, deDecimal(parcela.valor)),
+        0
+      );
+
       await registrarLogAuditoria(
         tx,
         contextoAuditoriaDoUsuario(usuario, "app/actions/financeiro-pagar.ts:pagarParcelasEmLote"),
         {
           acao: ACOES_AUDITORIA.FINALIZAR_LOTE,
           entidade: ENTIDADES_AUDITORIA.CONTA_PAGAR,
-          entidadeId: idLote,
+          entidadeId: crypto.randomUUID(),
           dadosDepois: {
             parcelasIds: idsUnicos,
             quantidade: idsUnicos.length,
@@ -629,7 +731,10 @@ export async function pagarParcelasEmLote(ids: string[]): Promise<ResultadoAcaoL
       );
 
       return acumuladoCentavos;
-    });
+    },
+    // Folga para lotes grandes, agora que sao 4 idas ao banco em vez de 3N.
+    // Nao e o conserto — e a rede de seguranca caso o lote cresca.
+    { timeout: 20000, maxWait: 10000 });
 
     revalidatePath("/financeiro/pagar");
     revalidatePath("/financeiro");

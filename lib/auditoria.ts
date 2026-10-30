@@ -46,6 +46,8 @@ type ClienteAuditoria = Prisma.TransactionClient | PrismaClient;
 
 type DelegateLogAuditoria = {
   create: (args: unknown) => Promise<{ id: string }>;
+  /** Opcional: delegate falso de teste nao precisa implementar. */
+  createMany?: (args: unknown) => Promise<{ count: number }>;
 };
 
 function obterDelegateLogAuditoria(client: ClienteAuditoria): DelegateLogAuditoria {
@@ -162,6 +164,54 @@ export async function registrarLogAuditoria(
 
     throw erro;
   }
+}
+
+/**
+ * Grava varios registros de auditoria numa chamada so.
+ *
+ * Existe por causa de tempo de transacao, nao de elegancia: as acoes em lote do
+ * Financeiro gravavam um log por item, em sequencia, dentro da mesma transacao
+ * interativa. Com 20 itens isso somava 20 idas ao banco so de auditoria, e a
+ * transacao estourava o limite padrao de 5 segundos — o usuario via "Nao foi
+ * possivel concluir a operacao" e nenhum pagamento acontecia.
+ *
+ * Nao aceita `melhorEsforco`: uma acao em lote que gravou no banco e perdeu a
+ * trilha em silencio e exatamente o que a Fase 1A proibiu. Se a auditoria
+ * falhar aqui, a transacao inteira falha junto.
+ */
+export async function registrarLogsAuditoriaEmLote(
+  client: ClienteAuditoria,
+  contexto: ContextoAuditoria,
+  entradas: EntradaLogAuditoria[]
+): Promise<{ quantidade: number }> {
+  if (entradas.length === 0) return { quantidade: 0 };
+
+  const delegate = obterDelegateLogAuditoria(client);
+
+  if (typeof delegate.createMany !== "function") {
+    // Cliente sem createMany (teste com delegate falso): cai pro caminho um a
+    // um, que e mais lento mas nunca deixa de registrar.
+    for (const entrada of entradas) {
+      await registrarLogAuditoria(client, contexto, entrada);
+    }
+    return { quantidade: entradas.length };
+  }
+
+  await delegate.createMany({
+    data: entradas.map((entrada) => ({
+      usuarioId: contexto.usuarioId ? String(contexto.usuarioId) : null,
+      empresaId: contexto.empresaId ? String(contexto.empresaId) : null,
+      origem: contexto.origem ? String(contexto.origem) : null,
+      acao: entrada.acao,
+      entidade: entrada.entidade,
+      entidadeId: entrada.entidadeId ? String(entrada.entidadeId) : null,
+      dadosAntes: paraJsonSeguro(entrada.dadosAntes),
+      dadosDepois: paraJsonSeguro(entrada.dadosDepois),
+      motivo: entrada.motivo ? String(entrada.motivo) : null,
+    })),
+  });
+
+  return { quantidade: entradas.length };
 }
 
 export function contextoAuditoriaDoUsuario(usuario: { id?: string | null } | null | undefined, origem: string): ContextoAuditoria {

@@ -7,6 +7,8 @@
  * pelo "selecionar todos".
  */
 
+import { deDecimal, paraMoeda, somar } from "@/lib/dinheiro";
+
 export interface ItemSelecionavelLote {
   id: string;
   jaLiquidado: boolean;
@@ -72,6 +74,13 @@ export function resumirSelecao<T extends { id: string; valor: number }>(
   itens: readonly T[]
 ): ResumoSelecaoLote {
   const encontrados = itens.filter((item) => selecionados.has(item.id));
-  const totalCentavos = encontrados.reduce((acc, item) => acc + Math.round((item.valor + Number.EPSILON) * 100), 0);
-  return { quantidade: encontrados.length, total: totalCentavos / 100 };
+
+  // `deDecimal`/`somar` em vez da conta a mao que estava aqui. A anterior era
+  // `Math.round((item.valor + Number.EPSILON) * 100)`, que com um valor nao
+  // numerico produzia NaN em silencio e a tela mostrava "R$ 0,00" com 20 itens
+  // selecionados. Agora um valor invalido levanta erro nomeando o valor, em vez
+  // de virar zero: total de dinheiro errado em silencio e pior que erro visivel.
+  const totalCentavos = encontrados.reduce((acc, item) => somar(acc, deDecimal(item.valor)), 0);
+
+  return { quantidade: encontrados.length, total: paraMoeda(totalCentavos) };
 }
