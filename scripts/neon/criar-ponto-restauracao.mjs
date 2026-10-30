@@ -159,7 +159,26 @@ async function limparPontosAntigos(projetoId) {
   }
 }
 
-async function criarBranchDeRestauracao(idEndpoint, prefixo, carimbo) {
+/** Retencao minima aceitavel para confiar no historico como ponto de restauracao. */
+const RETENCAO_MINIMA_SEGUNDOS = 60 * 60;
+
+/**
+ * Garante um ponto de restauracao para um banco, e devolve como ele foi obtido.
+ *
+ * Prefere o HISTORICO do Neon a criar um branch. Motivo concreto: branch e cota
+ * finita, e criar um a cada migracao entupiu a conta ao ponto de derrubar uma
+ * migracao com BRANCHES_LIMIT_EXCEEDED — a protecao automatizada se
+ * auto-sabotando. Enquanto o projeto guarda historico suficiente, o ponto de
+ * restauracao e o par (branch de origem, instante): se algo der errado, o
+ * branch de recuperacao e criado NAQUELE momento, a partir daquele instante,
+ * com `parent_timestamp`. Nao gastar cota com algo que quase nunca e usado e o
+ * desenho certo.
+ *
+ * Se o projeto nao guardar historico suficiente, volta a criar o branch na
+ * hora — porque ai o historico nao serve de rede, e nenhuma escrita acontece
+ * sem rede.
+ */
+async function garantirPontoDeRestauracao(idEndpoint, prefixo, carimbo) {
   const local = await localizarEndpoint(idEndpoint);
 
   if (!local) {
@@ -169,12 +188,32 @@ async function criarBranchDeRestauracao(idEndpoint, prefixo, carimbo) {
     );
   }
 
-  const nome = `${prefixo}-${idEndpoint}-${carimbo}`;
+  const detalhes = await chamarNeon(`/projects/${local.projetoId}`);
+  const retencao = Number(detalhes?.project?.history_retention_seconds ?? 0);
 
-  // Antes de criar, abre espaco. A cota do Neon e finita e este script ja
-  // derrubou uma migracao por te-la estourado.
+  if (Number.isFinite(retencao) && retencao >= RETENCAO_MINIMA_SEGUNDOS) {
+    const instante = new Date().toISOString();
+    const horas = Math.floor(retencao / 3600);
+
+    console.log(
+      `[ponto-restauracao] ${idEndpoint}: historico de ${horas}h disponivel. ` +
+        `Ponto = branch ${local.branchId} no instante ${instante}.`
+    );
+    console.log(
+      `[ponto-restauracao] para restaurar: criar branch com parent_id=${local.branchId} ` +
+        `e parent_timestamp=${instante} no projeto ${local.projetoId}.`
+    );
+
+    return `historico:${idEndpoint}@${instante}`;
+  }
+
+  // Sem historico util: cria o branch mesmo, abrindo espaco antes.
+  console.log(
+    `[ponto-restauracao] ${idEndpoint}: historico insuficiente (${retencao}s). Criando branch.`
+  );
   await limparPontosAntigos(local.projetoId);
 
+  const nome = `${prefixo}-${idEndpoint}-${carimbo}`;
   const criado = await chamarNeon(`/projects/${local.projetoId}/branches`, {
     method: "POST",
     body: JSON.stringify({ branch: { parent_id: local.branchId, name: nome } }),
@@ -222,13 +261,13 @@ async function principal() {
 
   const nomes = [];
   for (const idEndpoint of endpoints) {
-    nomes.push(await criarBranchDeRestauracao(idEndpoint, prefixo, carimbo));
+    nomes.push(await garantirPontoDeRestauracao(idEndpoint, prefixo, carimbo));
   }
 
   // Rotulo unico gravado no relatorio da migracao.
   const rotulo = `${prefixo}-${carimbo}`;
   console.log(`PONTO_RESTAURACAO=${rotulo}`);
-  console.log(`[ponto-restauracao] ${nomes.length} branch(es) de restauracao criado(s): ${nomes.join(", ")}`);
+  console.log(`[ponto-restauracao] ${nomes.length} ponto(s) de restauracao garantido(s): ${nomes.join(", ")}`);
 }
 
 principal().catch((causa) => erro(causa instanceof Error ? causa.message : String(causa)));
