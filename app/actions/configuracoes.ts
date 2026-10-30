@@ -80,6 +80,7 @@ type ConfiguracaoRegistro = {
   exigirItemParaGarantia?: boolean | null;
   exigirItemParaEnviarPDV?: boolean | null;
   exigirDiagnosticoParaFinalizar?: boolean | null;
+  custoPecaOSJaPago?: boolean | null;
   permitirFinalizarSemPagamento?: boolean | null;
   permitirGarantiaPersonalizada?: boolean | null;
   textoCoberturaGarantia?: string | null;
@@ -182,6 +183,7 @@ export type DadosConfiguracoes = {
   exigirItemParaGarantia: boolean;
   exigirItemParaEnviarPDV: boolean;
   exigirDiagnosticoParaFinalizar: boolean;
+  custoPecaOSJaPago: boolean;
   permitirFinalizarSemPagamento: boolean;
   permitirGarantiaPersonalizada: boolean;
   textoCoberturaGarantia: string;
@@ -308,6 +310,7 @@ const schemaDadosConfiguracoes = z.object({
   exigirItemParaGarantia: z.boolean(),
   exigirItemParaEnviarPDV: z.boolean(),
   exigirDiagnosticoParaFinalizar: z.boolean(),
+  custoPecaOSJaPago: z.boolean(),
   permitirFinalizarSemPagamento: z.boolean(),
   permitirGarantiaPersonalizada: z.boolean(),
   textoCoberturaGarantia: z.string().trim().max(4000, "Texto de cobertura excede o limite de 4000 caracteres."),
@@ -420,6 +423,7 @@ function obterConfiguracoesPadrao(): DadosConfiguracoes {
     exigirItemParaGarantia: defaultsOsGarantias.exigirItemParaGarantia,
     exigirItemParaEnviarPDV: defaultsOsGarantias.exigirItemParaEnviarPDV,
     exigirDiagnosticoParaFinalizar: defaultsOsGarantias.exigirDiagnosticoParaFinalizar,
+    custoPecaOSJaPago: defaultsOsGarantias.custoPecaOSJaPago,
     permitirFinalizarSemPagamento: defaultsOsGarantias.permitirFinalizarSemPagamento,
     permitirGarantiaPersonalizada: defaultsOsGarantias.permitirGarantiaPersonalizada,
     textoCoberturaGarantia: defaultsOsGarantias.textoCoberturaGarantia,
@@ -851,6 +855,7 @@ async function atualizarCamposOsGarantiaComFallbackSql(prismaClient: PrismaOpera
   exigirItemParaGarantia: boolean;
   exigirItemParaEnviarPDV: boolean;
   exigirDiagnosticoParaFinalizar: boolean;
+  custoPecaOSJaPago: boolean;
   permitirFinalizarSemPagamento: boolean;
   permitirGarantiaPersonalizada: boolean;
   textoCoberturaGarantia: string | null;
@@ -867,6 +872,7 @@ async function atualizarCamposOsGarantiaComFallbackSql(prismaClient: PrismaOpera
       "exigirItemParaGarantia" = ${dados.exigirItemParaGarantia},
       "exigirItemParaEnviarPDV" = ${dados.exigirItemParaEnviarPDV},
       "exigirDiagnosticoParaFinalizar" = ${dados.exigirDiagnosticoParaFinalizar},
+      "custoPecaOSJaPago" = ${dados.custoPecaOSJaPago},
       "permitirFinalizarSemPagamento" = ${dados.permitirFinalizarSemPagamento},
       "permitirGarantiaPersonalizada" = ${dados.permitirGarantiaPersonalizada},
       "textoCoberturaGarantia" = ${dados.textoCoberturaGarantia},

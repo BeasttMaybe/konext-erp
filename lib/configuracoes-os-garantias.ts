@@ -19,6 +19,7 @@ export type ConfiguracaoOsGarantias = Pick<
   | "exigirItemParaGarantia"
   | "exigirItemParaEnviarPDV"
   | "exigirDiagnosticoParaFinalizar"
+  | "custoPecaOSJaPago"
   | "permitirFinalizarSemPagamento"
   | "permitirGarantiaPersonalizada"
   | "textoCoberturaGarantia"
@@ -36,6 +37,10 @@ export function obterDefaultsConfiguracaoOsGarantias(): ConfiguracaoOsGarantias 
     exigirItemParaGarantia: true,
     exigirItemParaEnviarPDV: true,
     exigirDiagnosticoParaFinalizar: false,
+    // Peça de conserto é comprada por serviço e, no caso comum, paga no ato:
+    // o custo entra no financeiro já quitado, em vez de virar conta a pagar
+    // esperando baixa de algo que já foi pago.
+    custoPecaOSJaPago: true,
     permitirFinalizarSemPagamento: true,
     permitirGarantiaPersonalizada: true,
     textoCoberturaGarantia: TEXTO_COBERTURA_GARANTIA_PADRAO,
