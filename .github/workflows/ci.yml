@@ -36,9 +36,9 @@ jobs:
       TENANT_CUNHADO_DATABASE_URL: ${{ secrets.TESTE_TENANT_CUNHADO_DATABASE_URL || 'postgresql://ci:ci@127.0.0.1:5432/ci' }}
       CRON_SECRET: ci-sem-uso
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -86,9 +86,9 @@ jobs:
       DATABASE_URL: postgresql://postgres:sombra@127.0.0.1:5432/tenant_sombra
       CENTRAL_DATABASE_URL: postgresql://postgres:sombra@127.0.0.1:5432/central_sombra
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -137,9 +137,9 @@ jobs:
       DATABASE_URL: ${{ secrets.TESTE_DATABASE_URL || 'postgresql://ci:ci@127.0.0.1:5432/ci' }}
       CENTRAL_DATABASE_URL: ${{ secrets.TESTE_CENTRAL_DATABASE_URL || 'postgresql://ci:ci@127.0.0.1:5432/ci' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm

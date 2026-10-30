@@ -70,6 +70,7 @@ type OrdemServicoDetalhe = {
     tipoPeca?: string | null;
     custoPeca?: EntradaDecimal | null;
     valorCobrado?: EntradaDecimal | null;
+    marcaPeca?: { id?: string | null; nome?: string | null } | null;
     criadoEm?: Date | string | null;
   }>;
   transacoes?: Array<{
