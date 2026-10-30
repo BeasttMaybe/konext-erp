@@ -1,11 +1,4 @@
-export type SecaoConfiguracoesId =
-  | "empresa"
-  | "documentos"
-  | "os"
-  | "marcas-peca"
-  | "garantias"
-  | "pdv-caixa"
-  | "usuarios";
+export type SecaoConfiguracoesId = "empresa" | "documentos" | "os" | "garantias" | "pdv-caixa" | "usuarios";
 
 export type ItemSecaoConfiguracoes = {
   id: SecaoConfiguracoesId;
@@ -28,11 +21,6 @@ export const SECOES_CONFIGURACOES: ItemSecaoConfiguracoes[] = [
     id: "os",
     rotulo: "Ordens de Serviço",
     descricao: "Defina preferências gerais do fluxo operacional das OS.",
-  },
-  {
-    id: "marcas-peca",
-    rotulo: "Marcas de peça",
-    descricao: "Cadastre as marcas que aparecem na hora de lançar a peça na OS.",
   },
   {
     id: "garantias",

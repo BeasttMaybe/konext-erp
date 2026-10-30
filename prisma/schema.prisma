@@ -434,60 +434,9 @@ model ItemOS {
 
   descricao    String
   tipoPeca     TipoPeca
-
-  /**
-   * Marca da peca. Obrigatoria NA APLICACAO para todo tipo menos OUTROS — e por
-   * OUTROS que mao de obra e servico sao lancados, e servico nao tem marca.
-   * Opcional na coluna porque os itens lancados antes deste cadastro existem e
-   * nao tem marca: expand/contract, mesma decisao de OrdemServico.criadoPorId.
-   * No relatorio eles aparecem agrupados como "sem marca", nunca diluidos nas
-   * medias das marcas reais.
-   */
-  marcaPecaId  String?
-  marcaPeca    MarcaPeca?   @relation(fields: [marcaPecaId], references: [id], onDelete: Restrict)
-
   custoPeca    Decimal      @db.Decimal(12, 2)
   valorCobrado Decimal      @db.Decimal(12, 2)
   criadoEm     DateTime @default(now()) @db.Timestamptz(3)
-
-  @@index([marcaPecaId])
-}
-
-/**
- * Marcas de peca cadastradas pela loja (Fase 4).
- *
- * Peca de conserto nao e item de estoque neste negocio: e comprada para o
- * servico, sem entrada por nota, e por isso nao tem saldo nem movimentacao — e
- * custo direto da OS. O que o relatorio de custo e margem precisa, entao, nao e
- * vinculo com o catalogo de produtos, e vocabulario controlado: `ItemOS.tipoPeca`
- * (enum) cruzado com a marca escolhida aqui. Sem isso, `ItemOS.descricao` em
- * texto livre viraria "Tela iPhone 11", "tela ip 11" e "Tela IP11" como tres
- * pecas distintas, e nenhuma agregacao por peca teria resposta.
- *
- * Marca nunca e apagada quando ja foi usada (onDelete: Restrict acima) — se
- * saiu de linha, e desativada: `ativa = false` tira do seletor da OS e mantem o
- * historico intacto.
- */
-model MarcaPeca {
-  id   String @id @default(uuid())
-  nome String
-
-  /**
-   * `nome` em minusculas, sem acento e sem espaco duplicado. E a unicidade real:
-   * impede que "Original", "original" e "ORIGINAL " coexistam e quebrem o
-   * agrupamento do relatorio. Derivado sempre em lib/dominio/os/marcas-peca.ts,
-   * nunca montado na action.
-   */
-  nomeNormalizado String @unique
-
-  ativa Boolean @default(true)
-
-  itens ItemOS[]
-
-  criadoEm     DateTime @default(now()) @db.Timestamptz(3)
-  atualizadoEm DateTime @updatedAt @db.Timestamptz(3)
-
-  @@index([ativa])
 }
 
 enum StatusOS {

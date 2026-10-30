@@ -7,7 +7,6 @@ import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 import { ErroPermissao, exigirPermissao } from "@/lib/auth/permissoes";
 import { deDecimal, dividirEmParcelas, paraMoeda } from "@/lib/dinheiro";
-import { validarMarcaDoItem } from "@/lib/dominio/os/marcas-peca";
 
 const tiposPecaValidos: TipoPeca[] = [
   "TELA",
@@ -57,7 +56,6 @@ type DadosAdicionarItemOS = {
   tipoPeca?: string;
   custoPeca?: number | string;
   valorManual?: number | string;
-  marcaPecaId?: string | null;
 };
 
 export type EntradaAtualizarItemOS = {
@@ -67,7 +65,6 @@ export type EntradaAtualizarItemOS = {
   descricao: string;
   custoPeca: number | string;
   valorCobrado: number | string;
-  marcaPecaId?: string | null;
 };
 
 export type EntradaRemoverItemOS = {
@@ -85,17 +82,6 @@ export type ResultadoAcaoItemOS =
       sucesso: false;
       erro: string;
     };
-
-/**
- * `""` chega da tela quando o seletor de marca esta vazio; `null` e o que a
- * coluna guarda. Sem isso, um item de OUTROS sem marca tentaria gravar string
- * vazia numa chave estrangeira.
- */
-function normalizarMarcaPecaId(valor: string | null | undefined): string | null {
-  if (typeof valor !== "string") return null;
-  const id = valor.trim();
-  return id.length > 0 ? id : null;
-}
 
 function paraNumero(valor: unknown): number {
   const numero = typeof valor === "number" ? valor : Number(valor ?? 0);
@@ -255,7 +241,6 @@ export async function adicionarItemOS(osId: string, data: DadosAdicionarItemOS) 
   const tipoPeca = String(data?.tipoPeca ?? "") as TipoPeca;
   const custoPeca = paraNumero(data?.custoPeca);
   const valorManual = paraNumero(data?.valorManual);
-  const marcaPecaId = normalizarMarcaPecaId(data?.marcaPecaId);
 
   if (!descricao) {
     throw new Error("A descricao do item e obrigatoria.");
@@ -263,13 +248,6 @@ export async function adicionarItemOS(osId: string, data: DadosAdicionarItemOS) 
 
   if (!tiposPecaValidos.includes(tipoPeca)) {
     throw new Error("Tipo de peca invalido.");
-  }
-
-  // Mesma funcao que a tela usa pra desabilitar o envio: esconder um campo
-  // nunca foi validacao, e a action e a fronteira que de fato decide.
-  const marcaValida = validarMarcaDoItem(tipoPeca, marcaPecaId);
-  if (!marcaValida.valido) {
-    throw new Error(marcaValida.erro);
   }
 
   if (custoPeca < 0) {
@@ -313,19 +291,20 @@ export async function adicionarItemOS(osId: string, data: DadosAdicionarItemOS) 
       throw new Error("Delegate Prisma de ItemOS nao disponivel na transacao.");
     }
 
-    // 1. Insere o item na OS.
-    //
-    // Sem try/catch aqui de proposito. Havia um fallback que, em QUALQUER
-    // falha, tentava de novo com `ordemServicoId`/`tipo` — nomes de um schema
-    // que nao existe desde a baseline (ItemOS usa `osId`/`tipoPeca`). O
-    // caminho alternativo nunca podia dar certo, e o unico efeito real era
-    // engolir o erro verdadeiro e devolver no lugar dele uma mensagem do
-    // Prisma sobre coluna inexistente. Com a marca de peca isso ficaria pior:
-    // uma marca invalida viraria erro sobre `ordemServicoId`.
-    const itemCriado = (await txItemOS.create({
-      data: { osId, descricao, tipoPeca, custoPeca, valorCobrado, marcaPecaId },
-    })) as { id?: string };
-    const itemCriadoId = itemCriado?.id ? String(itemCriado.id) : null;
+    // 1. Insere o item na OS
+    let itemCriadoId: string | null = null;
+    try {
+      const itemCriado = (await txItemOS.create({
+        data: { osId, descricao, tipoPeca, custoPeca, valorCobrado },
+      })) as { id?: string };
+      itemCriadoId = itemCriado?.id ? String(itemCriado.id) : null;
+    } catch {
+      // Fallback para schema antigo enquanto a migração ainda não foi aplicada.
+      const itemCriado = (await txItemOS.create({
+        data: { ordemServicoId: osId, descricao, tipo: tipoPeca, custoPeca, valorCobrado },
+      })) as { id?: string };
+      itemCriadoId = itemCriado?.id ? String(itemCriado.id) : null;
+    }
 
     // 2. Cria despesa financeira automática caso a peça tenha custo registrado.
     if (custoPeca > 0 && txDespesa?.create && txParcelaDespesa?.create) {
@@ -398,7 +377,6 @@ export async function atualizarItemOS(input: EntradaAtualizarItemOS): Promise<Re
     const tipoPeca = String(input.tipoPeca ?? "") as TipoPeca;
     const custoPeca = normalizarMoeda(input.custoPeca);
     const valorCobrado = normalizarMoeda(input.valorCobrado);
-    const marcaPecaId = normalizarMarcaPecaId(input.marcaPecaId);
 
     if (!itemId || !osId) {
       return { sucesso: false, erro: "Item ou OS invalido." };
@@ -410,13 +388,6 @@ export async function atualizarItemOS(input: EntradaAtualizarItemOS): Promise<Re
 
     if (!tiposPecaValidos.includes(tipoPeca)) {
       return { sucesso: false, erro: "Tipo de peca invalido." };
-    }
-
-    // Vale tambem na edicao, inclusive em item antigo que nasceu sem marca: a
-    // regra e uma so, e editar um item e a oportunidade de completar o dado.
-    const marcaValida = validarMarcaDoItem(tipoPeca, marcaPecaId);
-    if (!marcaValida.valido) {
-      return { sucesso: false, erro: marcaValida.erro };
     }
 
     if (custoPeca === null || custoPeca < 0) {
@@ -446,7 +417,6 @@ export async function atualizarItemOS(input: EntradaAtualizarItemOS): Promise<Re
           tipoPeca: true,
           custoPeca: true,
           valorCobrado: true,
-          marcaPecaId: true,
         },
       });
 
@@ -463,7 +433,6 @@ export async function atualizarItemOS(input: EntradaAtualizarItemOS): Promise<Re
           descricao,
           custoPeca,
           valorCobrado,
-          marcaPecaId,
         },
       });
 
@@ -479,14 +448,12 @@ export async function atualizarItemOS(input: EntradaAtualizarItemOS): Promise<Re
             tipoPeca: (itemExiste as Record<string, unknown>).tipoPeca,
             custoPeca: (itemExiste as Record<string, unknown>).custoPeca,
             valorCobrado: (itemExiste as Record<string, unknown>).valorCobrado,
-            marcaPecaId: (itemExiste as Record<string, unknown>).marcaPecaId,
           },
           dadosDepois: {
             descricao,
             tipoPeca,
             custoPeca,
             valorCobrado,
-            marcaPecaId,
           },
         }
       );
