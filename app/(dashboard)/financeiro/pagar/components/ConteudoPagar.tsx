@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { Plus } from "lucide-react";
+import { Plus, MoreHorizontal, Pencil, Info, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import type { ClienteBuscaCRM } from "@/app/actions/crm";
 import {
@@ -24,6 +24,12 @@ import { useTemPermissao } from "@/contextos/contexto-permissoes";
 import { PilulaStatus } from "@/components/ui/pilula-status";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -336,17 +342,33 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
    */
   const despesaTemParcelaPaga = parcelasDaDespesa.some((parcela) => parcela.status === "PAGO");
 
-  function abrirEdicaoDespesa() {
-    if (!despesaSelecionada) return;
+  /**
+   * Recebe o id em vez de depender do painel lateral estar aberto: o menu da
+   * linha abre a edição direto, sem passar por ele. Lê de `parcelas` e não dos
+   * memos derivados de `despesaSelecionadaId`, porque `setState` é assíncrono —
+   * o memo só estaria atualizado no render seguinte, e o formulário abriria
+   * preenchido com a despesa anterior.
+   */
+  function abrirEdicaoDespesa(despesaId: string) {
+    const daDespesa = parcelas
+      .filter((p) => p.despesaId === despesaId)
+      .sort((a, b) => a.numeroParcela - b.numeroParcela);
+    const despesa = daDespesa[0]?.despesa;
+    if (!despesa) return;
 
-    const primeira = parcelasDaDespesa[0];
+    setDespesaSelecionadaId(despesaId);
     setFormEditar({
-      fornecedor: despesaSelecionada.fornecedor,
-      descricao: despesaSelecionada.descricao,
-      valorTotal: String(despesaSelecionada.valorTotal ?? ""),
-      dataVencimento: primeira ? format(new Date(primeira.dataVencimento), "yyyy-MM-dd") : "",
+      fornecedor: despesa.fornecedor,
+      descricao: despesa.descricao,
+      valorTotal: String(despesa.valorTotal ?? ""),
+      dataVencimento: daDespesa[0] ? format(new Date(daDespesa[0].dataVencimento), "yyyy-MM-dd") : "",
     });
     setDialogEditarAberto(true);
+  }
+
+  function abrirExclusaoDespesa(despesaId: string) {
+    setDespesaSelecionadaId(despesaId);
+    setDialogExcluirAberto(true);
   }
 
   async function confirmarEdicaoDespesa() {
@@ -454,7 +476,7 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
 
               <div
                 className={`hidden gap-3 px-3 text-[11px] font-bold uppercase tracking-wide text-kx-legenda sm:grid ${
-                  podeBaixar ? "grid-cols-[24px_minmax(0,1.4fr)_120px_90px_110px_110px_120px]" : "grid-cols-[minmax(0,1.4fr)_120px_90px_110px_110px_120px]"
+                  podeBaixar ? "grid-cols-[24px_minmax(0,1.4fr)_120px_90px_110px_110px_120px_40px]" : "grid-cols-[minmax(0,1.4fr)_120px_90px_110px_110px_120px_40px]"
                 }`}
               >
                 {podeBaixar && (
@@ -484,7 +506,7 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
                   <div
                     key={parcela.id}
                     className={`grid grid-cols-1 gap-2 rounded-kx-botao border border-kx-painel-borda bg-kx-cartao px-3 py-2.5 text-sm sm:items-center sm:gap-3 ${
-                      podeBaixar ? "sm:grid-cols-[24px_minmax(0,1.4fr)_120px_90px_110px_110px_120px]" : "sm:grid-cols-[minmax(0,1.4fr)_120px_90px_110px_110px_120px]"
+                      podeBaixar ? "sm:grid-cols-[24px_minmax(0,1.4fr)_120px_90px_110px_110px_120px_40px]" : "sm:grid-cols-[minmax(0,1.4fr)_120px_90px_110px_110px_120px_40px]"
                     }`}
                   >
                     {podeBaixar && (
@@ -516,6 +538,33 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
                     <span className="tabular-nums text-kx-texto-2">{format(new Date(parcela.dataVencimento), "dd/MM/yyyy")}</span>
                     <span className="text-right font-bold tabular-nums text-kx-texto">{formatarMoeda(parcela.valor)}</span>
                     <span className="flex justify-end">{pilulaDoStatus(status)}</span>
+                    <span className="flex justify-end">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Mais ações">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {podeEditar && (
+                            <DropdownMenuItem onClick={() => abrirEdicaoDespesa(parcela.despesaId)}>
+                              <Pencil className="mr-2 h-4 w-4" /> Editar
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem onClick={() => abrirGerenciamento(parcela.despesaId)}>
+                            <Info className="mr-2 h-4 w-4" /> Detalhes
+                          </DropdownMenuItem>
+                          {podeExcluir && (
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => abrirExclusaoDespesa(parcela.despesaId)}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" /> Excluir
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </span>
                   </div>
                 );
               })}
@@ -613,7 +662,7 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
                 {(podeEditar || podeExcluir) && (
                   <div className="flex flex-wrap items-center gap-2">
                     {podeEditar && (
-                      <Button variant="outline" size="sm" onClick={abrirEdicaoDespesa}>
+                      <Button variant="outline" size="sm" onClick={() => abrirEdicaoDespesa(despesaSelecionadaId ?? "")}>
                         Editar despesa
                       </Button>
                     )}
