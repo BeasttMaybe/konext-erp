@@ -82,7 +82,7 @@ Mais dois tokens sem variação por tema (fazem sentido fixos nos dois):
 --kx-raio-botao    12px    --kx-raio-pilula  999px
 --kx-sombra-cartao / --kx-sombra-painel / --kx-sombra-flutuante
 --kx-z-base(0) --kx-z-sticky(20) --kx-z-cabecalho(30) --kx-z-barra-lateral(30)
---kx-z-dropdown(40) --kx-z-drawer(50) --kx-z-dialogo(60) --kx-z-toast(70)
+--kx-z-drawer(40) --kx-z-dialogo(50) --kx-z-dropdown(60) --kx-z-toast(70)
 ```
 
 Todos expostos como utilitário Tailwind (`p-kx-6`, `rounded-kx-cartao`,
@@ -101,10 +101,24 @@ estritamente MAIOR que o anterior, então a lista abaixo também é a ordem
 visual de baixo pra cima (a de baixo nunca cobre a de cima):
 
 ```
-conteúdo (base/sticky)  <  barra lateral / barra superior  <  dropdown,
-popover, select, autocomplete  <  gaveta (Sheet)  <  diálogo/alert-dialog
-<  toast
+conteúdo (base/sticky)  <  barra lateral / barra superior  <  gaveta (Sheet)
+<  diálogo/alert-dialog  <  dropdown, popover, select, autocomplete  <  toast
 ```
+
+**Lista suspensa fica acima de diálogo, e isso é deliberado.** Uma lista é
+sempre aberta *a partir* de algo, então precisa cobrir o que a abriu. A ordem
+original colocava dropdown em 40 e diálogo em 60, e o efeito era grave: o Radix
+leva tanto o conteúdo do `Select` quanto o do `Dialog` para o `body`, onde os
+dois viram irmãos na mesma pilha — logo **todo select aberto dentro de todo
+diálogo do sistema desenhava atrás da caixa**. A lista abria, ficava escondida,
+e para quem usava parecia que o clique não fazia nada.
+
+O risco inverso (um dropdown da página cobrindo um diálogo) não acontece: abrir
+um diálogo fecha o que estava aberto na página, e a sobreposição bloqueia a
+interação atrás dela.
+
+A ordem é travada por teste em `lib/design/camadas-z.test.ts`, que lê os tokens
+do CSS de verdade — regra de design sem teste volta.
 
 A barra superior fica **sempre** acima do conteúdo da página — é
 `position: sticky` com `z-kx-cabecalho` e fundo opaco (`bg-kx-painel`, sólido

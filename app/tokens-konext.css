@@ -124,16 +124,28 @@
 
   /* ---- Z-index (uma escala só, pra nunca duas camadas brigarem por número solto)
      Ordem de camadas (a de baixo nunca cobre a de cima): conteúdo < cabeçalho
-     sticky de tabela < barra lateral/superior fixas < dropdown/popover/select
-     < gaveta (Sheet) < diálogo/alert-dialog < toast. A barra superior fica
-     sempre acima do conteúdo da página — ver docs/design/sistema-visual.md. ---- */
+     sticky de tabela < barra lateral/superior fixas < gaveta (Sheet) <
+     diálogo/alert-dialog < dropdown/popover/select < toast. Ver
+     docs/design/sistema-visual.md.
+
+     Dropdown acima de diálogo é deliberado, e já custou um bug: uma lista
+     suspensa é sempre aberta A PARTIR de algo, então precisa cobrir o que a
+     abriu. Radix leva tanto o conteúdo do Select quanto o do Dialog pro
+     `body`, onde viram irmãos na mesma pilha — com dropdown em 40 e diálogo
+     em 60, TODO select aberto dentro de TODO diálogo do sistema desenhava
+     atrás da caixa. A lista abria, ficava escondida, e o clique parecia não
+     funcionar.
+
+     O contrário (dropdown da página cobrindo um diálogo) não acontece: abrir
+     um diálogo fecha o que estava aberto na página, e a sobreposição bloqueia
+     a interação atrás dela. ---- */
   --kx-z-base: 0;
   --kx-z-sticky: 20;
   --kx-z-cabecalho: 30;
   --kx-z-barra-lateral: 30;
-  --kx-z-dropdown: 40;
-  --kx-z-drawer: 50;
-  --kx-z-dialogo: 60;
+  --kx-z-drawer: 40;
+  --kx-z-dialogo: 50;
+  --kx-z-dropdown: 60;
   --kx-z-toast: 70;
 
   color-scheme: dark;
