@@ -440,6 +440,7 @@ type CamposOsGarantiaRaw = {
   exigirItemParaGarantia: boolean | null;
   exigirItemParaEnviarPDV: boolean | null;
   exigirDiagnosticoParaFinalizar: boolean | null;
+  custoPecaOSJaPago: boolean | null;
   permitirFinalizarSemPagamento: boolean | null;
   permitirGarantiaPersonalizada: boolean | null;
   textoCoberturaGarantia: string | null;
@@ -522,6 +523,7 @@ async function lerCamposOsGarantiaViaSql(
         "exigirItemParaGarantia",
         "exigirItemParaEnviarPDV",
         "exigirDiagnosticoParaFinalizar",
+        "custoPecaOSJaPago",
         "permitirFinalizarSemPagamento",
         "permitirGarantiaPersonalizada",
         "textoCoberturaGarantia",
@@ -609,6 +611,7 @@ export async function obterConfiguracoes(): Promise<{ id: string } & DadosConfig
           exigirItemParaGarantia: true,
           exigirItemParaEnviarPDV: true,
           exigirDiagnosticoParaFinalizar: false,
+          custoPecaOSJaPago: true,
           permitirFinalizarSemPagamento: true,
           permitirGarantiaPersonalizada: true,
           textoCoberturaGarantia: TEXTO_COBERTURA_GARANTIA_PADRAO,
@@ -774,6 +777,10 @@ export async function obterConfiguracoes(): Promise<{ id: string } & DadosConfig
       typeof camposOsGarantia?.exigirDiagnosticoParaFinalizar === "boolean"
         ? Boolean(camposOsGarantia.exigirDiagnosticoParaFinalizar)
         : defaults.exigirDiagnosticoParaFinalizar,
+    custoPecaOSJaPago:
+      typeof camposOsGarantia?.custoPecaOSJaPago === "boolean"
+        ? Boolean(camposOsGarantia.custoPecaOSJaPago)
+        : defaults.custoPecaOSJaPago,
     permitirFinalizarSemPagamento:
       typeof camposOsGarantia?.permitirFinalizarSemPagamento === "boolean"
         ? Boolean(camposOsGarantia.permitirFinalizarSemPagamento)
@@ -808,6 +815,7 @@ function houveMudancaCamposOsGarantia(antes: DadosConfiguracoes, depois: DadosCo
     antes.exigirItemParaGarantia !== depois.exigirItemParaGarantia ||
     antes.exigirItemParaEnviarPDV !== depois.exigirItemParaEnviarPDV ||
     antes.exigirDiagnosticoParaFinalizar !== depois.exigirDiagnosticoParaFinalizar ||
+    antes.custoPecaOSJaPago !== depois.custoPecaOSJaPago ||
     antes.permitirFinalizarSemPagamento !== depois.permitirFinalizarSemPagamento ||
     antes.permitirGarantiaPersonalizada !== depois.permitirGarantiaPersonalizada ||
     antes.textoCoberturaGarantia !== depois.textoCoberturaGarantia ||
@@ -1061,6 +1069,7 @@ export async function salvarConfiguracoes(data: DadosConfiguracoes) {
     exigirItemParaGarantia: dadosNormalizados.exigirItemParaGarantia,
     exigirItemParaEnviarPDV: dadosNormalizados.exigirItemParaEnviarPDV,
     exigirDiagnosticoParaFinalizar: dadosNormalizados.exigirDiagnosticoParaFinalizar,
+    custoPecaOSJaPago: dadosNormalizados.custoPecaOSJaPago,
     permitirFinalizarSemPagamento: dadosNormalizados.permitirFinalizarSemPagamento,
     permitirGarantiaPersonalizada: dadosNormalizados.permitirGarantiaPersonalizada,
     textoCoberturaGarantia: dadosNormalizados.textoCoberturaGarantia || null,
@@ -1157,6 +1166,7 @@ export async function salvarConfiguracoes(data: DadosConfiguracoes) {
           exigirItemParaGarantia: dadosAntes.exigirItemParaGarantia,
           exigirItemParaEnviarPDV: dadosAntes.exigirItemParaEnviarPDV,
           exigirDiagnosticoParaFinalizar: dadosAntes.exigirDiagnosticoParaFinalizar,
+          custoPecaOSJaPago: dadosAntes.custoPecaOSJaPago,
           permitirFinalizarSemPagamento: dadosAntes.permitirFinalizarSemPagamento,
           permitirGarantiaPersonalizada: dadosAntes.permitirGarantiaPersonalizada,
           habilitarMargemAutomatica: dadosAntes.habilitarMargemAutomatica,
@@ -1169,6 +1179,7 @@ export async function salvarConfiguracoes(data: DadosConfiguracoes) {
           exigirItemParaGarantia: dadosNormalizados.exigirItemParaGarantia,
           exigirItemParaEnviarPDV: dadosNormalizados.exigirItemParaEnviarPDV,
           exigirDiagnosticoParaFinalizar: dadosNormalizados.exigirDiagnosticoParaFinalizar,
+          custoPecaOSJaPago: dadosNormalizados.custoPecaOSJaPago,
           permitirFinalizarSemPagamento: dadosNormalizados.permitirFinalizarSemPagamento,
           permitirGarantiaPersonalizada: dadosNormalizados.permitirGarantiaPersonalizada,
           habilitarMargemAutomatica: dadosNormalizados.habilitarMargemAutomatica,
