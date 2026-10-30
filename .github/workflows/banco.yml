@@ -43,6 +43,10 @@ on:
         description: "Branch Neon de restauração. Vazio = criado automaticamente pela API do Neon"
         type: string
         required: false
+      confirmo_producao:
+        description: "Para ambiente=producao, digite exatamente: APLICAR EM PRODUCAO"
+        type: string
+        required: false
       autorizar_destrutivo:
         description: "Permitir SQL destrutivo (DROP, ALTER TYPE, UPDATE...)"
         type: boolean
@@ -59,13 +63,15 @@ jobs:
     name: ${{ inputs.comando }} em ${{ inputs.ambiente }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    environment: ${{ inputs.ambiente }}
     env:
       AMBIENTE: ${{ inputs.ambiente }}
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      CENTRAL_DATABASE_URL: ${{ secrets.CENTRAL_DATABASE_URL }}
-      TENANT_PRINCIPAL_DATABASE_URL: ${{ secrets.TENANT_PRINCIPAL_DATABASE_URL }}
-      TENANT_CUNHADO_DATABASE_URL: ${{ secrets.TENANT_CUNHADO_DATABASE_URL }}
+      # Environments com regra de protecao exigem plano pago em repositorio
+      # privado, entao os segredos ficam no repositorio com prefixo e a escolha
+      # acontece aqui, pelo ambiente informado no disparo.
+      DATABASE_URL: ${{ inputs.ambiente == 'producao' && secrets.PROD_DATABASE_URL || secrets.TESTE_DATABASE_URL }}
+      CENTRAL_DATABASE_URL: ${{ inputs.ambiente == 'producao' && secrets.PROD_CENTRAL_DATABASE_URL || secrets.TESTE_CENTRAL_DATABASE_URL }}
+      TENANT_PRINCIPAL_DATABASE_URL: ${{ inputs.ambiente == 'producao' && secrets.PROD_TENANT_PRINCIPAL_DATABASE_URL || secrets.TESTE_TENANT_PRINCIPAL_DATABASE_URL }}
+      TENANT_CUNHADO_DATABASE_URL: ${{ inputs.ambiente == 'producao' && secrets.PROD_TENANT_CUNHADO_DATABASE_URL || secrets.TESTE_TENANT_CUNHADO_DATABASE_URL }}
       NEXT_TELEMETRY_DISABLED: "1"
     steps:
       - uses: actions/checkout@v4
@@ -85,6 +91,17 @@ jobs:
       #
       # Se `ponto_restauracao` vier preenchido, ele é respeitado como está: é a
       # saída para quando o branch já foi criado à mão.
+      # Nao substitui o Required reviewers (indisponivel no plano Free em repo
+      # privado): nao impede quem dispara, impede o disparo por engano e deixa a
+      # intencao registrada no historico do run.
+      - name: Confirmar intenção de escrever em produção
+        if: inputs.ambiente == 'producao' && inputs.comando == 'migrar-aplicar'
+        run: |
+          if [ "${{ inputs.confirmo_producao }}" != "APLICAR EM PRODUCAO" ]; then
+            echo "::error::Para aplicar em producao, confirmo_producao precisa ser exatamente: APLICAR EM PRODUCAO"
+            exit 1
+          fi
+
       - name: Criar ponto de restauração no Neon
         id: restauracao
         if: inputs.comando == 'migrar-aplicar'

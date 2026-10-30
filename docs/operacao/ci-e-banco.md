@@ -75,13 +75,27 @@ pelo dono do repositório.
 | `TESTE_TENANT_PRINCIPAL_DATABASE_URL` | idem tenant principal |
 | `TESTE_TENANT_CUNHADO_DATABASE_URL` | idem tenant do cunhado |
 
-**Settings → Environments** — usados pelo `banco.yml`. Dois environments, `teste` e
-`producao`, cada um com os **mesmos quatro nomes** de secret e valores diferentes:
-`DATABASE_URL`, `CENTRAL_DATABASE_URL`, `TENANT_PRINCIPAL_DATABASE_URL`,
-`TENANT_CUNHADO_DATABASE_URL`.
+Para o `banco.yml`, mais quatro com prefixo `PROD_`, com os valores de produção e
+**sem `-pooler`** no endereço: `PROD_DATABASE_URL`, `PROD_CENTRAL_DATABASE_URL`,
+`PROD_TENANT_PRINCIPAL_DATABASE_URL`, `PROD_TENANT_CUNHADO_DATABASE_URL`. O workflow
+escolhe entre os `TESTE_` e os `PROD_` pelo `ambiente` informado no disparo.
 
-No environment `producao`, marcar **Required reviewers** com o dono do repositório.
-Sem isso, o workflow escreve em produção sem ninguém no circuito.
+### Por que não por environment
+
+O desenho original usava GitHub Environments com **Required reviewers** no `producao`,
+para que toda escrita em produção parasse e esperasse aprovação humana. Regras de
+proteção de environment exigem plano pago em repositório privado, e este repositório
+está no Free — a opção não existe aqui.
+
+O que substitui, e o que **não** substitui:
+
+- `confirmo_producao` precisa ser exatamente `APLICAR EM PRODUCAO` para `migrar-aplicar`
+  em produção. Isso impede o disparo por engano e registra a intenção no histórico do
+  run — mas não impede quem dispara, porque é a mesma pessoa que digita.
+- A trava real continua sendo o **ponto de restauração**, criado e confirmado antes de
+  qualquer escrita, mais a recusa de SQL destrutivo sem `AUTORIZAR_DESTRUTIVO=SIM`.
+- A decisão de aplicar em produção é do dono do projeto, combinada fora do mecanismo.
+  Quem quiser o portão imposto pela ferramenta precisa do GitHub Pro.
 
 ## 4. Como o Claude usa isso
 
