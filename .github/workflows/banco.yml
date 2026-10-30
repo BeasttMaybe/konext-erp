@@ -84,6 +84,22 @@ jobs:
       - name: Instalar dependências
         run: npm ci
 
+      # Primeira coisa depois de instalar, antes de qualquer comando. Existe
+      # porque o atalho `ambiente == 'producao' && secrets.PROD_X ||
+      # secrets.TESTE_X` cai calado no valor de TESTE quando o segredo PROD_
+      # esta ausente — string vazia e falsa em expressao do GitHub. Um dry-run
+      # de producao chegou a ler o banco de TESTE por causa disso.
+      - name: Conferir que as conexões são do ambiente pedido
+        run: |
+          set -o pipefail
+          codificar() { sed -e 's/%/%25/g' -e 's/\r/%0D/g' | awk '{printf "%s%%0A", $0}'; }
+
+          if ! node scripts/verificacao/conferir-conexoes-do-ambiente.mjs \
+              --ambiente "${{ inputs.ambiente }}" 2>&1 | tee /tmp/conexoes.log; then
+            echo "::error::Conexões não conferem com o ambiente \"${{ inputs.ambiente }}\":%0A$(tail -30 /tmp/conexoes.log | codificar)"
+            exit 1
+          fi
+
       # Ponto de restauração: criado aqui, antes de qualquer escrita. A regra do
       # projeto nunca foi "alguém cria à mão" — era "existe um ponto de
       # restauração recém-criado". Criar pela API mantém a regra e remove a
