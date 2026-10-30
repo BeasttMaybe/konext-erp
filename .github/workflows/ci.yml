@@ -36,9 +36,9 @@ jobs:
       TENANT_CUNHADO_DATABASE_URL: ${{ secrets.TESTE_TENANT_CUNHADO_DATABASE_URL || 'postgresql://ci:ci@127.0.0.1:5432/ci' }}
       CRON_SECRET: ci-sem-uso
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
@@ -60,8 +60,7 @@ jobs:
         run: |
           set -o pipefail
           npx tsc --noEmit 2>&1 | tee /tmp/tipos.log || {
-            echo "::error::Falha em tsc --noEmit:"
-            tail -40 /tmp/tipos.log | while IFS= read -r linha; do echo "::error::$linha"; done
+            echo "::error::Falha em tsc --noEmit:%0A$(tail -60 /tmp/tipos.log | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | awk '{printf "%s%%0A", $0}')"
             exit 1
           }
 
@@ -69,8 +68,7 @@ jobs:
         run: |
           set -o pipefail
           npm test 2>&1 | tee /tmp/testes.log || {
-            echo "::error::Falha nos testes:"
-            tail -40 /tmp/testes.log | while IFS= read -r linha; do echo "::error::$linha"; done
+            echo "::error::Falha nos testes:%0A$(tail -60 /tmp/testes.log | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | awk '{printf "%s%%0A", $0}')"
             exit 1
           }
 
@@ -78,8 +76,7 @@ jobs:
         run: |
           set -o pipefail
           npm run build 2>&1 | tee /tmp/build.log || {
-            echo "::error::Falha no build:"
-            tail -50 /tmp/build.log | while IFS= read -r linha; do echo "::error::$linha"; done
+            echo "::error::Falha no build:%0A$(tail -80 /tmp/build.log | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | awk '{printf "%s%%0A", $0}')"
             exit 1
           }
 
@@ -108,9 +105,9 @@ jobs:
       DATABASE_URL: postgresql://postgres:sombra@127.0.0.1:5432/tenant_sombra
       CENTRAL_DATABASE_URL: postgresql://postgres:sombra@127.0.0.1:5432/central_sombra
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
@@ -159,9 +156,9 @@ jobs:
       DATABASE_URL: ${{ secrets.TESTE_DATABASE_URL || 'postgresql://ci:ci@127.0.0.1:5432/ci' }}
       CENTRAL_DATABASE_URL: ${{ secrets.TESTE_CENTRAL_DATABASE_URL || 'postgresql://ci:ci@127.0.0.1:5432/ci' }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
