@@ -388,6 +388,7 @@ export async function obterHistoricoFechamentos(
       valorAbertura: EntradaDecimal;
       valorFechamento: EntradaDecimal;
       totalVendasSessao: EntradaDecimal;
+      totalEstornosAbsorvidos: EntradaDecimal;
       abertoPorNome: string | null;
     }>
   >`

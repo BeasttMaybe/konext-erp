@@ -13,7 +13,7 @@ export interface ContaReceberFinanceiro {
   valor: number;
   dataVencimento: Date;
   dataRecebimento: Date | null;
-  status: "PENDENTE" | "PAGO" | "RECEBIDO" | "ATRASADO" | "RENEGOCIADO";
+  status: "PENDENTE" | "PAGO" | "RECEBIDO" | "ATRASADO" | "RENEGOCIADO" | "ESTORNADO";
   cliente: {
     nomeRazaoSocial: string;
   } | null;

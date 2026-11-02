@@ -60,7 +60,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 // ── Tipos e constantes ───────────────────────────────────────────────────────
 
-type StatusExibicao = "PENDENTE" | "ATRASADO" | "RECEBIDO";
+type StatusExibicao = "PENDENTE" | "ATRASADO" | "RECEBIDO" | "ESTORNADO";
 type PilulaFiltro = "ABERTO" | "ATRASADOS" | "RECEBIDOS" | "TODOS";
 
 const FORMA_RECEBIMENTO_INICIAL: ContaReceberFinanceiro["formaRecebimento"] = "PIX";
@@ -111,12 +111,18 @@ const formatarMoeda = (valor: number) =>
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function obterStatusExibicao(conta: ContaReceberFinanceiro, inicioDiaAtual: Date): StatusExibicao {
+  // Fase 2A-3: a action filtra conta estornada da lista, entao isto nao
+  // deveria aparecer. Esta aqui porque sem o caso explicito uma estornada
+  // cairia no `return "PENDENTE"` do fim e a tela cobraria de novo um valor
+  // que a loja devolveu — o tipo de erro que nao se descobre olhando.
+  if (conta.status === "ESTORNADO") return "ESTORNADO";
   if (conta.status === "RECEBIDO") return "RECEBIDO";
   if (new Date(conta.dataVencimento) < inicioDiaAtual) return "ATRASADO";
   return "PENDENTE";
 }
 
 function pilulaDoStatus(status: StatusExibicao) {
+  if (status === "ESTORNADO") return <PilulaStatus variante="neutro">Estornado</PilulaStatus>;
   if (status === "RECEBIDO") return <PilulaStatus variante="sucesso">Recebido</PilulaStatus>;
   if (status === "ATRASADO") return <PilulaStatus variante="erro">Atrasado</PilulaStatus>;
   return <PilulaStatus variante="alerta">Pendente</PilulaStatus>;
