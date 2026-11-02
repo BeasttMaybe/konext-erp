@@ -174,9 +174,9 @@ export const ROTULOS_PERMISSAO: Readonly<Record<Permissao, { rotulo: string; des
   "estoque.editar": { rotulo: "Editar estoque", descricao: "Alterar itens e saldos de estoque." },
   "estoque.ver_custos": { rotulo: "Ver custos de estoque", descricao: "Enxergar o custo dos itens de estoque." },
   "estoque.excluir": { rotulo: "Excluir itens de estoque", descricao: "Excluir itens do estoque." },
-  "crm.ver": { rotulo: "Ver CRM", descricao: "Consultar contatos e oportunidades do CRM." },
-  "crm.editar": { rotulo: "Editar CRM", descricao: "Criar e alterar contatos e oportunidades." },
-  "crm.excluir": { rotulo: "Excluir CRM", descricao: "Excluir contatos e oportunidades." },
+  "crm.ver": { rotulo: "Ver CRM", descricao: "Consultar clientes e propostas do CRM." },
+  "crm.editar": { rotulo: "Editar CRM", descricao: "Criar e alterar clientes e propostas." },
+  "crm.excluir": { rotulo: "Excluir CRM", descricao: "Excluir clientes e propostas." },
   "propostas.editar": { rotulo: "Editar propostas", descricao: "Criar e alterar propostas comerciais." },
   "propostas.excluir": { rotulo: "Excluir propostas", descricao: "Excluir propostas comerciais." },
   "financeiro.ver": {

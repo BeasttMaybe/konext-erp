@@ -34,9 +34,12 @@ export const ITENS_NAVEGACAO: readonly ItemNavegacao[] = [
     path: "/crm",
     iconKey: "CRM",
     filhos: [
-      { label: "Hub Central", path: "/crm" },
-      { label: "Contatos", path: "/crm/contatos" },
-      { label: "Oportunidades", path: "/crm/oportunidades" },
+      // O "Hub Central" era uma tela de indicadores com valores fixos em zero
+      // e textos de alerta escritos no codigo — removida em 02/11/2026. O /crm
+      // passou a ser a propria tela de clientes, e Oportunidades e o funil
+      // sairam por decisao do dono: o CRM dele e cadastro de cliente e
+      // proposta, nao pipeline comercial.
+      { label: "Clientes", path: "/crm" },
       { label: "Propostas", path: "/crm/propostas" },
     ],
   },
