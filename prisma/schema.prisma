@@ -960,8 +960,14 @@ model Meta {
   metricaAutomatica MetricaAutomaticaMeta?
   configuracaoAutomatica Json?
   direcao     DirecaoMeta   @default(MAIOR_MELHOR)
-  valorAlvo   Float?
-  valorAtual  Float          @default(0)
+  // Fase 2A-3: Decimal(14,4), nao Float. A coluna e polimorfica — pode ser
+  // dinheiro, quantidade ou percentual, conforme `tipoValor` em tempo de
+  // execucao — e foi por isso que a Fase 2A-2 a deixou de fora. A escala 4
+  // atende os tres: 2 casas bastam pra dinheiro, 4 e a convencao de
+  // percentual do projeto (Decimal(7,4)), e quantidade quase sempre e
+  // inteira. 10 digitos inteiros cobrem meta de dez bilhoes.
+  valorAlvo   Decimal?       @db.Decimal(14, 4)
+  valorAtual  Decimal        @default(0) @db.Decimal(14, 4)
   unidade     String?
   dataInicio  DateTime?
   dataPrazo   DateTime?
@@ -1016,8 +1022,10 @@ model HistoricoMeta {
   meta           Meta              @relation(fields: [metaId], references: [id], onDelete: Cascade)
   tipo           TipoHistoricoMeta
   descricao      String
-  valorAnterior  Float?
-  valorNovo      Float?
+  // Mesma escala de Meta.valorAlvo/valorAtual: o historico guarda os dois
+  // lados da mudanca desses mesmos campos.
+  valorAnterior  Decimal?          @db.Decimal(14, 4)
+  valorNovo      Decimal?          @db.Decimal(14, 4)
   criadoPorId    String?
   criadoEm       DateTime          @default(now()) @db.Timestamptz(3)
 

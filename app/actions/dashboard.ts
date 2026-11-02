@@ -6,6 +6,7 @@ import { obterReceitaTotalPadrao } from "@/lib/dashboard/regras-financeiras";
 import { montarComparativo, type ComparativoKpi, type DirecaoBoaKpi } from "@/lib/dashboard/comparativo-kpi";
 import { escopoOrdemServico } from "@/lib/auth/escopos";
 import { deDecimal, paraMoeda, somar, subtrair } from "@/lib/dinheiro";
+import { numeroDaMeta, numeroDaMetaOuNulo } from "@/lib/dominio/metas/valores";
 import { paraEstagio, type EtapaOS } from "@/lib/dominio/os/etapas";
 import { Prisma } from "@prisma/client";
 import {
@@ -1067,15 +1068,18 @@ export async function obterPainelOperacionalHome(
       principais: metasPrincipais.map((meta) => ({
         id: meta.id,
         titulo: meta.titulo,
+        // `Meta.valorAtual/valorAlvo` sao Decimal(14,4) desde a Fase 2A-3.
+        // `Number(Decimal)` funcionava por coercao; `valorAlvo` ia cru,
+        // Decimal e tudo, direto pra tela.
         progresso: calcularProgressoMeta({
           tipoValor: meta.tipoValor,
-          valorAtual: Number(meta.valorAtual ?? 0),
-          valorAlvo: meta.valorAlvo,
+          valorAtual: numeroDaMeta(meta.valorAtual),
+          valorAlvo: numeroDaMetaOuNulo(meta.valorAlvo),
         }),
         status: mapearStatusMovimentacao(meta.status),
         tipoValor: meta.tipoValor,
-        valorAtual: Number(meta.valorAtual ?? 0),
-        valorAlvo: meta.valorAlvo,
+        valorAtual: numeroDaMeta(meta.valorAtual),
+        valorAlvo: numeroDaMetaOuNulo(meta.valorAlvo),
         unidade: meta.unidade,
       })),
     };
