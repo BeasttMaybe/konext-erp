@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useState, useTransition, type CSSProperties } from "react";
-import { useRouter } from "next/navigation";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { Controller, useForm, type Resolver } from "react-hook-form";
-import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
+import { useMemo, useState, useTransition, type CSSProperties } from"react";
+import { useRouter } from"next/navigation";
+import { zodResolver } from"@hookform/resolvers/zod";
+import { Controller, useForm, type Resolver } from"react-hook-form";
+import { DragDropContext, Draggable, Droppable, type DropResult } from"@hello-pangea/dnd";
 import {
   ArrowLeft,
   ArrowRight,
@@ -12,27 +12,27 @@ import {
   LayoutGrid,
   Plus,
   Target,
-} from "lucide-react";
-import { toast } from "sonner";
+} from"lucide-react";
+import { toast } from"sonner";
 
-import { criarOportunidade, atualizarEstagioOportunidade, type OportunidadeListagem } from "@/app/actions/oportunidades";
-import type { ClienteBuscaCRM } from "@/app/actions/crm";
-import { SeletorClienteCRM } from "@/components/financeiro/seletor-cliente-crm";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { formatarMoedaBrasileira } from "@/lib/formatadores";
+import { criarOportunidade, atualizarEstagioOportunidade, type OportunidadeListagem } from"@/app/actions/oportunidades";
+import type { ClienteBuscaCRM } from"@/app/actions/crm";
+import { SeletorClienteCRM } from"@/components/financeiro/seletor-cliente-crm";
+import { Button } from"@/components/ui/button";
+import { Card } from"@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from"@/components/ui/dialog";
+import { Input } from"@/components/ui/input";
+import { Label } from"@/components/ui/label";
+import { Badge } from"@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from"@/components/ui/select";
+import { ScrollArea } from"@/components/ui/scroll-area";
+import { formatarMoedaBrasileira } from"@/lib/formatadores";
 import {
   formOportunidadeSchema,
   estagiosFunil,
   type EstagioFunil,
   type FormOportunidade,
-} from "@/lib/validations/oportunidades";
+} from"@/lib/validations/oportunidades";
 
 export type ClienteOpcao = {
   id: string;
@@ -57,68 +57,78 @@ const configuracaoEtapa: Record<
     chip: string;
   }
 > = {
+  // Cor por estágio, dos tokens do design system. Antes eram seis matizes
+  // crus do Tailwind — sky, cyan, amber, orange, emerald, rose —, um por
+  // coluna. Seis matizes sem relação entre si não formam escala: quem olha o
+  // funil não consegue dizer se ciano vem antes ou depois de âmbar, e a cor
+  // deixa de informar e passa a só decorar.
+  //
+  // Aqui só DOIS estágios carregam significado próprio: ganho é sucesso e
+  // perdido é erro. Os quatro abertos são posições numa fila, então avançam
+  // por INTENSIDADE e não por matiz — neutro, neutro mais forte, informativo
+  // e, na negociação, alerta, que é o único aberto que pede ação para fechar.
   PROSPECCAO: {
-    titulo: "Prospecção",
-    descricao: "Primeiro contato e descoberta.",
-    classe: "from-sky-50 via-white to-white dark:from-sky-950/40 dark:via-slate-900 dark:to-slate-900",
-    borda: "border-sky-200/80 dark:border-sky-900/60",
-    chip: "bg-sky-100 text-sky-700 dark:bg-sky-950/50 dark:text-sky-300",
+    titulo:"Prospecção",
+    descricao:"Primeiro contato e descoberta.",
+    classe:"from-kx-superficie via-kx-painel to-kx-painel",
+    borda:"border-kx-painel-borda",
+    chip:"bg-kx-superficie text-kx-legenda",
   },
   DIAGNOSTICO: {
-    titulo: "Diagnóstico",
-    descricao: "Entendimento de dor e contexto.",
-    classe: "from-cyan-50 via-white to-white dark:from-cyan-950/40 dark:via-slate-900 dark:to-slate-900",
-    borda: "border-cyan-200/80 dark:border-cyan-900/60",
-    chip: "bg-cyan-100 text-cyan-700 dark:bg-cyan-950/50 dark:text-cyan-300",
+    titulo:"Diagnóstico",
+    descricao:"Entendimento de dor e contexto.",
+    classe:"from-kx-cartao via-kx-painel to-kx-painel",
+    borda:"border-kx-campo-borda",
+    chip:"bg-kx-cartao text-kx-texto-2",
   },
   PROPOSTA: {
-    titulo: "Proposta",
-    descricao: "Oferta comercial enviada.",
-    classe: "from-amber-50 via-white to-white dark:from-amber-950/40 dark:via-slate-900 dark:to-slate-900",
-    borda: "border-amber-200/80 dark:border-amber-900/60",
-    chip: "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300",
+    titulo:"Proposta",
+    descricao:"Oferta comercial enviada.",
+    classe:"from-kx-info-fundo via-kx-painel to-kx-painel",
+    borda:"border-kx-info",
+    chip:"bg-kx-info-fundo text-kx-info-texto",
   },
   NEGOCIACAO: {
-    titulo: "Negociação",
-    descricao: "Ajustes e validações finais.",
-    classe: "from-orange-50 via-white to-white dark:from-orange-950/40 dark:via-slate-900 dark:to-slate-900",
-    borda: "border-orange-200/80 dark:border-orange-900/60",
-    chip: "bg-orange-100 text-orange-700 dark:bg-orange-950/50 dark:text-orange-300",
+    titulo:"Negociação",
+    descricao:"Ajustes e validações finais.",
+    classe:"from-kx-alerta-fundo via-kx-painel to-kx-painel",
+    borda:"border-kx-alerta",
+    chip:"bg-kx-alerta-fundo text-kx-alerta-texto",
   },
   GANHO: {
-    titulo: "Ganho",
-    descricao: "Oportunidades convertidas.",
-    classe: "from-emerald-50 via-white to-white dark:from-emerald-950/40 dark:via-slate-900 dark:to-slate-900",
-    borda: "border-emerald-200/80 dark:border-emerald-900/60",
-    chip: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300",
+    titulo:"Ganho",
+    descricao:"Oportunidades convertidas.",
+    classe:"from-kx-sucesso-fundo via-kx-painel to-kx-painel",
+    borda:"border-kx-sucesso",
+    chip:"bg-kx-sucesso-fundo text-kx-sucesso-texto",
   },
   PERDIDO: {
-    titulo: "Perdido",
-    descricao: "Oportunidades sem avanço.",
-    classe: "from-rose-50 via-white to-white dark:from-rose-950/40 dark:via-slate-900 dark:to-slate-900",
-    borda: "border-rose-200/80 dark:border-rose-900/60",
-    chip: "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300",
+    titulo:"Perdido",
+    descricao:"Oportunidades sem avanço.",
+    classe:"from-kx-erro-fundo via-kx-painel to-kx-painel",
+    borda:"border-kx-erro-borda",
+    chip:"bg-kx-erro-fundo text-kx-erro-texto",
   },
 };
 
-const etapasOrdenadas: EstagioFunil[] = ["PROSPECCAO", "DIAGNOSTICO", "PROPOSTA", "NEGOCIACAO", "GANHO", "PERDIDO"];
-const etapasEncerradas: EstagioFunil[] = ["GANHO", "PERDIDO"];
+const etapasOrdenadas: EstagioFunil[] = ["PROSPECCAO","DIAGNOSTICO","PROPOSTA","NEGOCIACAO","GANHO","PERDIDO"];
+const etapasEncerradas: EstagioFunil[] = ["GANHO","PERDIDO"];
 
 const valoresPadrao: FormOportunidade = {
-  titulo: "",
+  titulo:"",
   valor: 0,
-  clienteId: "",
-  estagio: "PROSPECCAO",
-  dataFechamento: "",
+  clienteId:"",
+  estagio:"PROSPECCAO",
+  dataFechamento:"",
 };
 
 function formatarDataCurta(valorISO: string | null): string {
-  if (!valorISO) return "Sem data";
+  if (!valorISO) return"Sem data";
   const data = new Date(valorISO);
   return data.toLocaleDateString("pt-BR", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
+    day:"2-digit",
+    month:"short",
+    year:"numeric",
   });
 }
 
@@ -280,8 +290,8 @@ function CartaoOportunidade({
     <Card
       className={`group border border-border bg-background/90 p-4 shadow-sm transition-all duration-200 ${
         isDragging
-          ? "rotate-1 scale-[1.01] shadow-2xl ring-2 ring-primary/30"
-          : "hover:-translate-y-0.5 hover:shadow-md"
+          ?"rotate-1 scale-[1.01] shadow-2xl ring-2 ring-primary/30"
+          :"hover:-translate-y-0.5 hover:shadow-md"
       }`}
     >
       <div className="space-y-4">
@@ -365,8 +375,8 @@ export function FunilVendasKanban({ oportunidades, clientes }: FunilVendasKanban
 
   const resumo = useMemo(() => {
     const abertas = oportunidadesEstado.filter((item) => !etapasEncerradas.includes(item.estagio));
-    const ganhos = oportunidadesEstado.filter((item) => item.estagio === "GANHO");
-    const perdidos = oportunidadesEstado.filter((item) => item.estagio === "PERDIDO");
+    const ganhos = oportunidadesEstado.filter((item) => item.estagio ==="GANHO");
+    const perdidos = oportunidadesEstado.filter((item) => item.estagio ==="PERDIDO");
 
     return {
       abertas: abertas.length,
@@ -524,11 +534,11 @@ export function FunilVendasKanban({ oportunidades, clientes }: FunilVendasKanban
               </div>
               <div className="rounded-xl border border-border bg-muted/30 px-4 py-3 min-w-[140px]">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Ganhos</p>
-                <p className="mt-1 text-2xl font-bold text-emerald-600 dark:text-emerald-400">{resumo.ganhos}</p>
+                <p className="mt-1 text-2xl font-bold text-kx-sucesso-icone">{resumo.ganhos}</p>
               </div>
               <div className="rounded-xl border border-border bg-muted/30 px-4 py-3 min-w-[140px]">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Perdidos</p>
-                <p className="mt-1 text-2xl font-bold text-rose-600 dark:text-rose-400">{resumo.perdidos}</p>
+                <p className="mt-1 text-2xl font-bold text-kx-erro-texto">{resumo.perdidos}</p>
               </div>
             </div>
           </div>
@@ -558,7 +568,7 @@ export function FunilVendasKanban({ oportunidades, clientes }: FunilVendasKanban
                     {(dropProvided, dropSnapshot) => (
                       <div
                         className={`w-[340px] shrink-0 rounded-2xl border bg-gradient-to-b ${configuracao.classe} ${configuracao.borda} shadow-sm transition-all ${
-                          dropSnapshot.isDraggingOver ? "ring-2 ring-primary/30 shadow-lg" : ""
+                          dropSnapshot.isDraggingOver ?"ring-2 ring-primary/30 shadow-lg" :""
                         }`}
                       >
                         <div className="border-b border-border/60 p-4">
@@ -581,7 +591,7 @@ export function FunilVendasKanban({ oportunidades, clientes }: FunilVendasKanban
                           <div
                             ref={dropProvided.innerRef}
                             {...dropProvided.droppableProps}
-                            className={`space-y-3 p-4 transition-colors ${dropSnapshot.isDraggingOver ? "bg-primary/5" : ""}`}
+                            className={`space-y-3 p-4 transition-colors ${dropSnapshot.isDraggingOver ?"bg-primary/5" :""}`}
                           >
                             {itens.length === 0 ? (
                               <div className="flex min-h-40 items-center justify-center rounded-xl border border-dashed border-border/70 bg-background/60 px-4 text-center">
@@ -646,7 +656,7 @@ export function FunilVendasKanban({ oportunidades, clientes }: FunilVendasKanban
                   name="titulo"
                   control={control}
                   render={({ field }) => (
-                    <Input id="titulo" {...field} className={errors.titulo ? "border-destructive" : ""} />
+                    <Input id="titulo" {...field} className={errors.titulo ?"border-destructive" :""} />
                   )}
                 />
                 {errors.titulo?.message && <p className="text-xs text-destructive">{errors.titulo.message}</p>}
@@ -686,9 +696,9 @@ export function FunilVendasKanban({ oportunidades, clientes }: FunilVendasKanban
                       type="number"
                       min={0}
                       step="0.01"
-                      value={field.value || ""}
+                      value={field.value ||""}
                       onChange={(evento) => field.onChange(Number(evento.target.value) || 0)}
-                      className={errors.valor ? "border-destructive" : ""}
+                      className={errors.valor ?"border-destructive" :""}
                     />
                   )}
                 />
@@ -722,7 +732,7 @@ export function FunilVendasKanban({ oportunidades, clientes }: FunilVendasKanban
                 <Controller
                   name="dataFechamento"
                   control={control}
-                  render={({ field }) => <Input id="dataFechamento" type="date" {...field} value={field.value || ""} />}
+                  render={({ field }) => <Input id="dataFechamento" type="date" {...field} value={field.value ||""} />}
                 />
                 <p className="text-xs text-muted-foreground">
                   Opcional. Se a oportunidade estiver em Ganho ou Perdido, a data pode ser preenchida automaticamente.
@@ -735,7 +745,7 @@ export function FunilVendasKanban({ oportunidades, clientes }: FunilVendasKanban
                 Cancelar
               </Button>
               <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Salvando..." : "Criar oportunidade"}
+                {isSubmitting ?"Salvando..." :"Criar oportunidade"}
               </Button>
             </DialogFooter>
           </form>

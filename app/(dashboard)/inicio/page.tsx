@@ -1,8 +1,8 @@
-import { Settings } from "lucide-react";
-import Link from "next/link";
-import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Settings } from"lucide-react";
+import Link from"next/link";
+import { exigirContextoTenant } from"@/lib/tenant/exigir-contexto-tenant";
+import { Card } from"@/components/ui/card";
+import { Button } from"@/components/ui/button";
 
 export default async function PaginaInicioTenantMigrado() {
   const contexto = await exigirContextoTenant();
@@ -18,7 +18,7 @@ export default async function PaginaInicioTenantMigrado() {
 
       <Card className="border-border bg-card p-6">
         <div className="max-w-2xl space-y-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-emerald-600/15 text-emerald-500">
+          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-kx-sucesso/15 text-kx-sucesso">
             <Settings className="h-6 w-6" />
           </div>
           <div className="space-y-2">

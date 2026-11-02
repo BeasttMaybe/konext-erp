@@ -1,20 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Card } from "@/components/ui/card";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
+import { useEffect, useMemo, useState } from"react";
+import { Card } from"@/components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from"@/components/ui/avatar";
+import { Badge } from"@/components/ui/badge";
+import { Label } from"@/components/ui/label";
+import { Input } from"@/components/ui/input";
+import { Button } from"@/components/ui/button";
+import { toast } from"sonner";
 import {
   atualizarLogoEmpresa,
   atualizarPerfil,
   obterDadosPerfilConfiguracao,
-} from "@/app/actions/configuracoes";
-import { alterarMinhaSenha } from "@/app/actions/auth";
-import { useTemPermissao } from "@/contextos/contexto-permissoes";
+} from"@/app/actions/configuracoes";
+import { alterarMinhaSenha } from"@/app/actions/auth";
+import { useTemPermissao } from"@/contextos/contexto-permissoes";
 
 export default function PerfilPage() {
   const podeEditarLogoEmpresa = useTemPermissao("configuracoes.empresa");
@@ -38,10 +38,10 @@ export default function PerfilPage() {
         const dados = await obterDadosPerfilConfiguracao();
         if (!ativo) return;
 
-        setNomeCompleto(dados.usuario?.nome ?? "");
-        setEmail(dados.usuario?.email ?? "");
-        setFotoPerfilUrl(dados.usuario?.fotoPerfilUrl ?? "");
-        setLogoEmpresaUrl(dados.configuracao?.logoUrl ?? "");
+        setNomeCompleto(dados.usuario?.nome ??"");
+        setEmail(dados.usuario?.email ??"");
+        setFotoPerfilUrl(dados.usuario?.fotoPerfilUrl ??"");
+        setLogoEmpresaUrl(dados.configuracao?.logoUrl ??"");
       } catch {
         if (!ativo) return;
         toast.error("Nao foi possivel carregar os dados do perfil.");
@@ -60,7 +60,7 @@ export default function PerfilPage() {
 
   const iniciais = useMemo(() => {
     const partes = nomeCompleto.trim().split(/\s+/).filter(Boolean);
-    if (partes.length === 0) return "KP";
+    if (partes.length === 0) return"KP";
     if (partes.length === 1) return partes[0].slice(0, 2).toUpperCase();
     return `${partes[0][0]}${partes[partes.length - 1][0]}`.toUpperCase();
   }, [nomeCompleto]);
@@ -94,7 +94,7 @@ export default function PerfilPage() {
 
       toast.success("Alteracoes salvas com sucesso.");
     } catch (error) {
-      const mensagem = error instanceof Error ? error.message : "Nao foi possivel salvar as alteracoes.";
+      const mensagem = error instanceof Error ? error.message :"Nao foi possivel salvar as alteracoes.";
       toast.error(mensagem);
     } finally {
       setSalvando(false);
@@ -123,7 +123,7 @@ export default function PerfilPage() {
       setNovaSenha("");
       setConfirmacaoSenha("");
     } catch (error) {
-      const mensagem = error instanceof Error ? error.message : "Não foi possível alterar a senha.";
+      const mensagem = error instanceof Error ? error.message :"Não foi possível alterar a senha.";
       toast.error(mensagem);
     } finally {
       setAlterandoSenha(false);
@@ -145,17 +145,17 @@ export default function PerfilPage() {
             <Avatar className="h-24 w-24">
               <AvatarImage
                 src={fotoPerfilUrl || undefined}
-                alt={nomeCompleto || "Usuario"}
+                alt={nomeCompleto ||"Usuario"}
               />
               <AvatarFallback>{iniciais}</AvatarFallback>
             </Avatar>
 
             <div>
-              <p className="text-lg font-semibold text-foreground">{nomeCompleto || "Usuario Konext"}</p>
-              <p className="text-sm text-muted-foreground">{email || "usuario@konext.local"}</p>
+              <p className="text-lg font-semibold text-foreground">{nomeCompleto ||"Usuario Konext"}</p>
+              <p className="text-sm text-muted-foreground">{email ||"usuario@konext.local"}</p>
             </div>
 
-            <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white">
+            <Badge className="bg-kx-sucesso hover:bg-kx-sucesso text-primary-foreground">
               Perfil de Usuario
             </Badge>
           </div>
@@ -218,9 +218,9 @@ export default function PerfilPage() {
               <Button
                 type="submit"
                 disabled={carregando || salvando}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="bg-kx-sucesso hover:bg-kx-sucesso text-primary-foreground"
               >
-                {salvando ? "Salvando..." : "Salvar Alteracoes"}
+                {salvando ?"Salvando..." :"Salvar Alteracoes"}
               </Button>
             </div>
           </form>
@@ -280,7 +280,7 @@ export default function PerfilPage() {
 
           <div className="pt-2">
             <Button type="submit" disabled={alterandoSenha} variant="outline">
-              {alterandoSenha ? "Alterando..." : "Alterar Senha"}
+              {alterandoSenha ?"Alterando..." :"Alterar Senha"}
             </Button>
           </div>
         </form>
