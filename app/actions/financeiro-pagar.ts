@@ -92,10 +92,20 @@ type PrismaFinanceiroPagarAny = Record<string, unknown> & {
 /**
  * Delegate de Despesa com as operacoes de leitura/alteracao/remocao.
  *
- * Existe pelo mesmo motivo dos acessores vizinhos: este arquivo nunca toca
- * `prisma.despesa` direto, porque em runtime o delegate pode estar sob
- * `despesa` ou `Despesa`. Escrever `tx.despesa.delete(...)` direto foi o que
- * fez a exclusao falhar com a mensagem generica.
+ * Segue a convencao dos acessores vizinhos deste arquivo, que tentam `despesa`
+ * e `Despesa`.
+ *
+ * ATENCAO ao copiar esta ceremonia: NAO esta provado que ela seja necessaria.
+ * Ela foi adotada aqui junto com outras duas mudancas (tirar o UPDATE em SQL
+ * direto e converter Decimal/Date antes de gravar a auditoria) para consertar a
+ * exclusao, que falhava com mensagem generica — as tres de uma vez, porque a
+ * mensagem escondia a causa e nao havia orcamento para isolar. O conserto
+ * funcionou; qual das tres era o problema, nao se sabe.
+ *
+ * Evidencia CONTRA a hipotese do delegate: em app/actions/marcas-peca.ts e em
+ * app/actions/estoque.ts o acesso direto (`prisma.marcaPeca`, `prisma.produto`)
+ * funciona sem acessor nenhum. Entao o mais provavel e que a causa fosse o SQL
+ * direto ou o Decimal cru no JSON, e nao isto aqui.
  */
 /** O que `deDecimal` aceita: numero, texto ou o Decimal do Prisma. */
 type EntradaDecimalPagar = number | string | { toString(): string };
