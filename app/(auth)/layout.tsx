@@ -1,9 +1,13 @@
-import { Plus_Jakarta_Sans } from "next/font/google";
+import localFont from "next/font/local";
 
-const plusJakartaSans = Plus_Jakarta_Sans({
-  weight: ["400", "500", "600", "700", "800"],
-  subsets: ["latin"],
+/** Mesmo arquivo local do layout raiz — ver app/fontes/LEIA-ME.md. */
+const plusJakartaSans = localFont({
+  src: "../fontes/plus-jakarta-sans-latin-wght-normal.woff2",
+  weight: "200 800",
+  style: "normal",
+  display: "swap",
   variable: "--kx-fonte",
+  fallback: ["ui-sans-serif", "system-ui", "sans-serif"],
 });
 
 /**
