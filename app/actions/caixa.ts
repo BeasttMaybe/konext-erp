@@ -6,6 +6,7 @@ import { exigirPermissao } from "@/lib/auth/permissoes";
 import { escopoCaixaSession } from "@/lib/auth/escopos";
 import { fimDoDia, inicioDoDia } from "@/lib/datas";
 import { deDecimal, type EntradaDecimal, paraMoeda, somar, subtrair } from "@/lib/dinheiro";
+import { calcularEsperadoFechamento } from "@/lib/dominio/financeiro/estorno";
 
 type OrdemServicoCustoItem = { custoPeca?: EntradaDecimal | null };
 type OrdemServicoCustoRow = { itens?: OrdemServicoCustoItem[] };
@@ -84,6 +85,10 @@ export async function obterResumoCaixaDiario(): Promise<ResumoCaixaDiario> {
   const buscarVendasHoje = async () => {
     const vendasBase = await prisma.venda.findMany({
       where: {
+        // Fase 2A-3: venda estornada nao e venda. Sai do total do dia, da
+        // lista e dos totais por forma de pagamento. O dinheiro que sai da
+        // gaveta por causa do estorno aparece por `estornoCaixaSessionId`.
+        estornadaEm: null,
         criadoEm: {
           gte: inicioHoje,
           lte: fimHoje,
@@ -241,6 +246,7 @@ export async function obterResumoCaixaDiario(): Promise<ResumoCaixaDiario> {
       valorAbertura: EntradaDecimal;
       valorFechamento: EntradaDecimal;
       totalVendasSessao: EntradaDecimal;
+      totalEstornosAbsorvidos: EntradaDecimal;
     }>
   >`
     SELECT
@@ -249,7 +255,19 @@ export async function obterResumoCaixaDiario(): Promise<ResumoCaixaDiario> {
       c."dataFechamento",
       c."valorAbertura",
       COALESCE(c."valorFechamento", 0) AS "valorFechamento",
-      COALESCE(SUM(v."valorTotal"), 0) AS "totalVendasSessao"
+      -- Fase 2A-3 (regra de estorno). A venda NUNCA sai da sessao dela: este
+      -- esperado e recalculado ao vivo, e mexer na venda mudaria, dias
+      -- depois, a diferenca de fechamento que alguem ja conferiu e assinou.
+      -- O estorno e um movimento separado, somado na sessao que o ABSORVEU
+      -- ("estornoCaixaSessionId"), que e de onde o dinheiro sai da gaveta.
+      -- Subquery em vez de mais um LEFT JOIN de proposito: dois joins um-pra-
+      -- muitos na mesma linha multiplicariam as duas somas entre si.
+      COALESCE(SUM(v."valorTotal"), 0) AS "totalVendasSessao",
+      COALESCE((
+        SELECT SUM(e."valorTotal")
+        FROM "Venda" e
+        WHERE e."estornoCaixaSessionId" = c.id
+      ), 0) AS "totalEstornosAbsorvidos"
     FROM "CaixaSession" c
     LEFT JOIN "Venda" v ON v."caixaSessionId" = c.id
     WHERE c.status::text = 'FECHADO'
@@ -263,7 +281,11 @@ export async function obterResumoCaixaDiario(): Promise<ResumoCaixaDiario> {
     const valorAberturaCentavos = deDecimal(sessao.valorAbertura ?? 0);
     const totalVendasSessaoCentavos = deDecimal(sessao.totalVendasSessao ?? 0);
     const valorFechamentoCentavos = deDecimal(sessao.valorFechamento ?? 0);
-    const valorEsperadoCentavos = somar(valorAberturaCentavos, totalVendasSessaoCentavos);
+    const valorEsperadoCentavos = calcularEsperadoFechamento({
+      aberturaCentavos: valorAberturaCentavos,
+      vendasDaSessaoCentavos: totalVendasSessaoCentavos,
+      estornosAbsorvidosCentavos: deDecimal(sessao.totalEstornosAbsorvidos ?? 0),
+    });
 
     return {
       id: String(sessao.id),
@@ -366,6 +388,7 @@ export async function obterHistoricoFechamentos(
       valorAbertura: EntradaDecimal;
       valorFechamento: EntradaDecimal;
       totalVendasSessao: EntradaDecimal;
+      totalEstornosAbsorvidos: EntradaDecimal;
       abertoPorNome: string | null;
     }>
   >`
@@ -375,6 +398,13 @@ export async function obterHistoricoFechamentos(
       c."valorAbertura",
       COALESCE(c."valorFechamento", 0) AS "valorFechamento",
       COALESCE(SUM(v."valorTotal"), 0) AS "totalVendasSessao",
+      -- Mesma regra do resumo do dia: estorno conta na sessao que o
+      -- absorveu, nao na sessao da venda. Ver lib/dominio/financeiro/estorno.ts.
+      COALESCE((
+        SELECT SUM(e."valorTotal")
+        FROM "Venda" e
+        WHERE e."estornoCaixaSessionId" = c.id
+      ), 0) AS "totalEstornosAbsorvidos",
       u.nome AS "abertoPorNome"
     FROM "CaixaSession" c
     LEFT JOIN "Venda" v ON v."caixaSessionId" = c.id
@@ -392,7 +422,11 @@ export async function obterHistoricoFechamentos(
     const valorAberturaCentavos = deDecimal(row.valorAbertura ?? 0);
     const totalVendasCentavos = deDecimal(row.totalVendasSessao ?? 0);
     const valorFechamentoCentavos = deDecimal(row.valorFechamento ?? 0);
-    const valorEsperadoCentavos = somar(valorAberturaCentavos, totalVendasCentavos);
+    const valorEsperadoCentavos = calcularEsperadoFechamento({
+      aberturaCentavos: valorAberturaCentavos,
+      vendasDaSessaoCentavos: totalVendasCentavos,
+      estornosAbsorvidosCentavos: deDecimal(row.totalEstornosAbsorvidos ?? 0),
+    });
 
     return {
       id: String(row.id),
@@ -443,7 +477,7 @@ export async function obterResumoDataEspecifica(
 
   const buscarVendasData = async () => {
     const vendasBase: VendaResumoRow[] = await prisma.venda.findMany({
-      where: { criadoEm: { gte: inicioData, lte: fimData } },
+      where: { estornadaEm: null, criadoEm: { gte: inicioData, lte: fimData } },
       select: {
         id: true,
         valorTotal: true,

@@ -13,7 +13,7 @@ export interface ContaReceberFinanceiro {
   valor: number;
   dataVencimento: Date;
   dataRecebimento: Date | null;
-  status: "PENDENTE" | "PAGO" | "RECEBIDO" | "ATRASADO" | "RENEGOCIADO";
+  status: "PENDENTE" | "PAGO" | "RECEBIDO" | "ATRASADO" | "RENEGOCIADO" | "ESTORNADO";
   cliente: {
     nomeRazaoSocial: string;
   } | null;
@@ -36,6 +36,7 @@ export async function listarContasReceber(): Promise<ContaReceberFinanceiro[]> {
         dataVencimento: "asc",
       },
       where: {
+        estornadaEm: null,
         OR: [
           { cliente: { is: null } },
           { cliente: { is: { papel: "CLIENTE" } } },

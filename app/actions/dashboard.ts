@@ -1195,7 +1195,11 @@ async function obterFaturamentoHome(
       "faturamentoHome.receberAtrasado",
       () =>
         prisma.contaReceber.aggregate({
-          where: { status: { in: [...STATUS_CONTA_PENDENTE] }, dataVencimento: { lt: hojeCalendario } },
+          where: {
+            estornadaEm: null,
+            status: { in: [...STATUS_CONTA_PENDENTE] },
+            dataVencimento: { lt: hojeCalendario },
+          },
           _sum: { valor: true },
         }),
       { _sum: { valor: null } }

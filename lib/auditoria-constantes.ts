@@ -41,6 +41,9 @@ export const ACOES_AUDITORIA = {
   FINALIZAR_LOTE: "FINALIZAR_LOTE",
   // Fase 4 — marcas de peca da OS. Criar reusa CRIAR; o resto e proprio porque
   // marca usada nunca e apagada, so desativada.
+  // Fase 2A-3 — estorno de venda. O cancelamento nao registrava NADA: nem
+  // log, nem rastro da conta a receber, que era apagada.
+  ESTORNAR_VENDA: "ESTORNAR_VENDA",
   RENOMEAR_MARCA_PECA: "RENOMEAR_MARCA_PECA",
   DESATIVAR_MARCA_PECA: "DESATIVAR_MARCA_PECA",
   REATIVAR_MARCA_PECA: "REATIVAR_MARCA_PECA",

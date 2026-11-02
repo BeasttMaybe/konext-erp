@@ -6,7 +6,18 @@ import { z } from "zod";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { exigirPermissao } from "@/lib/auth/permissoes";
 import { paraMensagemSegura } from "@/lib/erros";
-import { aplicarPercentual, deDecimal, multiplicarPorQuantidade, paraDecimal, somar, subtrair } from "@/lib/dinheiro";
+import {
+  aplicarPercentual,
+  deDecimal,
+  multiplicarPorQuantidade,
+  paraDecimal,
+  paraMoeda,
+  somar,
+  subtrair,
+} from "@/lib/dinheiro";
+import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
+import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
+import { decidirDestinoDoEstorno, pedidoPodeSerEstornado } from "@/lib/dominio/financeiro/estorno";
 
 const pedidoVendaItemSchema = z.object({
   produtoId: z.string().optional(),
@@ -367,6 +378,9 @@ export async function cancelarPedido(pedidoId: string): Promise<ApprovePedidoVen
       return { success: false, message: "Pedido de venda inválido." };
     }
 
+    let valorEstornado: number | null = null;
+    let motivoDoDestino = "";
+
     await prisma.$transaction(async (transaction) => {
       const order = await transaction.pedidoVenda.findUnique({
         where: { id: pedidoId },
@@ -383,7 +397,7 @@ export async function cancelarPedido(pedidoId: string): Promise<ApprovePedidoVen
         throw new Error("Somente vendas do PDV podem ser estornadas por esta ação.");
       }
 
-      if (order.status !== "APROVADO") {
+      if (!pedidoPodeSerEstornado(order.status)) {
         throw new Error("Este pedido não está elegível para estorno.");
       }
 
@@ -404,21 +418,90 @@ export async function cancelarPedido(pedidoId: string): Promise<ApprovePedidoVen
         });
       }
 
+      // Fase 2A-3 (regra de estorno): a conta a receber e MARCADA, nao
+      // apagada. O `deleteMany` que estava aqui nao deixava rastro nenhum de
+      // que a venda existiu e foi cancelada — e esta action tambem nao
+      // gravava log de auditoria, entao nao havia por onde reconstruir.
+      const agora = new Date();
       const receivableWhere = [
         { pedidoId: order.id },
         ...(order.vendaId ? [{ vendaId: order.vendaId }] : []),
       ];
 
-      await transaction.contaReceber.deleteMany({
+      const contasEstornadas = await transaction.contaReceber.updateMany({
         where: {
           OR: receivableWhere,
+          estornadaEm: null,
+        },
+        data: {
+          status: "ESTORNADO",
+          estornadaEm: agora,
         },
       });
+
+      // A venda nunca sai da sessao de caixa dela: o esperado de fechamento
+      // daquela sessao e recalculado ao vivo somando as vendas dela, e mexer
+      // nisso mudaria, depois do fato, a diferenca que alguem ja conferiu.
+      // O estorno e um movimento separado, e `decidirDestinoDoEstorno` diz em
+      // qual sessao ele cai — ver lib/dominio/financeiro/estorno.ts.
+      let destino = decidirDestinoDoEstorno(null, null);
+
+      if (order.vendaId) {
+        const venda = await transaction.venda.findUnique({
+          where: { id: order.vendaId },
+          select: {
+            valorTotal: true,
+            caixaSession: { select: { id: true, status: true } },
+          },
+        });
+
+        const sessaoAberta = await transaction.caixaSession.findFirst({
+          where: { status: "ABERTO" },
+          orderBy: { dataAbertura: "desc" },
+          select: { id: true, status: true },
+        });
+
+        destino = decidirDestinoDoEstorno(venda?.caixaSession ?? null, sessaoAberta ?? null);
+
+        await transaction.venda.update({
+          where: { id: order.vendaId },
+          data: {
+            estornadaEm: agora,
+            estornoCaixaSessionId: destino.sessaoDestinoId,
+          },
+        });
+
+        valorEstornado = venda ? paraMoeda(deDecimal(venda.valorTotal)) : null;
+      }
 
       await transaction.pedidoVenda.update({
         where: { id: order.id },
         data: { status: "CANCELADO" },
       });
+
+      await registrarLogAuditoria(
+        transaction,
+        contextoAuditoriaDoUsuario(contexto.usuarioOperacional, "app/actions/vendas.ts:cancelarPedido"),
+        {
+          acao: ACOES_AUDITORIA.ESTORNAR_VENDA,
+          entidade: ENTIDADES_AUDITORIA.VENDA,
+          entidadeId: order.vendaId ?? order.id,
+          dadosAntes: {
+            pedidoId: order.id,
+            statusAnterior: order.status,
+            valorEstornado,
+          },
+          dadosDepois: {
+            statusNovo: "CANCELADO",
+            contasReceberEstornadas: contasEstornadas.count,
+            caixaSessionDoEstorno: destino.sessaoDestinoId,
+            motivoDoDestino: destino.motivo,
+            itensDevolvidosAoEstoque: order.itens.filter((item) => item.produtoId).length,
+          },
+        }
+      );
+
+      motivoDoDestino = destino.motivo;
     });
 
     revalidatePath("/vendas/historico");
@@ -429,7 +512,11 @@ export async function cancelarPedido(pedidoId: string): Promise<ApprovePedidoVen
 
     return {
       success: true,
-      message: "Pedido cancelado com sucesso.",
+      // Diz onde o estorno caiu: com caixa de outro dia, quem esta no balcao
+      // precisa saber que o dinheiro sai da gaveta de HOJE.
+      message: motivoDoDestino
+        ? `Pedido estornado com sucesso. ${motivoDoDestino}`
+        : "Pedido estornado com sucesso.",
     };
   } catch (error) {
     return {
