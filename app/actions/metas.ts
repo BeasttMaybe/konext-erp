@@ -8,6 +8,7 @@ import { obterIdUsuarioOperacionalOuNulo } from "@/lib/tenant/usuario-operaciona
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 import { deDecimal, paraMoeda } from "@/lib/dinheiro";
+import { numeroDaMeta, numeroDaMetaOuNulo } from "@/lib/dominio/metas/valores";
 import {
   agoraNaLoja,
   FUSO_HORARIO_PADRAO,
@@ -984,8 +985,8 @@ export async function listarMetas(
       const indicador = calcularProgresso(
         m.tipoValor,
         m.direcao,
-        m.valorAtual,
-        m.valorAlvo,
+        numeroDaMeta(m.valorAtual),
+        numeroDaMetaOuNulo(m.valorAlvo),
         totalItens,
         itensConcluidos
       );
@@ -1000,8 +1001,8 @@ export async function listarMetas(
         fonteAutomatica: m.fonteAutomatica,
         metricaAutomatica: m.metricaAutomatica,
         direcao: m.direcao,
-        valorAlvo: m.valorAlvo,
-        valorAtual: m.valorAtual,
+        valorAlvo: numeroDaMetaOuNulo(m.valorAlvo),
+        valorAtual: numeroDaMeta(m.valorAtual),
         unidade: m.unidade,
         dataPrazo: serializarData(m.dataPrazo),
         prioridade: m.prioridade,
@@ -1088,8 +1089,8 @@ export async function obterMetaPorId(id: string): Promise<DetalhesMeta | null> {
     const indicador = calcularProgresso(
       meta.tipoValor,
       meta.direcao,
-      meta.valorAtual,
-      meta.valorAlvo,
+      numeroDaMeta(meta.valorAtual),
+      numeroDaMetaOuNulo(meta.valorAlvo),
       totalItens,
       itensConcluidos
     );
@@ -1104,8 +1105,8 @@ export async function obterMetaPorId(id: string): Promise<DetalhesMeta | null> {
       fonteAutomatica: meta.fonteAutomatica,
       metricaAutomatica: meta.metricaAutomatica,
       direcao: meta.direcao,
-      valorAlvo: meta.valorAlvo,
-      valorAtual: meta.valorAtual,
+      valorAlvo: numeroDaMetaOuNulo(meta.valorAlvo),
+      valorAtual: numeroDaMeta(meta.valorAtual),
       unidade: meta.unidade,
       dataInicio: serializarData(meta.dataInicio),
       dataPrazo: serializarData(meta.dataPrazo),
@@ -1133,8 +1134,8 @@ export async function obterMetaPorId(id: string): Promise<DetalhesMeta | null> {
         id: h.id,
         tipo: h.tipo,
         descricao: h.descricao,
-        valorAnterior: h.valorAnterior,
-        valorNovo: h.valorNovo,
+        valorAnterior: numeroDaMetaOuNulo(h.valorAnterior),
+        valorNovo: numeroDaMetaOuNulo(h.valorNovo),
         criadoEm: h.criadoEm.toISOString(),
       })),
     };
@@ -1224,8 +1225,11 @@ export async function obterDashboardMetas(): Promise<DashboardMetasResult> {
       pausadas: mapa.PAUSADA ?? 0,
       canceladas: mapa.CANCELADA ?? 0,
       automaticasComErroSincronizacao,
-      valorTotalPlanejado: somasDinheiro._sum.valorAlvo ?? 0,
-      valorAlcancado: somasDinheiro._sum.valorAtual ?? 0,
+      // A soma e exata porque acontece no Postgres sobre numeric; aqui e so
+      // a conversao da borda. Antes `?? 0` podia devolver um Decimal cru
+      // direto pra tela.
+      valorTotalPlanejado: numeroDaMeta(somasDinheiro._sum.valorAlvo),
+      valorAlcancado: numeroDaMeta(somasDinheiro._sum.valorAtual),
       proximasVencer,
     };
   } catch (erro) {
@@ -1383,14 +1387,14 @@ export async function atualizarProgressoMeta(input: AtualizarProgressoInput): Pr
 
       const descHistorico = observacao
         ? `Progresso atualizado para ${input.valorNovo}. Observação: ${observacao}`
-        : `Progresso atualizado de ${meta.valorAtual} para ${input.valorNovo}.`;
+        : `Progresso atualizado de ${numeroDaMeta(meta.valorAtual)} para ${input.valorNovo}.`;
 
       await tx.historicoMeta.create({
         data: {
           metaId: input.id,
           tipo: "ATUALIZACAO_PROGRESSO",
           descricao: descHistorico,
-          valorAnterior: meta.valorAtual,
+          valorAnterior: numeroDaMeta(meta.valorAtual),
           valorNovo: input.valorNovo,
           criadoPorId: usuario.id,
         },
@@ -1404,7 +1408,7 @@ export async function atualizarProgressoMeta(input: AtualizarProgressoInput): Pr
           entidade: ENTIDADES_AUDITORIA.META,
           entidadeId: input.id,
           dadosAntes: {
-            valorAtual: meta.valorAtual,
+            valorAtual: numeroDaMeta(meta.valorAtual),
           },
           dadosDepois: {
             valorAtual: input.valorNovo,
@@ -1879,7 +1883,7 @@ export async function sincronizarMetaAutomatica(metaId: string): Promise<Resulta
     }
 
     const valorNovo = Number(calculo.valorAtual.toFixed(2));
-    const valorAnterior = meta.valorAtual;
+    const valorAnterior = numeroDaMeta(meta.valorAtual);
     const houveMudanca = valorNovo !== valorAnterior;
 
     await prisma.$transaction(async (tx) => {

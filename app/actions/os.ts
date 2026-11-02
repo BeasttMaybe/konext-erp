@@ -36,15 +36,25 @@ import {
   type RegrasConfiguracaoFinalizacao,
 } from "@/lib/dominio/os/regras-finalizacao";
 import { ErroNegocio, paraMensagemSegura } from "@/lib/erros";
-import { deDecimal, type EntradaDecimal, paraDecimal, paraMoeda, somar } from "@/lib/dinheiro";
+import {
+  deDecimal,
+  type EntradaDecimal,
+  lerEntradaMonetaria,
+  paraDecimal,
+  paraMoeda,
+  somar,
+} from "@/lib/dinheiro";
 
 type PrismaTenant = Awaited<ReturnType<typeof exigirContextoTenant>>["prisma"];
 
 type ItemEntrada = {
   tipo: TipoPeca;
   descricao: string;
-  custoPeca: number;
-  valorCobrado?: number;
+  // `number | string` porque e isso que chega do formulario: um
+  // `input[type=number]` manda string, e a mascara de moeda manda pt-BR.
+  // `lerEntradaMonetaria` resolve os dois.
+  custoPeca: number | string;
+  valorCobrado?: number | string;
 };
 
 type DadosNovaOS = {
@@ -322,12 +332,6 @@ async function osPossuiPagamentoConfirmado(prisma: PrismaTenant, osId: string): 
   });
 
   return totalConfirmado > 0;
-}
-
-function paraNumero(valor: unknown): number {
-  const numero = typeof valor === "number" ? valor : Number(valor ?? 0);
-  if (!Number.isFinite(numero)) return 0;
-  return numero;
 }
 
 function archivedAtUnsupported(error: unknown): boolean {
@@ -626,22 +630,27 @@ export async function criarOrdemServico(dados: DadosNovaOS) {
   const itensTratados = (dados.itensOrcamento ?? [])
     .map((item) => {
       const descricao = String(item.descricao ?? "").trim();
-      const custoPeca = paraNumero(item.custoPeca);
-      const valorCobradoEntrada = paraNumero(item.valorCobrado);
+      // Fase 2A-3: `lerEntradaMonetaria` no lugar do `Number()` local, que
+      // lia "1.234,56" como NaN e devolvia 0 — o item nascia sem custo. Aqui
+      // um valor invalido descarta o item, que era o comportamento (o
+      // `.filter` abaixo tira os `null`), mas agora por nao ser numero, e nao
+      // por ter virado zero.
+      const custoPecaCentavos = lerEntradaMonetaria(item.custoPeca ?? 0);
+      const valorCobradoCentavos = lerEntradaMonetaria(item.valorCobrado);
 
       if (!descricao) return null;
-      if (custoPeca < 0) return null;
+      if (custoPecaCentavos === null || custoPecaCentavos < 0) return null;
 
       // Valor cobrado ao cliente: sempre o informado manualmente, sem markup automático.
-      const valorCobrado = valorCobradoEntrada;
-
-      if (valorCobrado <= 0) return null;
+      if (valorCobradoCentavos === null || valorCobradoCentavos <= 0) return null;
 
       return {
         descricao,
         tipoPeca: item.tipo,
-        custoPeca,
-        valorCobrado,
+        // String de `paraDecimal`: Decimal(12,2) recebe o valor sem passar
+        // por ponto flutuante outra vez.
+        custoPeca: paraDecimal(custoPecaCentavos),
+        valorCobrado: paraDecimal(valorCobradoCentavos),
       };
     })
     .filter((item): item is NonNullable<typeof item> => Boolean(item));
@@ -1244,7 +1253,7 @@ type OrdemServicoFinalizacao = {
   ehRetornoGarantia: boolean;
   observacoes: string | null;
   termoGarantia: { id: string } | null;
-  itens: Array<{ id: string; descricao: string; custoPeca: number; valorCobrado: number }>;
+  itens: Array<{ id: string; descricao: string; custoPeca: EntradaDecimal; valorCobrado: EntradaDecimal }>;
   transacoes: Array<{ vendaId: string | null; origem: string }>;
 };
 
@@ -1454,8 +1463,8 @@ export async function finalizarOrdemServico(
     itens: ordemServico.itens.map((item) => ({
       id: item.id,
       descricao: item.descricao,
-      custo: item.custoPeca,
-      precoVenda: item.valorCobrado,
+      custo: paraMoeda(deDecimal(item.custoPeca ?? 0)),
+      precoVenda: paraMoeda(deDecimal(item.valorCobrado ?? 0)),
     })),
     observacoes: ordemServico.observacoes,
     possuiPagamentoConfirmado,

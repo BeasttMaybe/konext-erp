@@ -5,6 +5,7 @@ import {
   deDecimal,
   dividirEmParcelas,
   formatarReais,
+  lerEntradaMonetaria,
   lerReais,
   multiplicarPorQuantidade,
   paraCentavos,
@@ -204,5 +205,43 @@ describe("lib/dinheiro — paraCentavos / paraMoeda (compatibilidade com lib/pdv
 
   it("paraMoeda desfaz paraCentavos", () => {
     expect(paraMoeda(paraCentavos(19.9))).toBeCloseTo(19.9, 10);
+  });
+});
+
+describe("lib/dinheiro — lerEntradaMonetaria", () => {
+  it("lê pt-BR com ponto de milhar e vírgula decimal", () => {
+    expect(lerEntradaMonetaria("1.234,56")).toBe(123456);
+    expect(lerEntradaMonetaria("R$ 1.234,56")).toBe(123456);
+    expect(lerEntradaMonetaria("R$ 89,90")).toBe(8990);
+  });
+
+  // O caso que os parsers antigos liam como 0: um custo de mil e duzentos
+  // reais entrava na OS valendo nada.
+  it("não devolve 0 para um valor pt-BR válido", () => {
+    expect(lerEntradaMonetaria("1.200,00")).toBe(120000);
+  });
+
+  it("lê o formato do input[type=number], onde o ponto é decimal", () => {
+    expect(lerEntradaMonetaria("1234.56")).toBe(123456);
+    expect(lerEntradaMonetaria("0.1")).toBe(10);
+    expect(lerEntradaMonetaria("150")).toBe(15000);
+  });
+
+  it("aceita number direto, inclusive o clássico 0.07 * 3", () => {
+    expect(lerEntradaMonetaria(19.9)).toBe(1990);
+    expect(lerEntradaMonetaria(0)).toBe(0);
+    expect(lerEntradaMonetaria(-12.5)).toBe(-1250);
+  });
+
+  it("devolve null em vez de lançar, pra action responder erro à tela", () => {
+    expect(lerEntradaMonetaria("")).toBeNull();
+    expect(lerEntradaMonetaria("   ")).toBeNull();
+    expect(lerEntradaMonetaria("abc")).toBeNull();
+    expect(lerEntradaMonetaria("R$")).toBeNull();
+    expect(lerEntradaMonetaria(Number.NaN)).toBeNull();
+    expect(lerEntradaMonetaria(Number.POSITIVE_INFINITY)).toBeNull();
+    expect(lerEntradaMonetaria(null)).toBeNull();
+    expect(lerEntradaMonetaria(undefined)).toBeNull();
+    expect(lerEntradaMonetaria({})).toBeNull();
   });
 });

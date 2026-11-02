@@ -203,8 +203,13 @@ async function processarTenant(tenant, { dryRun, versaoAlvo, prismaCentral, pont
       resultado = "BLOQUEARIA: precisa de migrate resolve --applied 0_baseline antes";
     } else if (diffEstaVazio(diff.stdout)) {
       resultado = "sem mudancas pendentes";
-    } else if (destrutivas.length > 0) {
+    } else if (destrutivas.length > 0 && process.env.AUTORIZAR_DESTRUTIVO !== "SIM") {
       resultado = "BLOQUEARIA: SQL destrutivo sem AUTORIZAR_DESTRUTIVO=SIM";
+    } else if (destrutivas.length > 0) {
+      // O dry-run nao lia AUTORIZAR_DESTRUTIVO: dizia "BLOQUEARIA" mesmo com a
+      // autorizacao dada, ou seja, mentia justamente pra quem le o plano antes
+      // de decidir se aplica. O caminho de --aplicar sempre leu a variavel.
+      resultado = `aplicaria migrations pendentes (SQL destrutivo AUTORIZADO) e marcaria versaoSchema=${versaoAlvo}`;
     } else {
       resultado = `aplicaria migrations pendentes e marcaria versaoSchema=${versaoAlvo}`;
     }

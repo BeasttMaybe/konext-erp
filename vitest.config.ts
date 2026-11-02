@@ -18,6 +18,11 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["lib/**/*.test.ts", "components/**/*.test.tsx"],
+    // `store/**` entrou na Fase 2A-3: o resumo do carrinho (useCartStore)
+    // faz a conta que a pessoa le no balcao antes de cobrar, e o arquivo de
+    // teste dele existia fora de qualquer padrao daqui — ou seja, nunca
+    // rodava. Teste que nao roda e pior que teste que nao existe, porque
+    // passa a impressao de cobertura.
+    include: ["lib/**/*.test.ts", "components/**/*.test.tsx", "store/**/*.test.ts"],
   },
 });
