@@ -66,41 +66,41 @@ export function CardMeta({ meta }: { meta: LinhaMetaLista }) {
   const metaMenorMelhor = meta.direcao === "MENOR_MELHOR" && meta.tipoValor !== "CHECKLIST";
 
   return (
-    <Link href={`/metas/${meta.id}`} className= "block group">
-      <Card className= "p-4 border border-kx-painel-borda bg-kx-painel hover:shadow-md transition-all duration-200 group-hover:border-kx-campo-borda dark:group-hover:border-kx-campo-borda">
-        <div className= "flex items-start justify-between gap-3 mb-3">
-          <div className= "flex-1 min-w-0">
-            <p className= "text-xs text-kx-legenda mb-1">
+    <Link href={`/metas/${meta.id}`} className="block group">
+      <Card className="p-4 border border-kx-painel-borda bg-kx-painel hover:shadow-md transition-all duration-200 group-hover:border-kx-campo-borda dark:group-hover:border-kx-campo-borda">
+        <div className="flex items-start justify-between gap-3 mb-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-kx-legenda mb-1">
               {labelCategoria[meta.categoria] ?? meta.categoria}
             </p>
-            <h3 className= "font-semibold text-kx-texto truncate group-hover:text-kx-link transition-colors">
+            <h3 className="font-semibold text-kx-texto truncate group-hover:text-kx-link transition-colors">
               {meta.titulo}
             </h3>
           </div>
-          <Target className= "h-4 w-4 text-kx-legenda shrink-0 mt-0.5" />
+          <Target className="h-4 w-4 text-kx-legenda shrink-0 mt-0.5" />
         </div>
 
-        <div className= "flex flex-wrap gap-2 mb-3">
+        <div className="flex flex-wrap gap-2 mb-3">
           <BadgeStatusMeta status={meta.status} />
           <BadgePrioridadeMeta prioridade={meta.prioridade} />
-          <Badge variant= "outline" className= "text-xs">
+          <Badge variant="outline" className="text-xs">
             {meta.origemProgresso === "AUTOMATICA" ? "Automática" : "Manual"}
           </Badge>
         </div>
 
         {metaMenorMelhor ? (
-          <div className= "text-xs rounded-md border border-kx-painel-borda bg-kx-superficie/50 p-2 text-kx-texto-2">
+          <div className="text-xs rounded-md border border-kx-painel-borda bg-kx-superficie/50 p-2 text-kx-texto-2">
             {formatarMetaMenorMelhor(meta)}
           </div>
         ) : (
           <BarraProgressoMeta progresso={meta.progresso} status={meta.status} showLabel={true} />
         )}
 
-        <div className= "flex items-center justify-between mt-3 text-xs text-kx-legenda">
+        <div className="flex items-center justify-between mt-3 text-xs text-kx-legenda">
           <span>{labelValor(meta)}</span>
           {prazoInfo && (
             <span className={`flex items-center gap-1 ${prazoInfo.atrasada ? "text-kx-erro-texto" : ""}`}>
-              <Calendar className= "h-3 w-3" />
+              <Calendar className="h-3 w-3" />
               {prazoInfo.atrasada
                 ? `Atrasada há ${prazoInfo.dias}d`
                 : prazoInfo.dias === 0

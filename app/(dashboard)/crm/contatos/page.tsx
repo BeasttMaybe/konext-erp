@@ -155,27 +155,27 @@ function mapClientRecord(client: {
 
 function SkeletonContacts() {
   return (
-    <div className= "w-full flex flex-col bg-transparent">
-      <div className= "border-b border-kx-painel-borda/70 bg-kx-painel/75 px-6 py-6 backdrop-blur-sm/70/50 lg:px-8">
-        <div className= "max-w-7xl mx-auto w-full">
-          <div className= "h-9 w-64 rounded-lg bg-kx-painel-borda animate-pulse" />
-          <div className= "h-4 w-96 rounded bg-kx-superficie animate-pulse mt-2" />
+    <div className="w-full flex flex-col bg-transparent">
+      <div className="border-b border-kx-painel-borda/70 bg-kx-painel/75 px-6 py-6 backdrop-blur-sm/70/50 lg:px-8">
+        <div className="max-w-7xl mx-auto w-full">
+          <div className="h-9 w-64 rounded-lg bg-kx-painel-borda animate-pulse" />
+          <div className="h-4 w-96 rounded bg-kx-superficie animate-pulse mt-2" />
         </div>
       </div>
-      <div className= "px-6 lg:px-8 py-6">
-        <div className= "max-w-7xl mx-auto space-y-6">
-          <div className= "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="px-6 lg:px-8 py-6">
+        <div className="max-w-7xl mx-auto space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
             {Array.from({ length: 4 }).map((_, index) => (
-              <div key={index} className= "rounded-xl border border-border bg-card p-5 space-y-3">
-                <div className= "h-4 w-28 rounded bg-kx-superficie animate-pulse" />
-                <div className= "h-8 w-24 rounded bg-kx-superficie animate-pulse" />
+              <div key={index} className="rounded-xl border border-border bg-card p-5 space-y-3">
+                <div className="h-4 w-28 rounded bg-kx-superficie animate-pulse" />
+                <div className="h-8 w-24 rounded bg-kx-superficie animate-pulse" />
               </div>
             ))}
           </div>
-          <div className= "rounded-xl border border-border bg-card p-5 space-y-4">
-            <div className= "h-6 w-48 rounded bg-kx-superficie animate-pulse" />
-            <div className= "h-10 w-full rounded bg-kx-superficie animate-pulse" />
-            <div className= "h-80 w-full rounded bg-kx-superficie animate-pulse" />
+          <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+            <div className="h-6 w-48 rounded bg-kx-superficie animate-pulse" />
+            <div className="h-10 w-full rounded bg-kx-superficie animate-pulse" />
+            <div className="h-80 w-full rounded bg-kx-superficie animate-pulse" />
           </div>
         </div>
       </div>
@@ -367,43 +367,43 @@ function ContactsPageContent() {
     descricao: string;
     botaoLabel: string;
   }) => (
-    <Card className= "border-border bg-card p-4 sm:p-5 space-y-4">
-      <div className= "flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+    <Card className="border-border bg-card p-4 sm:p-5 space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h2 className= "text-lg font-semibold text-foreground">{params.titulo}</h2>
-          <p className= "text-sm text-muted-foreground mt-1">{params.descricao}</p>
+          <h2 className="text-lg font-semibold text-foreground">{params.titulo}</h2>
+          <p className="text-sm text-muted-foreground mt-1">{params.descricao}</p>
         </div>
         <Button onClick={openNewContact}>
-          <UserPlus className= "h-4 w-4 mr-2" />
+          <UserPlus className="h-4 w-4 mr-2" />
           {params.botaoLabel}
         </Button>
       </div>
 
-      <div className= "flex flex-col lg:flex-row lg:items-center gap-3">
-        <div className= "relative flex-1">
-          <Search className= "absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             value={searchTerm}
             onChange={(event) => handleSearchChange(event.target.value)}
-            placeholder= "Buscar por nome, CPF/CNPJ ou telefone"
-            className= "pl-9"
+            placeholder="Buscar por nome, CPF/CNPJ ou telefone"
+            className="pl-9"
           />
         </div>
 
         <Select value={categoryFilter} onValueChange={handleCategoryFilterChange}>
-          <SelectTrigger className= "w-full lg:w-[220px]">
-            <SelectValue placeholder= "Filtrar categoria" />
+          <SelectTrigger className="w-full lg:w-[220px]">
+            <SelectValue placeholder="Filtrar categoria" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value= "TODOS">Todas as categorias</SelectItem>
-            <SelectItem value= "CLIENTE_FINAL">Cliente final</SelectItem>
-            <SelectItem value= "EMPRESA">Fornecedor / Empresa</SelectItem>
-            <SelectItem value= "ORGAO_PUBLICO">Órgão público</SelectItem>
+            <SelectItem value="TODOS">Todas as categorias</SelectItem>
+            <SelectItem value="CLIENTE_FINAL">Cliente final</SelectItem>
+            <SelectItem value="EMPRESA">Fornecedor / Empresa</SelectItem>
+            <SelectItem value="ORGAO_PUBLICO">Órgão público</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
-      <div className= "rounded-lg border border-border overflow-hidden">
+      <div className="rounded-lg border border-border overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>
@@ -412,17 +412,17 @@ function ContactsPageContent() {
               <TableHead>Telefone</TableHead>
               <TableHead>Perfil</TableHead>
               <TableHead>Categoria</TableHead>
-              <TableHead className= "text-right">Ações</TableHead>
+              <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {clients.map((client) => (
               <TableRow key={client.id}>
-                <TableCell className= "font-medium text-foreground">{client.nomeRazaoSocial}</TableCell>
+                <TableCell className="font-medium text-foreground">{client.nomeRazaoSocial}</TableCell>
                 <TableCell>{client.documento}</TableCell>
                 <TableCell>{client.telefone}</TableCell>
                 <TableCell>
-                  <Badge variant= "outline">
+                  <Badge variant="outline">
                     {client.papel === "FORNECEDOR" ? "Fornecedor" : "Cliente"}
                   </Badge>
                 </TableCell>
@@ -431,20 +431,20 @@ function ContactsPageContent() {
                     {categoryLabelMap[client.categoria]}
                   </Badge>
                 </TableCell>
-                <TableCell className= "text-right">
+                <TableCell className="text-right">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant= "ghost" size= "icon">
-                        <MoreHorizontal className= "h-4 w-4" />
+                      <Button variant="ghost" size="icon">
+                        <MoreHorizontal className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align= "end" className= "min-w-52">
+                    <DropdownMenuContent align="end" className="min-w-52">
                       <DropdownMenuItem onClick={() => setProfileClient(client)}>
-                        <Eye className= "h-4 w-4 mr-2" />
+                        <Eye className="h-4 w-4 mr-2" />
                         Ver perfil
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => router.push(`/os?clienteId=${client.id}`)}>
-                        <ChevronRight className= "h-4 w-4 mr-2" />
+                        <ChevronRight className="h-4 w-4 mr-2" />
                         Nova OS para este contato
                       </DropdownMenuItem>
                       <DropdownMenuItem
@@ -453,7 +453,7 @@ function ContactsPageContent() {
                           setIsClientModalOpen(true);
                         }}
                       >
-                        <SquarePen className= "h-4 w-4 mr-2" />
+                        <SquarePen className="h-4 w-4 mr-2" />
                         Editar
                       </DropdownMenuItem>
                       {podeExcluirCliente ? (
@@ -462,9 +462,9 @@ function ContactsPageContent() {
                           <DropdownMenuItem
                             onClick={() => setClientToDelete(client)}
                             disabled={deletingClientId === client.id}
-                            className= "text-destructive focus:text-destructive"
+                            className="text-destructive focus:text-destructive"
                           >
-                            <Trash2 className= "h-4 w-4 mr-2" />
+                            <Trash2 className="h-4 w-4 mr-2" />
                             Excluir
                           </DropdownMenuItem>
                         </>
@@ -477,7 +477,7 @@ function ContactsPageContent() {
 
             {!isListLoading && clients.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className= "text-center py-8 text-muted-foreground">
+                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                   Nenhum contato encontrado para os filtros atuais.
                 </TableCell>
               </TableRow>
@@ -485,7 +485,7 @@ function ContactsPageContent() {
 
             {isListLoading && (
               <TableRow>
-                <TableCell colSpan={6} className= "text-center py-8 text-muted-foreground">
+                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                   Carregando contatos...
                 </TableCell>
               </TableRow>
@@ -520,86 +520,86 @@ function ContactsPageContent() {
   };
 
   return (
-    <div className= "w-full flex flex-col bg-transparent">
-      <div className= "border-b border-kx-painel-borda/70 bg-kx-painel/75 px-6 py-6 backdrop-blur-sm/70/50 lg:px-8">
-        <div className= "max-w-7xl mx-auto w-full flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+    <div className="w-full flex flex-col bg-transparent">
+      <div className="border-b border-kx-painel-borda/70 bg-kx-painel/75 px-6 py-6 backdrop-blur-sm/70/50 lg:px-8">
+        <div className="max-w-7xl mx-auto w-full flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <h1 className= "text-3xl font-bold text-foreground">CRM | Contatos & Fornecedores</h1>
-            <p className= "text-muted-foreground mt-2 text-sm">
+            <h1 className="text-3xl font-bold text-foreground">CRM | Contatos & Fornecedores</h1>
+            <p className="text-muted-foreground mt-2 text-sm">
               Área dedicada para gerenciar a base de relacionamentos sem interferir no hub principal.
             </p>
           </div>
 
-          <div className= "flex flex-wrap gap-2">
-            <Button variant= "outline" onClick={() => router.push("/crm") }>
-              <ArrowLeft className= "h-4 w-4 mr-2" />
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => router.push("/crm") }>
+              <ArrowLeft className="h-4 w-4 mr-2" />
               Voltar ao Hub
             </Button>
             <Button onClick={openNewContact}>
-              <Plus className= "h-4 w-4 mr-2" />
+              <Plus className="h-4 w-4 mr-2" />
               Novo Contato
             </Button>
           </div>
         </div>
       </div>
 
-      <div className= "px-6 lg:px-8 py-6">
-          <div className= "max-w-7xl mx-auto space-y-6">
-            <div className= "grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
-              <Card className= "p-5 border-border bg-card">
-                <div className= "flex items-start justify-between gap-3">
+      <div className="px-6 lg:px-8 py-6">
+          <div className="max-w-7xl mx-auto space-y-6">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
+              <Card className="p-5 border-border bg-card">
+                <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className= "text-sm text-muted-foreground">Contatos Ativos</p>
-                    <p className= "text-3xl font-bold text-foreground mt-2">{summary.total}</p>
+                    <p className="text-sm text-muted-foreground">Contatos Ativos</p>
+                    <p className="text-3xl font-bold text-foreground mt-2">{summary.total}</p>
                   </div>
-                  <Users className= "h-5 w-5 text-muted-foreground" />
+                  <Users className="h-5 w-5 text-muted-foreground" />
                 </div>
               </Card>
 
-              <Card className= "p-5 border-border bg-card">
-                <div className= "flex items-start justify-between gap-3">
+              <Card className="p-5 border-border bg-card">
+                <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className= "text-sm text-muted-foreground">Fornecedores</p>
-                    <p className= "text-3xl font-bold text-foreground mt-2">{summary.fornecedores}</p>
+                    <p className="text-sm text-muted-foreground">Fornecedores</p>
+                    <p className="text-3xl font-bold text-foreground mt-2">{summary.fornecedores}</p>
                   </div>
-                  <Building2 className= "h-5 w-5 text-muted-foreground" />
+                  <Building2 className="h-5 w-5 text-muted-foreground" />
                 </div>
               </Card>
 
-              <Card className= "p-5 border-border bg-card">
-                <div className= "flex items-start justify-between gap-3">
+              <Card className="p-5 border-border bg-card">
+                <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className= "text-sm text-muted-foreground">Empresas B2B</p>
-                    <p className= "text-3xl font-bold text-foreground mt-2">{totalBusiness}</p>
+                    <p className="text-sm text-muted-foreground">Empresas B2B</p>
+                    <p className="text-3xl font-bold text-foreground mt-2">{totalBusiness}</p>
                   </div>
-                  <Filter className= "h-5 w-5 text-muted-foreground" />
+                  <Filter className="h-5 w-5 text-muted-foreground" />
                 </div>
               </Card>
 
-              <Card className= "p-5 border-border bg-card">
-                <div className= "flex items-start justify-between gap-3">
+              <Card className="p-5 border-border bg-card">
+                <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className= "text-sm text-muted-foreground">Modo Atual</p>
-                    <p className= "text-3xl font-bold text-foreground mt-2">{currentViewLabel}</p>
+                    <p className="text-sm text-muted-foreground">Modo Atual</p>
+                    <p className="text-3xl font-bold text-foreground mt-2">{currentViewLabel}</p>
                   </div>
-                  <ViewIcon className= "h-5 w-5 text-muted-foreground" />
+                  <ViewIcon className="h-5 w-5 text-muted-foreground" />
                 </div>
               </Card>
             </div>
 
-            <div className= "grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-              <div className= "lg:col-span-2 space-y-6">
-                <Card className= "p-5 border-border bg-card">
-                  <div className= "flex items-center justify-between gap-3 mb-4">
-                    <h2 className= "text-lg font-semibold text-foreground">Papel de cadastro</h2>
-                    <Badge variant= "secondary" className= "text-xs">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+              <div className="lg:col-span-2 space-y-6">
+                <Card className="p-5 border-border bg-card">
+                  <div className="flex items-center justify-between gap-3 mb-4">
+                    <h2 className="text-lg font-semibold text-foreground">Papel de cadastro</h2>
+                    <Badge variant="secondary" className="text-xs">
                       Cliente ou fornecedor
                     </Badge>
                   </div>
 
-                  <div className= "inline-flex rounded-lg border border-border p-1 bg-muted/30">
+                  <div className="inline-flex rounded-lg border border-border p-1 bg-muted/30">
                     <button
-                      type= "button"
+                      type="button"
                       onClick={() => {
                         setViewMode("CLIENTES");
                         goToPage(1);
@@ -613,7 +613,7 @@ function ContactsPageContent() {
                       Clientes
                     </button>
                     <button
-                      type= "button"
+                      type="button"
                       onClick={() => {
                         setViewMode("FORNECEDORES");
                         goToPage(1);
@@ -628,9 +628,9 @@ function ContactsPageContent() {
                     </button>
                   </div>
 
-                  <div className= "mt-4 rounded-lg border border-dashed border-border bg-muted/30 p-4">
-                    <p className= "text-sm font-medium text-foreground">Registro com distinção visual</p>
-                    <p className= "text-xs text-muted-foreground mt-1">
+                  <div className="mt-4 rounded-lg border border-dashed border-border bg-muted/30 p-4">
+                    <p className="text-sm font-medium text-foreground">Registro com distinção visual</p>
+                    <p className="text-xs text-muted-foreground mt-1">
                       O formulário usa a mesma base do CRM e permite registrar o contato com perfil de cliente ou fornecedor.
                     </p>
                   </div>
@@ -639,35 +639,35 @@ function ContactsPageContent() {
                 {renderMainContent()}
               </div>
 
-              <div className= "space-y-4">
-                <Card className= "p-5 border-border bg-card sticky top-4">
-                  <h2 className= "text-lg font-semibold text-foreground mb-3">Ações Rápidas</h2>
-                  <div className= "space-y-2">
-                    <Button className= "w-full justify-start" onClick={openNewContact}>
-                      <UserPlus className= "h-4 w-4 mr-2" />
+              <div className="space-y-4">
+                <Card className="p-5 border-border bg-card sticky top-4">
+                  <h2 className="text-lg font-semibold text-foreground mb-3">Ações Rápidas</h2>
+                  <div className="space-y-2">
+                    <Button className="w-full justify-start" onClick={openNewContact}>
+                      <UserPlus className="h-4 w-4 mr-2" />
                       Novo Contato
                     </Button>
                     <Button
-                      variant= "outline"
-                      className= "w-full justify-start"
+                      variant="outline"
+                      className="w-full justify-start"
                       onClick={() => openPlaceholderAction("Nova oportunidade em preparação")}
                     >
-                      <ChevronRight className= "h-4 w-4 mr-2" />
+                      <ChevronRight className="h-4 w-4 mr-2" />
                       Nova Oportunidade
                     </Button>
                     <Button
-                      variant= "outline"
-                      className= "w-full justify-start"
+                      variant="outline"
+                      className="w-full justify-start"
                       onClick={() => openPlaceholderAction("Nova tarefa em preparação")}
                     >
-                      <ChevronRight className= "h-4 w-4 mr-2" />
+                      <ChevronRight className="h-4 w-4 mr-2" />
                       Nova Tarefa
                     </Button>
                   </div>
 
-                  <div className= "mt-4 rounded-lg border border-dashed border-border p-3 bg-muted/30">
-                    <p className= "text-sm font-medium text-foreground">Fluxo dedicado</p>
-                    <p className= "text-xs text-muted-foreground mt-1">
+                  <div className="mt-4 rounded-lg border border-dashed border-border p-3 bg-muted/30">
+                    <p className="text-sm font-medium text-foreground">Fluxo dedicado</p>
+                    <p className="text-xs text-muted-foreground mt-1">
                       Esta página abre separadamente para concentrar o trabalho de contatos e fornecedores.
                     </p>
                   </div>
@@ -693,41 +693,41 @@ function ContactsPageContent() {
           if (!open) setProfileClient(null);
         }}
       >
-        <DialogContent className= "sm:max-w-sm">
+        <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Perfil do Contato</DialogTitle>
             <DialogDescription>Informações cadastrais resumidas.</DialogDescription>
           </DialogHeader>
 
           {profileClient && (
-            <dl className= "grid grid-cols-2 gap-x-4 gap-y-3 text-sm py-1">
-              <div className= "col-span-2">
-                <dt className= "text-xs font-semibold uppercase tracking-wide text-muted-foreground">Nome / Razão social</dt>
-                <dd className= "mt-0.5 font-medium text-foreground">{profileClient.nomeRazaoSocial}</dd>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm py-1">
+              <div className="col-span-2">
+                <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Nome / Razão social</dt>
+                <dd className="mt-0.5 font-medium text-foreground">{profileClient.nomeRazaoSocial}</dd>
               </div>
               {profileClient.nomeFantasia && (
-                <div className= "col-span-2">
-                  <dt className= "text-xs font-semibold uppercase tracking-wide text-muted-foreground">Nome fantasia</dt>
-                  <dd className= "mt-0.5 text-foreground">{profileClient.nomeFantasia}</dd>
+                <div className="col-span-2">
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Nome fantasia</dt>
+                  <dd className="mt-0.5 text-foreground">{profileClient.nomeFantasia}</dd>
                 </div>
               )}
               <div>
-                <dt className= "text-xs font-semibold uppercase tracking-wide text-muted-foreground">Documento</dt>
-                <dd className= "mt-0.5 text-foreground">{profileClient.documento}</dd>
+                <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Documento</dt>
+                <dd className="mt-0.5 text-foreground">{profileClient.documento}</dd>
               </div>
               <div>
-                <dt className= "text-xs font-semibold uppercase tracking-wide text-muted-foreground">Telefone</dt>
-                <dd className= "mt-0.5 text-foreground">{profileClient.telefone}</dd>
+                <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Telefone</dt>
+                <dd className="mt-0.5 text-foreground">{profileClient.telefone}</dd>
               </div>
               <div>
-                <dt className= "text-xs font-semibold uppercase tracking-wide text-muted-foreground">Perfil</dt>
-                <dd className= "mt-0.5">
-                  <Badge variant= "outline">{profileClient.papel === "FORNECEDOR" ? "Fornecedor" : "Cliente"}</Badge>
+                <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Perfil</dt>
+                <dd className="mt-0.5">
+                  <Badge variant="outline">{profileClient.papel === "FORNECEDOR" ? "Fornecedor" : "Cliente"}</Badge>
                 </dd>
               </div>
               <div>
-                <dt className= "text-xs font-semibold uppercase tracking-wide text-muted-foreground">Categoria</dt>
-                <dd className= "mt-0.5">
+                <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Categoria</dt>
+                <dd className="mt-0.5">
                   <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${categoryColorMap[profileClient.categoria]}`}>
                     {categoryLabelMap[profileClient.categoria]}
                   </span>
@@ -737,7 +737,7 @@ function ContactsPageContent() {
           )}
 
           <DialogFooter>
-            <Button variant= "outline" onClick={() => setProfileClient(null)}>
+            <Button variant="outline" onClick={() => setProfileClient(null)}>
               Fechar
             </Button>
             <Button
@@ -747,7 +747,7 @@ function ContactsPageContent() {
                 setIsClientModalOpen(true);
               }}
             >
-              <SquarePen className= "h-4 w-4 mr-2" />
+              <SquarePen className="h-4 w-4 mr-2" />
               Editar
             </Button>
           </DialogFooter>
@@ -764,14 +764,14 @@ function ContactsPageContent() {
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir contato?</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir <span className= "font-semibold">{clientToDelete?.nomeRazaoSocial}</span>? Esta ação não pode ser desfeita.
+              Tem certeza que deseja excluir <span className="font-semibold">{clientToDelete?.nomeRazaoSocial}</span>? Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={Boolean(deletingClientId)}>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               disabled={Boolean(deletingClientId)}
-              className= "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => clientToDelete && handleDeleteClient(clientToDelete.id)}
             >
               {deletingClientId ? "Excluindo..." : "Confirmar exclusão"}

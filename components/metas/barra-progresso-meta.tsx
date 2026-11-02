@@ -25,14 +25,14 @@ export function BarraProgressoMeta({ progresso, status, className, showLabel = t
 
   return (
     <div className={cn("w-full", className)}>
-      <div className= "w-full bg-kx-painel-borda rounded-full h-2 overflow-hidden">
+      <div className="w-full bg-kx-painel-borda rounded-full h-2 overflow-hidden">
         <div
           className={cn("h-2 rounded-full transition-all duration-500", cor)}
           style={{ width: `${pct}%` }}
         />
       </div>
       {showLabel && (
-        <p className= "text-xs text-kx-legenda mt-1 text-right">
+        <p className="text-xs text-kx-legenda mt-1 text-right">
           {pct}%
         </p>
       )}

@@ -92,21 +92,21 @@ export function ModalAtualizarProgresso({
 
   return (
     <Dialog open={aberto} onOpenChange={(v) => { if (!v) fechar(); }}>
-      <DialogContent className= "max-w-md">
+      <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Atualizar progresso</DialogTitle>
           <DialogDescription>{titulo}</DialogDescription>
         </DialogHeader>
 
-        <div className= "space-y-4">
-          <div className= "space-y-1.5">
-            <Label htmlFor= "novo-valor">
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="novo-valor">
               Novo valor atual {sufixo ? `(${sufixo})` : ""}
             </Label>
-            <div className= "flex items-center gap-2">
+            <div className="flex items-center gap-2">
               <Input
-                id= "novo-valor"
-                type= "number"
+                id="novo-valor"
+                type="number"
                 min={0}
                 step={tipoValor === "DINHEIRO" ? "0.01" : "1"}
                 value={valorNovo}
@@ -115,30 +115,30 @@ export function ModalAtualizarProgresso({
                 autoFocus
               />
               {valorAlvo && (
-                <span className= "text-sm text-kx-legenda whitespace-nowrap shrink-0">
+                <span className="text-sm text-kx-legenda whitespace-nowrap shrink-0">
                   / {valorAlvo}{sufixo}
                 </span>
               )}
             </div>
           </div>
 
-          <div className= "space-y-1.5">
-            <Label htmlFor= "obs-progresso">Observação (opcional)</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="obs-progresso">Observação (opcional)</Label>
             <Textarea
-              id= "obs-progresso"
+              id="obs-progresso"
               value={observacao}
               onChange={(e) => setObservacao(e.target.value)}
-              placeholder= "Contexto ou anotação sobre esta atualização"
+              placeholder="Contexto ou anotação sobre esta atualização"
               maxLength={500}
               disabled={salvando}
-              className= "resize-none h-20"
+              className="resize-none h-20"
             />
-            <p className= "text-xs text-kx-legenda">{observacao.length}/500</p>
+            <p className="text-xs text-kx-legenda">{observacao.length}/500</p>
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant= "outline" onClick={fechar} disabled={salvando}>Cancelar</Button>
+          <Button variant="outline" onClick={fechar} disabled={salvando}>Cancelar</Button>
           <Button onClick={salvar} disabled={salvando}>
             {salvando ? "Salvando..." : "Atualizar"}
           </Button>

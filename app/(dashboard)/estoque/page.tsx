@@ -4,6 +4,9 @@ import { useCallback, useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { MoreHorizontal, Package, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
+import { IndicadoresEstoque as CartoesIndicadores } from "@/components/estoque/indicadores-estoque";
+import { RelatoriosEstoque } from "@/components/estoque/relatorios-estoque";
+import { SheetMovimentacoesProduto } from "@/components/estoque/sheet-movimentacoes-produto";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +37,9 @@ import {
   criarProduto,
   excluirProduto,
   listarProdutosPaginado,
+  obterIndicadoresEstoque,
+  type IndicadoresEstoque,
+  type SituacaoEstoque,
 } from "@/app/actions/estoque";
 import { ModalNovoProduto } from "@/components/estoque/modal-novo-produto";
 import { PaginationControls } from "@/components/ui/pagination-controls";
@@ -56,34 +62,34 @@ const LIMITE_POR_PAGINA = 20;
 
 function SkeletonEstoque() {
   return (
-    <div className= "w-full flex flex-col bg-transparent">
-      <div className= "border-b border-kx-painel-borda/70 bg-kx-painel/75 px-6 py-6 backdrop-blur-sm lg:px-8">
-        <div className= "max-w-7xl mx-auto w-full">
-          <div className= "h-9 w-56 rounded-lg bg-kx-painel-borda animate-pulse" />
-          <div className= "h-4 w-80 rounded bg-kx-superficie animate-pulse mt-2" />
+    <div className="w-full flex flex-col bg-transparent">
+      <div className="border-b border-kx-painel-borda/70 bg-kx-painel/75 px-6 py-6 backdrop-blur-sm lg:px-8">
+        <div className="max-w-7xl mx-auto w-full">
+          <div className="h-9 w-56 rounded-lg bg-kx-painel-borda animate-pulse" />
+          <div className="h-4 w-80 rounded bg-kx-superficie animate-pulse mt-2" />
         </div>
       </div>
-      <div className= "px-6 lg:px-8 py-6">
-        <div className= "max-w-7xl mx-auto">
-          <div className= "rounded-xl border border-border bg-card p-5 space-y-4">
-            <div className= "flex gap-3">
-              <div className= "flex-1 h-10 rounded-lg bg-kx-superficie animate-pulse" />
-              <div className= "w-52 h-10 rounded-lg bg-kx-superficie animate-pulse" />
-              <div className= "w-36 h-10 rounded-lg bg-kx-superficie animate-pulse" />
+      <div className="px-6 lg:px-8 py-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+            <div className="flex gap-3">
+              <div className="flex-1 h-10 rounded-lg bg-kx-superficie animate-pulse" />
+              <div className="w-52 h-10 rounded-lg bg-kx-superficie animate-pulse" />
+              <div className="w-36 h-10 rounded-lg bg-kx-superficie animate-pulse" />
             </div>
-            <div className= "rounded-lg border border-border overflow-hidden">
+            <div className="rounded-lg border border-border overflow-hidden">
               {Array.from({ length: 8 }).map((_, i) => (
                 <div
                   key={i}
-                  className= "flex gap-4 items-center px-4 py-3 border-b border-border last:border-0"
+                  className="flex gap-4 items-center px-4 py-3 border-b border-border last:border-0"
                 >
-                  <div className= "w-10 h-10 rounded-md bg-kx-superficie animate-pulse shrink-0" />
-                  <div className= "flex-1 h-4 rounded bg-kx-superficie animate-pulse" />
-                  <div className= "w-24 h-4 rounded bg-kx-superficie animate-pulse" />
-                  <div className= "w-20 h-4 rounded bg-kx-superficie animate-pulse" />
-                  <div className= "w-20 h-4 rounded bg-kx-superficie animate-pulse" />
-                  <div className= "w-16 h-6 rounded-full bg-kx-superficie animate-pulse" />
-                  <div className= "w-8 h-8 rounded-md bg-kx-superficie animate-pulse ml-auto" />
+                  <div className="w-10 h-10 rounded-md bg-kx-superficie animate-pulse shrink-0" />
+                  <div className="flex-1 h-4 rounded bg-kx-superficie animate-pulse" />
+                  <div className="w-24 h-4 rounded bg-kx-superficie animate-pulse" />
+                  <div className="w-20 h-4 rounded bg-kx-superficie animate-pulse" />
+                  <div className="w-20 h-4 rounded bg-kx-superficie animate-pulse" />
+                  <div className="w-16 h-6 rounded-full bg-kx-superficie animate-pulse" />
+                  <div className="w-8 h-8 rounded-md bg-kx-superficie animate-pulse ml-auto" />
                 </div>
               ))}
             </div>
@@ -144,6 +150,10 @@ function ConteudoEstoque() {
   const [produtoEditando, setProdutoEditando] = useState<ProdutoTabela | null>(null);
   const [produtoParaExcluir, setProdutoParaExcluir] = useState<ProdutoTabela | null>(null);
   const [carregando, setCarregando] = useState(false);
+  const [situacao, setSituacao] = useState<SituacaoEstoque>("TODAS");
+  const [aba, setAba] = useState<"produtos" | "relatorios">("produtos");
+  const [indicadores, setIndicadores] = useState<IndicadoresEstoque | null>(null);
+  const [produtoEmMovimentacao, setProdutoEmMovimentacao] = useState<ProdutoTabela | null>(null);
   // Incrementado após cada mutação para forçar o useEffect a rebuscar a lista
   const [contadorRecarga, setContadorRecarga] = useState(0);
 
@@ -168,6 +178,11 @@ function ConteudoEstoque() {
     irParaPagina(1);
   };
 
+  const aoAlterarSituacao = (valor: string) => {
+    setSituacao(valor as SituacaoEstoque);
+    irParaPagina(1);
+  };
+
   useEffect(() => {
     let ativo = true;
 
@@ -178,7 +193,8 @@ function ConteudoEstoque() {
           currentPage,
           LIMITE_POR_PAGINA,
           busca,
-          categoriaSelecionada
+          categoriaSelecionada,
+          situacao
         );
         if (!ativo) return;
         setProdutos(
@@ -208,7 +224,26 @@ function ConteudoEstoque() {
     return () => {
       ativo = false;
     };
-  }, [currentPage, busca, categoriaSelecionada, contadorRecarga]);
+  }, [currentPage, busca, categoriaSelecionada, situacao, contadorRecarga]);
+
+  // Os indicadores não dependem de página nem de filtro: são do estoque
+  // inteiro. Recarregam só depois de uma mutação, que é quando podem mudar.
+  useEffect(() => {
+    let ativo = true;
+
+    obterIndicadoresEstoque()
+      .then((resultado) => {
+        if (ativo) setIndicadores(resultado);
+      })
+      .catch(() => {
+        // KPI que falha não derruba a tela: a lista de produtos é o que
+        // importa aqui, e um cartão vazio é melhor que uma página em branco.
+      });
+
+    return () => {
+      ativo = false;
+    };
+  }, [contadorRecarga]);
 
   // A filtragem é feita no servidor — exibe a lista recebida diretamente
   const produtosFiltrados = produtos;
@@ -265,39 +300,78 @@ function ConteudoEstoque() {
   };
 
   return (
-    <div className= "w-full flex flex-col bg-transparent">
-      <div className= "border-b border-kx-painel-borda/70 bg-kx-painel/75 px-6 py-6 backdrop-blur-sm lg:px-8">
-        <div className= "max-w-7xl mx-auto w-full">
-          <h1 className= "text-3xl font-bold text-foreground">Estoque & Produtos</h1>
-          <p className= "text-muted-foreground mt-2 text-sm">
+    <div className="w-full flex flex-col bg-transparent">
+      <div className="border-b border-kx-painel-borda/70 bg-kx-painel/75 px-6 py-6 backdrop-blur-sm lg:px-8">
+        <div className="max-w-7xl mx-auto w-full">
+          <h1 className="text-3xl font-bold text-foreground">Estoque & Produtos</h1>
+          <p className="text-muted-foreground mt-2 text-sm">
             Gerencie catalogo, custos, precos e alertas de estoque minimo.
           </p>
         </div>
       </div>
 
-      <div className= "px-6 lg:px-8 py-6">
-          <div className= "max-w-7xl mx-auto space-y-6">
-            <Card className= "border-border bg-card p-4 sm:p-5 space-y-4">
-              <div className= "flex flex-col lg:flex-row lg:items-center gap-3">
-                <div className= "relative flex-1">
-                  <Search className= "absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      <div className="px-6 lg:px-8 py-6">
+          <div className="max-w-7xl mx-auto space-y-6">
+            {indicadores !== null && <CartoesIndicadores dados={indicadores} />}
+
+            <div className="flex items-center gap-2" role="tablist" aria-label="Visão do estoque">
+              {([
+                ["produtos", "Produtos"],
+                ["relatorios", "Relatórios"],
+              ] as const).map(([valor, rotulo]) => (
+                <button
+                  key={valor}
+                  type="button"
+                  role="tab"
+                  aria-selected={aba === valor}
+                  onClick={() => setAba(valor)}
+                  className={`h-9 rounded-kx-pilula border px-4 text-sm font-bold transition-colors ${
+                    aba === valor
+                      ? "border-kx-primaria bg-kx-primaria text-primary-foreground"
+                      : "border-kx-painel-borda bg-kx-superficie text-kx-texto-2 hover:border-kx-destaque"
+                  }`}
+                >
+                  {rotulo}
+                </button>
+              ))}
+            </div>
+
+            {aba === "relatorios" && <RelatoriosEstoque />}
+
+            {aba === "produtos" && (
+            <Card className="border-border bg-card p-4 sm:p-5 space-y-4">
+              <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     value={busca}
                     onChange={(evento) => aoAlterarBusca(evento.target.value)}
-                    placeholder= "Buscar por nome ou codigo de barras"
-                    className= "pl-9"
+                    placeholder="Buscar por nome ou codigo de barras"
+                    className="pl-9"
                   />
                 </div>
+
+                <Select value={situacao} onValueChange={aoAlterarSituacao}>
+                  <SelectTrigger className="w-full lg:w-[200px]">
+                    <SelectValue placeholder="Situação do saldo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="TODAS">Qualquer saldo</SelectItem>
+                    <SelectItem value="ABAIXO_DO_MINIMO">Abaixo do mínimo</SelectItem>
+                    <SelectItem value="SEM_ESTOQUE">Sem estoque</SelectItem>
+                    <SelectItem value="OK">Saldo saudável</SelectItem>
+                  </SelectContent>
+                </Select>
 
                 <Select
                   value={categoriaSelecionada}
                   onValueChange={aoAlterarCategoria}
                 >
-                  <SelectTrigger className= "w-full lg:w-[220px]">
-                    <SelectValue placeholder= "Filtrar categoria" />
+                  <SelectTrigger className="w-full lg:w-[220px]">
+                    <SelectValue placeholder="Filtrar categoria" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value= "TODAS">Todas as Categorias</SelectItem>
+                    <SelectItem value="TODAS">Todas as Categorias</SelectItem>
                     {categoriasProduto.map((categoria) => (
                       <SelectItem key={categoria} value={categoria}>
                         {mapaCategoriaRotulo[categoria]}
@@ -308,15 +382,15 @@ function ConteudoEstoque() {
 
                 {podeEditarEstoque ? (
                   <Button onClick={aoAbrirNovoProduto}>
-                    <Plus className= "h-4 w-4 mr-2" />
+                    <Plus className="h-4 w-4 mr-2" />
                     Novo Produto
                   </Button>
                 ) : null}
               </div>
 
-              <div className= "rounded-lg border border-border overflow-hidden">
+              <div className="rounded-lg border border-border overflow-hidden">
                 <Table>
-                  <TableHeader className= "sticky top-0 z-kx-sticky bg-card">
+                  <TableHeader className="sticky top-0 z-kx-sticky bg-card">
                     <TableRow>
                       <TableHead>Foto</TableHead>
                       <TableHead>Nome</TableHead>
@@ -325,7 +399,7 @@ function ConteudoEstoque() {
                       <TableHead>Preco de Venda</TableHead>
                       <TableHead>Estoque Atual</TableHead>
                       {(podeEditarEstoque || podeExcluirEstoque) && (
-                        <TableHead className= "text-right">Acoes</TableHead>
+                        <TableHead className="text-right">Acoes</TableHead>
                       )}
                     </TableRow>
                   </TableHeader>
@@ -340,15 +414,15 @@ function ConteudoEstoque() {
                               <img
                                 src={produto.imagemUrl}
                                 alt={produto.nome}
-                                className= "w-10 h-10 rounded-md object-cover"
+                                className="w-10 h-10 rounded-md object-cover"
                               />
                             ) : (
-                              <div className= "w-10 h-10 rounded-md bg-muted flex items-center justify-center border border-border">
-                                <Package className= "h-5 w-5 text-muted-foreground" />
+                              <div className="w-10 h-10 rounded-md bg-muted flex items-center justify-center border border-border">
+                                <Package className="h-5 w-5 text-muted-foreground" />
                               </div>
                             )}
                           </TableCell>
-                          <TableCell className= "font-medium text-foreground">{produto.nome}</TableCell>
+                          <TableCell className="font-medium text-foreground">{produto.nome}</TableCell>
                           <TableCell>{mapaCategoriaRotulo[produto.categoria]}</TableCell>
                           <TableCell>{produto.custo === null ? "—" : formatarMoeda(produto.custo)}</TableCell>
                           <TableCell>{formatarMoeda(produto.precoVenda)}</TableCell>
@@ -358,22 +432,27 @@ function ConteudoEstoque() {
                             </Badge>
                           </TableCell>
                           {(podeEditarEstoque || podeExcluirEstoque) && (
-                            <TableCell className= "text-right">
+                            <TableCell className="text-right">
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <Button variant= "ghost" size= "icon">
-                                    <MoreHorizontal className= "h-4 w-4" />
+                                  <Button variant="ghost" size="icon">
+                                    <MoreHorizontal className="h-4 w-4" />
                                   </Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align= "end">
+                                <DropdownMenuContent align="end">
                                   {podeEditarEstoque ? (
                                     <DropdownMenuItem onClick={() => aoEditarProduto(produto)}>
                                       Editar
                                     </DropdownMenuItem>
                                   ) : null}
+                                  <DropdownMenuItem
+                                    onClick={() => setProdutoEmMovimentacao(produto)}
+                                  >
+                                    Movimentações
+                                  </DropdownMenuItem>
                                   {podeExcluirEstoque ? (
                                     <DropdownMenuItem
-                                      className= "text-destructive"
+                                      className="text-destructive"
                                       onClick={() => setProdutoParaExcluir(produto)}
                                     >
                                       Excluir
@@ -391,7 +470,7 @@ function ConteudoEstoque() {
                       <TableRow>
                         <TableCell
                           colSpan={podeEditarEstoque || podeExcluirEstoque ? 7 : 6}
-                          className= "text-center py-8 text-muted-foreground"
+                          className="text-center py-8 text-muted-foreground"
                         >
                           Nenhum produto encontrado para os filtros atuais.
                         </TableCell>
@@ -402,7 +481,7 @@ function ConteudoEstoque() {
                       <TableRow>
                         <TableCell
                           colSpan={podeEditarEstoque || podeExcluirEstoque ? 7 : 6}
-                          className= "text-center py-8 text-muted-foreground"
+                          className="text-center py-8 text-muted-foreground"
                         >
                           Carregando produtos...
                         </TableCell>
@@ -419,6 +498,7 @@ function ConteudoEstoque() {
                 disabled={carregando}
               />
             </Card>
+            )}
           </div>
       </div>
 
@@ -440,6 +520,13 @@ function ConteudoEstoque() {
             : null
         }
         aoSalvar={aoSalvarProduto}
+      />
+
+      <SheetMovimentacoesProduto
+        produtoId={produtoEmMovimentacao?.id ?? null}
+        produtoNome={produtoEmMovimentacao?.nome ?? null}
+        aberto={Boolean(produtoEmMovimentacao)}
+        aoFechar={() => setProdutoEmMovimentacao(null)}
       />
 
       <AlertDialog

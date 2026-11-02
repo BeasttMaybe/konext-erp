@@ -31,7 +31,7 @@ import {
 } from "@/lib/dominio/pdv/calcular-venda";
 import { registrarLogAuditoria, contextoAuditoriaDoUsuario } from "@/lib/auditoria";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
-import { deDecimal } from "@/lib/dinheiro";
+import { deDecimal, paraDecimal } from "@/lib/dinheiro";
 import {
   ID_CLIENTE_CONSUMIDOR_FINAL,
   ehClienteConsumidorFinal,
@@ -1023,7 +1023,8 @@ async function baixarEstoqueVenda(
     produtoId: string;
     nome: string;
     quantidade: number;
-    custoUnitario?: number | string | null;
+    /** String decimal, pronta pro Prisma (ver lib/dinheiro.ts). */
+    custoUnitario?: string | null;
   }>,
   permitirVendaSemEstoque: boolean,
   // Fase 4: o livro de movimentacoes e gravado NESTA transacao, logo depois da
@@ -1244,7 +1245,7 @@ export async function processarVenda(
           produtoId: item.produtoId,
           nome: item.nome,
           quantidade: item.quantidade,
-          custoUnitario: item.custoUnitario ?? null,
+          custoUnitario: paraDecimal(item.custoUnitarioCentavos),
         })),
         configuracaoPdv.permitirVendaSemEstoque,
         { vendaId, registradoPorId: sessionUser?.id ?? null }
@@ -1690,7 +1691,7 @@ export async function processarVendaComOSNoPDV(
           produtoId: item.produtoId,
           nome: item.nome,
           quantidade: item.quantidade,
-          custoUnitario: item.custoUnitario ?? null,
+          custoUnitario: paraDecimal(item.custoUnitarioCentavos),
         })),
         configuracaoPdv.permitirVendaSemEstoque,
         { vendaId, registradoPorId: sessionUser?.id ?? null }

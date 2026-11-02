@@ -236,44 +236,44 @@ export function ModalNovaMeta({ aberto, aoFechar, aoConcluir }: ModalNovaMetaPro
 
   return (
     <Dialog open={aberto} onOpenChange={(v) => { if (!v) fechar(); }}>
-      <DialogContent className= "max-w-lg">
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Nova meta</DialogTitle>
           <DialogDescription>Crie um objetivo para acompanhar o progresso da empresa.</DialogDescription>
         </DialogHeader>
 
-        <div className= "space-y-4">
-          <div className= "space-y-1.5">
-            <Label htmlFor= "meta-titulo">Título *</Label>
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="meta-titulo">Título *</Label>
             <Input
-              id= "meta-titulo"
+              id="meta-titulo"
               value={titulo}
               onChange={(e) => setTitulo(e.target.value)}
-              placeholder= "Ex: Faturar R$ 50.000 em agosto"
+              placeholder="Ex: Faturar R$ 50.000 em agosto"
               maxLength={120}
               disabled={salvando}
             />
           </div>
 
-          <div className= "space-y-1.5">
-            <Label htmlFor= "meta-descricao">Descrição</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="meta-descricao">Descrição</Label>
             <Textarea
-              id= "meta-descricao"
+              id="meta-descricao"
               value={descricao}
               onChange={(e) => setDescricao(e.target.value)}
-              placeholder= "Contexto e detalhes da meta (opcional)"
+              placeholder="Contexto e detalhes da meta (opcional)"
               maxLength={1000}
               disabled={salvando}
-              className= "resize-none h-20"
+              className="resize-none h-20"
             />
           </div>
 
-          <div className= "grid grid-cols-2 gap-3">
-            <div className= "space-y-1.5">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
               <Label>Categoria *</Label>
               <Select value={categoria} onValueChange={(v) => setCategoria(v as CategoriaMeta)} disabled={salvando}>
                 <SelectTrigger>
-                  <SelectValue placeholder= "Selecionar..." />
+                  <SelectValue placeholder="Selecionar..." />
                 </SelectTrigger>
                 <SelectContent>
                   {categorias.map((c) => (
@@ -283,11 +283,11 @@ export function ModalNovaMeta({ aberto, aoFechar, aoConcluir }: ModalNovaMetaPro
               </Select>
             </div>
 
-            <div className= "space-y-1.5">
+            <div className="space-y-1.5">
               <Label>Tipo de valor *</Label>
               <Select value={tipoValor} onValueChange={(v) => setTipoValor(v as TipoValorMeta)} disabled={salvando}>
                 <SelectTrigger>
-                  <SelectValue placeholder= "Selecionar..." />
+                  <SelectValue placeholder="Selecionar..." />
                 </SelectTrigger>
                 <SelectContent>
                   {tiposValor.map((t) => (
@@ -299,24 +299,24 @@ export function ModalNovaMeta({ aberto, aoFechar, aoConcluir }: ModalNovaMetaPro
           </div>
 
           {precisaValorAlvo && (
-            <div className= "grid grid-cols-2 gap-3">
-              <div className= "space-y-1.5">
-                <Label htmlFor= "meta-valor-alvo">Valor alvo *</Label>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="meta-valor-alvo">Valor alvo *</Label>
                 <Input
-                  id= "meta-valor-alvo"
-                  type= "number"
+                  id="meta-valor-alvo"
+                  type="number"
                   min={0}
                   step={tipoValor === "DINHEIRO" ? "0.01" : "1"}
                   value={valorAlvo}
                   onChange={(e) => setValorAlvo(e.target.value)}
-                  placeholder= "0"
+                  placeholder="0"
                   disabled={salvando}
                 />
               </div>
-              <div className= "space-y-1.5">
-                <Label htmlFor= "meta-unidade">Unidade</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="meta-unidade">Unidade</Label>
                 <Input
-                  id= "meta-unidade"
+                  id="meta-unidade"
                   value={unidade}
                   onChange={(e) => setUnidade(e.target.value)}
                   placeholder={tipoValor === "PERCENTUAL" ? "%" : "Ex: OS, peças..."}
@@ -327,8 +327,8 @@ export function ModalNovaMeta({ aberto, aoFechar, aoConcluir }: ModalNovaMetaPro
             </div>
           )}
 
-          <div className= "grid grid-cols-2 gap-3">
-            <div className= "space-y-1.5">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
               <Label>Origem do progresso *</Label>
               <Select
                 value={origemProgresso}
@@ -345,13 +345,13 @@ export function ModalNovaMeta({ aberto, aoFechar, aoConcluir }: ModalNovaMetaPro
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value= "MANUAL">Manual</SelectItem>
-                  <SelectItem value= "AUTOMATICA">Automática</SelectItem>
+                  <SelectItem value="MANUAL">Manual</SelectItem>
+                  <SelectItem value="AUTOMATICA">Automática</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            <div className= "space-y-1.5">
+            <div className="space-y-1.5">
               <Label>Prioridade</Label>
               <Select value={prioridade} onValueChange={(v) => setPrioridade(v as PrioridadeMeta)} disabled={salvando}>
                 <SelectTrigger>
@@ -367,10 +367,10 @@ export function ModalNovaMeta({ aberto, aoFechar, aoConcluir }: ModalNovaMetaPro
           </div>
 
           {ehAutomatica && (
-            <div className= "space-y-3 rounded-md border border-kx-painel-borda p-3">
-              <p className= "text-xs text-kx-legenda">Configuração automática</p>
-              <div className= "grid grid-cols-2 gap-3">
-                <div className= "space-y-1.5">
+            <div className="space-y-3 rounded-md border border-kx-painel-borda p-3">
+              <p className="text-xs text-kx-legenda">Configuração automática</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
                   <Label>Fonte automática *</Label>
                   <Select
                     value={fonteAutomatica}
@@ -381,20 +381,20 @@ export function ModalNovaMeta({ aberto, aoFechar, aoConcluir }: ModalNovaMetaPro
                     disabled={salvando}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder= "Selecionar..." />
+                      <SelectValue placeholder="Selecionar..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value= "ORDENS_SERVICO">Ordens de Serviço</SelectItem>
-                      <SelectItem value= "GARANTIAS">Garantias</SelectItem>
-                      <SelectItem value= "FINANCEIRO">Financeiro</SelectItem>
-                      <SelectItem value= "PDV">PDV</SelectItem>
-                      <SelectItem value= "VENDAS">Vendas</SelectItem>
-                      <SelectItem value= "ESTOQUE">Estoque</SelectItem>
+                      <SelectItem value="ORDENS_SERVICO">Ordens de Serviço</SelectItem>
+                      <SelectItem value="GARANTIAS">Garantias</SelectItem>
+                      <SelectItem value="FINANCEIRO">Financeiro</SelectItem>
+                      <SelectItem value="PDV">PDV</SelectItem>
+                      <SelectItem value="VENDAS">Vendas</SelectItem>
+                      <SelectItem value="ESTOQUE">Estoque</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
-                <div className= "space-y-1.5">
+                <div className="space-y-1.5">
                   <Label>Métrica *</Label>
                   <Select
                     value={metricaAutomatica}
@@ -402,7 +402,7 @@ export function ModalNovaMeta({ aberto, aoFechar, aoConcluir }: ModalNovaMetaPro
                     disabled={salvando || !fonteAutomatica}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder= "Selecionar..." />
+                      <SelectValue placeholder="Selecionar..." />
                     </SelectTrigger>
                     <SelectContent>
                       {opcoesMetricas.map((m) => (
@@ -413,55 +413,55 @@ export function ModalNovaMeta({ aberto, aoFechar, aoConcluir }: ModalNovaMetaPro
                 </div>
               </div>
 
-              <div className= "grid grid-cols-2 gap-3">
-                <div className= "space-y-1.5">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
                   <Label>Direção da meta</Label>
                   <Select value={direcao} onValueChange={(v) => setDirecao(v as DirecaoMeta)} disabled={salvando}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value= "MAIOR_MELHOR">Quanto maior, melhor</SelectItem>
-                      <SelectItem value= "MENOR_MELHOR">Quanto menor, melhor</SelectItem>
+                      <SelectItem value="MAIOR_MELHOR">Quanto maior, melhor</SelectItem>
+                      <SelectItem value="MENOR_MELHOR">Quanto menor, melhor</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
-                <div className= "space-y-1.5">
-                  <Label htmlFor= "meta-produto-auto">Produto (quando aplicável)</Label>
+                <div className="space-y-1.5">
+                  <Label htmlFor="meta-produto-auto">Produto (quando aplicável)</Label>
                   <Input
-                    id= "meta-produto-auto"
+                    id="meta-produto-auto"
                     value={produtoIdAutomatica}
                     onChange={(e) => setProdutoIdAutomatica(e.target.value)}
-                    placeholder= "ID do produto"
+                    placeholder="ID do produto"
                     disabled={salvando}
                   />
                 </div>
               </div>
 
-              <div className= "grid grid-cols-2 gap-3">
-                <div className= "space-y-1.5">
-                  <Label htmlFor= "meta-inicio-auto">Data inicial análise</Label>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="meta-inicio-auto">Data inicial análise</Label>
                   <Input
-                    id= "meta-inicio-auto"
-                    type= "text"
+                    id="meta-inicio-auto"
+                    type="text"
                     value={dataInicioAutomatica}
                     onChange={(e) => setDataInicioAutomatica(formatarDataBR(e.target.value))}
-                    placeholder= "DD/MM/AAAA"
-                    inputMode= "numeric"
+                    placeholder="DD/MM/AAAA"
+                    inputMode="numeric"
                     maxLength={10}
                     disabled={salvando}
                   />
                 </div>
-                <div className= "space-y-1.5">
-                  <Label htmlFor= "meta-fim-auto">Data final análise</Label>
+                <div className="space-y-1.5">
+                  <Label htmlFor="meta-fim-auto">Data final análise</Label>
                   <Input
-                    id= "meta-fim-auto"
-                    type= "text"
+                    id="meta-fim-auto"
+                    type="text"
                     value={dataFimAutomatica}
                     onChange={(e) => setDataFimAutomatica(formatarDataBR(e.target.value))}
-                    placeholder= "DD/MM/AAAA"
-                    inputMode= "numeric"
+                    placeholder="DD/MM/AAAA"
+                    inputMode="numeric"
                     maxLength={10}
                     disabled={salvando}
                   />
@@ -470,31 +470,31 @@ export function ModalNovaMeta({ aberto, aoFechar, aoConcluir }: ModalNovaMetaPro
             </div>
           )}
 
-          <div className= "grid grid-cols-2 gap-3">
-            <div className= "space-y-1.5">
-              <Label htmlFor= "meta-prazo">Prazo</Label>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="meta-prazo">Prazo</Label>
               <Input
-                id= "meta-prazo"
-                type= "text"
+                id="meta-prazo"
+                type="text"
                 value={dataPrazo}
                 onChange={(e) => setDataPrazo(formatarDataBR(e.target.value))}
-                placeholder= "DD/MM/AAAA"
-                inputMode= "numeric"
+                placeholder="DD/MM/AAAA"
+                inputMode="numeric"
                 maxLength={10}
                 disabled={salvando}
               />
             </div>
           </div>
 
-          <div className= "space-y-1.5">
-            <Label htmlFor= "meta-inicio">Data de início</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="meta-inicio">Data de início</Label>
             <Input
-              id= "meta-inicio"
-              type= "text"
+              id="meta-inicio"
+              type="text"
               value={dataInicio}
               onChange={(e) => setDataInicio(formatarDataBR(e.target.value))}
-              placeholder= "DD/MM/AAAA"
-              inputMode= "numeric"
+              placeholder="DD/MM/AAAA"
+              inputMode="numeric"
               maxLength={10}
               disabled={salvando}
             />
@@ -502,7 +502,7 @@ export function ModalNovaMeta({ aberto, aoFechar, aoConcluir }: ModalNovaMetaPro
         </div>
 
         <DialogFooter>
-          <Button variant= "outline" onClick={fechar} disabled={salvando}>Cancelar</Button>
+          <Button variant="outline" onClick={fechar} disabled={salvando}>Cancelar</Button>
           <Button onClick={salvar} disabled={salvando || !titulo.trim() || !categoria || !tipoValor}>
             {salvando ? "Salvando..." : "Criar meta"}
           </Button>

@@ -108,27 +108,27 @@ export function SinoNotificacoes() {
     <Popover open={aberto} onOpenChange={aoAlterarAbertura}>
       <PopoverTrigger asChild>
         {/* Botão do sino com indicador de não lidas */}
-        <Button variant= "ghost" size= "icon" className= "relative">
-          <Bell className= "h-5 w-5" />
+        <Button variant="ghost" size="icon" className="relative">
+          <Bell className="h-5 w-5" />
           {naoLidas > 0 && (
-            <span className= "absolute top-1.5 right-1.5 h-2 w-2 bg-kx-erro rounded-full" />
+            <span className="absolute top-1.5 right-1.5 h-2 w-2 bg-kx-erro rounded-full" />
           )}
         </Button>
       </PopoverTrigger>
 
       <PopoverContent
-        align= "end"
-        className= "w-80 p-0 shadow-lg"
+        align="end"
+        className="w-80 p-0 shadow-lg"
         sideOffset={8}
       >
         {/* Cabeçalho do painel */}
-        <div className= "flex items-center justify-between px-4 py-3 border-b border-kx-painel-borda">
-          <div className= "flex items-center gap-2">
-            <h3 className= "text-sm font-semibold text-kx-texto">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-kx-painel-borda">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-kx-texto">
               Notificações
             </h3>
             {naoLidas > 0 && (
-              <span className= "inline-flex items-center justify-center h-5 min-w-5 px-1 rounded-kx-pilula bg-kx-erro text-[10px] font-bold text-primary-foreground">
+              <span className="inline-flex items-center justify-center h-5 min-w-5 px-1 rounded-kx-pilula bg-kx-erro text-[10px] font-bold text-primary-foreground">
                 {naoLidas}
               </span>
             )}
@@ -137,38 +137,38 @@ export function SinoNotificacoes() {
           {/* Botão"Marcar todas como lidas" */}
           {naoLidas > 0 && (
             <Button
-              variant= "ghost"
-              size= "sm"
-              className= "h-7 text-xs gap-1 text-kx-legenda hover:text-kx-texto dark:hover:text-kx-texto"
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs gap-1 text-kx-legenda hover:text-kx-texto dark:hover:text-kx-texto"
               onClick={aoMarcarTodas}
               disabled={isPending}
             >
-              <CheckCheck className= "h-3.5 w-3.5" />
+              <CheckCheck className="h-3.5 w-3.5" />
               Marcar todas
             </Button>
           )}
         </div>
 
         {/* Lista de notificações */}
-        <div className= "max-h-[360px] overflow-y-auto">
+        <div className="max-h-[360px] overflow-y-auto">
           {carregando ? (
             // Estado de carregamento
-            <div className= "flex flex-col gap-2 p-4">
+            <div className="flex flex-col gap-2 p-4">
               {[1, 2, 3].map((i) => (
-                <div key={i} className= "animate-pulse space-y-1.5">
-                  <div className= "h-3 w-2/3 bg-kx-painel-borda rounded" />
-                  <div className= "h-2.5 w-full bg-kx-superficie rounded" />
+                <div key={i} className="animate-pulse space-y-1.5">
+                  <div className="h-3 w-2/3 bg-kx-painel-borda rounded" />
+                  <div className="h-2.5 w-full bg-kx-superficie rounded" />
                 </div>
               ))}
             </div>
           ) : notificacoes.length === 0 ? (
             // Estado vazio
-            <div className= "flex flex-col items-center justify-center py-10 px-4 text-center">
-              <Bell className= "h-8 w-8 text-kx-texto-2 mb-2" />
-              <p className= "text-sm font-medium text-kx-legenda">
+            <div className="flex flex-col items-center justify-center py-10 px-4 text-center">
+              <Bell className="h-8 w-8 text-kx-texto-2 mb-2" />
+              <p className="text-sm font-medium text-kx-legenda">
                 Nenhuma notificação no momento
               </p>
-              <p className= "text-xs text-kx-legenda mt-0.5">
+              <p className="text-xs text-kx-legenda mt-0.5">
                 Você está em dia!
               </p>
             </div>
@@ -192,7 +192,7 @@ export function SinoNotificacoes() {
                       )}
                     />
 
-                    <div className= "flex-1 min-w-0">
+                    <div className="flex-1 min-w-0">
                       <p
                         className={cn("text-sm leading-snug truncate",
                           notif.lida
@@ -202,10 +202,10 @@ export function SinoNotificacoes() {
                       >
                         {notif.titulo}
                       </p>
-                      <p className= "text-xs text-kx-legenda mt-0.5 line-clamp-2 leading-relaxed">
+                      <p className="text-xs text-kx-legenda mt-0.5 line-clamp-2 leading-relaxed">
                         {notif.mensagem}
                       </p>
-                      <p className= "text-[10px] text-kx-legenda mt-1">
+                      <p className="text-[10px] text-kx-legenda mt-1">
                         {formatarTempoDecorrido(notif.criadoEm)}
                       </p>
                     </div>
@@ -213,7 +213,7 @@ export function SinoNotificacoes() {
 
                   {/* Divisor entre itens */}
                   {idx < notificacoes.length - 1 && (
-                    <div className= "mx-4 border-t border-kx-painel-borda" />
+                    <div className="mx-4 border-t border-kx-painel-borda" />
                   )}
                 </li>
               ))}

@@ -406,7 +406,7 @@ export function PropostaPDF({ proposal, company }: PropostaPdfProps) {
 
   return (
     <Document>
-      <Page size= "A4" style={styles.page}>
+      <Page size="A4" style={styles.page}>
         <View style={styles.header}>
           <View style={styles.brandBlock}>
             <View style={styles.brandHeader}>
