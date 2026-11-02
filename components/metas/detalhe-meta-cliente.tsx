@@ -187,26 +187,26 @@ export function DetalheMetaCliente({ meta: metaInicial }: DetalheMetaClienteProp
   };
 
   return (
-    <div className= "max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6">
       {/* Cabeçalho */}
-      <div className= "flex items-start justify-between gap-4">
+      <div className="flex items-start justify-between gap-4">
         <div>
           <Link
-            href= "/metas"
-            className= "inline-flex items-center text-sm text-kx-legenda hover:text-kx-texto dark:hover:text-kx-texto-2 mb-3"
+            href="/metas"
+            className="inline-flex items-center text-sm text-kx-legenda hover:text-kx-texto dark:hover:text-kx-texto-2 mb-3"
           >
-            <ArrowLeft className= "h-4 w-4 mr-1" />
+            <ArrowLeft className="h-4 w-4 mr-1" />
             Voltar para metas
           </Link>
-          <h1 className= "text-2xl font-bold text-kx-texto">{meta.titulo}</h1>
-          <div className= "flex flex-wrap items-center gap-2 mt-2">
-            <span className= "text-xs text-kx-legenda bg-kx-superficie px-2 py-0.5 rounded">
+          <h1 className="text-2xl font-bold text-kx-texto">{meta.titulo}</h1>
+          <div className="flex flex-wrap items-center gap-2 mt-2">
+            <span className="text-xs text-kx-legenda bg-kx-superficie px-2 py-0.5 rounded">
               {labelCategoria[meta.categoria] ?? meta.categoria}
             </span>
-            <span className= "text-xs text-kx-legenda bg-kx-superficie px-2 py-0.5 rounded">
+            <span className="text-xs text-kx-legenda bg-kx-superficie px-2 py-0.5 rounded">
               {labelTipoValor[meta.tipoValor] ?? meta.tipoValor}
             </span>
-            <Badge variant= "outline" className= "text-xs">
+            <Badge variant="outline" className="text-xs">
               {ehMetaAutomatica ? "Automática" : "Manual"}
             </Badge>
             <BadgeStatusMeta status={meta.status} />
@@ -215,86 +215,86 @@ export function DetalheMetaCliente({ meta: metaInicial }: DetalheMetaClienteProp
         </div>
 
         {/* Ações */}
-        <div className= "flex flex-wrap items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           {podeAtualizar && (
-            <Button size= "sm" onClick={() => setModalProgressoAberto(true)} disabled={processando}>
-              <TrendingUp className= "h-4 w-4 mr-1" />
+            <Button size="sm" onClick={() => setModalProgressoAberto(true)} disabled={processando}>
+              <TrendingUp className="h-4 w-4 mr-1" />
               Atualizar progresso
             </Button>
           )}
           {ehMetaAutomatica && temPermissaoEditarMeta && (
             <Button
-              size= "sm"
+              size="sm"
               onClick={sincronizarAutomaticamente}
               disabled={sincronizandoAutomatica || processando}
             >
-              <TrendingUp className= "h-4 w-4 mr-1" />
+              <TrendingUp className="h-4 w-4 mr-1" />
               {sincronizandoAutomatica ? "Atualizando..." : "Atualizar agora"}
             </Button>
           )}
           {podePausar && (
-            <Button size= "sm" variant= "outline" onClick={() => alterarStatus("PAUSADA")} disabled={processando}>
-              <Pause className= "h-4 w-4 mr-1" />
+            <Button size="sm" variant="outline" onClick={() => alterarStatus("PAUSADA")} disabled={processando}>
+              <Pause className="h-4 w-4 mr-1" />
               Pausar
             </Button>
           )}
           {podeReabrir && (
-            <Button size= "sm" variant= "outline" onClick={() => alterarStatus("EM_ANDAMENTO")} disabled={processando}>
+            <Button size="sm" variant="outline" onClick={() => alterarStatus("EM_ANDAMENTO")} disabled={processando}>
               Reabrir
             </Button>
           )}
           {podeConcluir && (
             <Button
-              size= "sm"
-              variant= "outline"
-              className= "border-kx-sucesso text-kx-sucesso hover:bg-kx-sucesso-fundo dark:hover:bg-kx-sucesso-fundo"
+              size="sm"
+              variant="outline"
+              className="border-kx-sucesso text-kx-sucesso hover:bg-kx-sucesso-fundo dark:hover:bg-kx-sucesso-fundo"
               onClick={() => alterarStatus("CONCLUIDA")}
               disabled={processando}
             >
-              <CheckCircle className= "h-4 w-4 mr-1" />
+              <CheckCircle className="h-4 w-4 mr-1" />
               Concluir
             </Button>
           )}
           {podeCancelar && (
             <Button
-              size= "sm"
-              variant= "outline"
-              className= "border-kx-erro-borda text-kx-erro-texto hover:bg-kx-erro-fundo dark:hover:bg-kx-erro-fundo"
+              size="sm"
+              variant="outline"
+              className="border-kx-erro-borda text-kx-erro-texto hover:bg-kx-erro-fundo dark:hover:bg-kx-erro-fundo"
               onClick={() => alterarStatus("CANCELADA")}
               disabled={processando}
             >
-              <XCircle className= "h-4 w-4 mr-1" />
+              <XCircle className="h-4 w-4 mr-1" />
               Cancelar
             </Button>
           )}
           {temPermissaoExcluirMeta && (
-            <Button size= "sm" variant= "ghost" className= "text-kx-erro-texto hover:text-kx-erro-texto" onClick={handleExcluir} disabled={processando}>
-              <Trash2 className= "h-4 w-4" />
+            <Button size="sm" variant="ghost" className="text-kx-erro-texto hover:text-kx-erro-texto" onClick={handleExcluir} disabled={processando}>
+              <Trash2 className="h-4 w-4" />
             </Button>
           )}
         </div>
       </div>
 
       {/* Progresso e detalhes */}
-      <div className= "grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className= "md:col-span-2 p-5 border border-kx-painel-borda bg-kx-painel space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="md:col-span-2 p-5 border border-kx-painel-borda bg-kx-painel space-y-4">
           <div>
-            <p className= "text-sm text-kx-legenda mb-2">Progresso</p>
+            <p className="text-sm text-kx-legenda mb-2">Progresso</p>
             <BarraProgressoMeta progresso={meta.progresso} status={meta.status} showLabel />
           </div>
 
-          <div className= "grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
             <div>
-              <p className= "text-kx-legenda">Valor atual</p>
-              <p className= "font-semibold text-kx-texto mt-0.5">{formatarValor(meta)}</p>
+              <p className="text-kx-legenda">Valor atual</p>
+              <p className="font-semibold text-kx-texto mt-0.5">{formatarValor(meta)}</p>
             </div>
             {meta.dataPrazo && (
               <div>
-                <p className= "text-kx-legenda">Prazo</p>
+                <p className="text-kx-legenda">Prazo</p>
                 <p className={`font-semibold mt-0.5 ${prazoInfo?.atrasada ? "text-kx-erro-texto" : "text-kx-texto"}`}>
                   {formatarData(meta.dataPrazo)}
                   {prazoInfo && (
-                    <span className= "ml-1 text-xs font-normal">
+                    <span className="ml-1 text-xs font-normal">
                       ({prazoInfo.atrasada ? `-${prazoInfo.dias}d` : `+${prazoInfo.dias}d`})
                     </span>
                   )}
@@ -303,41 +303,41 @@ export function DetalheMetaCliente({ meta: metaInicial }: DetalheMetaClienteProp
             )}
             {meta.dataInicio && (
               <div>
-                <p className= "text-kx-legenda">Início</p>
-                <p className= "font-semibold text-kx-texto mt-0.5">{formatarData(meta.dataInicio)}</p>
+                <p className="text-kx-legenda">Início</p>
+                <p className="font-semibold text-kx-texto mt-0.5">{formatarData(meta.dataInicio)}</p>
               </div>
             )}
             {meta.concluidaEm && (
               <div>
-                <p className= "text-kx-legenda">Concluída em</p>
-                <p className= "font-semibold text-kx-sucesso mt-0.5">{formatarData(meta.concluidaEm)}</p>
+                <p className="text-kx-legenda">Concluída em</p>
+                <p className="font-semibold text-kx-sucesso mt-0.5">{formatarData(meta.concluidaEm)}</p>
               </div>
             )}
           </div>
 
           {meta.descricao && (
             <div>
-              <p className= "text-xs text-kx-legenda mb-1">Descrição</p>
-              <p className= "text-sm text-kx-texto whitespace-pre-wrap">{meta.descricao}</p>
+              <p className="text-xs text-kx-legenda mb-1">Descrição</p>
+              <p className="text-sm text-kx-texto whitespace-pre-wrap">{meta.descricao}</p>
             </div>
           )}
 
           {ehMetaAutomatica && (
-            <div className= "rounded-md border border-kx-info bg-kx-info-fundo p-3 space-y-2">
-              <p className= "text-xs font-semibold text-kx-info-texto">Configuração automática</p>
-              <div className= "grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-kx-texto-2">
+            <div className="rounded-md border border-kx-info bg-kx-info-fundo p-3 space-y-2">
+              <p className="text-xs font-semibold text-kx-info-texto">Configuração automática</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-kx-texto-2">
                 <p>Fonte: {meta.fonteAutomatica ?? "—"}</p>
                 <p>Métrica: {meta.metricaAutomatica ?? "—"}</p>
                 <p>Direção: {meta.direcao === "MENOR_MELHOR" ? "Quanto menor, melhor" : "Quanto maior, melhor"}</p>
                 <p>Última atualização: {meta.ultimaSincronizacaoEm ? formatarData(meta.ultimaSincronizacaoEm) : "Nunca"}</p>
               </div>
               {meta.erroSincronizacao && (
-                <p className= "text-xs text-kx-erro-texto">
+                <p className="text-xs text-kx-erro-texto">
                   Erro de sincronização: {meta.erroSincronizacao}
                 </p>
               )}
               {meta.direcao === "MENOR_MELHOR" && meta.valorAlvo !== null && (
-                <p className= "text-xs text-kx-texto-2">
+                <p className="text-xs text-kx-texto-2">
                   {meta.estaDentroMeta
                     ? `Dentro da meta. Limite: ${meta.valorAlvo}. Valor atual: ${meta.valorAtual}.`
                     : `Acima da meta. Limite: ${meta.valorAlvo}. Valor atual: ${meta.valorAtual}.`}
@@ -348,27 +348,27 @@ export function DetalheMetaCliente({ meta: metaInicial }: DetalheMetaClienteProp
         </Card>
 
         {/* Adicionar observação */}
-        <Card className= "p-4 border border-kx-painel-borda bg-kx-painel space-y-3">
-          <p className= "text-sm font-semibold text-kx-texto">Adicionar observação</p>
-          <div className= "space-y-2">
-            <Label htmlFor= "obs-nova" className= "sr-only">Observação</Label>
+        <Card className="p-4 border border-kx-painel-borda bg-kx-painel space-y-3">
+          <p className="text-sm font-semibold text-kx-texto">Adicionar observação</p>
+          <div className="space-y-2">
+            <Label htmlFor="obs-nova" className="sr-only">Observação</Label>
             <Textarea
-              id= "obs-nova"
+              id="obs-nova"
               value={novaObs}
               onChange={(e) => setNovaObs(e.target.value)}
-              placeholder= "Registre uma anotação, decisão ou contexto..."
+              placeholder="Registre uma anotação, decisão ou contexto..."
               maxLength={500}
-              className= "resize-none h-24 text-sm"
+              className="resize-none h-24 text-sm"
               disabled={salvandoObs}
             />
-            <p className= "text-xs text-kx-legenda">{novaObs.length}/500</p>
+            <p className="text-xs text-kx-legenda">{novaObs.length}/500</p>
             <Button
-              size= "sm"
-              className= "w-full"
+              size="sm"
+              className="w-full"
               onClick={salvarObservacao}
               disabled={salvandoObs || novaObs.trim().length < 2}
             >
-              <MessageSquarePlus className= "h-3.5 w-3.5 mr-1.5" />
+              <MessageSquarePlus className="h-3.5 w-3.5 mr-1.5" />
               Registrar
             </Button>
           </div>
@@ -377,7 +377,7 @@ export function DetalheMetaCliente({ meta: metaInicial }: DetalheMetaClienteProp
 
       {/* Checklist */}
       {meta.tipoValor === "CHECKLIST" && (
-        <Card className= "p-5 border border-kx-painel-borda bg-kx-painel">
+        <Card className="p-5 border border-kx-painel-borda bg-kx-painel">
           <ChecklistMeta
             metaId={meta.id}
             itens={meta.itensChecklist}
@@ -388,8 +388,8 @@ export function DetalheMetaCliente({ meta: metaInicial }: DetalheMetaClienteProp
       )}
 
       {/* Histórico */}
-      <Card className= "p-5 border border-kx-painel-borda bg-kx-painel">
-        <h2 className= "text-sm font-semibold text-kx-texto mb-4">Histórico</h2>
+      <Card className="p-5 border border-kx-painel-borda bg-kx-painel">
+        <h2 className="text-sm font-semibold text-kx-texto mb-4">Histórico</h2>
         <HistoricoMeta entradas={meta.historicos} />
       </Card>
 

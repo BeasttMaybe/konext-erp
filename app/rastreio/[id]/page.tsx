@@ -254,9 +254,9 @@ function EtapaTimeline({
     estado === "concluida" ? "bg-kx-sucesso" : "bg-kx-painel-borda";
 
   return (
-    <div className= "flex gap-4">
+    <div className="flex gap-4">
       {/* Coluna do ícone + linha conectora */}
-      <div className= "flex flex-col items-center">
+      <div className="flex flex-col items-center">
         <div
           className={`w-10 h-10 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${corFundoIcone}`}
         >
@@ -265,7 +265,7 @@ function EtapaTimeline({
           ) : estado === "atual" ? (
             <Icone className={`w-5 h-5 ${corIcone}`} />
           ) : (
-            <Circle className= "w-5 h-5 text-kx-texto-2" />
+            <Circle className="w-5 h-5 text-kx-texto-2" />
           )}
         </div>
         {/* Linha conectora vertical — oculta na última etapa */}
@@ -273,7 +273,7 @@ function EtapaTimeline({
       </div>
 
       {/* Conteúdo textual da etapa */}
-      <div className= "pb-8">
+      <div className="pb-8">
         <p className={`text-sm leading-tight ${corRotulo}`}>{rotulo}</p>
         <p className={`text-xs mt-0.5 leading-snug ${corDescricao}`}>{descricao}</p>
       </div>
@@ -298,20 +298,20 @@ export default async function RastreioPage({ params }: PageProps) {
   // OS não encontrada — exibe estado amigável sem expor detalhes internos.
   if (!os) {
     return (
-      <main className= "min-h-screen bg-kx-superficie flex items-center justify-center p-4">
-        <div className= "max-w-md w-full bg-kx-painel rounded-2xl shadow-lg p-8 text-center">
+      <main className="min-h-screen bg-kx-superficie flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-kx-painel rounded-2xl shadow-lg p-8 text-center">
           {/* Logotipo */}
-          <div className= "flex justify-center mb-6">
-            <div className= "w-12 h-12 bg-kx-primaria rounded-xl flex items-center justify-center">
-              <span className= "text-primary-foreground font-bold text-lg">K</span>
+          <div className="flex justify-center mb-6">
+            <div className="w-12 h-12 bg-kx-primaria rounded-xl flex items-center justify-center">
+              <span className="text-primary-foreground font-bold text-lg">K</span>
             </div>
           </div>
 
-          <div className= "w-16 h-16 bg-kx-erro-fundo rounded-full flex items-center justify-center mx-auto mb-4">
-            <ClipboardList className= "w-8 h-8 text-kx-erro-texto" />
+          <div className="w-16 h-16 bg-kx-erro-fundo rounded-full flex items-center justify-center mx-auto mb-4">
+            <ClipboardList className="w-8 h-8 text-kx-erro-texto" />
           </div>
-          <h1 className= "text-xl font-bold text-kx-texto mb-2">OS não encontrada</h1>
-          <p className= "text-sm text-kx-legenda leading-relaxed">
+          <h1 className="text-xl font-bold text-kx-texto mb-2">OS não encontrada</h1>
+          <p className="text-sm text-kx-legenda leading-relaxed">
             Não encontramos nenhuma Ordem de Serviço com o código informado. Verifique o link
             recebido ou entre em contato com nossa equipe.
           </p>
@@ -323,20 +323,20 @@ export default async function RastreioPage({ params }: PageProps) {
   // Bloqueia a visualização se o link expirou (entregue há mais de 6 horas).
   if (linkExpirado(os.statusAtual, os.atualizadoEm)) {
     return (
-      <main className= "min-h-screen bg-kx-superficie flex items-center justify-center p-4">
-        <div className= "max-w-md w-full bg-kx-painel rounded-2xl shadow-lg p-8 text-center">
+      <main className="min-h-screen bg-kx-superficie flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-kx-painel rounded-2xl shadow-lg p-8 text-center">
           {/* Logotipo */}
-          <div className= "flex justify-center mb-6">
-            <div className= "w-12 h-12 bg-kx-primaria rounded-xl flex items-center justify-center">
-              <span className= "text-primary-foreground font-bold text-lg">K</span>
+          <div className="flex justify-center mb-6">
+            <div className="w-12 h-12 bg-kx-primaria rounded-xl flex items-center justify-center">
+              <span className="text-primary-foreground font-bold text-lg">K</span>
             </div>
           </div>
 
-          <div className= "w-16 h-16 bg-kx-superficie rounded-full flex items-center justify-center mx-auto mb-4">
-            <Clock className= "w-8 h-8 text-kx-legenda" />
+          <div className="w-16 h-16 bg-kx-superficie rounded-full flex items-center justify-center mx-auto mb-4">
+            <Clock className="w-8 h-8 text-kx-legenda" />
           </div>
-          <h1 className= "text-xl font-bold text-kx-texto mb-2">Link expirado</h1>
-          <p className= "text-sm text-kx-legenda leading-relaxed">
+          <h1 className="text-xl font-bold text-kx-texto mb-2">Link expirado</h1>
+          <p className="text-sm text-kx-legenda leading-relaxed">
             Este link de rastreio expirou. O aparelho já foi entregue e a ordem de serviço foi encerrada.
           </p>
         </div>
@@ -350,28 +350,28 @@ export default async function RastreioPage({ params }: PageProps) {
     .join("");
 
   return (
-    <main className= "min-h-screen bg-kx-superficie py-10 px-4">
-      <div className= "max-w-2xl mx-auto space-y-5">
+    <main className="min-h-screen bg-kx-superficie py-10 px-4">
+      <div className="max-w-2xl mx-auto space-y-5">
 
         {/* Cabeçalho da página — logotipo + título */}
-        <div className= "flex flex-col items-center text-center gap-2">
+        <div className="flex flex-col items-center text-center gap-2">
           {/* Placeholder do logotipo — substituir por <Image> com o logo real */}
-          <div className= "w-12 h-12 bg-kx-primaria rounded-xl flex items-center justify-center shadow">
-            <span className= "text-primary-foreground font-bold text-lg select-none">K</span>
+          <div className="w-12 h-12 bg-kx-primaria rounded-xl flex items-center justify-center shadow">
+            <span className="text-primary-foreground font-bold text-lg select-none">K</span>
           </div>
-          <p className= "text-xs text-kx-legenda uppercase tracking-widest font-medium">
+          <p className="text-xs text-kx-legenda uppercase tracking-widest font-medium">
             Konext — Rastreio de Reparo
           </p>
         </div>
 
         {/* Card principal — identificação da OS */}
-        <div className= "bg-kx-painel rounded-2xl shadow-lg p-6 border border-kx-painel-borda">
-          <div className= "flex items-start justify-between gap-4 flex-wrap">
+        <div className="bg-kx-painel rounded-2xl shadow-lg p-6 border border-kx-painel-borda">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
-              <p className= "text-xs text-kx-legenda uppercase tracking-wider font-medium mb-0.5">
+              <p className="text-xs text-kx-legenda uppercase tracking-wider font-medium mb-0.5">
                 Ordem de Serviço
               </p>
-              <h1 className= "text-3xl font-extrabold text-kx-texto tracking-tight">
+              <h1 className="text-3xl font-extrabold text-kx-texto tracking-tight">
                 #{os.numeroOs}
               </h1>
             </div>
@@ -381,33 +381,33 @@ export default async function RastreioPage({ params }: PageProps) {
           </div>
 
           {/* Detalhes públicos da OS — sem dados sensíveis */}
-          <dl className= "mt-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className= "bg-kx-superficie rounded-xl p-3">
-              <dt className= "text-xs text-kx-legenda font-medium mb-0.5">Cliente</dt>
-              <dd className= "text-sm font-semibold text-kx-texto">{os.primeiroNomeCliente}</dd>
+          <dl className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-kx-superficie rounded-xl p-3">
+              <dt className="text-xs text-kx-legenda font-medium mb-0.5">Cliente</dt>
+              <dd className="text-sm font-semibold text-kx-texto">{os.primeiroNomeCliente}</dd>
             </div>
 
-            <div className= "bg-kx-superficie rounded-xl p-3">
-              <dt className= "text-xs text-kx-legenda font-medium mb-0.5">Equipamento</dt>
-              <dd className= "text-sm font-semibold text-kx-texto">{equipamentoCompleto}</dd>
+            <div className="bg-kx-superficie rounded-xl p-3">
+              <dt className="text-xs text-kx-legenda font-medium mb-0.5">Equipamento</dt>
+              <dd className="text-sm font-semibold text-kx-texto">{equipamentoCompleto}</dd>
             </div>
 
-            <div className= "bg-kx-superficie rounded-xl p-3">
-              <dt className= "text-xs text-kx-legenda font-medium mb-0.5">Data de Entrada</dt>
-              <dd className= "text-sm font-semibold text-kx-texto">{formatarData(os.criadoEm)}</dd>
+            <div className="bg-kx-superficie rounded-xl p-3">
+              <dt className="text-xs text-kx-legenda font-medium mb-0.5">Data de Entrada</dt>
+              <dd className="text-sm font-semibold text-kx-texto">{formatarData(os.criadoEm)}</dd>
             </div>
           </dl>
 
           {/* Relato do cliente — exibido como informação de contexto */}
-          <div className= "mt-4 p-3 bg-kx-alerta-fundo border border-kx-alerta rounded-kx-cartao">
-            <p className= "text-xs text-kx-alerta-texto font-medium mb-0.5">Problema relatado</p>
-            <p className= "text-sm text-kx-texto leading-relaxed">{os.relatoCliente}</p>
+          <div className="mt-4 p-3 bg-kx-alerta-fundo border border-kx-alerta rounded-kx-cartao">
+            <p className="text-xs text-kx-alerta-texto font-medium mb-0.5">Problema relatado</p>
+            <p className="text-sm text-kx-texto leading-relaxed">{os.relatoCliente}</p>
           </div>
         </div>
 
         {/* Card da linha do tempo — progressão visual do reparo */}
-        <div className= "bg-kx-painel rounded-2xl shadow-lg p-6 border border-kx-painel-borda">
-          <h2 className= "text-base font-bold text-kx-texto mb-6">
+        <div className="bg-kx-painel rounded-2xl shadow-lg p-6 border border-kx-painel-borda">
+          <h2 className="text-base font-bold text-kx-texto mb-6">
             Acompanhamento do Reparo
           </h2>
 
@@ -435,7 +435,7 @@ export default async function RastreioPage({ params }: PageProps) {
         </div>
 
         {/* Rodapé informativo */}
-        <p className= "text-center text-xs text-kx-legenda pb-6">
+        <p className="text-center text-xs text-kx-legenda pb-6">
           Dúvidas? Entre em contato com nossa equipe de atendimento.
           <br />
           Esta página é atualizada automaticamente conforme o andamento do reparo.

@@ -18,6 +18,7 @@ import {
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 import { decidirDestinoDoEstorno, pedidoPodeSerEstornado } from "@/lib/dominio/financeiro/estorno";
+import { registrarMovimentacaoEstoque } from "@/lib/estoque-movimentacao";
 
 const pedidoVendaItemSchema = z.object({
   produtoId: z.string().optional(),
@@ -251,6 +252,28 @@ export async function aprovarPedido(pedidoId: string): Promise<ApprovePedidoVend
         if (inventoryUpdate.count === 0) {
           throw new Error(`Estoque insuficiente para o produto ${item.nome}.`);
         }
+
+        // Fase 4: o livro de movimentacoes e gravado NESTA transacao. O saldo
+        // posterior vem de uma leitura e nao do `updateMany`, que devolve so a
+        // contagem — e o `updateMany` fica porque a guarda `gte` e o que torna
+        // a baixa atomica contra venda sem estoque.
+        // `PedidoVendaItem` nao guarda custo, so preco de venda — o custo vem
+        // do produto, na mesma leitura do saldo.
+        const produtoBaixado = await transaction.produto.findUnique({
+          where: { id: item.produtoId },
+          select: { quantidadeEstoque: true, custo: true },
+        });
+
+        await registrarMovimentacaoEstoque(transaction, {
+          produtoId: item.produtoId,
+          origem: "PEDIDO_VENDA",
+          quantidade: item.quantidade,
+          saldoPosterior: produtoBaixado?.quantidadeEstoque ?? null,
+          custoUnitario: produtoBaixado ? String(produtoBaixado.custo) : null,
+          vendaId: order.vendaId ?? null,
+          observacao: `Pedido de venda ${order.id}`,
+          registradoPorId: contexto.usuarioOperacional?.id ?? null,
+        });
       }
 
       const customerLabel =
@@ -406,7 +429,7 @@ export async function cancelarPedido(pedidoId: string): Promise<ApprovePedidoVen
           continue;
         }
 
-        await transaction.produto.update({
+        const produtoDevolvido = await transaction.produto.update({
           where: {
             id: item.produtoId,
           },
@@ -415,6 +438,18 @@ export async function cancelarPedido(pedidoId: string): Promise<ApprovePedidoVen
               increment: item.quantidade,
             },
           },
+          select: { quantidadeEstoque: true, custo: true },
+        });
+
+        await registrarMovimentacaoEstoque(transaction, {
+          produtoId: item.produtoId,
+          origem: "ESTORNO_VENDA",
+          quantidade: item.quantidade,
+          saldoPosterior: produtoDevolvido.quantidadeEstoque,
+          custoUnitario: String(produtoDevolvido.custo),
+          vendaId: order.vendaId ?? null,
+          observacao: `Estorno do pedido ${order.id}`,
+          registradoPorId: contexto.usuarioOperacional?.id ?? null,
         });
       }
 

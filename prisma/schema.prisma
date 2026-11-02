@@ -726,9 +726,91 @@ model Produto {
   quantidadeEstoque Int @default(0)
   estoqueMinimo     Int @default(3) // Alerta quando estiver acabando
 
+  movimentacoes MovimentacaoEstoque[]
+
   ativo Boolean @default(true)
   criadoEm     DateTime @default(now()) @db.Timestamptz(3)
   atualizadoEm DateTime @updatedAt @db.Timestamptz(3)
+}
+
+/**
+ * Livro de movimentacoes de estoque (Fase 4).
+ *
+ * Antes disto, `Produto.quantidadeEstoque` era um numero mutado em quatro
+ * lugares (venda do PDV, aprovacao de pedido, estorno de venda e edicao
+ * manual) sem registrar NADA. O sistema sabia quanto tinha agora e nada sobre
+ * como chegou ali: nao dava pra responder "o que entrou este mes", "esse
+ * produto gira?" nem "quem mudou esse saldo". Relatorio de estoque sem livro
+ * de movimentacao e chute.
+ *
+ * `quantidade` e SEMPRE positiva; o sinal vem de `tipo`. Guardar negativo em
+ * SAIDA faria toda soma precisar lembrar da convencao.
+ */
+model MovimentacaoEstoque {
+  id        String  @id @default(uuid())
+  produtoId String
+  produto   Produto @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+
+  tipo   TipoMovimentacaoEstoque
+  origem OrigemMovimentacaoEstoque
+
+  /** Sempre positiva. O sinal vem de `tipo`. */
+  quantidade Int
+
+  /**
+   * Saldo antes e depois do movimento. Guardados de proposito, mesmo sendo
+   * derivaveis: e o que permite conferir a continuidade do livro (o
+   * `saldoPosterior` de uma linha tem que ser o `saldoAnterior` da seguinte) e
+   * flagrar divergencia entre o livro e `Produto.quantidadeEstoque`.
+   *
+   * NULO nas linhas reconstruidas do historico de vendas no backfill: o saldo
+   * daquela epoca nunca foi registrado, e inventar um numero seria pior do que
+   * admitir que nao se sabe.
+   */
+  saldoAnterior  Int?
+  saldoPosterior Int?
+
+  /** Custo unitario no momento do movimento, pra apuracao e curva ABC. */
+  custoUnitario Decimal? @db.Decimal(12, 2)
+
+  /** Venda que originou o movimento, quando houver. */
+  vendaId String?
+
+  observacao String?
+
+  registradoPorId String?
+
+  criadoEm DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([produtoId, criadoEm])
+  @@index([criadoEm])
+  @@index([origem])
+  @@index([vendaId])
+}
+
+enum TipoMovimentacaoEstoque {
+  ENTRADA
+  SAIDA
+  AJUSTE
+}
+
+enum OrigemMovimentacaoEstoque {
+  /** Venda fechada no balcao (PDV). */
+  VENDA_PDV
+  /** Pedido de venda aprovado. */
+  PEDIDO_VENDA
+  /** Estorno de venda: devolve a peca ao estoque. */
+  ESTORNO_VENDA
+  /** Saldo informado no cadastro do produto. */
+  CADASTRO
+  /** Saldo corrigido a mao na tela de estoque. */
+  AJUSTE_MANUAL
+  /** Entrada por nota de compra (XML da NF-e). */
+  COMPRA_XML
+  /** Contagem de inventario. */
+  INVENTARIO
+  /** Linha reconstruida do historico de vendas no backfill. */
+  HISTORICO_RECONSTRUIDO
 }
 
 // ==========================================

@@ -17,7 +17,7 @@ type PropostaPdfViewerProps = {
 
 export function PropostaPdfViewer({ proposal, company }: PropostaPdfViewerProps) {
   return (
-    <div className= "h-screen w-full bg-kx-papel-alternado print:bg-kx-papel">
+    <div className="h-screen w-full bg-kx-papel-alternado print:bg-kx-papel">
       <PDFViewer style={{ width: "100%", height: "100%" }} showToolbar>
         <PropostaPDF proposal={proposal} company={company} />
       </PDFViewer>

@@ -110,55 +110,55 @@ export const metadata = {
 
 export default function SalesHubPage() {
  return (
- <div className= "w-full flex flex-col bg-transparent">
- <div className= "border-b border-kx-painel-borda bg-kx-painel px-6 py-6 lg:px-8">
- <div className= "mx-auto max-w-7xl">
- <div className= "inline-flex items-center rounded-full border border-kx-primaria bg-kx-info-fundo px-3 py-1 text-xs font-medium uppercase tracking-[0.24em] text-kx-link">
+ <div className="w-full flex flex-col bg-transparent">
+ <div className="border-b border-kx-painel-borda bg-kx-painel px-6 py-6 lg:px-8">
+ <div className="mx-auto max-w-7xl">
+ <div className="inline-flex items-center rounded-full border border-kx-primaria bg-kx-info-fundo px-3 py-1 text-xs font-medium uppercase tracking-[0.24em] text-kx-link">
  Ecossistema Comercial
  </div>
- <h1 className= "mt-4 text-3xl font-semibold tracking-tight text-kx-texto lg:text-4xl">
+ <h1 className="mt-4 text-3xl font-semibold tracking-tight text-kx-texto lg:text-4xl">
  Hub de Vendas
  </h1>
- <p className= "mt-3 max-w-3xl text-sm leading-6 text-kx-texto-2/80 lg:text-base">
+ <p className="mt-3 max-w-3xl text-sm leading-6 text-kx-texto-2/80 lg:text-base">
  Navegue pelos blocos estratégicos da operação comercial com uma visão clara entre gestão, logística e serviços.
  </p>
  </div>
  </div>
 
- <div className= "px-6 py-6 lg:px-8">
- <div className= "mx-auto max-w-7xl space-y-8">
+ <div className="px-6 py-6 lg:px-8">
+ <div className="mx-auto max-w-7xl space-y-8">
  {hubSections.map((section) => (
- <section key={section.title} className= "space-y-4">
- <div className= "flex flex-col gap-2">
- <h2 className= "text-xl font-semibold text-kx-texto">{section.title}</h2>
- <p className= "text-sm text-kx-legenda">{section.description}</p>
+ <section key={section.title} className="space-y-4">
+ <div className="flex flex-col gap-2">
+ <h2 className="text-xl font-semibold text-kx-texto">{section.title}</h2>
+ <p className="text-sm text-kx-legenda">{section.description}</p>
  </div>
 
- <div className= "grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+ <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
  {section.links.map((link) => {
  const Icon = link.icon;
 
  return (
- <Link key={link.title} href={link.href} className= "group block">
- <Card className= "relative h-full overflow-hidden rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-6 shadow-kx-painel transition-all duration-300 hover:-translate-y-1 hover:border-kx-primaria hover:bg-kx-superficie hover:shadow-kx-flutuante">
+ <Link key={link.title} href={link.href} className="group block">
+ <Card className="relative h-full overflow-hidden rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-6 shadow-kx-painel transition-all duration-300 hover:-translate-y-1 hover:border-kx-primaria hover:bg-kx-superficie hover:shadow-kx-flutuante">
  <div className={`absolute inset-0 bg-gradient-to-br ${link.accentClass} opacity-80 transition-opacity duration-300 group-hover:opacity-100`} />
- <div className= "absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.12),transparent_42%)]" />
+ <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.12),transparent_42%)]" />
 
- <div className= "relative flex h-full flex-col justify-between gap-8">
- <div className= "space-y-4">
- <div className= "inline-flex h-12 w-12 items-center justify-center rounded-kx-cartao border border-kx-painel-borda bg-kx-cartao text-kx-texto shadow-inner shadow-kx-cartao">
- <Icon className= "h-5 w-5" />
+ <div className="relative flex h-full flex-col justify-between gap-8">
+ <div className="space-y-4">
+ <div className="inline-flex h-12 w-12 items-center justify-center rounded-kx-cartao border border-kx-painel-borda bg-kx-cartao text-kx-texto shadow-inner shadow-kx-cartao">
+ <Icon className="h-5 w-5" />
  </div>
 
- <div className= "space-y-2">
- <h3 className= "text-lg font-semibold text-kx-texto">{link.title}</h3>
- <p className= "text-sm leading-6 text-kx-texto-2/75">{link.description}</p>
+ <div className="space-y-2">
+ <h3 className="text-lg font-semibold text-kx-texto">{link.title}</h3>
+ <p className="text-sm leading-6 text-kx-texto-2/75">{link.description}</p>
  </div>
  </div>
 
- <div className= "flex items-center justify-between border-t border-kx-painel-borda pt-4 text-sm font-medium text-kx-texto/90">
+ <div className="flex items-center justify-between border-t border-kx-painel-borda pt-4 text-sm font-medium text-kx-texto/90">
  <span>Acessar módulo</span>
- <ArrowRight className= "h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+ <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
  </div>
  </div>
  </Card>
