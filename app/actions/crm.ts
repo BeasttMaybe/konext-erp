@@ -230,7 +230,6 @@ export async function criarCliente(
     const cliente = await prisma.cliente.create({ data: payload });
 
     revalidatePath("/crm");
-    revalidatePath("/crm/contatos");
 
     return {
       sucesso: true,
@@ -307,7 +306,6 @@ export async function excluirCliente(
     });
 
     revalidatePath("/crm");
-    revalidatePath("/crm/contatos");
 
     return {
       sucesso: true,
@@ -400,7 +398,6 @@ export async function atualizarCliente(
     });
 
     revalidatePath("/crm");
-    revalidatePath("/crm/contatos");
 
     return {
       sucesso: true,

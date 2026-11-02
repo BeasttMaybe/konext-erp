@@ -2058,3 +2058,98 @@ export async function excluirMeta(id: string): Promise<ResultadoAcao> {
     return { sucesso: false, erro: "Não foi possível excluir a meta." };
   }
 }
+
+/**
+ * Sincroniza as metas automáticas de UM tenant, recebendo o client por
+ * parâmetro em vez de resolver sessão.
+ *
+ * Existe porque a sincronização automática só rodava quando alguém clicava:
+ * ou no botão da tela de Metas, ou no botão do detalhe de uma meta. Uma meta
+ * automática guarda a fonte (OS, PDV, financeiro…) e a métrica (faturamento,
+ * quantidade, ticket médio…), a conta estava certa — e nunca era executada.
+ * Era exatamente isso o "parte funciona e os dados não se cruzam".
+ *
+ * Fica neste arquivo, e não em `lib/`, porque `executarCalculoMetaAutomatica`
+ * e os cinco helpers de período e filtro que ela usa estão aqui. Movê-los
+ * para `lib/metas/` é o certo e está no escopo da Fase 2B (camada de
+ * domínio); fazer esse arrasto agora, só para habilitar o cron, seria
+ * carregar o risco de uma refatoração grande sem precisar.
+ *
+ * Não chama `revalidatePath`: quem chama é o cron, fora de qualquer
+ * requisição de usuário, e revalidar cache de rota dali não faz sentido.
+ */
+export async function sincronizarMetasAutomaticasDoTenant(
+  prisma: PrismaMetasClient,
+  fusoHorario: string = FUSO_HORARIO_PADRAO,
+  usuarioId: string | null = null
+): Promise<{ verificadas: number; atualizadas: number; falhas: number }> {
+  const metasAutomaticas = await prisma.meta.findMany({
+    where: { excluidaEm: null, origemProgresso: "AUTOMATICA" },
+    select: {
+      id: true,
+      titulo: true,
+      criadoPorId: true,
+      origemProgresso: true,
+      fonteAutomatica: true,
+      metricaAutomatica: true,
+      configuracaoAutomatica: true,
+      dataInicio: true,
+      dataPrazo: true,
+      valorAtual: true,
+      tipoValor: true,
+      unidade: true,
+      erroSincronizacao: true,
+    },
+    orderBy: { criadoEm: "asc" },
+  });
+
+  let atualizadas = 0;
+  let falhas = 0;
+
+  for (const meta of metasAutomaticas) {
+    const calculo = await executarCalculoMetaAutomatica(prisma, meta, fusoHorario);
+
+    if (!calculo.sucesso) {
+      // Grava o motivo na própria meta: sem isso, a tela mostraria um valor
+      // velho sem nada dizendo que a última sincronização falhou.
+      await prisma.meta.update({
+        where: { id: meta.id },
+        data: { erroSincronizacao: calculo.erro },
+      });
+      falhas += 1;
+      continue;
+    }
+
+    const valorNovo = Number(calculo.valorAtual.toFixed(2));
+    const valorAnterior = numeroDaMeta(meta.valorAtual);
+    const houveMudanca = valorNovo !== valorAnterior;
+
+    await prisma.$transaction(async (tx) => {
+      await tx.meta.update({
+        where: { id: meta.id },
+        data: {
+          valorAtual: valorNovo,
+          ultimaSincronizacaoEm: new Date(),
+          erroSincronizacao: null,
+        },
+      });
+
+      if (houveMudanca) {
+        await tx.historicoMeta.create({
+          data: {
+            metaId: meta.id,
+            tipo: "SINCRONIZACAO_AUTOMATICA",
+            descricao: mensagemSincronizacao(valorAnterior, valorNovo, meta.unidade, meta.tipoValor),
+            valorAnterior,
+            valorNovo,
+            criadoPorId: usuarioId,
+          },
+        });
+      }
+    });
+
+    if (houveMudanca) atualizadas += 1;
+  }
+
+  return { verificadas: metasAutomaticas.length, atualizadas, falhas };
+}

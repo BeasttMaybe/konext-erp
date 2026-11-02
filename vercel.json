@@ -1,0 +1,13 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/cron/verificar-vencimentos",
+      "schedule": "0 11 * * *"
+    },
+    {
+      "path": "/api/cron/sincronizar-metas",
+      "schedule": "25 11 * * *"
+    }
+  ]
+}
