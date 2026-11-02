@@ -119,6 +119,8 @@ export type LinhaMetaLista = {
   valorAlvo: number | null;
   valorAtual: number;
   unidade: string | null;
+  /** Necessária para o ritmo: o esperado de hoje depende do intervalo todo. */
+  dataInicio: string | null;
   dataPrazo: string | null;
   prioridade: PrioridadeMeta;
   status: StatusMeta;
@@ -133,7 +135,6 @@ export type LinhaMetaLista = {
 };
 
 export type DetalhesMeta = LinhaMetaLista & {
-  dataInicio: string | null;
   concluidaEm: string | null;
   canceladaEm: string | null;
   configuracaoAutomatica: ConfiguracaoAutomaticaMeta | null;
@@ -965,6 +966,7 @@ export async function listarMetas(
           valorAlvo: true,
           valorAtual: true,
           unidade: true,
+          dataInicio: true,
           dataPrazo: true,
           prioridade: true,
           status: true,
@@ -1004,6 +1006,7 @@ export async function listarMetas(
         valorAlvo: numeroDaMetaOuNulo(m.valorAlvo),
         valorAtual: numeroDaMeta(m.valorAtual),
         unidade: m.unidade,
+        dataInicio: serializarData(m.dataInicio),
         dataPrazo: serializarData(m.dataPrazo),
         prioridade: m.prioridade,
         status: m.status,
