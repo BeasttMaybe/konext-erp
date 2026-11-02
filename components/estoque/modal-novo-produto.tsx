@@ -28,6 +28,7 @@ import {
   formProdutoSchema,
   type FormProduto,
 } from "@/lib/validations/estoque";
+import { deDecimal, subtrair } from "@/lib/dinheiro";
 
 interface PropsModalNovoProduto {
   aberto: boolean;
@@ -77,7 +78,15 @@ export function ModalNovoProduto({
 
   const margemBruta = useMemo(() => {
     if (precoVenda <= 0) return 0;
-    return ((precoVenda - custo) / precoVenda) * 100;
+
+    // Fase 2A-3: a subtracao sai do float. `19.90 - 12.30` em ponto
+    // flutuante da 7.600000000000001; em centavo da 760, e a margem que a
+    // tela mostra passa a ser a mesma que o relatorio de lucro vai calcular
+    // depois sobre os mesmos dois numeros.
+    const precoVendaCentavos = deDecimal(precoVenda);
+    const lucroCentavos = subtrair(precoVendaCentavos, deDecimal(custo));
+
+    return (lucroCentavos / precoVendaCentavos) * 100;
   }, [custo, precoVenda]);
 
   useEffect(() => {
