@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { exigirPermissao, temPermissao } from "@/lib/auth/permissoes";
+import { registrarMovimentacaoEstoque } from "@/lib/estoque-movimentacao";
 import {
   mensagemIndicaRuntimeLegadoConfiguracao,
   obterDefaultsConfiguracaoOsGarantias,
@@ -1018,8 +1019,17 @@ type ResultadoBaixaEstoqueItem = {
  */
 async function baixarEstoqueVenda(
   tx: Prisma.TransactionClient,
-  itens: Array<{ produtoId: string; nome: string; quantidade: number }>,
-  permitirVendaSemEstoque: boolean
+  itens: Array<{
+    produtoId: string;
+    nome: string;
+    quantidade: number;
+    custoUnitario?: number | string | null;
+  }>,
+  permitirVendaSemEstoque: boolean,
+  // Fase 4: o livro de movimentacoes e gravado NESTA transacao, logo depois da
+  // baixa. Se pudesse falhar sozinho, o livro divergiria do saldo e o sistema
+  // voltaria a nao saber como chegou no numero que mostra.
+  contexto?: { vendaId?: string | null; registradoPorId?: string | null }
 ): Promise<ResultadoBaixaEstoqueItem[]> {
   const resultados: ResultadoBaixaEstoqueItem[] = [];
 
@@ -1060,6 +1070,16 @@ async function baixarEstoqueVenda(
         select: { nome: true, quantidadeEstoque: true, estoqueMinimo: true },
       });
     }
+
+    await registrarMovimentacaoEstoque(tx, {
+      produtoId: item.produtoId,
+      origem: "VENDA_PDV",
+      quantidade: item.quantidade,
+      saldoPosterior: produtoAtualizado.quantidadeEstoque,
+      custoUnitario: item.custoUnitario ?? null,
+      vendaId: contexto?.vendaId ?? null,
+      registradoPorId: contexto?.registradoPorId ?? null,
+    });
 
     resultados.push({
       produtoId: item.produtoId,
@@ -1224,8 +1244,10 @@ export async function processarVenda(
           produtoId: item.produtoId,
           nome: item.nome,
           quantidade: item.quantidade,
+          custoUnitario: item.custoUnitario ?? null,
         })),
-        configuracaoPdv.permitirVendaSemEstoque
+        configuracaoPdv.permitirVendaSemEstoque,
+        { vendaId, registradoPorId: sessionUser?.id ?? null }
       );
 
       const contaReceberDelegate = obterDelegateComFallback(
@@ -1668,8 +1690,10 @@ export async function processarVendaComOSNoPDV(
           produtoId: item.produtoId,
           nome: item.nome,
           quantidade: item.quantidade,
+          custoUnitario: item.custoUnitario ?? null,
         })),
-        configuracaoPdv.permitirVendaSemEstoque
+        configuracaoPdv.permitirVendaSemEstoque,
+        { vendaId, registradoPorId: sessionUser?.id ?? null }
       );
 
       for (const pagamento of pagamentosProcessados) {

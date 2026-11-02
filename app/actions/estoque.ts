@@ -7,6 +7,7 @@ import { exigirPermissao, temPermissao } from "@/lib/auth/permissoes";
 import { mensagemDeErroConhecido } from "@/lib/erros";
 import { formProdutoSchema, type FormProduto } from "@/lib/validations/estoque";
 import { deDecimal, paraMoeda } from "@/lib/dinheiro";
+import { registrarMovimentacaoEstoque } from "@/lib/estoque-movimentacao";
 
 type ResultadoCriarProduto =
   | { sucesso: true; mensagem: string }
@@ -19,18 +20,36 @@ export async function criarProduto(data: FormProduto): Promise<ResultadoCriarPro
     const prisma = contexto.prisma;
     const dadosValidados = formProdutoSchema.parse(data);
 
-    await prisma.produto.create({
-      data: {
-        nome: dadosValidados.nome.trim(),
-        codigoBarras: dadosValidados.codigoBarras?.trim() || null,
-        imagemUrl: dadosValidados.imagemUrl?.trim() || null,
-        descricao: dadosValidados.descricao?.trim() || null,
-        categoria: dadosValidados.categoria,
-        custo: dadosValidados.custo,
-        precoVenda: dadosValidados.precoVenda,
-        quantidadeEstoque: dadosValidados.quantidadeEstoque,
-        estoqueMinimo: dadosValidados.estoqueMinimo,
-      },
+    // Fase 4: produto e saldo inicial nascem na MESMA transacao do movimento
+    // que explica esse saldo. Sem isso, o primeiro numero de todo produto
+    // apareceria no livro como se tivesse surgido do nada.
+    await prisma.$transaction(async (tx) => {
+      const criado = await tx.produto.create({
+        data: {
+          nome: dadosValidados.nome.trim(),
+          codigoBarras: dadosValidados.codigoBarras?.trim() || null,
+          imagemUrl: dadosValidados.imagemUrl?.trim() || null,
+          descricao: dadosValidados.descricao?.trim() || null,
+          categoria: dadosValidados.categoria,
+          custo: dadosValidados.custo,
+          precoVenda: dadosValidados.precoVenda,
+          quantidadeEstoque: dadosValidados.quantidadeEstoque,
+          estoqueMinimo: dadosValidados.estoqueMinimo,
+        },
+        select: { id: true, quantidadeEstoque: true },
+      });
+
+      if (criado.quantidadeEstoque > 0) {
+        await registrarMovimentacaoEstoque(tx, {
+          produtoId: criado.id,
+          origem: "CADASTRO",
+          quantidade: criado.quantidadeEstoque,
+          saldoPosterior: criado.quantidadeEstoque,
+          custoUnitario: dadosValidados.custo,
+          observacao: "Saldo informado no cadastro do produto",
+          registradoPorId: contexto.usuarioOperacional?.id ?? null,
+        });
+      }
     });
 
     revalidatePath("/estoque");
@@ -198,19 +217,51 @@ export async function atualizarProduto(
     const prisma = contexto.prisma;
     const dadosValidados = formProdutoSchema.parse(data);
 
-    await prisma.produto.update({
-      where: { id },
-      data: {
-        nome: dadosValidados.nome.trim(),
-        codigoBarras: dadosValidados.codigoBarras?.trim() || null,
-        imagemUrl: dadosValidados.imagemUrl?.trim() || null,
-        descricao: dadosValidados.descricao?.trim() || null,
-        categoria: dadosValidados.categoria,
-        custo: dadosValidados.custo,
-        precoVenda: dadosValidados.precoVenda,
-        quantidadeEstoque: dadosValidados.quantidadeEstoque,
-        estoqueMinimo: dadosValidados.estoqueMinimo,
-      },
+    await prisma.$transaction(async (tx) => {
+      // Le o saldo ANTES de escrever: e a unica forma de saber se a edicao
+      // mexeu no estoque, e de quanto foi a diferenca.
+      const antes = await tx.produto.findUnique({
+        where: { id },
+        select: { quantidadeEstoque: true },
+      });
+
+      await tx.produto.update({
+        where: { id },
+        data: {
+          nome: dadosValidados.nome.trim(),
+          codigoBarras: dadosValidados.codigoBarras?.trim() || null,
+          imagemUrl: dadosValidados.imagemUrl?.trim() || null,
+          descricao: dadosValidados.descricao?.trim() || null,
+          categoria: dadosValidados.categoria,
+          custo: dadosValidados.custo,
+          precoVenda: dadosValidados.precoVenda,
+          quantidadeEstoque: dadosValidados.quantidadeEstoque,
+          estoqueMinimo: dadosValidados.estoqueMinimo,
+        },
+      });
+
+      const saldoNovo = dadosValidados.quantidadeEstoque;
+      const saldoVelho = antes?.quantidadeEstoque ?? null;
+
+      // Edicao que nao toca no saldo nao vira movimento: o livro e de estoque,
+      // nao de cadastro. Trocar o nome do produto nao e entrada nem saida.
+      if (saldoVelho !== null && saldoNovo !== saldoVelho) {
+        const diferenca = saldoNovo - saldoVelho;
+
+        await registrarMovimentacaoEstoque(tx, {
+          produtoId: id,
+          origem: "AJUSTE_MANUAL",
+          tipo: "AJUSTE",
+          quantidade: Math.abs(diferenca),
+          saldoPosterior: saldoNovo,
+          custoUnitario: dadosValidados.custo,
+          observacao:
+            diferenca > 0
+              ? `Saldo corrigido a mao de ${saldoVelho} para ${saldoNovo} (+${diferenca})`
+              : `Saldo corrigido a mao de ${saldoVelho} para ${saldoNovo} (${diferenca})`,
+          registradoPorId: contexto.usuarioOperacional?.id ?? null,
+        });
+      }
     });
 
     revalidatePath("/estoque");
