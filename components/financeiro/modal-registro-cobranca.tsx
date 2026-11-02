@@ -1,9 +1,9 @@
 "use client";
 
-import { useForm, Controller, type FieldValues } from "react-hook-form";
-import type { Resolver } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { useForm, Controller, type FieldValues } from"react-hook-form";
+import type { Resolver } from"react-hook-form";
+import { zodResolver } from"@hookform/resolvers/zod";
+import { z } from"zod";
 import {
   Dialog,
   DialogContent,
@@ -11,24 +11,24 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from"@/components/ui/dialog";
+import { Button } from"@/components/ui/button";
+import { Input } from"@/components/ui/input";
+import { Label } from"@/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Calendar, Loader2 } from "lucide-react";
+} from"@/components/ui/select";
+import { Calendar, Loader2 } from"lucide-react";
 import {
   formRegistroCobrancaSchema,
   FormRegistroCobranca,
   opçõesCanalContato,
   opçõesStatusNegociacao,
-} from "@/lib/validations/financeiro";
+} from"@/lib/validations/financeiro";
 
 interface PropsModalRegistroCobranca {
   aberto: boolean;
@@ -51,9 +51,8 @@ export function ModalRegistroCobranca({
 }: PropsModalRegistroCobranca) {
   const hoje = new Date();
   const hojeInput = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(
-    2,
-    "0"
-  )}-${String(hoje.getDate()).padStart(2, "0")}`;
+    2,"0"
+  )}-${String(hoje.getDate()).padStart(2,"0")}`;
 
   const {
     control,
@@ -66,10 +65,10 @@ export function ModalRegistroCobranca({
     defaultValues: {
       clienteId,
       dataContato: hojeInput,
-      canalContato: "WHATSAPP",
-      statusNegociacao: "NAO_ATENDEU",
-      dataPromessaPagamento: "",
-      observacoes: "",
+      canalContato:"WHATSAPP",
+      statusNegociacao:"NAO_ATENDEU",
+      dataPromessaPagamento:"",
+      observacoes:"",
     },
   });
 
@@ -105,7 +104,7 @@ export function ModalRegistroCobranca({
             {/* Canal de Contato */}
             <div>
               <Label htmlFor="canalContato" className="text-base font-semibold">
-                Canal de Contato <span className="text-red-500">*</span>
+                Canal de Contato <span className="text-kx-erro-texto">*</span>
               </Label>
               <Controller
                 name="canalContato"
@@ -114,7 +113,7 @@ export function ModalRegistroCobranca({
                   <>
                     <Select value={field.value} onValueChange={field.onChange}>
                       <SelectTrigger
-                        className={errors.canalContato ? "border-red-500" : ""}
+                        className={errors.canalContato ?"border-kx-erro-borda" :""}
                       >
                         <SelectValue placeholder="Selecione o canal..." />
                       </SelectTrigger>
@@ -127,7 +126,7 @@ export function ModalRegistroCobranca({
                       </SelectContent>
                     </Select>
                     {errors.canalContato?.message && (
-                      <p className="text-sm text-red-500 mt-1">
+                      <p className="text-sm text-kx-erro-texto mt-1">
                         {String(errors.canalContato.message)}
                       </p>
                     )}
@@ -142,7 +141,7 @@ export function ModalRegistroCobranca({
                 htmlFor="statusNegociacao"
                 className="text-base font-semibold"
               >
-                Status da Negociação <span className="text-red-500">*</span>
+                Status da Negociação <span className="text-kx-erro-texto">*</span>
               </Label>
               <Controller
                 name="statusNegociacao"
@@ -152,7 +151,7 @@ export function ModalRegistroCobranca({
                     <Select value={field.value} onValueChange={field.onChange}>
                       <SelectTrigger
                         className={
-                          errors.statusNegociacao ? "border-red-500" : ""
+                          errors.statusNegociacao ?"border-kx-erro-borda" :""
                         }
                       >
                         <SelectValue placeholder="Selecione o status..." />
@@ -166,7 +165,7 @@ export function ModalRegistroCobranca({
                       </SelectContent>
                     </Select>
                     {errors.statusNegociacao?.message && (
-                      <p className="text-sm text-red-500 mt-1">
+                      <p className="text-sm text-kx-erro-texto mt-1">
                         {String(errors.statusNegociacao.message)}
                       </p>
                     )}
@@ -178,7 +177,7 @@ export function ModalRegistroCobranca({
             {/* Data de Contato */}
             <div>
               <Label htmlFor="dataContato" className="text-base font-semibold">
-                Data do Contato <span className="text-red-500">*</span>
+                Data do Contato <span className="text-kx-erro-texto">*</span>
               </Label>
               <Controller
                 name="dataContato"
@@ -190,16 +189,16 @@ export function ModalRegistroCobranca({
                         id="dataContato"
                         type="date"
                         {...field}
-                        value={String(field.value ?? "")}
+                        value={String(field.value ??"")}
                         onChange={(e) => field.onChange(e.target.value)}
                         className={`pr-10 ${
-                          errors.dataContato ? "border-red-500" : ""
+                          errors.dataContato ?"border-kx-erro-borda" :""
                         }`}
                       />
-                      <Calendar className="absolute right-3 top-3 h-4 w-4 text-gray-400 pointer-events-none" />
+                      <Calendar className="absolute right-3 top-3 h-4 w-4 text-kx-legenda pointer-events-none" />
                     </div>
                     {errors.dataContato?.message && (
-                      <p className="text-sm text-red-500 mt-1">
+                      <p className="text-sm text-kx-erro-texto mt-1">
                         {String(errors.dataContato.message)}
                       </p>
                     )}
@@ -209,14 +208,14 @@ export function ModalRegistroCobranca({
             </div>
 
             {/* Data de Promessa de Pagamento - Condicional */}
-            {statusNegociacao === "PROMESSA_PAGAMENTO" && (
+            {statusNegociacao ==="PROMESSA_PAGAMENTO" && (
               <div>
                 <Label
                   htmlFor="dataPromessaPagamento"
                   className="text-base font-semibold"
                 >
-                  Data da Promessa de Pagamento{" "}
-                  <span className="text-red-500">*</span>
+                  Data da Promessa de Pagamento{""}
+                  <span className="text-kx-erro-texto">*</span>
                 </Label>
                 <Controller
                   name="dataPromessaPagamento"
@@ -228,18 +227,18 @@ export function ModalRegistroCobranca({
                           id="dataPromessaPagamento"
                           type="date"
                           {...field}
-                          value={String(field.value ?? "")}
+                          value={String(field.value ??"")}
                           onChange={(e) => field.onChange(e.target.value)}
                           className={`pr-10 ${
                             errors.dataPromessaPagamento
-                              ? "border-red-500"
-                              : ""
+                              ?"border-kx-erro-borda"
+                              :""
                           }`}
                         />
-                        <Calendar className="absolute right-3 top-3 h-4 w-4 text-gray-400 pointer-events-none" />
+                        <Calendar className="absolute right-3 top-3 h-4 w-4 text-kx-legenda pointer-events-none" />
                       </div>
                       {errors.dataPromessaPagamento?.message && (
-                        <p className="text-sm text-red-500 mt-1">
+                        <p className="text-sm text-kx-erro-texto mt-1">
                           {String(errors.dataPromessaPagamento.message)}
                         </p>
                       )}
@@ -252,7 +251,7 @@ export function ModalRegistroCobranca({
             {/* Observações/Resumo da Conversa */}
             <div>
               <Label htmlFor="observacoes" className="text-base font-semibold">
-                Resumo da Conversa <span className="text-red-500">*</span>
+                Resumo da Conversa <span className="text-kx-erro-texto">*</span>
               </Label>
               <Controller
                 name="observacoes"
@@ -263,14 +262,14 @@ export function ModalRegistroCobranca({
                       id="observacoes"
                       placeholder="Descreva o resultado da abordagem, compromissos, motivos da inadimplência, etc..."
                       {...field}
-                      value={field.value || ""}
+                      value={field.value ||""}
                       rows={4}
                       className={`w-full px-3 py-2 border rounded-md bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent ${
-                        errors.observacoes ? "border-red-500" : "border-input"
+                        errors.observacoes ?"border-kx-erro-borda" :"border-input"
                       }`}
                     />
                     {errors.observacoes?.message && (
-                      <p className="text-sm text-red-500 mt-1">
+                      <p className="text-sm text-kx-erro-texto mt-1">
                         {String(errors.observacoes.message)}
                       </p>
                     )}
@@ -292,7 +291,7 @@ export function ModalRegistroCobranca({
             </Button>
             <Button
               type="submit"
-              className="bg-amber-600 hover:bg-amber-700"
+              className="bg-kx-alerta hover:bg-kx-alerta-icone"
               disabled={carregando}
             >
               {carregando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

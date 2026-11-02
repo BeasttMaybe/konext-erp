@@ -42,6 +42,64 @@ const PADRAO_TAILWIND_SOLTO = new RegExp(
   `\\b(?:${PREFIXOS_UTILITARIO.join("|")})-(?:${CORES_TAILWIND.join("|")})(?:-[0-9]{2,3})?\\b`
 );
 
+/**
+ * Atributos JSX que carregam texto LIDO POR UMA PESSOA, nunca estilo. Cor
+ * hardcoded não aparece em nenhum deles; número sim, e com `#` na frente.
+ *
+ * Existe porque `placeholder="Ex: Fatura #123 - Serviços de Manutenção"` era
+ * acusado de cor hex hardcoded: `#123` casa com `#RGB`. As duas saídas ruins
+ * eram reescrever o texto que o usuário lê para agradar um lint, ou pôr o
+ * arquivo na lista de exceção e perder a regra inteira nele. A terceira é
+ * esta: a regra deixa de olhar onde cor nunca mora.
+ *
+ * `className` e `style` continuam sendo checados, e qualquer string fora de
+ * atributo JSX (CSS-in-JS, objeto de estilo, string em `.ts`) também.
+ */
+const ATRIBUTOS_DE_TEXTO = new Set([
+  "placeholder",
+  "title",
+  "alt",
+  "label",
+  "aria-label",
+  "aria-description",
+  "aria-placeholder",
+  "aria-roledescription",
+  "aria-valuetext",
+  "content",
+  "href",
+  "src",
+  "pattern",
+  "autoComplete",
+  "id",
+  "name",
+  "htmlFor",
+  "key",
+]);
+
+function ehTextoParaPessoa(node) {
+  const pai = node.parent;
+  if (!pai) return false;
+
+  // <input placeholder="..."> — literal direto no atributo.
+  if (pai.type === "JSXAttribute") {
+    return ATRIBUTOS_DE_TEXTO.has(nomeDoAtributo(pai));
+  }
+
+  // <input placeholder={`...${x}`}> — dentro de template no atributo.
+  const container = pai.type === "TemplateLiteral" ? pai.parent : pai;
+  if (container?.type === "JSXExpressionContainer" && container.parent?.type === "JSXAttribute") {
+    return ATRIBUTOS_DE_TEXTO.has(nomeDoAtributo(container.parent));
+  }
+
+  return false;
+}
+
+function nomeDoAtributo(atributo) {
+  const nome = atributo.name;
+  if (!nome) return "";
+  return nome.type === "JSXNamespacedName" ? `${nome.namespace.name}:${nome.name.name}` : nome.name;
+}
+
 function criarRegraTexto(padrao, mensagem) {
   return {
     meta: {
@@ -51,9 +109,11 @@ function criarRegraTexto(padrao, mensagem) {
     },
     create(context) {
       function checar(node, valor) {
-        if (typeof valor === "string" && padrao.test(valor)) {
-          context.report({ node, message: mensagem });
-        }
+        if (typeof valor !== "string") return;
+        if (!padrao.test(valor)) return;
+        if (ehTextoParaPessoa(node)) return;
+
+        context.report({ node, message: mensagem });
       }
 
       return {

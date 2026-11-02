@@ -1,6 +1,6 @@
 "use client";
 
-import { ContaAPagar, StatusConta } from "@/types/financeiro";
+import { ContaAPagar, StatusConta } from"@/types/financeiro";
 import {
   Table,
   TableBody,
@@ -8,17 +8,17 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import type { BadgeProps } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+} from"@/components/ui/table";
+import { Badge } from"@/components/ui/badge";
+import type { BadgeProps } from"@/components/ui/badge";
+import { Button } from"@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from"@/components/ui/dropdown-menu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,9 +27,9 @@ import {
   AlertDialogDescription,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { MoreHorizontal, Trash2, Check } from "lucide-react";
-import { useState } from "react";
+} from"@/components/ui/alert-dialog";
+import { MoreHorizontal, Trash2, Check } from"lucide-react";
+import { useState } from"react";
 
 interface TabelaContasAPagarProps {
   contas: ContaAPagar[];
@@ -57,8 +57,8 @@ export function TabelaContasAPagar({
   // Formatar moeda
   const formatarMoeda = (valor: number): string => {
     return new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: "BRL",
+      style:"currency",
+      currency:"BRL",
     }).format(valor);
   };
 
@@ -67,18 +67,18 @@ export function TabelaContasAPagar({
     status: StatusConta
   ): { label: string; variant: BadgeProps["variant"] } => {
     const mapeamento: Record<StatusConta, { label: string; variant: BadgeProps["variant"] }> = {
-      PENDENTE: { label: "Pendente", variant: "secondary" },
-      PAGO: { label: "Pago", variant: "default" },
-      ATRASADO: { label: "Atrasado", variant: "destructive" },
-      CANCELADO: { label: "Cancelado", variant: "outline" },
+      PENDENTE: { label:"Pendente", variant:"secondary" },
+      PAGO: { label:"Pago", variant:"default" },
+      ATRASADO: { label:"Atrasado", variant:"destructive" },
+      CANCELADO: { label:"Cancelado", variant:"outline" },
     };
     return mapeamento[status];
   };
 
   if (contas.length === 0) {
     return (
-      <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-8 text-center">
-        <p className="text-zinc-500 dark:text-zinc-400">
+      <div className="rounded-lg border border-kx-painel-borda p-8 text-center">
+        <p className="text-kx-legenda">
           Nenhuma conta a pagar encontrada
         </p>
       </div>
@@ -87,10 +87,10 @@ export function TabelaContasAPagar({
 
   return (
     <>
-      <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+      <div className="rounded-lg border border-kx-painel-borda overflow-hidden">
         <Table>
           <TableHeader>
-            <TableRow className="bg-zinc-50 dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-900">
+            <TableRow className="bg-kx-superficie hover:bg-kx-superficie dark:hover:bg-kx-superficie">
               <TableHead className="font-semibold">Descrição</TableHead>
               <TableHead className="font-semibold">Fornecedor</TableHead>
               <TableHead className="font-semibold text-right">Valor</TableHead>
@@ -105,18 +105,18 @@ export function TabelaContasAPagar({
               return (
                 <TableRow
                   key={conta.id}
-                  className="hover:bg-zinc-50 dark:hover:bg-zinc-900"
+                  className="hover:bg-kx-superficie dark:hover:bg-kx-superficie"
                 >
                   <TableCell className="font-medium">
                     {conta.descricao}
                   </TableCell>
-                  <TableCell className="text-zinc-600 dark:text-zinc-400">
+                  <TableCell className="text-kx-texto-2">
                     {conta.fornecedor}
                   </TableCell>
                   <TableCell className="text-right font-semibold">
                     {formatarMoeda(conta.valor)}
                   </TableCell>
-                  <TableCell className="text-zinc-600 dark:text-zinc-400">
+                  <TableCell className="text-kx-texto-2">
                     {formatarData(conta.dataVencimento)}
                   </TableCell>
                   <TableCell>
@@ -137,11 +137,11 @@ export function TabelaContasAPagar({
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-48">
-                        {conta.status !== "PAGO" && (
+                        {conta.status !=="PAGO" && (
                           <>
                             <DropdownMenuItem
                               onClick={() =>
-                                aoMarcarPago(conta.id, "PAGO")
+                                aoMarcarPago(conta.id,"PAGO")
                               }
                               className="cursor-pointer"
                             >
@@ -153,7 +153,7 @@ export function TabelaContasAPagar({
                         )}
                         <DropdownMenuItem
                           onClick={() => setContaParaDeletar(conta.id)}
-                          className="cursor-pointer text-red-600 dark:text-red-400 focus:bg-red-50 dark:focus:bg-red-950 focus:text-red-600 dark:focus:text-red-400"
+                          className="cursor-pointer text-kx-erro-texto focus:bg-kx-erro-fundo focus:text-kx-erro-texto"
                         >
                           <Trash2 className="h-4 w-4 mr-2" />
                           Excluir
@@ -192,7 +192,7 @@ export function TabelaContasAPagar({
                   setContaParaDeletar(null);
                 }
               }}
-              className="bg-red-600 hover:bg-red-700"
+              className="bg-kx-erro-solido hover:bg-kx-erro"
             >
               Excluir
             </AlertDialogAction>

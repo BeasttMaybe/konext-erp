@@ -1,17 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { buscarClientesCRM, type ClienteBuscaCRM } from "@/app/actions/crm";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { useEffect, useState } from"react";
+import { buscarClientesCRM, type ClienteBuscaCRM } from"@/app/actions/crm";
+import { Button } from"@/components/ui/button";
+import { Input } from"@/components/ui/input";
+import { Label } from"@/components/ui/label";
 
 interface SeletorClienteCRMProps {
   label: string;
   clienteSelecionado: ClienteBuscaCRM | null;
   onSelecionarCliente: (cliente: ClienteBuscaCRM) => void;
   onLimparCliente: () => void;
-  papelFiltro?: "CLIENTE" | "FORNECEDOR" | "TODOS";
+  papelFiltro?:"CLIENTE" |"FORNECEDOR" |"TODOS";
 }
 
 export function SeletorClienteCRM({
@@ -19,7 +19,7 @@ export function SeletorClienteCRM({
   clienteSelecionado,
   onSelecionarCliente,
   onLimparCliente,
-  papelFiltro = "TODOS",
+  papelFiltro ="TODOS",
 }: SeletorClienteCRMProps) {
   const [termoBusca, setTermoBusca] = useState("");
   const [resultados, setResultados] = useState<ClienteBuscaCRM[]>([]);
@@ -52,7 +52,7 @@ export function SeletorClienteCRM({
       } catch (erro) {
         if (ativo) {
           setResultados([]);
-          setErro(erro instanceof Error ? erro.message : "Erro ao buscar clientes");
+          setErro(erro instanceof Error ? erro.message :"Erro ao buscar clientes");
         }
       } finally {
         if (ativo) {
@@ -82,9 +82,9 @@ export function SeletorClienteCRM({
           autoComplete="off"
         />
 
-        {carregando && <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">⟳ Buscando...</p>}
+        {carregando && <p className="text-xs text-kx-link mt-1">⟳ Buscando...</p>}
 
-        {erro && <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">{erro}</p>}
+        {erro && <p className="text-xs text-kx-alerta-icone mt-1">{erro}</p>}
 
         {!carregando && termoBusca.trim().length >= 1 && resultados.length > 0 && (
           <div className="absolute top-full left-0 right-0 mt-1 z-kx-dropdown max-h-60 overflow-y-auto rounded-md border border-border bg-popover shadow-lg">
@@ -103,7 +103,7 @@ export function SeletorClienteCRM({
                 <div className="flex flex-col gap-0.5">
                   <p className="text-sm font-medium text-foreground">{cliente.nomeRazaoSocial}</p>
                   <p className="text-xs text-muted-foreground">
-                    {cliente.documento} {cliente.nomeFantasia ? `• ${cliente.nomeFantasia}` : ""}
+                    {cliente.documento} {cliente.nomeFantasia ? `• ${cliente.nomeFantasia}` :""}
                   </p>
                 </div>
               </button>

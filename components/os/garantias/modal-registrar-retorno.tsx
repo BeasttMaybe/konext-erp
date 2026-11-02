@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { toast } from "sonner";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
-import { registrarRetornoGarantiaOS } from "@/app/actions/garantias";
+import { useState } from"react";
+import { toast } from"sonner";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from"@/components/ui/dialog";
+import { Label } from"@/components/ui/label";
+import { Textarea } from"@/components/ui/textarea";
+import { Button } from"@/components/ui/button";
+import { registrarRetornoGarantiaOS } from"@/app/actions/garantias";
 
 type ModalRegistrarRetornoProps = {
   aberto: boolean;
@@ -46,7 +46,7 @@ export function ModalRegistrarRetorno({ aberto, termoGarantiaId, aoFechar, aoCon
         motivo,
         descricao,
         analiseTecnica,
-        resultado: "EM_ANALISE",
+        resultado:"EM_ANALISE",
       });
 
       if (!resposta.sucesso) {
@@ -84,7 +84,7 @@ export function ModalRegistrarRetorno({ aberto, termoGarantiaId, aoFechar, aoCon
               placeholder="Ex: mesmo defeito, aparelho reiniciando, tela piscando"
               maxLength={200}
             />
-            <p className="text-xs text-slate-500">{motivo.length}/200 caracteres</p>
+            <p className="text-xs text-kx-legenda">{motivo.length}/200 caracteres</p>
           </div>
 
           <div className="space-y-2">
@@ -96,7 +96,7 @@ export function ModalRegistrarRetorno({ aberto, termoGarantiaId, aoFechar, aoCon
               placeholder="Descreva os sintomas, contexto e o que foi reportado pelo cliente"
               maxLength={1000}
             />
-            <p className="text-xs text-slate-500">{descricao.length}/1000 caracteres</p>
+            <p className="text-xs text-kx-legenda">{descricao.length}/1000 caracteres</p>
           </div>
 
           <div className="space-y-2">

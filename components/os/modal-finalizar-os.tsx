@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import Link from "next/link";
-import { AlertTriangle, ArrowUpRight } from "lucide-react";
+import { useMemo, useState } from"react";
+import Link from"next/link";
+import { AlertTriangle, ArrowUpRight } from"lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -12,11 +12,11 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import type { CodigoPendenciaFinalizacao, PendenciaFinalizacao } from "@/lib/dominio/os/regras-finalizacao";
-import type { OrdemServico } from "@/types/os";
+} from"@/components/ui/alert-dialog";
+import { Input } from"@/components/ui/input";
+import { Label } from"@/components/ui/label";
+import type { CodigoPendenciaFinalizacao, PendenciaFinalizacao } from"@/lib/dominio/os/regras-finalizacao";
+import type { OrdemServico } from"@/types/os";
 
 /**
  * Atalho de cada pendencia: para onde levar o operador para resolve-la.
@@ -24,11 +24,11 @@ import type { OrdemServico } from "@/types/os";
  * proprio campo deste dialogo) nao ganham botao.
  */
 const ATALHOS_PENDENCIA: Partial<Record<CodigoPendenciaFinalizacao, { rotulo: string; obterHref: (osId: string) => string }>> = {
-  SEM_ITENS: { rotulo: "Abrir OS", obterHref: (osId) => `/os/${osId}` },
-  ITEM_SEM_CUSTO: { rotulo: "Editar item", obterHref: (osId) => `/os/${osId}` },
-  ITEM_SEM_PRECO_VENDA: { rotulo: "Editar item", obterHref: (osId) => `/os/${osId}` },
-  SEM_DIAGNOSTICO: { rotulo: "Abrir OS", obterHref: (osId) => `/os/${osId}` },
-  SEM_VENDA_VINCULADA: { rotulo: "Abrir no PDV", obterHref: (osId) => `/pdv?osId=${encodeURIComponent(osId)}` },
+  SEM_ITENS: { rotulo:"Abrir OS", obterHref: (osId) => `/os/${osId}` },
+  ITEM_SEM_CUSTO: { rotulo:"Editar item", obterHref: (osId) => `/os/${osId}` },
+  ITEM_SEM_PRECO_VENDA: { rotulo:"Editar item", obterHref: (osId) => `/os/${osId}` },
+  SEM_DIAGNOSTICO: { rotulo:"Abrir OS", obterHref: (osId) => `/os/${osId}` },
+  SEM_VENDA_VINCULADA: { rotulo:"Abrir no PDV", obterHref: (osId) => `/pdv?osId=${encodeURIComponent(osId)}` },
 };
 
 export type ConfirmacaoFinalizacaoPayload = {
@@ -38,7 +38,7 @@ export type ConfirmacaoFinalizacaoPayload = {
 type ModalFinalizarOSProps = {
   aberta: boolean;
   onAbrirMudar: (aberta: boolean) => void;
-  os: Pick<OrdemServico, "id" | "numeroOS"> | null;
+  os: Pick<OrdemServico,"id" |"numeroOS"> | null;
   processando: boolean;
   /** OS de retorno de garantia nao emite termo novo. */
   exigePrazoGarantia: boolean;
@@ -71,7 +71,7 @@ export function ModalFinalizarOS({
     if (!exigePrazoGarantia) return null;
 
     const texto = prazoGarantiaDias.trim();
-    if (!texto) return "Informe o prazo de garantia em dias.";
+    if (!texto) return"Informe o prazo de garantia em dias.";
 
     const numero = Number(texto);
     if (!Number.isInteger(numero) || numero < prazoMinimoDias || numero > prazoMaximoDias) {
@@ -96,21 +96,21 @@ export function ModalFinalizarOS({
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>
-            {bloqueada ? "Não é possível finalizar esta OS" : "Finalizar e entregar OS"}
+            {bloqueada ?"Não é possível finalizar esta OS" :"Finalizar e entregar OS"}
           </AlertDialogTitle>
           <AlertDialogDescription>
             {bloqueada
-              ? `Resolva as pendências abaixo para entregar a OS ${os?.numeroOS ?? ""}.`
-              : `A OS ${os?.numeroOS ?? ""} será marcada como entregue e arquivada. ${
+              ? `Resolva as pendências abaixo para entregar a OS ${os?.numeroOS ??""}.`
+              : `A OS ${os?.numeroOS ??""} será marcada como entregue e arquivada. ${
                   exigePrazoGarantia
-                    ? "O termo de garantia é emitido agora, com início na data de hoje."
-                    : "OS de retorno de garantia não emite termo novo."
+                    ?"O termo de garantia é emitido agora, com início na data de hoje."
+                    :"OS de retorno de garantia não emite termo novo."
                 }`}
           </AlertDialogDescription>
         </AlertDialogHeader>
 
         {bloqueada ? (
-          <ul className="space-y-2 rounded-md border border-amber-300/60 bg-amber-50 p-3 text-sm dark:border-amber-900/50 dark:bg-amber-950/30">
+          <ul className="space-y-2 rounded-md border border-kx-alerta bg-kx-alerta-fundo p-3 text-sm">
             {pendencias.map((pendencia, indice) => {
               const atalho = ATALHOS_PENDENCIA[pendencia.codigo];
 
@@ -121,15 +121,15 @@ export function ModalFinalizarOS({
                 >
                   <div className="flex items-start gap-2">
                     <AlertTriangle
-                      className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400"
+                      className="mt-0.5 h-4 w-4 shrink-0 text-kx-alerta-icone"
                       aria-hidden
                     />
-                    <span className="text-amber-900 dark:text-amber-200">{pendencia.mensagem}</span>
+                    <span className="text-kx-alerta-texto">{pendencia.mensagem}</span>
                   </div>
                   {atalho && os ? (
                     <Link
                       href={atalho.obterHref(os.id)}
-                      className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs font-medium text-amber-800 underline underline-offset-2 hover:text-amber-950 dark:text-amber-300 dark:hover:text-amber-100"
+                      className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs font-medium text-kx-alerta-texto underline underline-offset-2 hover:text-kx-alerta"
                     >
                       {atalho.rotulo}
                       <ArrowUpRight className="h-3 w-3" aria-hidden />
@@ -153,14 +153,14 @@ export function ModalFinalizarOS({
               Entre {prazoMinimoDias} e {prazoMaximoDias} dias, conforme as configurações da empresa.
             </p>
             {erroPrazo ? (
-              <p className="text-xs text-red-600 dark:text-red-400">{erroPrazo}</p>
+              <p className="text-xs text-kx-erro-texto">{erroPrazo}</p>
             ) : null}
           </div>
         ) : null}
 
         <AlertDialogFooter>
           <AlertDialogCancel disabled={processando}>
-            {bloqueada ? "Fechar" : "Cancelar"}
+            {bloqueada ?"Fechar" :"Cancelar"}
           </AlertDialogCancel>
           {bloqueada ? null : (
             <AlertDialogAction
@@ -170,7 +170,7 @@ export function ModalFinalizarOS({
               }}
               disabled={processando || Boolean(erroPrazo)}
             >
-              {processando ? "Finalizando..." : "Finalizar e entregar"}
+              {processando ?"Finalizando..." :"Finalizar e entregar"}
             </AlertDialogAction>
           )}
         </AlertDialogFooter>

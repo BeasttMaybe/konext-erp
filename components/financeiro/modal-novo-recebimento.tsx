@@ -1,9 +1,9 @@
 "use client";
 
-import { useForm, Controller, type FieldValues } from "react-hook-form";
-import type { Resolver } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { useForm, Controller, type FieldValues } from"react-hook-form";
+import type { Resolver } from"react-hook-form";
+import { zodResolver } from"@hookform/resolvers/zod";
+import { z } from"zod";
 import {
   Dialog,
   DialogContent,
@@ -11,27 +11,27 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from"@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from"@/components/ui/tabs";
+import { Button } from"@/components/ui/button";
+import { Input } from"@/components/ui/input";
+import { Label } from"@/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
+} from"@/components/ui/select";
+import { Checkbox } from"@/components/ui/checkbox";
 import {
   formContaAReceberSchema,
   FormContaAReceber,
   clientesMock,
   opçõesFormaRecebimento,
   opçõesOrigemReceita,
-} from "@/lib/validations/financeiro";
-import { Calendar, Loader2 } from "lucide-react";
+} from"@/lib/validations/financeiro";
+import { Calendar, Loader2 } from"lucide-react";
 
 interface PropsModalNovoRecebimento {
   aberto: boolean;
@@ -58,19 +58,19 @@ export function ModalNovoRecebimento({
   } = useForm<FormContaAReceberUI>({
     resolver: zodResolver(formContaAReceberSchema) as unknown as Resolver<FormContaAReceberUI>,
     defaultValues: {
-      descricao: "",
-      clienteId: "",
+      descricao:"",
+      clienteId:"",
       valor: 0,
-      dataVencimento: "",
-      dataCompetencia: "",
-      formaRecebimento: "PIX",
-      origemDaReceita: "VENDA_PDV",
+      dataVencimento:"",
+      dataCompetencia:"",
+      formaRecebimento:"PIX",
+      origemDaReceita:"VENDA_PDV",
       notaFiscalEmitida: false,
       jurosCobrados: 0,
       descontoConcedido: 0,
       isParcelado: false,
       quantidadeParcelas: 2,
-      observacoes: "",
+      observacoes:"",
     },
   });
 
@@ -92,8 +92,8 @@ export function ModalNovoRecebimento({
   // Formatar moeda
   const formatarMoeda = (valor: number) => {
     return new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: "BRL",
+      style:"currency",
+      currency:"BRL",
     }).format(valor);
   };
 
@@ -125,7 +125,7 @@ export function ModalNovoRecebimento({
                 {/* Descrição */}
                 <div className="col-span-2">
                   <Label htmlFor="descricao" className="text-base font-semibold">
-                    Descrição <span className="text-red-500">*</span>
+                    Descrição <span className="text-kx-erro-texto">*</span>
                   </Label>
                   <Controller
                     name="descricao"
@@ -136,10 +136,10 @@ export function ModalNovoRecebimento({
                           id="descricao"
                           placeholder="Ex: Fatura #123 - Serviços de Manutenção"
                           {...field}
-                          className={errors.descricao ? "border-red-500" : ""}
+                          className={errors.descricao ?"border-kx-erro-borda" :""}
                         />
                         {errors.descricao?.message && (
-                          <p className="text-sm text-red-500 mt-1">
+                          <p className="text-sm text-kx-erro-texto mt-1">
                             {String(errors.descricao.message)}
                           </p>
                         )}
@@ -151,7 +151,7 @@ export function ModalNovoRecebimento({
                 {/* Cliente/Órgão */}
                 <div>
                   <Label htmlFor="clienteId" className="text-base font-semibold">
-                    Cliente/Órgão Público <span className="text-red-500">*</span>
+                    Cliente/Órgão Público <span className="text-kx-erro-texto">*</span>
                   </Label>
                   <Controller
                     name="clienteId"
@@ -160,7 +160,7 @@ export function ModalNovoRecebimento({
                       <>
                         <Select value={field.value} onValueChange={field.onChange}>
                           <SelectTrigger
-                            className={errors.clienteId ? "border-red-500" : ""}
+                            className={errors.clienteId ?"border-kx-erro-borda" :""}
                           >
                             <SelectValue placeholder="Selecione um cliente..." />
                           </SelectTrigger>
@@ -173,7 +173,7 @@ export function ModalNovoRecebimento({
                           </SelectContent>
                         </Select>
                         {errors.clienteId?.message && (
-                          <p className="text-sm text-red-500 mt-1">
+                          <p className="text-sm text-kx-erro-texto mt-1">
                             {String(errors.clienteId.message)}
                           </p>
                         )}
@@ -185,7 +185,7 @@ export function ModalNovoRecebimento({
                 {/* Valor */}
                 <div>
                   <Label htmlFor="valor" className="text-base font-semibold">
-                    Valor <span className="text-red-500">*</span>
+                    Valor <span className="text-kx-erro-texto">*</span>
                   </Label>
                   <Controller
                     name="valor"
@@ -203,10 +203,10 @@ export function ModalNovoRecebimento({
                           onBlur={field.onBlur}
                           value={Number(field.value ?? 0)}
                           onChange={(evento) => field.onChange(evento.target.value)}
-                          className={errors.valor ? "border-red-500" : ""}
+                          className={errors.valor ?"border-kx-erro-borda" :""}
                         />
                         {errors.valor?.message && (
-                          <p className="text-sm text-red-500 mt-1">
+                          <p className="text-sm text-kx-erro-texto mt-1">
                             {String(errors.valor.message)}
                           </p>
                         )}
@@ -221,7 +221,7 @@ export function ModalNovoRecebimento({
                     htmlFor="dataVencimento"
                     className="text-base font-semibold"
                   >
-                    Data de Vencimento <span className="text-red-500">*</span>
+                    Data de Vencimento <span className="text-kx-erro-texto">*</span>
                   </Label>
                   <Controller
                     name="dataVencimento"
@@ -233,16 +233,16 @@ export function ModalNovoRecebimento({
                             id="dataVencimento"
                             type="date"
                             {...field}
-                            value={String(field.value ?? "")}
+                            value={String(field.value ??"")}
                             onChange={(e) => field.onChange(e.target.value)}
                             className={`pr-10 ${
-                              errors.dataVencimento ? "border-red-500" : ""
+                              errors.dataVencimento ?"border-kx-erro-borda" :""
                             }`}
                           />
-                          <Calendar className="absolute right-3 top-3 h-4 w-4 text-gray-400 pointer-events-none" />
+                          <Calendar className="absolute right-3 top-3 h-4 w-4 text-kx-legenda pointer-events-none" />
                         </div>
                         {errors.dataVencimento?.message && (
-                          <p className="text-sm text-red-500 mt-1">
+                          <p className="text-sm text-kx-erro-texto mt-1">
                             {String(errors.dataVencimento.message)}
                           </p>
                         )}
@@ -257,7 +257,7 @@ export function ModalNovoRecebimento({
                     htmlFor="formaRecebimento"
                     className="text-base font-semibold"
                   >
-                    Forma de Recebimento <span className="text-red-500">*</span>
+                    Forma de Recebimento <span className="text-kx-erro-texto">*</span>
                   </Label>
                   <Controller
                     name="formaRecebimento"
@@ -267,7 +267,7 @@ export function ModalNovoRecebimento({
                         <Select value={field.value} onValueChange={field.onChange}>
                           <SelectTrigger
                             className={
-                              errors.formaRecebimento ? "border-red-500" : ""
+                              errors.formaRecebimento ?"border-kx-erro-borda" :""
                             }
                           >
                             <SelectValue placeholder="Selecione..." />
@@ -281,7 +281,7 @@ export function ModalNovoRecebimento({
                           </SelectContent>
                         </Select>
                         {errors.formaRecebimento?.message && (
-                          <p className="text-sm text-red-500 mt-1">
+                          <p className="text-sm text-kx-erro-texto mt-1">
                             {String(errors.formaRecebimento.message)}
                           </p>
                         )}
@@ -307,11 +307,11 @@ export function ModalNovoRecebimento({
                           id="dataCompetencia"
                           type="date"
                           {...field}
-                          value={String(field.value ?? "")}
+                          value={String(field.value ??"")}
                           onChange={(e) => field.onChange(e.target.value)}
                           className="pr-10"
                         />
-                        <Calendar className="absolute right-3 top-3 h-4 w-4 text-gray-400 pointer-events-none" />
+                        <Calendar className="absolute right-3 top-3 h-4 w-4 text-kx-legenda pointer-events-none" />
                       </div>
                     )}
                   />
@@ -321,7 +321,7 @@ export function ModalNovoRecebimento({
                 </div>
 
                 {/* Parcelamento */}
-                <div className="col-span-2 rounded-lg border border-slate-200 dark:border-slate-700 p-4 bg-slate-50 dark:bg-slate-900 space-y-3">
+                <div className="col-span-2 rounded-lg border border-kx-painel-borda p-4 bg-kx-superficie space-y-3">
                   <div className="flex items-center space-x-3">
                     <Controller
                       name="isParcelado"
@@ -343,7 +343,7 @@ export function ModalNovoRecebimento({
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div>
                         <Label htmlFor="quantidadeParcelas" className="text-sm font-semibold">
-                          Quantidade de parcelas <span className="text-red-500">*</span>
+                          Quantidade de parcelas <span className="text-kx-erro-texto">*</span>
                         </Label>
                         <Controller
                           name="quantidadeParcelas"
@@ -356,24 +356,24 @@ export function ModalNovoRecebimento({
                               max={24}
                               step={1}
                               {...field}
-                              value={String(field.value ?? "")}
-                              onChange={(e) => field.onChange(Number(e.target.value) || "")}
-                              className={errors.quantidadeParcelas ? "border-red-500" : ""}
+                              value={String(field.value ??"")}
+                              onChange={(e) => field.onChange(Number(e.target.value) ||"")}
+                              className={errors.quantidadeParcelas ?"border-kx-erro-borda" :""}
                             />
                           )}
                         />
                         {errors.quantidadeParcelas?.message && (
-                          <p className="text-sm text-red-500 mt-1">
+                          <p className="text-sm text-kx-erro-texto mt-1">
                             {String(errors.quantidadeParcelas.message)}
                           </p>
                         )}
                       </div>
 
-                      <div className="rounded-md border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-2 flex flex-col justify-center">
-                        <span className="text-xs text-emerald-700 dark:text-emerald-300 font-medium">
+                      <div className="rounded-md border border-kx-sucesso bg-kx-sucesso-fundo px-3 py-2 flex flex-col justify-center">
+                        <span className="text-xs text-kx-sucesso-texto font-medium">
                           Valor por parcela
                         </span>
-                        <span className="text-base font-bold text-emerald-800 dark:text-emerald-200">
+                        <span className="text-base font-bold text-kx-sucesso-texto">
                           {quantidadeParcelas >= 2
                             ? formatarMoeda(valorRecebimento / quantidadeParcelas)
                             : formatarMoeda(0)}
@@ -394,7 +394,7 @@ export function ModalNovoRecebimento({
                     htmlFor="origemDaReceita"
                     className="text-base font-semibold"
                   >
-                    Origem da Receita <span className="text-red-500">*</span>
+                    Origem da Receita <span className="text-kx-erro-texto">*</span>
                   </Label>
                   <Controller
                     name="origemDaReceita"
@@ -404,7 +404,7 @@ export function ModalNovoRecebimento({
                         <Select value={field.value} onValueChange={field.onChange}>
                           <SelectTrigger
                             className={
-                              errors.origemDaReceita ? "border-red-500" : ""
+                              errors.origemDaReceita ?"border-kx-erro-borda" :""
                             }
                           >
                             <SelectValue placeholder="Selecione a origem..." />
@@ -418,7 +418,7 @@ export function ModalNovoRecebimento({
                           </SelectContent>
                         </Select>
                         {errors.origemDaReceita?.message && (
-                          <p className="text-sm text-red-500 mt-1">
+                          <p className="text-sm text-kx-erro-texto mt-1">
                             {String(errors.origemDaReceita.message)}
                           </p>
                         )}
@@ -443,7 +443,7 @@ export function ModalNovoRecebimento({
                         id="documentoOrigemId"
                         placeholder="Ex: OS #1024 ou Empenho #2024/55"
                         {...field}
-                        value={String(field.value ?? "")}
+                        value={String(field.value ??"")}
                       />
                     )}
                   />
@@ -453,7 +453,7 @@ export function ModalNovoRecebimento({
                 </div>
 
                 {/* Nota Fiscal Emitida */}
-                <div className="flex items-center space-x-3 p-3 border rounded-lg bg-slate-50 dark:bg-slate-900">
+                <div className="flex items-center space-x-3 p-3 border rounded-lg bg-kx-superficie">
                   <Controller
                     name="notaFiscalEmitida"
                     control={control}
@@ -494,7 +494,7 @@ export function ModalNovoRecebimento({
                         step="0.01"
                         min="0"
                         {...field}
-                        value={String(field.value ?? "")}
+                        value={String(field.value ??"")}
                       />
                     )}
                   />
@@ -520,7 +520,7 @@ export function ModalNovoRecebimento({
                         step="0.01"
                         min="0"
                         {...field}
-                        value={String(field.value ?? "")}
+                        value={String(field.value ??"")}
                       />
                     )}
                   />
@@ -541,7 +541,7 @@ export function ModalNovoRecebimento({
                       id="observacoes"
                       placeholder="Informações adicionais, notas internas..."
                       {...field}
-                      value={field.value || ""}
+                      value={field.value ||""}
                       rows={3}
                       className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
                     />
@@ -563,7 +563,7 @@ export function ModalNovoRecebimento({
             </Button>
             <Button
               type="submit"
-              className="bg-blue-600 hover:bg-blue-700"
+              className="bg-kx-primaria hover:bg-kx-destaque"
               disabled={carregando}
             >
               {carregando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
