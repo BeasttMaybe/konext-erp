@@ -5,6 +5,7 @@ import { obterPrismaTenant } from "@/lib/tenant/prisma-tenant";
 import { resolverConexaoTenant } from "@/lib/tenant/resolver-conexao-tenant";
 import { sincronizarMetasAutomaticasDoTenant } from "@/app/actions/metas";
 import { FUSO_HORARIO_PADRAO } from "@/lib/datas";
+import type { PrismaClient } from "@prisma/client";
 
 /**
  * Sincroniza as metas automáticas de todos os tenants ativos.
@@ -38,12 +39,24 @@ export async function GET(request: NextRequest) {
     const falhas: Array<{ tenantId: string; tenantSlug: string; erro: string }> = [];
 
     for (const tenant of tenantsAtivos) {
-      try {
-        const conexao = await resolverConexaoTenant(tenant.connectionRef);
-        const prisma = obterPrismaTenant(conexao);
+      if (!tenant.connectionRef) {
+        falhas.push({
+          tenantId: tenant.id,
+          tenantSlug: tenant.slug,
+          erro: "Tenant sem connectionRef.",
+        });
+        continue;
+      }
 
-        const fusoHorario = await resolverFusoHorarioTenant(prisma);
-        const resultado = await sincronizarMetasAutomaticasDoTenant(prisma, fusoHorario);
+      try {
+        const connectionString = resolverConexaoTenant(tenant.connectionRef);
+        const prismaTenant = obterPrismaTenant({
+          tenantId: tenant.id,
+          connectionString,
+        });
+
+        const fusoHorario = await resolverFusoHorarioTenant(prismaTenant);
+        const resultado = await sincronizarMetasAutomaticasDoTenant(prismaTenant, fusoHorario);
 
         metasVerificadas += resultado.verificadas;
         metasAtualizadas += resultado.atualizadas;
@@ -80,11 +93,9 @@ export async function GET(request: NextRequest) {
  * fuso do processo erraria a janela por até 3 horas, o que no primeiro e no
  * último dia do mês muda o número.
  */
-async function resolverFusoHorarioTenant(prisma: {
-  configuracao?: { findFirst?: (args: unknown) => Promise<{ fusoHorario?: string | null } | null> };
-}): Promise<string> {
+async function resolverFusoHorarioTenant(prisma: PrismaClient): Promise<string> {
   try {
-    const configuracao = await prisma.configuracao?.findFirst?.({
+    const configuracao = await prisma.configuracao.findFirst({
       select: { fusoHorario: true },
       orderBy: { criadoEm: "asc" },
     });
