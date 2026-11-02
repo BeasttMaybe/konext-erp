@@ -2,14 +2,8 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
-import { Geist } from "next/font/google";
 import { Button } from "@/components/ui/button";
 import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
 
 /**
  * Limite de erro da raiz (Fase 1B, Parte 5 — F-20): so entra em cena quando
@@ -30,7 +24,10 @@ export default function ErroGlobal({
 
   return (
     <html lang="pt-BR">
-      <body className={`${geistSans.variable} antialiased bg-background text-foreground`}>
+      {/* Sem carregador de fonte aqui: `--font-geist-sans` nao era lida por CSS
+          nenhum do projeto, e isto e justamente a tela que aparece quando o
+          layout raiz FALHOU — nao e lugar pra depender de download de fonte. */}
+      <body className="antialiased bg-background text-foreground">
         <div className="flex min-h-screen w-full flex-col items-center justify-center gap-3 px-6 py-16 text-center">
           <h1 className="text-lg font-semibold">Algo deu errado</h1>
           <p className="max-w-md text-sm text-muted-foreground">

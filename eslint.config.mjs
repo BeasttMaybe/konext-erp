@@ -132,6 +132,30 @@ const eslintConfig = defineConfig([
       "konext-dinheiro/sem-to-fixed-dinheiro-fora-do-modulo": "error",
     },
   },
+  // Fonte da marca (02/11/2026): `next/font/google` baixa o arquivo da fonte
+  // em tempo de BUILD. Isso derrubou o build tres vezes no mesmo dia com
+  // `module-not-found`, sem nenhuma mudanca de codigo entre as tentativas — e
+  // o deploy da Vercel faz o mesmo download, entao nao era chateacao de CI:
+  // era um deploy que podia falhar por causa de servico de terceiro. A fonte
+  // agora e versionada em `app/fontes/` e carregada por `next/font/local`.
+  // Ver `app/fontes/LEIA-ME.md`.
+  {
+    files: ["app/**/*.{ts,tsx}", "components/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "next/font/google",
+              message:
+                "Baixa a fonte em tempo de build e ja derrubou o deploy. Use next/font/local com o arquivo em app/fontes/ — ver app/fontes/LEIA-ME.md.",
+            },
+          ],
+        },
+      ],
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

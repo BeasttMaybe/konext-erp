@@ -1,23 +1,29 @@
 import type { Metadata } from "next";
-import { Geist_Mono, Plus_Jakarta_Sans } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { ProvedoresLayout } from "@/components/provedores/provedores-layout";
 
 /**
  * Fonte da marca (Fase 3-1) — antes só carregada em app/(auth)/layout.tsx;
  * agora também aqui, pra `font-sans`/`--kx-fonte` valer no app inteiro, não
- * só na tela de login. Os dois `Plus_Jakarta_Sans({variable: "--kx-fonte"})`
- * apontam pra mesma variável CSS de propósito — next/font dedupa o download.
+ * só na tela de login.
+ *
+ * `next/font/local` e não `next/font/google`: o carregador do Google busca o
+ * arquivo na internet em tempo de BUILD, e isso derrubou o build três vezes
+ * em 02/11/2026 sem nenhuma mudança de código — a Vercel faz o mesmo
+ * download no deploy. O arquivo agora é versionado em `app/fontes/`. Ver
+ * `app/fontes/LEIA-ME.md`.
+ *
+ * Um arquivo variável de 27 KB no lugar dos cinco pesos estáticos que o
+ * carregador do Google buscava: o eixo cobre 200–800 contínuo.
  */
-const plusJakartaSans = Plus_Jakarta_Sans({
-  weight: ["400", "500", "600", "700", "800"],
-  subsets: ["latin"],
+const plusJakartaSans = localFont({
+  src: "./fontes/plus-jakarta-sans-latin-wght-normal.woff2",
+  weight: "200 800",
+  style: "normal",
+  display: "swap",
   variable: "--kx-fonte",
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+  fallback: ["ui-sans-serif", "system-ui", "sans-serif"],
 });
 
 export const metadata: Metadata = {
@@ -33,7 +39,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" suppressHydrationWarning>
       <body
-        className={`${plusJakartaSans.variable} ${geistMono.variable} font-sans antialiased text-foreground`}
+        className={`${plusJakartaSans.variable} font-sans antialiased text-foreground`}
       >
         <ProvedoresLayout>{children}</ProvedoresLayout>
       </body>
