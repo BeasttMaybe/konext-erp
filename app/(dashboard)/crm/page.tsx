@@ -1,7 +1,7 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useMemo, useState } from"react";
+import { useRouter } from"next/navigation";
 import {
   AlertTriangle,
   BadgePercent,
@@ -12,34 +12,34 @@ import {
   Target,
   UserPlus,
   Users,
-} from "lucide-react";
-import { toast } from "sonner";
+} from"lucide-react";
+import { toast } from"sonner";
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Badge } from"@/components/ui/badge";
+import { Button } from"@/components/ui/button";
+import { Card } from"@/components/ui/card";
 
 interface InactivityAlertItem {
   id: string;
   title: string;
   description: string;
   daysWithoutUpdate: number;
-  severity: "warning" | "critical";
+  severity:"warning" |"critical";
 }
 
 const formatCurrencyBRL = (value: number): string =>
   new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
+    style:"currency",
+    currency:"BRL",
   }).format(value);
 
 function SkeletonCRMHub() {
   return (
     <div className="w-full min-h-full flex flex-col bg-transparent">
-      <div className="border-b border-slate-200/70 bg-white/75 px-6 py-6 backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/50 lg:px-8">
+      <div className="border-b border-kx-painel-borda/70 bg-kx-painel/75 px-6 py-6 backdrop-blur-sm/70/50 lg:px-8">
         <div className="max-w-7xl mx-auto w-full">
-          <div className="h-9 w-72 rounded-lg bg-slate-200 dark:bg-slate-700 animate-pulse" />
-          <div className="h-4 w-96 rounded bg-slate-100 dark:bg-slate-800 animate-pulse mt-2" />
+          <div className="h-9 w-72 rounded-lg bg-kx-painel-borda animate-pulse" />
+          <div className="h-4 w-96 rounded bg-kx-superficie animate-pulse mt-2" />
         </div>
       </div>
 
@@ -48,31 +48,31 @@ function SkeletonCRMHub() {
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
             {Array.from({ length: 4 }).map((_, index) => (
               <div key={index} className="rounded-xl border border-border bg-card p-5 space-y-3">
-                <div className="h-4 w-28 rounded bg-slate-100 dark:bg-slate-800 animate-pulse" />
-                <div className="h-8 w-24 rounded bg-slate-100 dark:bg-slate-800 animate-pulse" />
+                <div className="h-4 w-28 rounded bg-kx-superficie animate-pulse" />
+                <div className="h-8 w-24 rounded bg-kx-superficie animate-pulse" />
               </div>
             ))}
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 rounded-xl border border-border bg-card p-5 space-y-4">
-              <div className="h-6 w-56 rounded bg-slate-100 dark:bg-slate-800 animate-pulse" />
+              <div className="h-6 w-56 rounded bg-kx-superficie animate-pulse" />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {Array.from({ length: 4 }).map((_, index) => (
                   <div key={index} className="rounded-lg border border-border p-4 space-y-3">
-                    <div className="h-5 w-40 rounded bg-slate-100 dark:bg-slate-800 animate-pulse" />
-                    <div className="h-4 w-full rounded bg-slate-100 dark:bg-slate-800 animate-pulse" />
-                    <div className="h-9 w-32 rounded bg-slate-100 dark:bg-slate-800 animate-pulse" />
+                    <div className="h-5 w-40 rounded bg-kx-superficie animate-pulse" />
+                    <div className="h-4 w-full rounded bg-kx-superficie animate-pulse" />
+                    <div className="h-9 w-32 rounded bg-kx-superficie animate-pulse" />
                   </div>
                 ))}
               </div>
             </div>
 
             <div className="rounded-xl border border-border bg-card p-5 space-y-3">
-              <div className="h-6 w-32 rounded bg-slate-100 dark:bg-slate-800 animate-pulse" />
-              <div className="h-10 w-full rounded bg-slate-100 dark:bg-slate-800 animate-pulse" />
-              <div className="h-10 w-full rounded bg-slate-100 dark:bg-slate-800 animate-pulse" />
-              <div className="h-10 w-full rounded bg-slate-100 dark:bg-slate-800 animate-pulse" />
+              <div className="h-6 w-32 rounded bg-kx-superficie animate-pulse" />
+              <div className="h-10 w-full rounded bg-kx-superficie animate-pulse" />
+              <div className="h-10 w-full rounded bg-kx-superficie animate-pulse" />
+              <div className="h-10 w-full rounded bg-kx-superficie animate-pulse" />
             </div>
           </div>
         </div>
@@ -88,29 +88,29 @@ function CRMHubContent() {
   const [placeholderConversionRate] = useState(0);
 
   const [todayTasks] = useState([
-    { id: "task-1", status: "PENDENTE" },
-    { id: "task-2", status: "PENDENTE" },
+    { id:"task-1", status:"PENDENTE" },
+    { id:"task-2", status:"PENDENTE" },
   ]);
 
   const [inactivityAlerts] = useState<InactivityAlertItem[]>([
     {
-      id: "followup-1",
-      title: "Proposta #1042 sem retorno",
-      description: "Cliente B2B sem atualização desde o envio da proposta.",
+      id:"followup-1",
+      title:"Proposta #1042 sem retorno",
+      description:"Cliente B2B sem atualização desde o envio da proposta.",
       daysWithoutUpdate: 4,
-      severity: "warning",
+      severity:"warning",
     },
     {
-      id: "followup-2",
-      title: "Oportunidade 'Contrato público - Lote A' parada",
-      description: "Negociação sem atividade recente no funil de vendas.",
+      id:"followup-2",
+      title:"Oportunidade 'Contrato público - Lote A' parada",
+      description:"Negociação sem atividade recente no funil de vendas.",
       daysWithoutUpdate: 7,
-      severity: "critical",
+      severity:"critical",
     },
   ]);
 
   const totalContacts = 0;
-  const tasksTodayCount = todayTasks.filter((task) => task.status === "PENDENTE").length;
+  const tasksTodayCount = todayTasks.filter((task) => task.status ==="PENDENTE").length;
 
   const staleAlerts = useMemo(
     () => inactivityAlerts.filter((item) => item.daysWithoutUpdate > 3),
@@ -123,13 +123,13 @@ function CRMHubContent() {
 
   const openPlaceholderAction = (message: string) => {
     toast.info(message, {
-      description: "Este recurso será habilitado na próxima etapa do CRM.",
+      description:"Este recurso será habilitado na próxima etapa do CRM.",
     });
   };
 
   return (
     <div className="w-full min-h-full flex flex-col bg-transparent">
-      <div className="border-b border-slate-200/70 bg-white/75 px-6 py-6 backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/50 lg:px-8">
+      <div className="border-b border-kx-painel-borda/70 bg-kx-painel/75 px-6 py-6 backdrop-blur-sm/70/50 lg:px-8">
         <div className="max-w-7xl mx-auto w-full flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h1 className="text-3xl font-bold text-foreground">CRM | Central de Relacionamento</h1>
@@ -279,18 +279,18 @@ function CRMHubContent() {
 
                 <Card className="p-5 border-border bg-card">
                   <div className="flex items-center gap-2 mb-4">
-                    <AlertTriangle className="h-5 w-5 text-amber-500" />
+                    <AlertTriangle className="h-5 w-5 text-kx-alerta-icone" />
                     <h2 className="text-lg font-semibold text-foreground">
                       Alertas de Inatividade (Follow-up)
                     </h2>
                   </div>
 
                   {staleAlerts.length === 0 && (
-                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 dark:bg-emerald-900/20 dark:border-emerald-800 p-4">
-                      <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
+                    <div className="rounded-lg border border-kx-sucesso bg-kx-sucesso-fundo p-4">
+                      <p className="text-sm font-medium text-kx-sucesso-texto">
                         Nenhum alerta crítico no momento.
                       </p>
-                      <p className="text-xs text-emerald-700/80 dark:text-emerald-300/80 mt-1">
+                      <p className="text-xs text-kx-sucesso-texto mt-1">
                         Todas as oportunidades e propostas estão com acompanhamento em dia.
                       </p>
                     </div>
@@ -300,14 +300,14 @@ function CRMHubContent() {
                     <div className="space-y-3">
                       {staleAlerts.map((alertItem) => {
                         const alertClass =
-                          alertItem.severity === "critical"
-                            ? "border-red-300 bg-red-50 dark:bg-red-950/30 dark:border-red-900"
-                            : "border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-900";
+                          alertItem.severity ==="critical"
+                            ?"border-kx-erro-borda bg-kx-erro-fundo"
+                            :"border-kx-alerta bg-kx-alerta-fundo";
 
                         const textClass =
-                          alertItem.severity === "critical"
-                            ? "text-red-700 dark:text-red-300"
-                            : "text-amber-700 dark:text-amber-300";
+                          alertItem.severity ==="critical"
+                            ?"text-kx-erro-texto"
+                            :"text-kx-alerta-texto";
 
                         return (
                           <div key={alertItem.id} className={`rounded-lg border p-4 ${alertClass}`}>

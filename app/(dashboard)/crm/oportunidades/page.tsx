@@ -1,20 +1,20 @@
-import { ChevronLeft, TrendingUp } from "lucide-react";
-import Link from "next/link";
+import { ChevronLeft, TrendingUp } from"lucide-react";
+import Link from"next/link";
 
-import { listarClientesPaginado } from "@/app/actions/crm";
-import { listarOportunidades } from "@/app/actions/oportunidades";
-import { FunilVendasKanban } from "@/components/crm/funil-vendas-kanban";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { listarClientesPaginado } from"@/app/actions/crm";
+import { listarOportunidades } from"@/app/actions/oportunidades";
+import { FunilVendasKanban } from"@/components/crm/funil-vendas-kanban";
+import { Button } from"@/components/ui/button";
+import { Card } from"@/components/ui/card";
 
 export default async function PaginaOportunidades() {
   const [oportunidades, clientes] = await Promise.all([
     listarOportunidades(),
-    listarClientesPaginado(1, 500, undefined, undefined, "CLIENTE"),
+    listarClientesPaginado(1, 500, undefined, undefined,"CLIENTE"),
   ]);
 
   const totalAberto = oportunidades
-    .filter((oportunidade) => oportunidade.estagio !== "GANHO" && oportunidade.estagio !== "PERDIDO")
+    .filter((oportunidade) => oportunidade.estagio !=="GANHO" && oportunidade.estagio !=="PERDIDO")
     .reduce((total, oportunidade) => total + oportunidade.valor, 0);
 
   return (
@@ -23,7 +23,7 @@ export default async function PaginaOportunidades() {
         <div className="mx-auto flex max-w-[1600px] flex-col gap-4 px-4 py-6 sm:px-6 lg:px-8 xl:flex-row xl:items-end xl:justify-between">
           <div className="space-y-2">
             <div className="inline-flex items-center gap-2 rounded-full border border-border bg-muted/40 px-3 py-1 text-xs font-medium text-muted-foreground">
-              <TrendingUp className="h-3.5 w-3.5 text-sky-600" />
+              <TrendingUp className="h-3.5 w-3.5 text-kx-info" />
               CRM | Funil de Vendas
             </div>
             <div>
@@ -42,7 +42,7 @@ export default async function PaginaOportunidades() {
             <Card className="min-w-[180px] border-border bg-background/90 p-4 shadow-sm">
               <p className="text-xs uppercase tracking-wide text-muted-foreground">Valor em aberto</p>
               <p className="mt-1 text-2xl font-bold text-foreground">
-                {totalAberto.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                {totalAberto.toLocaleString("pt-BR", { style:"currency", currency:"BRL" })}
               </p>
             </Card>
             <Button asChild variant="outline" className="self-stretch">
