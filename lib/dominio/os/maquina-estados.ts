@@ -5,7 +5,7 @@
  * transicoes permitidas — ver a secao "ETAPA (Fase 1C-3)" abaixo, que e a
  * API viva usada pela aplicacao. Antes da Fase 1A essa informacao estava
  * duplicada em quatro lugares (app/actions/os.ts,
- * components/os/tabuleiro-kanban.tsx, dados/mock-os.ts e o proprio enum do
+ * components/os/tabuleiro-kanban.tsx e o proprio enum do
  * Prisma), com dois esquemas de cor diferentes e nenhuma regra de
  * alcancabilidade.
  *
@@ -81,57 +81,22 @@ export const DESCRICOES_STATUS_OS: Readonly<Record<StatusOS, string>> = {
   ENTREGUE: "Fluxo concluído com sucesso.",
 };
 
-export type ClassesVisuaisStatusOS = {
-  /** Gradiente do cabecalho da coluna do Kanban. */
-  readonly coluna: string;
-  /** Borda da coluna do Kanban. */
-  readonly borda: string;
-  /** Chip compacto usado no cartao e nas tabelas. */
-  readonly chip: string;
-};
-
-export const CLASSES_STATUS_OS: Readonly<Record<StatusOS, ClassesVisuaisStatusOS>> = {
-  AGUARDANDO_ORCAMENTO: {
-    coluna: "from-sky-50 via-white to-white dark:from-sky-950/40 dark:via-slate-900 dark:to-slate-900",
-    borda: "border-sky-200/80 dark:border-sky-900/60",
-    chip: "bg-sky-100 text-sky-700 dark:bg-sky-950/50 dark:text-sky-300",
-  },
-  AGUARDANDO_APROVACAO: {
-    coluna: "from-cyan-50 via-white to-white dark:from-cyan-950/40 dark:via-slate-900 dark:to-slate-900",
-    borda: "border-cyan-200/80 dark:border-cyan-900/60",
-    chip: "bg-cyan-100 text-cyan-700 dark:bg-cyan-950/50 dark:text-cyan-300",
-  },
-  APROVADO: {
-    coluna: "from-amber-50 via-white to-white dark:from-amber-950/40 dark:via-slate-900 dark:to-slate-900",
-    borda: "border-amber-200/80 dark:border-amber-900/60",
-    chip: "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300",
-  },
-  AGUARDANDO_PECA: {
-    coluna: "from-orange-50 via-white to-white dark:from-orange-950/40 dark:via-slate-900 dark:to-slate-900",
-    borda: "border-orange-200/80 dark:border-orange-900/60",
-    chip: "bg-orange-100 text-orange-700 dark:bg-orange-950/50 dark:text-orange-300",
-  },
-  EM_MANUTENCAO: {
-    coluna: "from-violet-50 via-white to-white dark:from-violet-950/40 dark:via-slate-900 dark:to-slate-900",
-    borda: "border-violet-200/80 dark:border-violet-900/60",
-    chip: "bg-violet-100 text-violet-700 dark:bg-violet-950/50 dark:text-violet-300",
-  },
-  GARANTIA_RETORNO: {
-    coluna: "from-indigo-50 via-white to-white dark:from-indigo-950/40 dark:via-slate-900 dark:to-slate-900",
-    borda: "border-indigo-200/80 dark:border-indigo-900/60",
-    chip: "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300",
-  },
-  PRONTO: {
-    coluna: "from-emerald-50 via-white to-white dark:from-emerald-950/40 dark:via-slate-900 dark:to-slate-900",
-    borda: "border-emerald-200/80 dark:border-emerald-900/60",
-    chip: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300",
-  },
-  ENTREGUE: {
-    coluna: "from-rose-50 via-white to-white dark:from-rose-950/40 dark:via-slate-900 dark:to-slate-900",
-    borda: "border-rose-200/80 dark:border-rose-900/60",
-    chip: "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300",
-  },
-};
+// `ClassesVisuaisStatusOS` e `CLASSES_STATUS_OS` foram REMOVIDOS em
+// 02/11/2026. Eram 8 status x 3 strings de classe (coluna, borda, chip) com
+// cor crua do Tailwind — sky, cyan, amber, orange, violet, indigo, emerald,
+// rose — nenhuma delas vinda dos tokens de etapa do design system
+// (--kx-orcamento/--kx-conserto/--kx-pronto/--kx-entregue, que existem
+// exatamente pra isso).
+//
+// E nada consumia: o unico importador era `dados/mock-os.ts`, que por sua vez
+// nao tinha importador nenhum depois que `components/os/coluna-kanban.tsx`
+// (componente morto) saiu. Ficava aqui parecendo fonte de verdade de cor de
+// status, num arquivo que a regra de cor do eslint nem cobria, esperando
+// alguem usar.
+//
+// Quem pinta etapa hoje usa os tokens direto na tela. Se um dia voltar a
+// precisar de um mapa, ele nasce de `paraEstagio()` (lib/dominio/os/etapas.ts)
+// com UMA cor por etapa, nao oito sem relacao entre si.
 
 export type ContextoTransicaoOS = {
   ehRetornoGarantia: boolean;

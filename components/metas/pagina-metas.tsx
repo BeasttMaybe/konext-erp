@@ -115,24 +115,24 @@ export function PaginaMetas() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className= "space-y-6">
       {/* Dashboard */}
       <DashboardMetas dados={dashboard} />
 
       {/* Barra de ações */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className= "flex flex-wrap items-center justify-between gap-4">
         <FiltrosMetas filtros={filtros} onChange={aoAtualizarFiltros} />
         {podeEditarMetas ? (
-          <div className="flex items-center gap-2">
+          <div className= "flex items-center gap-2">
             <Button
-              variant="outline"
+              variant= "outline"
               onClick={atualizarMetasAutomaticas}
               disabled={sincronizandoAutomaticas}
             >
               {sincronizandoAutomaticas ? "Sincronizando..." : "Atualizar metas automáticas"}
             </Button>
             <Button onClick={() => setModalAberto(true)}>
-              <Plus className="h-4 w-4 mr-2" />
+              <Plus className= "h-4 w-4 mr-2" />
               Nova meta
             </Button>
           </div>
@@ -141,36 +141,36 @@ export function PaginaMetas() {
 
       {/* Lista */}
       {carregando ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className= "grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-40 rounded-lg bg-slate-100 dark:bg-slate-800 animate-pulse" />
+            <div key={i} className= "h-40 rounded-lg bg-kx-superficie animate-pulse" />
           ))}
         </div>
       ) : erro ? (
-        <div className="text-center py-16 text-slate-500">
+        <div className= "text-center py-16 text-kx-legenda">
           <p>{erro}</p>
-          <Button variant="outline" className="mt-4" onClick={() => carregar(filtros)}>
+          <Button variant= "outline" className= "mt-4" onClick={() => carregar(filtros)}>
             Tentar novamente
           </Button>
         </div>
       ) : metas.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <Target className="h-14 w-14 text-slate-300 dark:text-slate-600 mb-4" />
-          <h3 className="text-lg font-semibold text-slate-600 dark:text-slate-300">
+        <div className= "flex flex-col items-center justify-center py-20 text-center">
+          <Target className= "h-14 w-14 text-kx-texto-2 mb-4" />
+          <h3 className= "text-lg font-semibold text-kx-texto-2">
             Nenhuma meta encontrada
           </h3>
-          <p className="text-sm text-slate-400 mt-1 mb-6">
+          <p className= "text-sm text-kx-legenda mt-1 mb-6">
             Crie a primeira meta da empresa para começar a acompanhar os objetivos.
           </p>
           {podeEditarMetas ? (
             <Button onClick={() => setModalAberto(true)}>
-              <Plus className="h-4 w-4 mr-2" />
+              <Plus className= "h-4 w-4 mr-2" />
               Nova meta
             </Button>
           ) : null}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className= "grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {metas.map((m) => (
             <CardMeta key={m.id} meta={m} />
           ))}

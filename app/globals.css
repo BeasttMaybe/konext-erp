@@ -100,7 +100,7 @@
    * quando o usuário escolhe claro explicitamente com o SO no escuro.
    * O seletor por atributo fica declarado para compatibilidade futura.
    */
-  :root[data-theme="dark"] {
+  :root[data-theme= "dark"] {
     --receita: #3987e5;
     --despesa: #e66767;
     --lucro: #199e70;
@@ -198,6 +198,13 @@
   --color-kx-alerta-fundo: var(--kx-alerta-fundo);
   --color-kx-alerta-texto: var(--kx-alerta-texto);
   --color-kx-alerta-icone: var(--kx-alerta-icone);
+  --color-kx-papel: var(--kx-papel);
+  --color-kx-papel-alternado: var(--kx-papel-alternado);
+  --color-kx-papel-texto: var(--kx-papel-texto);
+  --color-kx-papel-texto-2: var(--kx-papel-texto-2);
+  --color-kx-papel-legenda: var(--kx-papel-legenda);
+  --color-kx-papel-borda: var(--kx-papel-borda);
+  --color-kx-papel-borda-forte: var(--kx-papel-borda-forte);
   --color-kx-info: var(--kx-info);
   --color-kx-info-fundo: var(--kx-info-fundo);
   --color-kx-info-texto: var(--kx-info-texto);
@@ -303,13 +310,13 @@ html.dark ::-webkit-scrollbar-thumb {
 }
 
 /* Remove setas de campos numéricos em todo o projeto */
-input[type="number"]::-webkit-outer-spin-button,
-input[type="number"]::-webkit-inner-spin-button {
+input[type= "number"]::-webkit-outer-spin-button,
+input[type= "number"]::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
 
-input[type="number"] {
+input[type= "number"] {
   -moz-appearance: textfield;
   appearance: textfield;
 }

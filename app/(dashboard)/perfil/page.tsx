@@ -131,18 +131,18 @@ export default function PerfilPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight text-foreground">Meu Perfil</h1>
-        <p className="text-sm text-muted-foreground">
+    <div className= "space-y-6">
+      <div className= "space-y-2">
+        <h1 className= "text-3xl font-bold tracking-tight text-foreground">Meu Perfil</h1>
+        <p className= "text-sm text-muted-foreground">
           Atualize seus dados de acesso e informações pessoais.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[320px_1fr]">
-        <Card className="border-border bg-card p-6">
-          <div className="flex flex-col items-center text-center space-y-4">
-            <Avatar className="h-24 w-24">
+      <div className= "grid grid-cols-1 gap-6 lg:grid-cols-[320px_1fr]">
+        <Card className= "border-border bg-card p-6">
+          <div className= "flex flex-col items-center text-center space-y-4">
+            <Avatar className= "h-24 w-24">
               <AvatarImage
                 src={fotoPerfilUrl || undefined}
                 alt={nomeCompleto || "Usuario"}
@@ -151,74 +151,74 @@ export default function PerfilPage() {
             </Avatar>
 
             <div>
-              <p className="text-lg font-semibold text-foreground">{nomeCompleto || "Usuario Konext"}</p>
-              <p className="text-sm text-muted-foreground">{email || "usuario@konext.local"}</p>
+              <p className= "text-lg font-semibold text-foreground">{nomeCompleto || "Usuario Konext"}</p>
+              <p className= "text-sm text-muted-foreground">{email || "usuario@konext.local"}</p>
             </div>
 
-            <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white">
+            <Badge className= "bg-kx-sucesso hover:bg-kx-sucesso text-primary-foreground">
               Perfil de Usuario
             </Badge>
           </div>
         </Card>
 
-        <Card className="border-border bg-card p-6">
-          <form className="space-y-4" onSubmit={onSalvar}>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="nomeCompleto">Nome Completo</Label>
+        <Card className= "border-border bg-card p-6">
+          <form className= "space-y-4" onSubmit={onSalvar}>
+            <div className= "grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className= "space-y-2 md:col-span-2">
+                <Label htmlFor= "nomeCompleto">Nome Completo</Label>
                 <Input
-                  id="nomeCompleto"
+                  id= "nomeCompleto"
                   value={nomeCompleto}
                   onChange={(e) => setNomeCompleto(e.target.value)}
-                  placeholder="Informe seu nome completo"
+                  placeholder= "Informe seu nome completo"
                   disabled={carregando || salvando}
                 />
               </div>
 
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="email">E-mail</Label>
+              <div className= "space-y-2 md:col-span-2">
+                <Label htmlFor= "email">E-mail</Label>
                 <Input
-                  id="email"
-                  type="email"
+                  id= "email"
+                  type= "email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="seu@email.com.br"
+                  placeholder= "seu@email.com.br"
                   disabled={carregando || salvando}
                 />
               </div>
 
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="fotoPerfilUrl">URL da Foto de Perfil</Label>
+              <div className= "space-y-2 md:col-span-2">
+                <Label htmlFor= "fotoPerfilUrl">URL da Foto de Perfil</Label>
                 <Input
-                  id="fotoPerfilUrl"
-                  type="url"
+                  id= "fotoPerfilUrl"
+                  type= "url"
                   value={fotoPerfilUrl}
                   onChange={(e) => setFotoPerfilUrl(e.target.value)}
-                  placeholder="https://exemplo.com/minha-foto.png"
+                  placeholder= "https://exemplo.com/minha-foto.png"
                   disabled={carregando || salvando}
                 />
               </div>
 
               {podeEditarLogoEmpresa ? (
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="logoEmpresaUrl">URL da Logo da Empresa</Label>
+                <div className= "space-y-2 md:col-span-2">
+                  <Label htmlFor= "logoEmpresaUrl">URL da Logo da Empresa</Label>
                   <Input
-                    id="logoEmpresaUrl"
-                    type="url"
+                    id= "logoEmpresaUrl"
+                    type= "url"
                     value={logoEmpresaUrl}
                     onChange={(e) => setLogoEmpresaUrl(e.target.value)}
-                    placeholder="https://exemplo.com/logo-da-empresa.png"
+                    placeholder= "https://exemplo.com/logo-da-empresa.png"
                     disabled={carregando || salvando}
                   />
                 </div>
               ) : null}
             </div>
 
-            <div className="pt-2">
+            <div className= "pt-2">
               <Button
-                type="submit"
+                type= "submit"
                 disabled={carregando || salvando}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                className= "bg-kx-sucesso hover:bg-kx-sucesso text-primary-foreground"
               >
                 {salvando ? "Salvando..." : "Salvar Alteracoes"}
               </Button>
@@ -227,59 +227,59 @@ export default function PerfilPage() {
         </Card>
       </div>
 
-      <Card className="border-border bg-card p-6">
-        <div className="space-y-1 pb-4">
-          <h2 className="text-lg font-semibold text-foreground">Alterar Senha</h2>
-          <p className="text-sm text-muted-foreground">
+      <Card className= "border-border bg-card p-6">
+        <div className= "space-y-1 pb-4">
+          <h2 className= "text-lg font-semibold text-foreground">Alterar Senha</h2>
+          <p className= "text-sm text-muted-foreground">
             Ao trocar sua senha, todas as suas outras sessões ativas são encerradas.
           </p>
         </div>
 
-        <form className="space-y-4" onSubmit={onAlterarSenha}>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="senhaAtual">Senha Atual</Label>
+        <form className= "space-y-4" onSubmit={onAlterarSenha}>
+          <div className= "grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className= "space-y-2 md:col-span-2">
+              <Label htmlFor= "senhaAtual">Senha Atual</Label>
               <Input
-                id="senhaAtual"
-                type="password"
+                id= "senhaAtual"
+                type= "password"
                 value={senhaAtual}
                 onChange={(e) => setSenhaAtual(e.target.value)}
-                autoComplete="current-password"
+                autoComplete= "current-password"
                 disabled={alterandoSenha}
                 required
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="novaSenha">Nova Senha</Label>
+            <div className= "space-y-2">
+              <Label htmlFor= "novaSenha">Nova Senha</Label>
               <Input
-                id="novaSenha"
-                type="password"
+                id= "novaSenha"
+                type= "password"
                 value={novaSenha}
                 onChange={(e) => setNovaSenha(e.target.value)}
-                placeholder="Mínimo 8 caracteres, com letras e números"
-                autoComplete="new-password"
+                placeholder= "Mínimo 8 caracteres, com letras e números"
+                autoComplete= "new-password"
                 disabled={alterandoSenha}
                 required
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="confirmacaoSenha">Confirmar Nova Senha</Label>
+            <div className= "space-y-2">
+              <Label htmlFor= "confirmacaoSenha">Confirmar Nova Senha</Label>
               <Input
-                id="confirmacaoSenha"
-                type="password"
+                id= "confirmacaoSenha"
+                type= "password"
                 value={confirmacaoSenha}
                 onChange={(e) => setConfirmacaoSenha(e.target.value)}
-                autoComplete="new-password"
+                autoComplete= "new-password"
                 disabled={alterandoSenha}
                 required
               />
             </div>
           </div>
 
-          <div className="pt-2">
-            <Button type="submit" disabled={alterandoSenha} variant="outline">
+          <div className= "pt-2">
+            <Button type= "submit" disabled={alterandoSenha} variant= "outline">
               {alterandoSenha ? "Alterando..." : "Alterar Senha"}
             </Button>
           </div>

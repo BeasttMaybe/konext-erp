@@ -8,6 +8,9 @@ import { CheckCircle2, Circle, Clock, Wrench, Package, Truck, ClipboardList } fr
 // O rastreio permanece restrito ao legado do tenant principal ate existir
 // identificador publico seguro (exigiria migration, fora desta etapa).
 import { prisma } from "@/lib/prisma";
+import type { StatusOS } from "@prisma/client";
+import { ROTULOS_STATUS_OS } from "@/lib/dominio/os/maquina-estados";
+import { classesDoStatusOS } from "@/lib/dominio/os/cores-etapa";
 
 // ── Metadados dinâmicos ────────────────────────────────────────────────────────
 
@@ -158,7 +161,7 @@ async function buscarOsPublica(id: string): Promise<OsPublica | null> {
 
   // Extrai apenas o primeiro nome para preservar a privacidade do cliente.
   const primeiroNome = String(os.cliente?.nomeRazaoSocial ?? "Cliente")
-    .split(" ")[0]
+    .split("")[0]
     .trim();
 
   return {
@@ -219,41 +222,41 @@ function EtapaTimeline({
   rotulo: string;
   descricao: string;
   Icone: React.ElementType;
-  /** "concluida" = passada, "atual" = em andamento, "pendente" = futura */
-  estado: "concluida" | "atual" | "pendente";
+  /**"concluida" = passada, "atual" = em andamento, "pendente" = futura */
+  estado: "concluida" |"atual" |"pendente";
   ehUltima: boolean;
 }) {
   const corIcone =
     estado === "concluida"
-      ? "text-emerald-600"
+      ? "text-kx-sucesso"
       : estado === "atual"
-        ? "text-blue-600"
-        : "text-slate-300";
+        ? "text-kx-link"
+        : "text-kx-texto-2";
 
   const corFundoIcone =
     estado === "concluida"
-      ? "bg-emerald-50 border-emerald-300"
+      ? "bg-kx-sucesso-fundo border-kx-sucesso"
       : estado === "atual"
-        ? "bg-blue-50 border-blue-400 ring-4 ring-blue-100"
-        : "bg-slate-50 border-slate-200";
+        ? "bg-kx-info-fundo border-kx-info ring-4 ring-kx-foco"
+        : "bg-kx-superficie border-kx-painel-borda";
 
   const corRotulo =
     estado === "concluida"
-      ? "text-emerald-700 font-medium"
+      ? "text-kx-sucesso-texto font-medium"
       : estado === "atual"
-        ? "text-blue-700 font-semibold"
-        : "text-slate-400";
+        ? "text-kx-info-texto font-semibold"
+        : "text-kx-legenda";
 
   const corDescricao =
-    estado === "pendente" ? "text-slate-300" : "text-slate-500";
+    estado === "pendente" ? "text-kx-texto-2" : "text-kx-legenda";
 
   const corLinha =
-    estado === "concluida" ? "bg-emerald-300" : "bg-slate-200";
+    estado === "concluida" ? "bg-kx-sucesso" : "bg-kx-painel-borda";
 
   return (
-    <div className="flex gap-4">
+    <div className= "flex gap-4">
       {/* Coluna do ícone + linha conectora */}
-      <div className="flex flex-col items-center">
+      <div className= "flex flex-col items-center">
         <div
           className={`w-10 h-10 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${corFundoIcone}`}
         >
@@ -262,7 +265,7 @@ function EtapaTimeline({
           ) : estado === "atual" ? (
             <Icone className={`w-5 h-5 ${corIcone}`} />
           ) : (
-            <Circle className="w-5 h-5 text-slate-300" />
+            <Circle className= "w-5 h-5 text-kx-texto-2" />
           )}
         </div>
         {/* Linha conectora vertical — oculta na última etapa */}
@@ -270,7 +273,7 @@ function EtapaTimeline({
       </div>
 
       {/* Conteúdo textual da etapa */}
-      <div className="pb-8">
+      <div className= "pb-8">
         <p className={`text-sm leading-tight ${corRotulo}`}>{rotulo}</p>
         <p className={`text-xs mt-0.5 leading-snug ${corDescricao}`}>{descricao}</p>
       </div>
@@ -295,20 +298,20 @@ export default async function RastreioPage({ params }: PageProps) {
   // OS não encontrada — exibe estado amigável sem expor detalhes internos.
   if (!os) {
     return (
-      <main className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-2xl shadow-lg p-8 text-center">
+      <main className= "min-h-screen bg-kx-superficie flex items-center justify-center p-4">
+        <div className= "max-w-md w-full bg-kx-painel rounded-2xl shadow-lg p-8 text-center">
           {/* Logotipo */}
-          <div className="flex justify-center mb-6">
-            <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center">
-              <span className="text-white font-bold text-lg">K</span>
+          <div className= "flex justify-center mb-6">
+            <div className= "w-12 h-12 bg-kx-primaria rounded-xl flex items-center justify-center">
+              <span className= "text-primary-foreground font-bold text-lg">K</span>
             </div>
           </div>
 
-          <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
-            <ClipboardList className="w-8 h-8 text-red-400" />
+          <div className= "w-16 h-16 bg-kx-erro-fundo rounded-full flex items-center justify-center mx-auto mb-4">
+            <ClipboardList className= "w-8 h-8 text-kx-erro-texto" />
           </div>
-          <h1 className="text-xl font-bold text-slate-900 mb-2">OS não encontrada</h1>
-          <p className="text-sm text-slate-500 leading-relaxed">
+          <h1 className= "text-xl font-bold text-kx-texto mb-2">OS não encontrada</h1>
+          <p className= "text-sm text-kx-legenda leading-relaxed">
             Não encontramos nenhuma Ordem de Serviço com o código informado. Verifique o link
             recebido ou entre em contato com nossa equipe.
           </p>
@@ -320,20 +323,20 @@ export default async function RastreioPage({ params }: PageProps) {
   // Bloqueia a visualização se o link expirou (entregue há mais de 6 horas).
   if (linkExpirado(os.statusAtual, os.atualizadoEm)) {
     return (
-      <main className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-2xl shadow-lg p-8 text-center">
+      <main className= "min-h-screen bg-kx-superficie flex items-center justify-center p-4">
+        <div className= "max-w-md w-full bg-kx-painel rounded-2xl shadow-lg p-8 text-center">
           {/* Logotipo */}
-          <div className="flex justify-center mb-6">
-            <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center">
-              <span className="text-white font-bold text-lg">K</span>
+          <div className= "flex justify-center mb-6">
+            <div className= "w-12 h-12 bg-kx-primaria rounded-xl flex items-center justify-center">
+              <span className= "text-primary-foreground font-bold text-lg">K</span>
             </div>
           </div>
 
-          <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Clock className="w-8 h-8 text-slate-400" />
+          <div className= "w-16 h-16 bg-kx-superficie rounded-full flex items-center justify-center mx-auto mb-4">
+            <Clock className= "w-8 h-8 text-kx-legenda" />
           </div>
-          <h1 className="text-xl font-bold text-slate-900 mb-2">Link expirado</h1>
-          <p className="text-sm text-slate-500 leading-relaxed">
+          <h1 className= "text-xl font-bold text-kx-texto mb-2">Link expirado</h1>
+          <p className= "text-sm text-kx-legenda leading-relaxed">
             Este link de rastreio expirou. O aparelho já foi entregue e a ordem de serviço foi encerrada.
           </p>
         </div>
@@ -344,31 +347,31 @@ export default async function RastreioPage({ params }: PageProps) {
   const idxAtual = indiceEtapaAtual(os.statusAtual);
   const equipamentoCompleto = [os.marca, os.modelo, os.equipamento]
     .filter(Boolean)
-    .join(" ");
+    .join("");
 
   return (
-    <main className="min-h-screen bg-slate-50 py-10 px-4">
-      <div className="max-w-2xl mx-auto space-y-5">
+    <main className= "min-h-screen bg-kx-superficie py-10 px-4">
+      <div className= "max-w-2xl mx-auto space-y-5">
 
         {/* Cabeçalho da página — logotipo + título */}
-        <div className="flex flex-col items-center text-center gap-2">
+        <div className= "flex flex-col items-center text-center gap-2">
           {/* Placeholder do logotipo — substituir por <Image> com o logo real */}
-          <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center shadow">
-            <span className="text-white font-bold text-lg select-none">K</span>
+          <div className= "w-12 h-12 bg-kx-primaria rounded-xl flex items-center justify-center shadow">
+            <span className= "text-primary-foreground font-bold text-lg select-none">K</span>
           </div>
-          <p className="text-xs text-slate-400 uppercase tracking-widest font-medium">
+          <p className= "text-xs text-kx-legenda uppercase tracking-widest font-medium">
             Konext — Rastreio de Reparo
           </p>
         </div>
 
         {/* Card principal — identificação da OS */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 border border-slate-100">
-          <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className= "bg-kx-painel rounded-2xl shadow-lg p-6 border border-kx-painel-borda">
+          <div className= "flex items-start justify-between gap-4 flex-wrap">
             <div>
-              <p className="text-xs text-slate-400 uppercase tracking-wider font-medium mb-0.5">
+              <p className= "text-xs text-kx-legenda uppercase tracking-wider font-medium mb-0.5">
                 Ordem de Serviço
               </p>
-              <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
+              <h1 className= "text-3xl font-extrabold text-kx-texto tracking-tight">
                 #{os.numeroOs}
               </h1>
             </div>
@@ -378,33 +381,33 @@ export default async function RastreioPage({ params }: PageProps) {
           </div>
 
           {/* Detalhes públicos da OS — sem dados sensíveis */}
-          <dl className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-slate-50 rounded-xl p-3">
-              <dt className="text-xs text-slate-400 font-medium mb-0.5">Cliente</dt>
-              <dd className="text-sm font-semibold text-slate-800">{os.primeiroNomeCliente}</dd>
+          <dl className= "mt-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className= "bg-kx-superficie rounded-xl p-3">
+              <dt className= "text-xs text-kx-legenda font-medium mb-0.5">Cliente</dt>
+              <dd className= "text-sm font-semibold text-kx-texto">{os.primeiroNomeCliente}</dd>
             </div>
 
-            <div className="bg-slate-50 rounded-xl p-3">
-              <dt className="text-xs text-slate-400 font-medium mb-0.5">Equipamento</dt>
-              <dd className="text-sm font-semibold text-slate-800">{equipamentoCompleto}</dd>
+            <div className= "bg-kx-superficie rounded-xl p-3">
+              <dt className= "text-xs text-kx-legenda font-medium mb-0.5">Equipamento</dt>
+              <dd className= "text-sm font-semibold text-kx-texto">{equipamentoCompleto}</dd>
             </div>
 
-            <div className="bg-slate-50 rounded-xl p-3">
-              <dt className="text-xs text-slate-400 font-medium mb-0.5">Data de Entrada</dt>
-              <dd className="text-sm font-semibold text-slate-800">{formatarData(os.criadoEm)}</dd>
+            <div className= "bg-kx-superficie rounded-xl p-3">
+              <dt className= "text-xs text-kx-legenda font-medium mb-0.5">Data de Entrada</dt>
+              <dd className= "text-sm font-semibold text-kx-texto">{formatarData(os.criadoEm)}</dd>
             </div>
           </dl>
 
           {/* Relato do cliente — exibido como informação de contexto */}
-          <div className="mt-4 p-3 bg-amber-50 border border-amber-100 rounded-xl">
-            <p className="text-xs text-amber-600 font-medium mb-0.5">Problema relatado</p>
-            <p className="text-sm text-slate-700 leading-relaxed">{os.relatoCliente}</p>
+          <div className= "mt-4 p-3 bg-kx-alerta-fundo border border-kx-alerta rounded-kx-cartao">
+            <p className= "text-xs text-kx-alerta-texto font-medium mb-0.5">Problema relatado</p>
+            <p className= "text-sm text-kx-texto leading-relaxed">{os.relatoCliente}</p>
           </div>
         </div>
 
         {/* Card da linha do tempo — progressão visual do reparo */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 border border-slate-100">
-          <h2 className="text-base font-bold text-slate-900 mb-6">
+        <div className= "bg-kx-painel rounded-2xl shadow-lg p-6 border border-kx-painel-borda">
+          <h2 className= "text-base font-bold text-kx-texto mb-6">
             Acompanhamento do Reparo
           </h2>
 
@@ -432,7 +435,7 @@ export default async function RastreioPage({ params }: PageProps) {
         </div>
 
         {/* Rodapé informativo */}
-        <p className="text-center text-xs text-slate-400 pb-6">
+        <p className= "text-center text-xs text-kx-legenda pb-6">
           Dúvidas? Entre em contato com nossa equipe de atendimento.
           <br />
           Esta página é atualizada automaticamente conforme o andamento do reparo.
@@ -450,42 +453,21 @@ export default async function RastreioPage({ params }: PageProps) {
  * Separa a camada de apresentação da lógica de mapeamento.
  */
 function StatusBadge({ status }: { status: string }) {
-  const mapa: Record<string, { rotulo: string; classes: string }> = {
-    AGUARDANDO_ORCAMENTO: {
-      rotulo: "Recebido",
-      classes: "bg-slate-100 text-slate-600",
-    },
-    AGUARDANDO_APROVACAO: {
-      rotulo: "Aguardando Aprovação",
-      classes: "bg-yellow-100 text-yellow-700",
-    },
-    APROVADO: {
-      rotulo: "Aprovado",
-      classes: "bg-emerald-100 text-emerald-700",
-    },
-    AGUARDANDO_PECA: {
-      rotulo: "Aguardando Peça",
-      classes: "bg-orange-100 text-orange-700",
-    },
-    EM_MANUTENCAO: {
-      rotulo: "Em Manutenção",
-      classes: "bg-blue-100 text-blue-700",
-    },
-    PRONTO: {
-      rotulo: "Pronto para Retirada",
-      classes: "bg-teal-100 text-teal-700",
-    },
-    ENTREGUE: {
-      rotulo: "Entregue",
-      classes: "bg-purple-100 text-purple-700",
-    },
-  };
+  const mapa: Record<string, { rotulo: string; classes: string }> = Object.fromEntries(
+    Object.keys(ROTULOS_STATUS_OS).map((valor) => [
+      valor,
+      {
+        rotulo: ROTULOS_STATUS_OS[valor as StatusOS],
+        classes: classesDoStatusOS(valor as StatusOS).chip,
+      },
+    ])
+  );
 
-  const config = mapa[status] ?? { rotulo: status, classes: "bg-slate-100 text-slate-600" };
+  const config = mapa[status] ?? { rotulo: status, classes: "bg-kx-superficie text-kx-texto-2" };
 
   return (
     <span
-      className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide whitespace-nowrap ${config.classes}`}
+      className={`inline-flex items-center border px-3 py-1.5 rounded-kx-pilula text-xs font-semibold tracking-wide whitespace-nowrap ${config.classes}`}
     >
       {config.rotulo}
     </span>
