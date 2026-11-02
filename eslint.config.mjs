@@ -28,11 +28,6 @@ const ARQUIVOS_COM_COR_LEGADA = [
   "app/(dashboard)/estoque/page.tsx",
   "app/(dashboard)/inicio/page.tsx",
   "app/(dashboard)/metas/page.tsx",
-  // Convertido em 02/11/2026, menos os TRES cartoes de KPI do topo
-  // (Faturamento / Custo de Mercadoria / Lucro Bruto): o azul do primeiro nao
-  // tem par fundo+texto no sistema, e inventar um sem ver a tela renderizada
-  // seria adivinhar. Decisao de design pendente, nao esquecimento.
-  "app/(dashboard)/pdv/page.tsx",
   "app/(dashboard)/perfil/page.tsx",
   "app/(dashboard)/vendas/historico/page.tsx",
   "app/(dashboard)/vendas/page.tsx",

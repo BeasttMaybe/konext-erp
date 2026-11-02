@@ -198,6 +198,10 @@
   --color-kx-alerta-fundo: var(--kx-alerta-fundo);
   --color-kx-alerta-texto: var(--kx-alerta-texto);
   --color-kx-alerta-icone: var(--kx-alerta-icone);
+  --color-kx-info: var(--kx-info);
+  --color-kx-info-fundo: var(--kx-info-fundo);
+  --color-kx-info-texto: var(--kx-info-texto);
+  --color-kx-info-icone: var(--kx-info-icone);
   --color-kx-erro: var(--kx-erro);
   --color-kx-erro-fundo: var(--kx-erro-fundo);
   --color-kx-erro-texto: var(--kx-erro-texto);

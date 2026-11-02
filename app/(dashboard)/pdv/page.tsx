@@ -959,29 +959,29 @@ function PDVPageConteudo() {
 
             <div className="px-6 pt-5">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-900/60 dark:bg-blue-950/30 p-4">
-                  <p className="text-xs font-medium text-blue-700 dark:text-blue-300">
+                <div className="rounded-lg border border-kx-info bg-kx-info-fundo p-4">
+                  <p className="text-xs font-medium text-kx-info-texto">
                     Faturamento Hoje
                   </p>
-                  <p className="text-xl font-bold text-blue-900 dark:text-blue-100 mt-2">
+                  <p className="text-xl font-bold text-kx-info-texto mt-2">
                     {formatarMoeda(resumoCaixaDiario?.totalVendas ?? 0)}
                   </p>
                 </div>
 
-                <div className="rounded-lg border border-orange-200 bg-orange-50 dark:border-orange-900/60 dark:bg-orange-950/30 p-4">
-                  <p className="text-xs font-medium text-orange-700 dark:text-orange-300">
+                <div className="rounded-lg border border-kx-alerta bg-kx-alerta-fundo p-4">
+                  <p className="text-xs font-medium text-kx-alerta-texto">
                     Custo de Mercadoria
                   </p>
-                  <p className="text-xl font-bold text-orange-900 dark:text-orange-100 mt-2">
+                  <p className="text-xl font-bold text-kx-alerta-texto mt-2">
                     {formatarMoeda(resumoCaixaDiario?.custoTotal ?? 0)}
                   </p>
                 </div>
 
-                <div className="rounded-lg border border-emerald-200 bg-emerald-50 dark:border-emerald-900/60 dark:bg-emerald-950/30 p-4">
+                <div className="rounded-lg border border-kx-sucesso bg-kx-sucesso-fundo p-4">
                   <p className="text-xs font-medium text-kx-sucesso-texto">
                     Lucro Bruto
                   </p>
-                  <p className="text-xl font-bold text-emerald-900 dark:text-emerald-100 mt-2">
+                  <p className="text-xl font-bold text-kx-sucesso-texto mt-2">
                     {formatarMoeda(resumoCaixaDiario?.lucroBruto ?? 0)}
                   </p>
                 </div>
@@ -1009,7 +1009,7 @@ function PDVPageConteudo() {
                 (resumoCaixaDiario?.sessoesFechadasHoje ?? []).map((sessao) => (
                   <div
                     key={sessao.id}
-                    className="rounded-lg border border-kx-painel-borda p-4 bg-white"
+                    className="rounded-lg border border-kx-painel-borda p-4 bg-kx-cartao"
                   >
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-sm font-semibold text-kx-texto">
@@ -1077,7 +1077,7 @@ function PDVPageConteudo() {
                 (resumoCaixaDiario?.vendas ?? []).map((venda) => (
                   <div
                     key={venda.id}
-                    className="rounded-lg border border-kx-painel-borda p-4 mb-3 bg-white"
+                    className="rounded-lg border border-kx-painel-borda p-4 mb-3 bg-kx-cartao"
                   >
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-sm font-semibold text-kx-texto">

@@ -82,6 +82,20 @@
   --kx-alerta-texto: #fde7c7;
   --kx-alerta-icone: #fdba74;
 
+  /* Família "info" (02/11/2026): o trio de KPI do PDV é Faturamento / Custo /
+     Lucro, e Custo e Lucro já tinham par (alerta e sucesso). Faturamento usava
+     `bg-blue-50 dark:bg-blue-950/30` solto, azul genérico do Tailwind que não
+     é o azul da marca. Esta família é o índigo da marca (o mesmo
+     --kx-destaque/--kx-entregue), com par fundo+texto de verdade em vez de
+     dois tons escolhidos a olho.
+     Contraste texto/fundo: 7.59:1 no escuro, 5.78:1 no claro — dentro da
+     faixa das outras famílias de feedback (6.58–10.16 escuro, 4.61–6.07
+     claro), não abaixo dela. */
+  --kx-info: #8b91ff;
+  --kx-info-fundo: #2e3168;
+  --kx-info-texto: #c7caff;
+  --kx-info-icone: #8b91ff;
+
   --kx-erro: #f87171;
   --kx-erro-fundo: #4a2b35;
   --kx-erro-texto: #fde2e2;
@@ -201,6 +215,13 @@
   --kx-alerta-fundo: #fef3d8;
   --kx-alerta-texto: #92660a;
   --kx-alerta-icone: #92660a;
+
+  /* Ver a nota da família info no bloco escuro. No claro, `-texto` é a própria
+     cor da família, como nas outras três. */
+  --kx-info: #4548c9;
+  --kx-info-fundo: #e8e9fb;
+  --kx-info-texto: #4548c9;
+  --kx-info-icone: #4548c9;
 
   --kx-erro: #c0392b;
   --kx-erro-fundo: #fde8e6;
