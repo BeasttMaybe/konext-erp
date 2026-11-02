@@ -97,7 +97,7 @@ function LoginPageConteudo() {
             </label>
             <Link
               href="/login/recuperar"
-              className={`text-[13px] font-semibold hover:text-[#C7CAFF] ${classeFoco}`}
+              className={`text-[13px] font-semibold hover:text-kx-link ${classeFoco}`}
               style={{ color: "var(--kx-link)", outlineColor: "var(--kx-foco)" }}
             >
               Esqueci minha senha
@@ -147,7 +147,7 @@ function LoginPageConteudo() {
           className={`flex h-[54px] items-center justify-center gap-2.5 rounded-[14px] text-base font-extrabold transition-opacity ${classeFoco}`}
           style={{
             backgroundColor: "var(--kx-primaria)",
-            color: "#FFFFFF",
+            color: "var(--primary-foreground)",
             opacity: carregandoLogin ? 0.7 : 1,
             outlineColor: "var(--kx-foco)",
           }}

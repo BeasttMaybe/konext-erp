@@ -199,8 +199,8 @@ export default async function ReciboPage({ params, searchParams }: PropsReciboPa
     <div
       className={
         embed
-          ? "min-h-screen bg-white text-black p-2"
-          : "min-h-screen bg-background text-foreground p-4 print:p-0 print:bg-white print:text-black"
+          ? "min-h-screen bg-kx-papel text-kx-papel-texto p-2"
+          : "min-h-screen bg-background text-foreground p-4 print:p-0 print:bg-kx-papel print:text-kx-papel-texto"
       }
     >
       {autoPrint && <ImpressaoAutomaticaRecibo />}
@@ -221,7 +221,7 @@ export default async function ReciboPage({ params, searchParams }: PropsReciboPa
           main {
             margin: 0 !important;
             padding: 0 !important;
-            background: #fff !important;
+            background: var(--kx-papel) !important;
           }
         ` : ""}
 
@@ -241,17 +241,17 @@ export default async function ReciboPage({ params, searchParams }: PropsReciboPa
           main {
             margin: 0 !important;
             padding: 0 !important;
-            background: #fff !important;
+            background: var(--kx-papel) !important;
           }
         }
       `}</style>
 
       <div
-        className={`mx-auto bg-white text-black border border-zinc-300 rounded-md p-4 max-w-[340px] print:max-w-[80mm] print:border-0 print:rounded-none ${
+        className={`mx-auto bg-kx-papel text-kx-papel-texto border border-kx-papel-borda rounded-md p-4 max-w-[340px] print:max-w-[80mm] print:border-0 print:rounded-none ${
           embed ? "max-w-full" : ""
         }`}
       >
-        <div className="text-center border-b border-zinc-300 pb-3 mb-3">
+        <div className="text-center border-b border-kx-papel-borda pb-3 mb-3">
           {resumoEmpresa.logoUrl ? (
             <div className="mb-2 flex justify-center">
               <img
@@ -263,9 +263,9 @@ export default async function ReciboPage({ params, searchParams }: PropsReciboPa
           ) : null}
           <p className="text-lg font-bold">{resumoEmpresa.nomeExibicao}</p>
           <p className="text-xs">Recibo de Venda</p>
-          <p className="mt-1 text-[11px] text-zinc-600">{resumoEmpresa.cnpj}</p>
-          <p className="text-[11px] text-zinc-600">{resumoEmpresa.telefone}</p>
-          <p className="text-[11px] text-zinc-600">{resumoEmpresa.endereco}</p>
+          <p className="mt-1 text-[11px] text-kx-papel-texto-2">{resumoEmpresa.cnpj}</p>
+          <p className="text-[11px] text-kx-papel-texto-2">{resumoEmpresa.telefone}</p>
+          <p className="text-[11px] text-kx-papel-texto-2">{resumoEmpresa.endereco}</p>
           <p className="text-xs mt-1">{formatarDataHora(venda.criadoEm)}</p>
           <p className="text-xs">Venda #{String(venda.id).slice(0, 8).toUpperCase()}</p>
         </div>
@@ -298,7 +298,7 @@ export default async function ReciboPage({ params, searchParams }: PropsReciboPa
           )}
         </div>
 
-        <div className="border-t border-b border-zinc-300 py-2 mb-3">
+        <div className="border-t border-b border-kx-papel-borda py-2 mb-3">
           {venda.itens.length === 0 && (
             <p className="text-xs">Sem itens detalhados.</p>
           )}
@@ -307,7 +307,7 @@ export default async function ReciboPage({ params, searchParams }: PropsReciboPa
             <div key={item.id} className="flex items-start justify-between gap-2 text-xs py-1">
               <div className="min-w-0">
                 <p className="font-medium truncate">{item.descricao || item.produto?.nome || "Item sem descricao"}</p>
-                <p className="text-[11px] text-zinc-600">
+                <p className="text-[11px] text-kx-papel-texto-2">
                   {item.quantidade}x {formatarMoeda(item.precoUnitario)}
                 </p>
               </div>
@@ -325,13 +325,13 @@ export default async function ReciboPage({ params, searchParams }: PropsReciboPa
             <span>Desconto</span>
             <span>- {formatarMoeda(venda.desconto ?? 0)}</span>
           </div>
-          <div className="flex items-center justify-between font-bold border-t border-zinc-300 pt-2 mt-2">
+          <div className="flex items-center justify-between font-bold border-t border-kx-papel-borda pt-2 mt-2">
             <span>Total</span>
             <span>{formatarMoeda(venda.valorTotal)}</span>
           </div>
         </div>
 
-        <p className="text-[11px] text-center text-zinc-600 mt-4 whitespace-pre-wrap">
+        <p className="text-[11px] text-center text-kx-papel-texto-2 mt-4 whitespace-pre-wrap">
           {resumoEmpresa.mensagemCupom || "Obrigado pela preferência."}
         </p>
       </div>

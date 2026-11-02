@@ -7,8 +7,12 @@ export const ESTILO_IMPRESSAO_A4 = `
    * por isso !important aqui sempre vence.
    */
   html, body {
-    background-color: #ffffff !important;
-    color: #000000 !important;
+    /* Tokens da familia papel (app/tokens-konext.css). Funcionam aqui porque
+       ela e declarada UMA vez, fora dos dois blocos de tema: um token que
+       mudasse com prefers-color-scheme imprimiria texto claro em folha
+       branca pra quem usa o sistema no tema escuro. */
+    background-color: var(--kx-papel) !important;
+    color: var(--kx-papel-texto) !important;
     color-scheme: light !important;
   }
 
@@ -35,7 +39,7 @@ export const ESTILO_IMPRESSAO_A4 = `
 
     .os-tela-wrapper {
       padding: 0 !important;
-      background: #fff !important;
+      background: var(--kx-papel) !important;
     }
 
     .os-folha {
@@ -56,8 +60,8 @@ export const ESTILO_IMPRESSAO_TERMICA = `
   *, *::before, *::after { box-sizing: border-box; }
 
   html, body {
-    background: #fff !important;
-    color: #000 !important;
+    background: var(--kx-papel) !important;
+    color: var(--kx-papel-texto) !important;
     color-scheme: light !important;
   }
 
@@ -70,7 +74,7 @@ export const ESTILO_IMPRESSAO_TERMICA = `
     width: 100%;
     display: flex;
     justify-content: center;
-    background: #fff;
+    background: var(--kx-papel);
   }
 
   .os-termica {
@@ -81,7 +85,7 @@ export const ESTILO_IMPRESSAO_TERMICA = `
     font-family: "Courier New", "Consolas", ui-monospace, monospace;
     font-size: 12px;
     line-height: 1.35;
-    color: #000;
+    color: var(--kx-papel-texto);
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
@@ -101,7 +105,7 @@ export const ESTILO_IMPRESSAO_TERMICA = `
 
   .os-termica .termica-separador {
     border: none;
-    border-top: 1px dashed #000;
+    border-top: 1px dashed var(--kx-papel-texto);
     margin: 6px 0;
   }
 

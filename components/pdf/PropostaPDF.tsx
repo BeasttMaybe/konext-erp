@@ -1,4 +1,5 @@
 import { Document, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
+import { PALETA_PAPEL } from "@/lib/design/papel";
 
 export type ProposalPdfItem = {
   id?: string;
@@ -43,13 +44,23 @@ type PropostaPdfProps = {
   company?: CompanyPdfInfo;
 };
 
+/**
+ * Paleta vinda de `lib/design/papel.ts`, que espelha os tokens
+ * `--kx-papel-*` e tem teste provando que os dois nao divergem. Aqui os
+ * valores sao literais por necessidade: `@react-pdf/renderer` desenha o PDF
+ * por conta propria e nao resolve `var(--kx-papel)`.
+ *
+ * Antes este objeto tinha a sua propria escala de cinza (#1a1a1a, #52525b,
+ * #e4e4e7), parecida mas nao igual a do recibo e a do termo de garantia —
+ * quatro documentos da mesma loja em quatro cinzas diferentes.
+ */
 const palette = {
-  primaryText: "#1a1a1a",
-  secondaryText: "#52525b",
-  tableHeaderBg: "#f4f4f5",
-  subtleBorder: "#e4e4e7",
-  accent: "#22c55e",
-  white: "#ffffff",
+  primaryText: PALETA_PAPEL.texto,
+  secondaryText: PALETA_PAPEL.texto2,
+  tableHeaderBg: PALETA_PAPEL.alternado,
+  subtleBorder: PALETA_PAPEL.borda,
+  accent: PALETA_PAPEL.bordaForte,
+  white: PALETA_PAPEL.papel,
 };
 
 const styles = StyleSheet.create({

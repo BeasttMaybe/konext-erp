@@ -14,9 +14,11 @@ const plusJakartaSans = localFont({
  * Pré-visualização estática do Kanban de OS, só decorativa (Fase 1B-FIX,
  * Parte 4 — conteúdo de `docs/design/login-referencia.dc.html`). `aria-hidden`
  * porque não é uma lista de verdade — nenhuma OS real aparece na tela de
- * login. As cores de badge (`corBadgeFundo`/`corBadgeTexto`) são valores
- * pontuais do design de referência, sem token `--kx-*` correspondente,
- * exceto a coluna "Conserto" que reaproveita `--kx-alerta-*`.
+ * login. As cores de badge (`corBadgeFundo`/`corBadgeTexto`) saem dos tokens
+ * de etapa: eram valores pontuais "do design de referência" que, na prática,
+ * já eram os tokens com outro nome — `#1E4540`/`#6EE7B7` é exatamente o par
+ * `--kx-sucesso-*`. Duas verdades sobre a cor de "orçamento" é uma a mais do
+ * que o sistema aguenta manter em sincronia.
  */
 const COLUNAS_KANBAN_PREVIA = [
   {
@@ -25,8 +27,8 @@ const COLUNAS_KANBAN_PREVIA = [
     numeroOs: "OS 0127",
     descricao: "Notebook · não liga",
     badge: "Aguardando aprovação",
-    corBadgeFundo: "#4A3F24",
-    corBadgeTexto: "#FCD34D",
+    corBadgeFundo: "var(--kx-alerta-fundo)",
+    corBadgeTexto: "var(--kx-alerta-texto)",
   },
   {
     titulo: "Conserto",
@@ -43,8 +45,8 @@ const COLUNAS_KANBAN_PREVIA = [
     numeroOs: "OS 0129",
     descricao: "Videogame · HDMI",
     badge: "Cliente avisado",
-    corBadgeFundo: "#1E4540",
-    corBadgeTexto: "#6EE7B7",
+    corBadgeFundo: "var(--kx-sucesso-fundo)",
+    corBadgeTexto: "var(--kx-sucesso-texto)",
   },
 ] as const;
 
@@ -66,7 +68,7 @@ export default function AuthGroupLayout({
       {/* Cabeçalho compacto — só abaixo de 1024px; o painel de marca cobre isso no desktop */}
       <div className="flex items-center gap-3 px-6 pt-6 lg:hidden">
         <div
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] text-base font-extrabold text-white"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] text-base font-extrabold text-primary-foreground"
           style={{ backgroundColor: "var(--kx-primaria)" }}
         >
           K
@@ -81,7 +83,7 @@ export default function AuthGroupLayout({
       >
         <div className="flex items-center gap-3">
           <div
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[22px] font-extrabold text-white"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[22px] font-extrabold text-primary-foreground"
             style={{ backgroundColor: "var(--kx-primaria)" }}
           >
             K
@@ -121,7 +123,7 @@ export default function AuthGroupLayout({
 
               <div
                 className="flex flex-col gap-1.5 rounded-[14px] p-3"
-                style={{ backgroundColor: "var(--kx-cartao)", border: "1px solid #3A3D6A" }}
+                style={{ backgroundColor: "var(--kx-cartao)", border: "1px solid var(--kx-painel-borda)" }}
               >
                 <span className="text-[11px] font-extrabold" style={{ color: "var(--kx-link)" }}>
                   {coluna.numeroOs}
@@ -144,7 +146,7 @@ export default function AuthGroupLayout({
             Dúvidas?{" "}
             <a
               href="#"
-              className={`font-medium hover:text-[#C7CAFF] ${classeFoco}`}
+              className={`font-medium hover:text-kx-link ${classeFoco}`}
               style={{ color: "var(--kx-link)", outlineColor: "var(--kx-foco)" }}
             >
               Fale com o suporte

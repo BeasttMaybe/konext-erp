@@ -15,18 +15,22 @@ import konextRegrasDinheiro from "./eslint-rules/dinheiro-fora-do-modulo.mjs";
  * daqui (porque a Fase 3-2 já o restilou) é o critério de "terminou aquela
  * tela"; a lista só deve encolher.
  */
-const ARQUIVOS_COM_COR_LEGADA = [
-  "app/(auth)/layout.tsx",
-  "app/(auth)/login/page.tsx",
-  "app/(auth)/login/recuperar/page.tsx",
-  "app/(printer)/os/\\[id\\]/garantia/page.tsx",
-  "app/(printer)/recibo/\\[id\\]/page.tsx",
-  "components/os/garantias/termo-garantia-documento.tsx",
-  "components/os/impressao/estilos-impressao.ts",
-  "components/os/impressao/os-impressao-a4.tsx",
-  "components/pdf/PropostaPDF.tsx",
-  "components/pdf/proposta-pdf-viewer.tsx",
-];
+/**
+ * Telas que ainda nao passaram pelo design system e por isso ficam fora das
+ * regras de cor.
+ *
+ * ESTA LISTA ESTA VAZIA desde 02/11/2026, e e para continuar assim: todo
+ * arquivo de `app/**`, `components/**` e `lib/**` usa os tokens. Ela comecou
+ * o dia com 59 arquivos.
+ *
+ * Nao adicione nada aqui para "fazer o lint passar". Adicionar um arquivo a
+ * esta lista desliga a regra de cor nele INTEIRO, inclusive para o proximo
+ * que mexer no arquivo — foi assim que um mapa de cor de status com oito
+ * matizes crus do Tailwind sobreviveu em `lib/dominio` sem ninguem notar. Se
+ * uma cor nova nao encontra token, o caminho e criar o token (ver a familia
+ * `--kx-info`, nascida assim) ou usar a familia semantica que corresponde.
+ */
+const ARQUIVOS_COM_COR_LEGADA: string[] = [];
 
 const eslintConfig = defineConfig([
   ...nextVitals,
@@ -43,7 +47,17 @@ const eslintConfig = defineConfig([
     // e o validacao-imei.test.ts usa "123#456" como IMEI invalido, que nem e
     // cor. Por isso ficam fora, e nao na lista de cor legada — que significa
     // outra coisa (tela antiga ainda por converter).
-    ignores: [...ARQUIVOS_COM_COR_LEGADA, "**/*.test.ts", "**/*.test.tsx"],
+    // `lib/design/papel.ts` e o UNICO lugar autorizado a escrever os valores
+    // da paleta de papel em TypeScript, pela mesma razao que `lib/dinheiro.ts`
+    // e o unico a fazer aritmetica de centavo: o PDF e montado por
+    // @react-pdf/renderer, que nao resolve variavel CSS. `papel.test.ts` le o
+    // CSS de verdade e falha se os dois divergirem.
+    ignores: [
+      ...ARQUIVOS_COM_COR_LEGADA,
+      "lib/design/papel.ts",
+      "**/*.test.ts",
+      "**/*.test.tsx",
+    ],
     plugins: { konext: konextRegrasCor },
     rules: {
       "konext/sem-hex-hardcoded": "error",

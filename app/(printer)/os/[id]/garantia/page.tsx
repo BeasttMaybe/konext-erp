@@ -23,12 +23,12 @@ export default async function PaginaGarantiaOS({ params }: PropsPaginaGarantia) 
 
   if (!termo) {
     return (
-      <div className="min-h-screen bg-slate-50 p-6">
-        <div className="mx-auto max-w-2xl rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h1 className="text-xl font-semibold text-slate-900">
+      <div className="min-h-screen bg-kx-papel-alternado p-6">
+        <div className="mx-auto max-w-2xl rounded-xl border border-kx-papel-borda bg-kx-papel p-6 shadow-sm">
+          <h1 className="text-xl font-semibold text-kx-papel-texto">
             Termo de garantia ainda não emitido
           </h1>
-          <p className="mt-2 text-sm text-slate-600">
+          <p className="mt-2 text-sm text-kx-papel-texto-2">
             A garantia da OS {contexto.numeroOS} passa a valer a partir da <strong>entrega</strong>.
             O termo é emitido automaticamente quando a OS é finalizada — não há nada para imprimir
             antes disso.
@@ -58,8 +58,8 @@ export default async function PaginaGarantiaOS({ params }: PropsPaginaGarantia) 
     <>
       <style>{`
         html, body {
-          background-color: #ffffff !important;
-          color: #000000 !important;
+          background-color: var(--kx-papel) !important;
+          color: var(--kx-papel-texto) !important;
           color-scheme: light !important;
         }
 
@@ -85,7 +85,7 @@ export default async function PaginaGarantiaOS({ params }: PropsPaginaGarantia) 
 
           .garantia-tela-wrapper {
             padding: 0 !important;
-            background: #fff !important;
+            background: var(--kx-papel) !important;
           }
 
           .garantia-folha {
@@ -100,12 +100,12 @@ export default async function PaginaGarantiaOS({ params }: PropsPaginaGarantia) 
         }
       `}</style>
 
-      <div className="garantia-tela-wrapper min-h-screen bg-white py-3 px-4 print:py-0 print:px-0">
+      <div className="garantia-tela-wrapper min-h-screen bg-kx-papel py-3 px-4 print:py-0 print:px-0">
         <div className="print-hidden w-[210mm] max-w-full mx-auto mb-2 flex justify-end">
           <BotaoImprimirGarantia />
         </div>
 
-        <article className="garantia-folha w-[210mm] min-h-[297mm] mx-auto bg-white text-black border border-zinc-300 shadow-sm rounded p-[14mm] print:rounded-none print:shadow-none print:border-0">
+        <article className="garantia-folha w-[210mm] min-h-[297mm] mx-auto bg-kx-papel text-kx-papel-texto border border-kx-papel-borda shadow-sm rounded p-[14mm] print:rounded-none print:shadow-none print:border-0">
           <TermoGarantiaDocumento termo={termo} />
         </article>
       </div>

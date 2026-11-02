@@ -198,6 +198,13 @@
   --color-kx-alerta-fundo: var(--kx-alerta-fundo);
   --color-kx-alerta-texto: var(--kx-alerta-texto);
   --color-kx-alerta-icone: var(--kx-alerta-icone);
+  --color-kx-papel: var(--kx-papel);
+  --color-kx-papel-alternado: var(--kx-papel-alternado);
+  --color-kx-papel-texto: var(--kx-papel-texto);
+  --color-kx-papel-texto-2: var(--kx-papel-texto-2);
+  --color-kx-papel-legenda: var(--kx-papel-legenda);
+  --color-kx-papel-borda: var(--kx-papel-borda);
+  --color-kx-papel-borda-forte: var(--kx-papel-borda-forte);
   --color-kx-info: var(--kx-info);
   --color-kx-info-fundo: var(--kx-info-fundo);
   --color-kx-info-texto: var(--kx-info-texto);

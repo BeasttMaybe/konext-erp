@@ -105,6 +105,30 @@
      vermelho mais escuro que o #F87171 de indicador — branco nele so da 2.77:1. */
   --kx-erro-solido: #c0392b;
 
+  /* ---- Cor: PAPEL (impressão e PDF) ----
+     Documento impresso não segue o tema. Recibo, termo de garantia, OS em A4
+     e proposta em PDF saem numa folha branca, e tinta é preta — valem o mesmo
+     de dia, de noite, no tema claro e no escuro. Por isso esta família é a
+     única declarada UMA vez, fora dos dois blocos de tema: um `--kx-papel-*`
+     que mudasse com `prefers-color-scheme` imprimiria texto claro em folha
+     branca para quem usa o sistema no tema escuro.
+
+     Existe porque esses quatro documentos usavam cada um a sua escala de
+     cinza — zinc-500/600/700/900 num, hex #52525b/#1a1a1a noutro — e eram
+     quatro documentos da mesma loja com quatro cinzas diferentes.
+
+     Contraste medido sobre a folha: texto 17.72:1, secundário 7.73:1,
+     legenda 4.83:1 — os três acima do mínimo AA de 4.5:1 do WCAG 2.1.
+     `--kx-papel-borda-forte` fica em 2.56:1 e é divisor de tabela, não
+     texto nem controle: não cai sob 1.4.3 nem 1.4.11. */
+  --kx-papel: #ffffff;
+  --kx-papel-alternado: #f4f4f5;
+  --kx-papel-texto: #18181b;
+  --kx-papel-texto-2: #52525b;
+  --kx-papel-legenda: #71717a;
+  --kx-papel-borda: #d4d4d8;
+  --kx-papel-borda-forte: #a1a1aa;
+
   /* ---- Espaçamento (grade de 4px) ---- */
   --kx-espaco-1: 4px;
   --kx-espaco-2: 8px;

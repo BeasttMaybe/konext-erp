@@ -35,7 +35,7 @@ export default function RecuperarSenhaPage() {
 
       <Link
         href="/login"
-        className={`inline-flex items-center gap-2 text-sm font-semibold hover:text-[#C7CAFF] ${classeFoco}`}
+        className={`inline-flex items-center gap-2 text-sm font-semibold hover:text-kx-link ${classeFoco}`}
         style={{ color: "var(--kx-link)", outlineColor: "var(--kx-foco)" }}
       >
         <ArrowLeft className="h-4 w-4" aria-hidden />
