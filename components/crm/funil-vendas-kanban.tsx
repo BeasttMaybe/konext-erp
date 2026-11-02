@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useState, useTransition, type CSSProperties } from"react";
-import { useRouter } from"next/navigation";
-import { zodResolver } from"@hookform/resolvers/zod";
-import { Controller, useForm, type Resolver } from"react-hook-form";
-import { DragDropContext, Draggable, Droppable, type DropResult } from"@hello-pangea/dnd";
+import { useMemo, useState, useTransition, type CSSProperties } from "react";
+import { useRouter } from "next/navigation";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Controller, useForm, type Resolver } from "react-hook-form";
+import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
 import {
   ArrowLeft,
   ArrowRight,
@@ -12,27 +12,27 @@ import {
   LayoutGrid,
   Plus,
   Target,
-} from"lucide-react";
-import { toast } from"sonner";
+} from "lucide-react";
+import { toast } from "sonner";
 
-import { criarOportunidade, atualizarEstagioOportunidade, type OportunidadeListagem } from"@/app/actions/oportunidades";
-import type { ClienteBuscaCRM } from"@/app/actions/crm";
-import { SeletorClienteCRM } from"@/components/financeiro/seletor-cliente-crm";
-import { Button } from"@/components/ui/button";
-import { Card } from"@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from"@/components/ui/dialog";
-import { Input } from"@/components/ui/input";
-import { Label } from"@/components/ui/label";
-import { Badge } from"@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from"@/components/ui/select";
-import { ScrollArea } from"@/components/ui/scroll-area";
-import { formatarMoedaBrasileira } from"@/lib/formatadores";
+import { criarOportunidade, atualizarEstagioOportunidade, type OportunidadeListagem } from "@/app/actions/oportunidades";
+import type { ClienteBuscaCRM } from "@/app/actions/crm";
+import { SeletorClienteCRM } from "@/components/financeiro/seletor-cliente-crm";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { formatarMoedaBrasileira } from "@/lib/formatadores";
 import {
   formOportunidadeSchema,
   estagiosFunil,
   type EstagioFunil,
   type FormOportunidade,
-} from"@/lib/validations/oportunidades";
+} from "@/lib/validations/oportunidades";
 
 export type ClienteOpcao = {
   id: string;
@@ -68,67 +68,67 @@ const configuracaoEtapa: Record<
   // por INTENSIDADE e não por matiz — neutro, neutro mais forte, informativo
   // e, na negociação, alerta, que é o único aberto que pede ação para fechar.
   PROSPECCAO: {
-    titulo:"Prospecção",
-    descricao:"Primeiro contato e descoberta.",
-    classe:"from-kx-superficie via-kx-painel to-kx-painel",
-    borda:"border-kx-painel-borda",
-    chip:"bg-kx-superficie text-kx-legenda",
+    titulo: "Prospecção",
+    descricao: "Primeiro contato e descoberta.",
+    classe: "from-kx-superficie via-kx-painel to-kx-painel",
+    borda: "border-kx-painel-borda",
+    chip: "bg-kx-superficie text-kx-legenda",
   },
   DIAGNOSTICO: {
-    titulo:"Diagnóstico",
-    descricao:"Entendimento de dor e contexto.",
-    classe:"from-kx-cartao via-kx-painel to-kx-painel",
-    borda:"border-kx-campo-borda",
-    chip:"bg-kx-cartao text-kx-texto-2",
+    titulo: "Diagnóstico",
+    descricao: "Entendimento de dor e contexto.",
+    classe: "from-kx-cartao via-kx-painel to-kx-painel",
+    borda: "border-kx-campo-borda",
+    chip: "bg-kx-cartao text-kx-texto-2",
   },
   PROPOSTA: {
-    titulo:"Proposta",
-    descricao:"Oferta comercial enviada.",
-    classe:"from-kx-info-fundo via-kx-painel to-kx-painel",
-    borda:"border-kx-info",
-    chip:"bg-kx-info-fundo text-kx-info-texto",
+    titulo: "Proposta",
+    descricao: "Oferta comercial enviada.",
+    classe: "from-kx-info-fundo via-kx-painel to-kx-painel",
+    borda: "border-kx-info",
+    chip: "bg-kx-info-fundo text-kx-info-texto",
   },
   NEGOCIACAO: {
-    titulo:"Negociação",
-    descricao:"Ajustes e validações finais.",
-    classe:"from-kx-alerta-fundo via-kx-painel to-kx-painel",
-    borda:"border-kx-alerta",
-    chip:"bg-kx-alerta-fundo text-kx-alerta-texto",
+    titulo: "Negociação",
+    descricao: "Ajustes e validações finais.",
+    classe: "from-kx-alerta-fundo via-kx-painel to-kx-painel",
+    borda: "border-kx-alerta",
+    chip: "bg-kx-alerta-fundo text-kx-alerta-texto",
   },
   GANHO: {
-    titulo:"Ganho",
-    descricao:"Oportunidades convertidas.",
-    classe:"from-kx-sucesso-fundo via-kx-painel to-kx-painel",
-    borda:"border-kx-sucesso",
-    chip:"bg-kx-sucesso-fundo text-kx-sucesso-texto",
+    titulo: "Ganho",
+    descricao: "Oportunidades convertidas.",
+    classe: "from-kx-sucesso-fundo via-kx-painel to-kx-painel",
+    borda: "border-kx-sucesso",
+    chip: "bg-kx-sucesso-fundo text-kx-sucesso-texto",
   },
   PERDIDO: {
-    titulo:"Perdido",
-    descricao:"Oportunidades sem avanço.",
-    classe:"from-kx-erro-fundo via-kx-painel to-kx-painel",
-    borda:"border-kx-erro-borda",
-    chip:"bg-kx-erro-fundo text-kx-erro-texto",
+    titulo: "Perdido",
+    descricao: "Oportunidades sem avanço.",
+    classe: "from-kx-erro-fundo via-kx-painel to-kx-painel",
+    borda: "border-kx-erro-borda",
+    chip: "bg-kx-erro-fundo text-kx-erro-texto",
   },
 };
 
-const etapasOrdenadas: EstagioFunil[] = ["PROSPECCAO","DIAGNOSTICO","PROPOSTA","NEGOCIACAO","GANHO","PERDIDO"];
-const etapasEncerradas: EstagioFunil[] = ["GANHO","PERDIDO"];
+const etapasOrdenadas: EstagioFunil[] = ["PROSPECCAO", "DIAGNOSTICO", "PROPOSTA", "NEGOCIACAO", "GANHO", "PERDIDO"];
+const etapasEncerradas: EstagioFunil[] = ["GANHO", "PERDIDO"];
 
 const valoresPadrao: FormOportunidade = {
-  titulo:"",
+  titulo: "",
   valor: 0,
-  clienteId:"",
-  estagio:"PROSPECCAO",
-  dataFechamento:"",
+  clienteId: "",
+  estagio: "PROSPECCAO",
+  dataFechamento: "",
 };
 
 function formatarDataCurta(valorISO: string | null): string {
-  if (!valorISO) return"Sem data";
+  if (!valorISO) return "Sem data";
   const data = new Date(valorISO);
   return data.toLocaleDateString("pt-BR", {
-    day:"2-digit",
-    month:"short",
-    year:"numeric",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
   });
 }
 
@@ -290,62 +290,62 @@ function CartaoOportunidade({
     <Card
       className={`group border border-border bg-background/90 p-4 shadow-sm transition-all duration-200 ${
         isDragging
-          ?"rotate-1 scale-[1.01] shadow-2xl ring-2 ring-primary/30"
-          :"hover:-translate-y-0.5 hover:shadow-md"
+          ? "rotate-1 scale-[1.01] shadow-2xl ring-2 ring-primary/30"
+          : "hover:-translate-y-0.5 hover:shadow-md"
       }`}
     >
-      <div className="space-y-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <GripVertical className="h-4 w-4 text-muted-foreground opacity-70" />
-              <h3 className="font-semibold text-foreground leading-tight">{oportunidade.titulo}</h3>
+      <div className= "space-y-4">
+        <div className= "flex items-start justify-between gap-3">
+          <div className= "space-y-1">
+            <div className= "flex items-center gap-2">
+              <GripVertical className= "h-4 w-4 text-muted-foreground opacity-70" />
+              <h3 className= "font-semibold text-foreground leading-tight">{oportunidade.titulo}</h3>
             </div>
-            <p className="text-sm text-muted-foreground">{oportunidade.clienteFantasia || oportunidade.clienteNome}</p>
+            <p className= "text-sm text-muted-foreground">{oportunidade.clienteFantasia || oportunidade.clienteNome}</p>
           </div>
 
-          <Badge className={configuracaoEtapa[oportunidade.estagio].chip} variant="secondary">
+          <Badge className={configuracaoEtapa[oportunidade.estagio].chip} variant= "secondary">
             {configuracaoEtapa[oportunidade.estagio].titulo}
           </Badge>
         </div>
 
-        <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-xs uppercase tracking-wide text-muted-foreground">Valor</span>
-            <span className="font-semibold text-foreground">{formatarMoedaBrasileira(oportunidade.valor)}</span>
+        <div className= "rounded-lg border border-border bg-muted/30 p-3 space-y-2">
+          <div className= "flex items-center justify-between gap-3">
+            <span className= "text-xs uppercase tracking-wide text-muted-foreground">Valor</span>
+            <span className= "font-semibold text-foreground">{formatarMoedaBrasileira(oportunidade.valor)}</span>
           </div>
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-xs uppercase tracking-wide text-muted-foreground">Fechamento</span>
-            <span className="text-sm text-foreground">{formatarDataCurta(oportunidade.dataFechamento)}</span>
+          <div className= "flex items-center justify-between gap-3">
+            <span className= "text-xs uppercase tracking-wide text-muted-foreground">Fechamento</span>
+            <span className= "text-sm text-foreground">{formatarDataCurta(oportunidade.dataFechamento)}</span>
           </div>
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-xs uppercase tracking-wide text-muted-foreground">Documento</span>
-            <span className="text-sm text-foreground">{oportunidade.clienteDocumento}</span>
+          <div className= "flex items-center justify-between gap-3">
+            <span className= "text-xs uppercase tracking-wide text-muted-foreground">Documento</span>
+            <span className= "text-sm text-foreground">{oportunidade.clienteDocumento}</span>
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-2">
+        <div className= "flex items-center justify-between gap-2">
           <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="flex-1"
+            type= "button"
+            variant= "outline"
+            size= "sm"
+            className= "flex-1"
             onClick={() => etapaAnterior && aoMover(oportunidade.id, etapaAnterior)}
             disabled={!etapaAnterior}
           >
-            <ArrowLeft className="mr-2 h-4 w-4" />
+            <ArrowLeft className= "mr-2 h-4 w-4" />
             Anterior
           </Button>
           <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="flex-1"
+            type= "button"
+            variant= "outline"
+            size= "sm"
+            className= "flex-1"
             onClick={() => etapaSeguinte && aoMover(oportunidade.id, etapaSeguinte)}
             disabled={!etapaSeguinte}
           >
             Próxima
-            <ArrowRight className="ml-2 h-4 w-4" />
+            <ArrowRight className= "ml-2 h-4 w-4" />
           </Button>
         </div>
       </div>
@@ -375,8 +375,8 @@ export function FunilVendasKanban({ oportunidades, clientes }: FunilVendasKanban
 
   const resumo = useMemo(() => {
     const abertas = oportunidadesEstado.filter((item) => !etapasEncerradas.includes(item.estagio));
-    const ganhos = oportunidadesEstado.filter((item) => item.estagio ==="GANHO");
-    const perdidos = oportunidadesEstado.filter((item) => item.estagio ==="PERDIDO");
+    const ganhos = oportunidadesEstado.filter((item) => item.estagio === "GANHO");
+    const perdidos = oportunidadesEstado.filter((item) => item.estagio === "PERDIDO");
 
     return {
       abertas: abertas.length,
@@ -505,59 +505,59 @@ export function FunilVendasKanban({ oportunidades, clientes }: FunilVendasKanban
 
   return (
     <>
-      <div className="space-y-6">
-        <Card className="border-border bg-background/85 p-5 shadow-sm">
-          <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-            <div className="max-w-3xl space-y-3">
-              <div className="inline-flex items-center gap-2 rounded-full border border-border bg-muted/50 px-3 py-1 text-xs font-medium text-muted-foreground">
-                <Target className="h-3.5 w-3.5 text-primary" />
+      <div className= "space-y-6">
+        <Card className= "border-border bg-background/85 p-5 shadow-sm">
+          <div className= "flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+            <div className= "max-w-3xl space-y-3">
+              <div className= "inline-flex items-center gap-2 rounded-full border border-border bg-muted/50 px-3 py-1 text-xs font-medium text-muted-foreground">
+                <Target className= "h-3.5 w-3.5 text-primary" />
                 Funil de Vendas
               </div>
               <div>
-                <h2 className="text-2xl font-bold tracking-tight text-foreground">Kanban comercial com visão de receita</h2>
-                <p className="mt-2 text-sm text-muted-foreground">
+                <h2 className= "text-2xl font-bold tracking-tight text-foreground">Kanban comercial com visão de receita</h2>
+                <p className= "mt-2 text-sm text-muted-foreground">
                   Arraste oportunidades entre as etapas ou avance com um clique. O fechamento fica visível em tempo real
                   para manter prospecção, proposta e negociação sob controle.
                 </p>
-                <p className="mt-1 text-xs text-muted-foreground">Base conectada: {totalContatosDisponiveis} contatos.</p>
+                <p className= "mt-1 text-xs text-muted-foreground">Base conectada: {totalContatosDisponiveis} contatos.</p>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap xl:justify-end">
-              <div className="rounded-xl border border-border bg-muted/30 px-4 py-3 min-w-[140px]">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Abertas</p>
-                <p className="mt-1 text-2xl font-bold text-foreground">{resumo.abertas}</p>
+            <div className= "grid grid-cols-2 gap-3 sm:flex sm:flex-wrap xl:justify-end">
+              <div className= "rounded-xl border border-border bg-muted/30 px-4 py-3 min-w-[140px]">
+                <p className= "text-xs uppercase tracking-wide text-muted-foreground">Abertas</p>
+                <p className= "mt-1 text-2xl font-bold text-foreground">{resumo.abertas}</p>
               </div>
-              <div className="rounded-xl border border-border bg-muted/30 px-4 py-3 min-w-[140px]">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Valor aberto</p>
-                <p className="mt-1 text-lg font-semibold text-foreground">{formatarMoedaBrasileira(resumo.valorAberto)}</p>
+              <div className= "rounded-xl border border-border bg-muted/30 px-4 py-3 min-w-[140px]">
+                <p className= "text-xs uppercase tracking-wide text-muted-foreground">Valor aberto</p>
+                <p className= "mt-1 text-lg font-semibold text-foreground">{formatarMoedaBrasileira(resumo.valorAberto)}</p>
               </div>
-              <div className="rounded-xl border border-border bg-muted/30 px-4 py-3 min-w-[140px]">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Ganhos</p>
-                <p className="mt-1 text-2xl font-bold text-kx-sucesso-icone">{resumo.ganhos}</p>
+              <div className= "rounded-xl border border-border bg-muted/30 px-4 py-3 min-w-[140px]">
+                <p className= "text-xs uppercase tracking-wide text-muted-foreground">Ganhos</p>
+                <p className= "mt-1 text-2xl font-bold text-kx-sucesso-icone">{resumo.ganhos}</p>
               </div>
-              <div className="rounded-xl border border-border bg-muted/30 px-4 py-3 min-w-[140px]">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Perdidos</p>
-                <p className="mt-1 text-2xl font-bold text-kx-erro-texto">{resumo.perdidos}</p>
+              <div className= "rounded-xl border border-border bg-muted/30 px-4 py-3 min-w-[140px]">
+                <p className= "text-xs uppercase tracking-wide text-muted-foreground">Perdidos</p>
+                <p className= "mt-1 text-2xl font-bold text-kx-erro-texto">{resumo.perdidos}</p>
               </div>
             </div>
           </div>
 
-          <div className="mt-5 flex flex-wrap gap-2">
+          <div className= "mt-5 flex flex-wrap gap-2">
             <Button onClick={() => setDialogAberto(true)}>
-              <Plus className="mr-2 h-4 w-4" />
+              <Plus className= "mr-2 h-4 w-4" />
               Nova oportunidade
             </Button>
-            <Button variant="outline" onClick={() => router.refresh()} disabled={isPending}>
-              <LayoutGrid className="mr-2 h-4 w-4" />
+            <Button variant= "outline" onClick={() => router.refresh()} disabled={isPending}>
+              <LayoutGrid className= "mr-2 h-4 w-4" />
               Atualizar quadro
             </Button>
           </div>
         </Card>
 
         <DragDropContext onDragEnd={aoFinalizarDrag}>
-          <div className="overflow-x-auto pb-2">
-            <div className="flex min-w-max gap-4">
+          <div className= "overflow-x-auto pb-2">
+            <div className= "flex min-w-max gap-4">
               {etapasOrdenadas.map((estagio) => {
                 const configuracao = configuracaoEtapa[estagio];
                 const itens = oportunidadesPorEtapa[estagio];
@@ -568,36 +568,36 @@ export function FunilVendasKanban({ oportunidades, clientes }: FunilVendasKanban
                     {(dropProvided, dropSnapshot) => (
                       <div
                         className={`w-[340px] shrink-0 rounded-2xl border bg-gradient-to-b ${configuracao.classe} ${configuracao.borda} shadow-sm transition-all ${
-                          dropSnapshot.isDraggingOver ?"ring-2 ring-primary/30 shadow-lg" :""
+                          dropSnapshot.isDraggingOver ? "ring-2 ring-primary/30 shadow-lg" : ""
                         }`}
                       >
-                        <div className="border-b border-border/60 p-4">
-                          <div className="flex items-start justify-between gap-3">
+                        <div className= "border-b border-border/60 p-4">
+                          <div className= "flex items-start justify-between gap-3">
                             <div>
-                              <h3 className="text-sm font-semibold text-foreground">{configuracao.titulo}</h3>
-                              <p className="text-xs text-muted-foreground">{configuracao.descricao}</p>
+                              <h3 className= "text-sm font-semibold text-foreground">{configuracao.titulo}</h3>
+                              <p className= "text-xs text-muted-foreground">{configuracao.descricao}</p>
                             </div>
-                            <Badge className={configuracao.chip} variant="secondary">
+                            <Badge className={configuracao.chip} variant= "secondary">
                               {itens.length}
                             </Badge>
                           </div>
-                          <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+                          <div className= "mt-3 flex items-center justify-between text-xs text-muted-foreground">
                             <span>{formatarMoedaBrasileira(valorTotal)}</span>
                             <span>Arraste para esta etapa</span>
                           </div>
                         </div>
 
-                        <ScrollArea className="max-h-[640px]">
+                        <ScrollArea className= "max-h-[640px]">
                           <div
                             ref={dropProvided.innerRef}
                             {...dropProvided.droppableProps}
-                            className={`space-y-3 p-4 transition-colors ${dropSnapshot.isDraggingOver ?"bg-primary/5" :""}`}
+                            className={`space-y-3 p-4 transition-colors ${dropSnapshot.isDraggingOver ? "bg-primary/5" : ""}`}
                           >
                             {itens.length === 0 ? (
-                              <div className="flex min-h-40 items-center justify-center rounded-xl border border-dashed border-border/70 bg-background/60 px-4 text-center">
-                                <div className="space-y-2">
-                                  <p className="text-sm font-medium text-foreground">Sem oportunidades</p>
-                                  <p className="text-xs text-muted-foreground">Solte um card aqui ou crie uma nova oportunidade.</p>
+                              <div className= "flex min-h-40 items-center justify-center rounded-xl border border-dashed border-border/70 bg-background/60 px-4 text-center">
+                                <div className= "space-y-2">
+                                  <p className= "text-sm font-medium text-foreground">Sem oportunidades</p>
+                                  <p className= "text-xs text-muted-foreground">Solte um card aqui ou crie uma nova oportunidade.</p>
                                 </div>
                               </div>
                             ) : (
@@ -640,7 +640,7 @@ export function FunilVendasKanban({ oportunidades, clientes }: FunilVendasKanban
           setDialogAberto(aberto);
         }}
       >
-        <DialogContent className="max-w-2xl bg-background border-border">
+        <DialogContent className= "max-w-2xl bg-background border-border">
           <DialogHeader>
             <DialogTitle>Nova oportunidade</DialogTitle>
             <DialogDescription>
@@ -648,27 +648,27 @@ export function FunilVendasKanban({ oportunidades, clientes }: FunilVendasKanban
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleSubmit(aoCriar)} className="space-y-5">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="titulo">Titulo da oportunidade</Label>
+          <form onSubmit={handleSubmit(aoCriar)} className= "space-y-5">
+            <div className= "grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className= "space-y-2 md:col-span-2">
+                <Label htmlFor= "titulo">Titulo da oportunidade</Label>
                 <Controller
-                  name="titulo"
+                  name= "titulo"
                   control={control}
                   render={({ field }) => (
-                    <Input id="titulo" {...field} className={errors.titulo ?"border-destructive" :""} />
+                    <Input id= "titulo" {...field} className={errors.titulo ? "border-destructive" : ""} />
                   )}
                 />
-                {errors.titulo?.message && <p className="text-xs text-destructive">{errors.titulo.message}</p>}
+                {errors.titulo?.message && <p className= "text-xs text-destructive">{errors.titulo.message}</p>}
               </div>
 
-              <div className="space-y-2">
+              <div className= "space-y-2">
                 <Controller
-                  name="clienteId"
+                  name= "clienteId"
                   control={control}
                   render={({ field }) => (
                     <SeletorClienteCRM
-                      label="Contato"
+                      label= "Contato"
                       clienteSelecionado={contatoSelecionado}
                       onSelecionarCliente={(cliente) => {
                         setContatoSelecionado(cliente);
@@ -678,42 +678,42 @@ export function FunilVendasKanban({ oportunidades, clientes }: FunilVendasKanban
                         setContatoSelecionado(null);
                         field.onChange("");
                       }}
-                      papelFiltro="CLIENTE"
+                      papelFiltro= "CLIENTE"
                     />
                   )}
                 />
-                {errors.clienteId?.message && <p className="text-xs text-destructive">{errors.clienteId.message}</p>}
+                {errors.clienteId?.message && <p className= "text-xs text-destructive">{errors.clienteId.message}</p>}
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="valor">Valor (R$)</Label>
+              <div className= "space-y-2">
+                <Label htmlFor= "valor">Valor (R$)</Label>
                 <Controller
-                  name="valor"
+                  name= "valor"
                   control={control}
                   render={({ field }) => (
                     <Input
-                      id="valor"
-                      type="number"
+                      id= "valor"
+                      type= "number"
                       min={0}
-                      step="0.01"
-                      value={field.value ||""}
+                      step= "0.01"
+                      value={field.value || ""}
                       onChange={(evento) => field.onChange(Number(evento.target.value) || 0)}
-                      className={errors.valor ?"border-destructive" :""}
+                      className={errors.valor ? "border-destructive" : ""}
                     />
                   )}
                 />
-                {errors.valor?.message && <p className="text-xs text-destructive">{errors.valor.message}</p>}
+                {errors.valor?.message && <p className= "text-xs text-destructive">{errors.valor.message}</p>}
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="estagio">Etapa inicial</Label>
+              <div className= "space-y-2">
+                <Label htmlFor= "estagio">Etapa inicial</Label>
                 <Controller
-                  name="estagio"
+                  name= "estagio"
                   control={control}
                   render={({ field }) => (
                     <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger id="estagio">
-                        <SelectValue placeholder="Selecione a etapa" />
+                      <SelectTrigger id= "estagio">
+                        <SelectValue placeholder= "Selecione a etapa" />
                       </SelectTrigger>
                       <SelectContent>
                         {estagiosFunil.map((estagio) => (
@@ -727,25 +727,25 @@ export function FunilVendasKanban({ oportunidades, clientes }: FunilVendasKanban
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="dataFechamento">Data de fechamento</Label>
+              <div className= "space-y-2">
+                <Label htmlFor= "dataFechamento">Data de fechamento</Label>
                 <Controller
-                  name="dataFechamento"
+                  name= "dataFechamento"
                   control={control}
-                  render={({ field }) => <Input id="dataFechamento" type="date" {...field} value={field.value ||""} />}
+                  render={({ field }) => <Input id= "dataFechamento" type= "date" {...field} value={field.value || ""} />}
                 />
-                <p className="text-xs text-muted-foreground">
+                <p className= "text-xs text-muted-foreground">
                   Opcional. Se a oportunidade estiver em Ganho ou Perdido, a data pode ser preenchida automaticamente.
                 </p>
               </div>
             </div>
 
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={limparFormulario}>
+              <Button type= "button" variant= "outline" onClick={limparFormulario}>
                 Cancelar
               </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ?"Salvando..." :"Criar oportunidade"}
+              <Button type= "submit" disabled={isSubmitting}>
+                {isSubmitting ? "Salvando..." : "Criar oportunidade"}
               </Button>
             </DialogFooter>
           </form>

@@ -24,7 +24,7 @@ export const ESTILO_IMPRESSAO_A4 = `
 
   @media print {
     aside, nav, header, footer,
-    [role="banner"], [role="complementary"], [role="contentinfo"],
+    [role= "banner"], [role= "complementary"], [role= "contentinfo"],
     .print\\:hidden {
       display: none !important;
       visibility: hidden !important;
@@ -123,7 +123,7 @@ export const ESTILO_IMPRESSAO_TERMICA = `
 
   @media print {
     aside, nav, header, footer,
-    [role="banner"], [role="complementary"], [role="contentinfo"],
+    [role= "banner"], [role= "complementary"], [role= "contentinfo"],
     .print\\:hidden {
       display: none !important;
       visibility: hidden !important;

@@ -96,137 +96,137 @@ export default async function ProposalDetailsPage({ params }: ProposalDetailsPag
  }
 
  return (
- <div className="w-full min-h-full flex flex-col bg-transparent">
- <div className="border-b border-kx-painel-borda bg-kx-painel px-6 py-6 lg:px-8">
- <div className="mx-auto flex max-w-7xl flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+ <div className= "w-full min-h-full flex flex-col bg-transparent">
+ <div className= "border-b border-kx-painel-borda bg-kx-painel px-6 py-6 lg:px-8">
+ <div className= "mx-auto flex max-w-7xl flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
  <div>
  <Button
  asChild
- variant="ghost"
- className="mb-4 pl-0 text-kx-legenda hover:bg-transparent hover:text-kx-texto"
+ variant= "ghost"
+ className= "mb-4 pl-0 text-kx-legenda hover:bg-transparent hover:text-kx-texto"
  >
- <Link href="/crm/propostas">
- <ArrowLeft className="h-4 w-4" />
+ <Link href= "/crm/propostas">
+ <ArrowLeft className= "h-4 w-4" />
  Voltar
  </Link>
  </Button>
- <h1 className="text-3xl font-semibold tracking-tight text-kx-texto lg:text-4xl">
+ <h1 className= "text-3xl font-semibold tracking-tight text-kx-texto lg:text-4xl">
  Detalhes da Proposta #{proposal.id.slice(0, 6).toUpperCase()}
  </h1>
  </div>
 
- <Badge variant="outline" className={statusClassMap[proposal.status]}>
+ <Badge variant= "outline" className={statusClassMap[proposal.status]}>
  {statusLabelMap[proposal.status]}
  </Badge>
  </div>
  </div>
 
- <div className="flex-1 overflow-y-auto px-6 py-8 lg:px-8">
- <div className="mx-auto max-w-7xl space-y-6">
- <div className="grid gap-6 lg:grid-cols-2">
- <Card className="rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-6 shadow-kx-painel">
- <h2 className="text-lg font-semibold text-kx-texto">Dados do Cliente</h2>
- <div className="mt-5 grid gap-4 sm:grid-cols-2">
- <div className="space-y-1">
- <p className="text-xs uppercase tracking-[0.18em] text-kx-legenda">Cliente</p>
- <p className="text-sm text-kx-texto">{proposal.cliente}</p>
+ <div className= "flex-1 overflow-y-auto px-6 py-8 lg:px-8">
+ <div className= "mx-auto max-w-7xl space-y-6">
+ <div className= "grid gap-6 lg:grid-cols-2">
+ <Card className= "rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-6 shadow-kx-painel">
+ <h2 className= "text-lg font-semibold text-kx-texto">Dados do Cliente</h2>
+ <div className= "mt-5 grid gap-4 sm:grid-cols-2">
+ <div className= "space-y-1">
+ <p className= "text-xs uppercase tracking-[0.18em] text-kx-legenda">Cliente</p>
+ <p className= "text-sm text-kx-texto">{proposal.cliente}</p>
  </div>
- <div className="space-y-1">
- <p className="text-xs uppercase tracking-[0.18em] text-kx-legenda">Aos cuidados de</p>
- <p className="text-sm text-kx-texto">{proposal.aosCuidados?.trim() || "Não informado"}</p>
+ <div className= "space-y-1">
+ <p className= "text-xs uppercase tracking-[0.18em] text-kx-legenda">Aos cuidados de</p>
+ <p className= "text-sm text-kx-texto">{proposal.aosCuidados?.trim() || "Não informado"}</p>
  </div>
- <div className="space-y-1">
- <p className="text-xs uppercase tracking-[0.18em] text-kx-legenda">Data de Emissão</p>
- <p className="text-sm text-kx-texto">{formatDate(proposal.dataEmissao)}</p>
+ <div className= "space-y-1">
+ <p className= "text-xs uppercase tracking-[0.18em] text-kx-legenda">Data de Emissão</p>
+ <p className= "text-sm text-kx-texto">{formatDate(proposal.dataEmissao)}</p>
  </div>
- <div className="space-y-1">
- <p className="text-xs uppercase tracking-[0.18em] text-kx-legenda">Validade</p>
- <p className="text-sm text-kx-texto">{formatDate(proposal.validade)}</p>
- </div>
- </div>
- </Card>
-
- <Card className="rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-6 shadow-kx-painel">
- <h2 className="text-lg font-semibold text-kx-texto">Contexto Técnico</h2>
- <div className="mt-5 space-y-4">
- <div className="space-y-1">
- <p className="text-xs uppercase tracking-[0.18em] text-kx-legenda">Equipamento</p>
- <p className="text-sm text-kx-texto">{proposal.equipamento?.trim() || "Não informado"}</p>
- </div>
- <div className="space-y-1">
- <p className="text-xs uppercase tracking-[0.18em] text-kx-legenda">Defeito Relatado</p>
- <p className="text-sm text-kx-texto">{proposal.defeito?.trim() || "Não informado"}</p>
- </div>
- <div className="space-y-1">
- <p className="text-xs uppercase tracking-[0.18em] text-kx-legenda">Introdução</p>
- <p className="text-sm text-kx-texto">{proposal.introducao?.trim() || "Não informado"}</p>
+ <div className= "space-y-1">
+ <p className= "text-xs uppercase tracking-[0.18em] text-kx-legenda">Validade</p>
+ <p className= "text-sm text-kx-texto">{formatDate(proposal.validade)}</p>
  </div>
  </div>
  </Card>
+
+ <Card className= "rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-6 shadow-kx-painel">
+ <h2 className= "text-lg font-semibold text-kx-texto">Contexto Técnico</h2>
+ <div className= "mt-5 space-y-4">
+ <div className= "space-y-1">
+ <p className= "text-xs uppercase tracking-[0.18em] text-kx-legenda">Equipamento</p>
+ <p className= "text-sm text-kx-texto">{proposal.equipamento?.trim() || "Não informado"}</p>
+ </div>
+ <div className= "space-y-1">
+ <p className= "text-xs uppercase tracking-[0.18em] text-kx-legenda">Defeito Relatado</p>
+ <p className= "text-sm text-kx-texto">{proposal.defeito?.trim() || "Não informado"}</p>
+ </div>
+ <div className= "space-y-1">
+ <p className= "text-xs uppercase tracking-[0.18em] text-kx-legenda">Introdução</p>
+ <p className= "text-sm text-kx-texto">{proposal.introducao?.trim() || "Não informado"}</p>
+ </div>
+ </div>
+ </Card>
  </div>
 
- <Card className="rounded-kx-painel border border-kx-painel-borda bg-kx-painel shadow-kx-painel">
- <div className="border-b border-kx-painel-borda px-6 py-5">
- <h2 className="text-lg font-semibold text-kx-texto">Itens da Proposta</h2>
+ <Card className= "rounded-kx-painel border border-kx-painel-borda bg-kx-painel shadow-kx-painel">
+ <div className= "border-b border-kx-painel-borda px-6 py-5">
+ <h2 className= "text-lg font-semibold text-kx-texto">Itens da Proposta</h2>
  </div>
 
- <div className="overflow-x-auto">
+ <div className= "overflow-x-auto">
  <Table>
- <TableHeader className="border-kx-painel-borda bg-kx-painel/[0.03]">
- <TableRow className="border-kx-painel-borda hover:bg-transparent">
- <TableHead className="text-kx-texto-2">Produto/Serviço</TableHead>
- <TableHead className="text-kx-texto-2">Qtd</TableHead>
- <TableHead className="text-kx-texto-2">Preço Un.</TableHead>
- <TableHead className="text-kx-texto-2">Desc (%)</TableHead>
- <TableHead className="text-right text-kx-texto-2">Subtotal</TableHead>
+ <TableHeader className= "border-kx-painel-borda bg-kx-painel/[0.03]">
+ <TableRow className= "border-kx-painel-borda hover:bg-transparent">
+ <TableHead className= "text-kx-texto-2">Produto/Serviço</TableHead>
+ <TableHead className= "text-kx-texto-2">Qtd</TableHead>
+ <TableHead className= "text-kx-texto-2">Preço Un.</TableHead>
+ <TableHead className= "text-kx-texto-2">Desc (%)</TableHead>
+ <TableHead className= "text-right text-kx-texto-2">Subtotal</TableHead>
  </TableRow>
  </TableHeader>
  <TableBody>
  {proposal.itens.map((item) => (
- <TableRow key={item.id} className="border-kx-painel-borda hover:bg-kx-painel/[0.03]">
- <TableCell className="text-kx-texto">{item.descricao}</TableCell>
- <TableCell className="text-kx-texto-2">{item.quantidade}</TableCell>
- <TableCell className="text-kx-texto-2">{formatCurrency(item.precoUnitario)}</TableCell>
- <TableCell className="text-kx-texto-2">{Number(item.descontoPercentual)}%</TableCell>
- <TableCell className="text-right font-medium text-kx-texto">{formatCurrency(item.subtotal)}</TableCell>
+ <TableRow key={item.id} className= "border-kx-painel-borda hover:bg-kx-painel/[0.03]">
+ <TableCell className= "text-kx-texto">{item.descricao}</TableCell>
+ <TableCell className= "text-kx-texto-2">{item.quantidade}</TableCell>
+ <TableCell className= "text-kx-texto-2">{formatCurrency(item.precoUnitario)}</TableCell>
+ <TableCell className= "text-kx-texto-2">{Number(item.descontoPercentual)}%</TableCell>
+ <TableCell className= "text-right font-medium text-kx-texto">{formatCurrency(item.subtotal)}</TableCell>
  </TableRow>
  ))}
  </TableBody>
  </Table>
  </div>
 
- <div className="flex justify-end border-t border-kx-painel-borda px-6 py-5">
- <div className="w-full max-w-sm space-y-2">
- <div className="flex items-center justify-between text-sm text-kx-legenda">
+ <div className= "flex justify-end border-t border-kx-painel-borda px-6 py-5">
+ <div className= "w-full max-w-sm space-y-2">
+ <div className= "flex items-center justify-between text-sm text-kx-legenda">
  <span>Subtotal Bruto</span>
- <span className="text-kx-texto">{formatCurrency(proposal.subtotalBruto)}</span>
+ <span className= "text-kx-texto">{formatCurrency(proposal.subtotalBruto)}</span>
  </div>
- <div className="flex items-center justify-between text-sm text-kx-legenda">
+ <div className= "flex items-center justify-between text-sm text-kx-legenda">
  <span>Descontos</span>
- <span className="text-kx-erro-texto">- {formatCurrency(proposal.descontoTotal)}</span>
+ <span className= "text-kx-erro-texto">- {formatCurrency(proposal.descontoTotal)}</span>
  </div>
- <div className="flex items-center justify-between border-t border-kx-painel-borda pt-2">
- <span className="font-semibold text-kx-texto">Valor Total</span>
- <span className="text-lg font-bold text-kx-link">{formatCurrency(proposal.valorTotal)}</span>
+ <div className= "flex items-center justify-between border-t border-kx-painel-borda pt-2">
+ <span className= "font-semibold text-kx-texto">Valor Total</span>
+ <span className= "text-lg font-bold text-kx-link">{formatCurrency(proposal.valorTotal)}</span>
  </div>
  </div>
  </div>
  </Card>
 
- <Card className="rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-6 shadow-kx-painel">
- <h2 className="text-lg font-semibold text-kx-texto">Condições</h2>
- <div className="mt-5 grid gap-4 lg:grid-cols-3">
- <div className="space-y-1">
- <p className="text-xs uppercase tracking-[0.18em] text-kx-legenda">Condições de Pagamento</p>
- <p className="text-sm text-kx-texto">{proposal.condicoesPagamento?.trim() || "Não informado"}</p>
+ <Card className= "rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-6 shadow-kx-painel">
+ <h2 className= "text-lg font-semibold text-kx-texto">Condições</h2>
+ <div className= "mt-5 grid gap-4 lg:grid-cols-3">
+ <div className= "space-y-1">
+ <p className= "text-xs uppercase tracking-[0.18em] text-kx-legenda">Condições de Pagamento</p>
+ <p className= "text-sm text-kx-texto">{proposal.condicoesPagamento?.trim() || "Não informado"}</p>
  </div>
- <div className="space-y-1">
- <p className="text-xs uppercase tracking-[0.18em] text-kx-legenda">Termos de Garantia</p>
- <p className="text-sm text-kx-texto">{proposal.termosGarantia?.trim() || "Não informado"}</p>
+ <div className= "space-y-1">
+ <p className= "text-xs uppercase tracking-[0.18em] text-kx-legenda">Termos de Garantia</p>
+ <p className= "text-sm text-kx-texto">{proposal.termosGarantia?.trim() || "Não informado"}</p>
  </div>
- <div className="space-y-1">
- <p className="text-xs uppercase tracking-[0.18em] text-kx-legenda">Observações Internas</p>
- <p className="text-sm text-kx-texto">{proposal.observacoesInternas?.trim() || "Não informado"}</p>
+ <div className= "space-y-1">
+ <p className= "text-xs uppercase tracking-[0.18em] text-kx-legenda">Observações Internas</p>
+ <p className= "text-sm text-kx-texto">{proposal.observacoesInternas?.trim() || "Não informado"}</p>
  </div>
  </div>
  </Card>

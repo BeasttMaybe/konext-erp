@@ -430,38 +430,38 @@ export default async function SalesHistoryPage({ searchParams }: PageProps) {
  };
 
  return (
- <div className="w-full flex flex-col bg-transparent">
- <div className="border-b border-kx-painel-borda bg-kx-painel px-6 py-6 lg:px-8">
- <div className="mx-auto flex max-w-7xl flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+ <div className= "w-full flex flex-col bg-transparent">
+ <div className= "border-b border-kx-painel-borda bg-kx-painel px-6 py-6 lg:px-8">
+ <div className= "mx-auto flex max-w-7xl flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
  <div>
- <div className="inline-flex items-center rounded-full border border-kx-primaria bg-kx-info-fundo px-3 py-1 text-xs font-medium uppercase tracking-[0.24em] text-kx-link">
+ <div className= "inline-flex items-center rounded-full border border-kx-primaria bg-kx-info-fundo px-3 py-1 text-xs font-medium uppercase tracking-[0.24em] text-kx-link">
  Gestão Comercial
  </div>
- <h1 className="mt-4 text-3xl font-semibold tracking-tight text-kx-texto lg:text-4xl">
+ <h1 className= "mt-4 text-3xl font-semibold tracking-tight text-kx-texto lg:text-4xl">
  Histórico de Vendas
  </h1>
- <p className="mt-3 max-w-3xl text-sm leading-6 text-kx-texto-2/80 lg:text-base">
+ <p className= "mt-3 max-w-3xl text-sm leading-6 text-kx-texto-2/80 lg:text-base">
  Acompanhe e gerencie todos os pedidos emitidos.
  </p>
  </div>
 
  <Button
  asChild
- size="lg"
- className="bg-kx-primaria text-primary-foreground shadow-kx-flutuante hover:bg-kx-primaria"
+ size= "lg"
+ className= "bg-kx-primaria text-primary-foreground shadow-kx-flutuante hover:bg-kx-primaria"
  >
- <Link href="/vendas/pedidos/novo">
- <Plus className="h-4 w-4" />
+ <Link href= "/vendas/pedidos/novo">
+ <Plus className= "h-4 w-4" />
  Novo Pedido
  </Link>
  </Button>
  </div>
  </div>
 
- <div className="px-6 py-6 lg:px-8">
- <div className="mx-auto max-w-7xl space-y-6">
- <Card className="rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5 shadow-kx-painel">
- <form className="grid gap-3 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1.1fr)_180px_auto_auto_auto] xl:items-end">
+ <div className= "px-6 py-6 lg:px-8">
+ <div className= "mx-auto max-w-7xl space-y-6">
+ <Card className= "rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5 shadow-kx-painel">
+ <form className= "grid gap-3 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1.1fr)_180px_auto_auto_auto] xl:items-end">
  {/*
  O submit nativo (GET, sem JS) reconstrói a query string SÓ com
  os campos NOMEADOS deste form — sem estes dois hidden, aplicar
@@ -470,47 +470,47 @@ export default async function SalesHistoryPage({ searchParams }: PageProps) {
  inverso (FiltroPeriodo → cliente/vendedor/status) já é seguro:
  ele lê `useSearchParams()` e faz merge, nunca substitui tudo.
  */}
- <input type="hidden" name="inicio" defaultValue={inicioParam ?? ""} />
- <input type="hidden" name="fim" defaultValue={fimParam ?? ""} />
+ <input type= "hidden" name= "inicio" defaultValue={inicioParam ?? ""} />
+ <input type= "hidden" name= "fim" defaultValue={fimParam ?? ""} />
 
- <div className="space-y-2">
- <label htmlFor="cliente" className="text-sm font-medium text-kx-texto">
+ <div className= "space-y-2">
+ <label htmlFor= "cliente" className= "text-sm font-medium text-kx-texto">
  Cliente
  </label>
  <Input
- id="cliente"
- name="cliente"
+ id= "cliente"
+ name= "cliente"
  defaultValue={clientFilter}
- placeholder="Buscar por cliente..."
- className="border-kx-painel-borda bg-kx-superficie text-kx-texto placeholder:text-kx-legenda"
+ placeholder= "Buscar por cliente..."
+ className= "border-kx-painel-borda bg-kx-superficie text-kx-texto placeholder:text-kx-legenda"
  />
  </div>
 
- <div className="space-y-2">
- <label htmlFor="vendedor" className="text-sm font-medium text-kx-texto">
+ <div className= "space-y-2">
+ <label htmlFor= "vendedor" className= "text-sm font-medium text-kx-texto">
  Vendedor
  </label>
  <Input
- id="vendedor"
- name="vendedor"
+ id= "vendedor"
+ name= "vendedor"
  defaultValue={sellerFilter}
- placeholder="Buscar por vendedor..."
- className="border-kx-painel-borda bg-kx-superficie text-kx-texto placeholder:text-kx-legenda"
+ placeholder= "Buscar por vendedor..."
+ className= "border-kx-painel-borda bg-kx-superficie text-kx-texto placeholder:text-kx-legenda"
  />
  </div>
 
- <div className="space-y-2 xl:mt-1.5">
- <label className="text-sm font-medium text-kx-texto">Status</label>
- <Select name="status" defaultValue={statusFilter || "TODOS"}>
- <SelectTrigger className="h-8 rounded-lg border-kx-painel-borda bg-kx-superficie px-2.5 py-1 text-kx-texto">
- <SelectValue placeholder="Todos" />
+ <div className= "space-y-2 xl:mt-1.5">
+ <label className= "text-sm font-medium text-kx-texto">Status</label>
+ <Select name= "status" defaultValue={statusFilter || "TODOS"}>
+ <SelectTrigger className= "h-8 rounded-lg border-kx-painel-borda bg-kx-superficie px-2.5 py-1 text-kx-texto">
+ <SelectValue placeholder= "Todos" />
  </SelectTrigger>
  <SelectContent>
- <SelectItem value="TODOS">Todos</SelectItem>
- <SelectItem value="PENDENTE">Pendente</SelectItem>
- <SelectItem value="APROVADO">Aprovado</SelectItem>
- <SelectItem value="REJEITADO">Rejeitado</SelectItem>
- <SelectItem value="CANCELADO">Cancelado</SelectItem>
+ <SelectItem value= "TODOS">Todos</SelectItem>
+ <SelectItem value= "PENDENTE">Pendente</SelectItem>
+ <SelectItem value= "APROVADO">Aprovado</SelectItem>
+ <SelectItem value= "REJEITADO">Rejeitado</SelectItem>
+ <SelectItem value= "CANCELADO">Cancelado</SelectItem>
  </SelectContent>
  </Select>
  </div>
@@ -523,55 +523,55 @@ export default async function SalesHistoryPage({ searchParams }: PageProps) {
  dd/mm/aaaa..."). `campos` abaixo corrige isso: o rótulo passa
  a fazer parte do botão, como em toda outra tela.
  */}
- <div className="space-y-2 xl:mt-1.5">
+ <div className= "space-y-2 xl:mt-1.5">
  <FiltroPeriodoPagina
  campos={[{ valor: "emitido-em", rotulo: "Emitido em" }]}
  fusoHorario={fusoHorario}
  />
  </div>
 
- <Button type="submit" className="bg-kx-primaria text-primary-foreground hover:bg-kx-primaria">
+ <Button type= "submit" className= "bg-kx-primaria text-primary-foreground hover:bg-kx-primaria">
  Aplicar filtros
  </Button>
 
- <Button asChild type="button" variant="outline" className="border-kx-painel-borda bg-kx-superficie text-kx-texto hover:bg-kx-painel/80">
- <Link href="/vendas/historico">Limpar</Link>
+ <Button asChild type= "button" variant= "outline" className= "border-kx-painel-borda bg-kx-superficie text-kx-texto hover:bg-kx-painel/80">
+ <Link href= "/vendas/historico">Limpar</Link>
  </Button>
  </form>
  </Card>
 
- <Card className="overflow-hidden rounded-kx-painel border border-kx-painel-borda bg-kx-painel shadow-kx-painel">
- <div className="border-b border-kx-painel-borda px-5 py-4">
- <div className="flex items-center justify-between gap-3">
+ <Card className= "overflow-hidden rounded-kx-painel border border-kx-painel-borda bg-kx-painel shadow-kx-painel">
+ <div className= "border-b border-kx-painel-borda px-5 py-4">
+ <div className= "flex items-center justify-between gap-3">
  <div>
- <h2 className="text-lg font-semibold text-kx-texto">Pedidos Emitidos</h2>
- <p className="mt-1 text-sm text-kx-legenda">Visualize o histórico de pedidos com status e ações rápidas.</p>
+ <h2 className= "text-lg font-semibold text-kx-texto">Pedidos Emitidos</h2>
+ <p className= "mt-1 text-sm text-kx-legenda">Visualize o histórico de pedidos com status e ações rápidas.</p>
  </div>
- <div className="rounded-full border border-kx-painel-borda bg-kx-cartao px-3 py-1 text-xs font-medium uppercase tracking-[0.2em] text-kx-texto-2">
+ <div className= "rounded-full border border-kx-painel-borda bg-kx-cartao px-3 py-1 text-xs font-medium uppercase tracking-[0.2em] text-kx-texto-2">
  {totalOrders} registros
  </div>
  </div>
  </div>
 
- <div className="overflow-x-auto">
+ <div className= "overflow-x-auto">
  <Table>
- <TableHeader className="sticky top-0 z-kx-sticky border-kx-painel-borda bg-kx-fundo">
- <TableRow className="border-kx-painel-borda hover:bg-transparent">
- <TableHead className="text-kx-texto-2">Pedido</TableHead>
- <TableHead className="text-kx-texto-2">Data</TableHead>
- <TableHead className="text-kx-texto-2">Cliente</TableHead>
- <TableHead className="text-kx-texto-2">Vendedor</TableHead>
- <TableHead className="text-kx-texto-2">Origem</TableHead>
- <TableHead className="text-kx-texto-2">Pagamentos</TableHead>
- <TableHead className="text-kx-texto-2">Valor Total</TableHead>
- <TableHead className="text-kx-texto-2">Status</TableHead>
- <TableHead className="text-right text-kx-texto-2">Ações</TableHead>
+ <TableHeader className= "sticky top-0 z-kx-sticky border-kx-painel-borda bg-kx-fundo">
+ <TableRow className= "border-kx-painel-borda hover:bg-transparent">
+ <TableHead className= "text-kx-texto-2">Pedido</TableHead>
+ <TableHead className= "text-kx-texto-2">Data</TableHead>
+ <TableHead className= "text-kx-texto-2">Cliente</TableHead>
+ <TableHead className= "text-kx-texto-2">Vendedor</TableHead>
+ <TableHead className= "text-kx-texto-2">Origem</TableHead>
+ <TableHead className= "text-kx-texto-2">Pagamentos</TableHead>
+ <TableHead className= "text-kx-texto-2">Valor Total</TableHead>
+ <TableHead className= "text-kx-texto-2">Status</TableHead>
+ <TableHead className= "text-right text-kx-texto-2">Ações</TableHead>
  </TableRow>
  </TableHeader>
  <TableBody>
  {orders.length === 0 ? (
- <TableRow className="border-kx-painel-borda hover:bg-transparent">
- <TableCell colSpan={9} className="py-12 text-center text-kx-legenda">
+ <TableRow className= "border-kx-painel-borda hover:bg-transparent">
+ <TableCell colSpan={9} className= "py-12 text-center text-kx-legenda">
  Nenhum pedido encontrado para os filtros informados.
  </TableCell>
  </TableRow>
@@ -589,33 +589,33 @@ export default async function SalesHistoryPage({ searchParams }: PageProps) {
  : formatPaymentMethod(order.formaPagamento);
 
  return (
- <TableRow key={order.id} className="border-kx-painel-borda hover:bg-kx-painel/[0.03]">
- <TableCell className="font-medium text-kx-texto">#{order.numeroPedido}</TableCell>
- <TableCell className="text-kx-texto-2">{order.dataCriacao.toLocaleDateString("pt-BR")}</TableCell>
- <TableCell className="text-kx-texto-2">
+ <TableRow key={order.id} className= "border-kx-painel-borda hover:bg-kx-painel/[0.03]">
+ <TableCell className= "font-medium text-kx-texto">#{order.numeroPedido}</TableCell>
+ <TableCell className= "text-kx-texto-2">{order.dataCriacao.toLocaleDateString("pt-BR")}</TableCell>
+ <TableCell className= "text-kx-texto-2">
  {order.cliente?.nomeFantasia?.trim() || order.cliente?.nomeRazaoSocial || "Cliente não informado"}
  </TableCell>
- <TableCell className="text-kx-texto-2">{order.vendedor}</TableCell>
+ <TableCell className= "text-kx-texto-2">{order.vendedor}</TableCell>
  <TableCell>
- <Badge variant="outline" className={originClassNames[order.origem]}>
+ <Badge variant= "outline" className={originClassNames[order.origem]}>
  {originLabelMap[order.origem]}
  </Badge>
  </TableCell>
- <TableCell className="max-w-[280px] truncate text-kx-texto-2" title={paymentSummaryLabel}>
+ <TableCell className= "max-w-[280px] truncate text-kx-texto-2" title={paymentSummaryLabel}>
  {paymentSummaryLabel}
  </TableCell>
- <TableCell className="font-medium text-kx-texto">{formatCurrency(order.total)}</TableCell>
+ <TableCell className= "font-medium text-kx-texto">{formatCurrency(order.total)}</TableCell>
  <TableCell>
- <Badge variant="outline" className={statusClassNames[order.status]}>
+ <Badge variant= "outline" className={statusClassNames[order.status]}>
  {statusLabelMap[order.status]}
  </Badge>
  </TableCell>
  <TableCell>
- <div className="flex items-center justify-end">
+ <div className= "flex items-center justify-end">
  <SalesHistoryOrderSheet
  trigger={
- <Button type="button" variant="ghost" size="icon-sm" aria-label="Ver detalhes do pedido" className="text-kx-texto-2 hover:bg-kx-cartao hover:text-kx-texto">
- <Eye className="h-4 w-4" />
+ <Button type= "button" variant= "ghost" size= "icon-sm" aria-label= "Ver detalhes do pedido" className= "text-kx-texto-2 hover:bg-kx-cartao hover:text-kx-texto">
+ <Eye className= "h-4 w-4" />
  </Button>
  }
  order={{
@@ -651,37 +651,37 @@ export default async function SalesHistoryPage({ searchParams }: PageProps) {
  </Table>
  </div>
 
- <div className="flex items-center justify-between border-t border-kx-painel-borda px-5 py-4">
- <p className="text-sm text-kx-legenda">
+ <div className= "flex items-center justify-between border-t border-kx-painel-borda px-5 py-4">
+ <p className= "text-sm text-kx-legenda">
  Página {currentPage} de {totalPages}
  </p>
 
- <div className="flex items-center gap-2">
+ <div className= "flex items-center gap-2">
  {currentPage > 1 ? (
- <Button asChild variant="outline" className="border-kx-painel-borda bg-kx-superficie text-kx-texto hover:bg-kx-painel/80">
+ <Button asChild variant= "outline" className= "border-kx-painel-borda bg-kx-superficie text-kx-texto hover:bg-kx-painel/80">
  <Link href={buildHistoryHref(currentPage - 1)}>
- <ChevronLeft className="h-4 w-4" />
+ <ChevronLeft className= "h-4 w-4" />
  Anterior
  </Link>
  </Button>
  ) : (
- <Button variant="outline" disabled className="border-kx-painel-borda bg-kx-superficie text-kx-texto">
- <ChevronLeft className="h-4 w-4" />
+ <Button variant= "outline" disabled className= "border-kx-painel-borda bg-kx-superficie text-kx-texto">
+ <ChevronLeft className= "h-4 w-4" />
  Anterior
  </Button>
  )}
 
  {currentPage < totalPages ? (
- <Button asChild variant="outline" className="border-kx-painel-borda bg-kx-superficie text-kx-texto hover:bg-kx-painel/80">
+ <Button asChild variant= "outline" className= "border-kx-painel-borda bg-kx-superficie text-kx-texto hover:bg-kx-painel/80">
  <Link href={buildHistoryHref(currentPage + 1)}>
  Próxima
- <ChevronRight className="h-4 w-4" />
+ <ChevronRight className= "h-4 w-4" />
  </Link>
  </Button>
  ) : (
- <Button variant="outline" disabled className="border-kx-painel-borda bg-kx-superficie text-kx-texto">
+ <Button variant= "outline" disabled className= "border-kx-painel-borda bg-kx-superficie text-kx-texto">
  Próxima
- <ChevronRight className="h-4 w-4" />
+ <ChevronRight className= "h-4 w-4" />
  </Button>
  )}
  </div>

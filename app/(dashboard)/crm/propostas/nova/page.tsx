@@ -108,7 +108,7 @@ const defaultValues: PropostaFormInput = {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
  return (
- <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-kx-legenda">
+ <p className= "text-[10px] font-semibold uppercase tracking-[0.22em] text-kx-legenda">
  {children}
  </p>
  );
@@ -125,11 +125,11 @@ function GlassCard({ children, className }: { children: React.ReactNode; classNa
 }
 
 function FieldGroup({ children }: { children: React.ReactNode }) {
- return <div className="space-y-2">{children}</div>;
+ return <div className= "space-y-2">{children}</div>;
 }
 
 function Required() {
- return <span className="ml-0.5 text-kx-erro-texto" aria-hidden>*</span>;
+ return <span className= "ml-0.5 text-kx-erro-texto" aria-hidden>*</span>;
 }
 
 function GlassInput(props: React.ComponentProps<typeof Input>) {
@@ -385,70 +385,70 @@ export default function NovaPropostaPage() {
  !clienteExisteNoCadastro;
 
  return (
- <form className="w-full flex flex-col bg-transparent" onSubmit={(e) => e.preventDefault()}>
- <div className="sticky top-0 z-kx-sticky border-b border-kx-painel-borda bg-kx-painel px-6 py-4 lg:px-8">
- <div className="mx-auto flex max-w-5xl items-center justify-between gap-4">
- <div className="flex items-center gap-4 min-w-0">
+ <form className= "w-full flex flex-col bg-transparent" onSubmit={(e) => e.preventDefault()}>
+ <div className= "sticky top-0 z-kx-sticky border-b border-kx-painel-borda bg-kx-painel px-6 py-4 lg:px-8">
+ <div className= "mx-auto flex max-w-5xl items-center justify-between gap-4">
+ <div className= "flex items-center gap-4 min-w-0">
  <Button
  asChild
- variant="ghost"
- size="sm"
- className="shrink-0 text-kx-legenda hover:bg-kx-cartao hover:text-kx-texto"
+ variant= "ghost"
+ size= "sm"
+ className= "shrink-0 text-kx-legenda hover:bg-kx-cartao hover:text-kx-texto"
  >
- <Link href="/crm/propostas">
- <ChevronLeft className="h-4 w-4" />
+ <Link href= "/crm/propostas">
+ <ChevronLeft className= "h-4 w-4" />
  Voltar
  </Link>
  </Button>
 
- <div className="min-w-0">
- <div className="flex items-center gap-2">
- <FileText className="h-4 w-4 shrink-0 text-kx-link" />
- <h1 className="truncate text-base font-semibold text-kx-texto sm:text-lg">
+ <div className= "min-w-0">
+ <div className= "flex items-center gap-2">
+ <FileText className= "h-4 w-4 shrink-0 text-kx-link" />
+ <h1 className= "truncate text-base font-semibold text-kx-texto sm:text-lg">
  Nova Proposta Comercial
  </h1>
  </div>
- <p className="hidden text-xs text-kx-legenda sm:block">
+ <p className= "hidden text-xs text-kx-legenda sm:block">
  Preencha os dados abaixo e salve para gerar o documento.
  </p>
  </div>
  </div>
 
- <div className="flex items-center gap-2 shrink-0">
+ <div className= "flex items-center gap-2 shrink-0">
  <Badge
- variant="outline"
- className="hidden border-kx-alerta bg-kx-alerta-fundo text-kx-alerta-texto sm:inline-flex"
+ variant= "outline"
+ className= "hidden border-kx-alerta bg-kx-alerta-fundo text-kx-alerta-texto sm:inline-flex"
  >
  Rascunho
  </Badge>
  <Button
- type="button"
- className="bg-kx-primaria text-primary-foreground shadow-kx-flutuante hover:bg-kx-primaria"
+ type= "button"
+ className= "bg-kx-primaria text-primary-foreground shadow-kx-flutuante hover:bg-kx-primaria"
  onClick={() => handleSave("ENVIADA")}
  disabled={isPending}
  >
- {isFinalSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+ {isFinalSaving ? <Loader2 className= "h-4 w-4 animate-spin" /> : <Save className= "h-4 w-4" />}
  Salvar Proposta
  </Button>
  </div>
  </div>
  </div>
 
- <div className="px-6 py-8 lg:px-8">
- <div className="mx-auto max-w-5xl space-y-6">
+ <div className= "px-6 py-8 lg:px-8">
+ <div className= "mx-auto max-w-5xl space-y-6">
  <GlassCard>
- <div className="border-b border-kx-painel-borda px-6 py-5">
+ <div className= "border-b border-kx-painel-borda px-6 py-5">
  <SectionLabel>01 - Dados gerais e contexto</SectionLabel>
- <h2 className="mt-1 text-base font-semibold text-kx-texto">Identificacao da Proposta</h2>
+ <h2 className= "mt-1 text-base font-semibold text-kx-texto">Identificacao da Proposta</h2>
  </div>
 
- <div className="space-y-6 px-6 py-6">
- <div className="grid gap-4 sm:grid-cols-2">
+ <div className= "space-y-6 px-6 py-6">
+ <div className= "grid gap-4 sm:grid-cols-2">
  <FieldGroup>
- <Label className="text-kx-texto-2">Cliente <Required /></Label>
- <div className="relative">
+ <Label className= "text-kx-texto-2">Cliente <Required /></Label>
+ <div className= "relative">
  <GlassInput
- placeholder="Nome, razao social ou CPF/CNPJ"
+ placeholder= "Nome, razao social ou CPF/CNPJ"
  {...clienteRegister}
  onFocus={() => setClienteDropdownOpen(true)}
  onBlur={() => {
@@ -464,11 +464,11 @@ export default function NovaPropostaPage() {
  />
 
  {clienteDropdownOpen && clientesFiltrados.length > 0 && (
- <div className="absolute z-kx-dropdown mt-1 w-full rounded-xl border border-kx-painel-borda bg-kx-fundo p-1 shadow-xl">
+ <div className= "absolute z-kx-dropdown mt-1 w-full rounded-xl border border-kx-painel-borda bg-kx-fundo p-1 shadow-xl">
  {clientesFiltrados.map((cliente) => (
  <button
  key={cliente.id}
- type="button"
+ type= "button"
  onMouseDown={(event) => {
  event.preventDefault();
  setValue("cliente", cliente.nomeRazaoSocial, {
@@ -477,10 +477,10 @@ export default function NovaPropostaPage() {
  });
  setClienteDropdownOpen(false);
  }}
- className="flex w-full flex-col rounded-lg px-3 py-2 text-left hover:bg-kx-cartao"
+ className= "flex w-full flex-col rounded-lg px-3 py-2 text-left hover:bg-kx-cartao"
  >
- <span className="text-sm text-kx-texto">{cliente.nomeRazaoSocial}</span>
- <span className="text-xs text-kx-legenda">
+ <span className= "text-sm text-kx-texto">{cliente.nomeRazaoSocial}</span>
+ <span className= "text-xs text-kx-legenda">
  {cliente.documento}
  {cliente.nomeFantasia ? ` - ${cliente.nomeFantasia}` : ""}
  </span>
@@ -489,43 +489,43 @@ export default function NovaPropostaPage() {
  </div>
  )}
  </div>
- {errors.cliente && <p className="text-xs text-kx-erro-texto">{errors.cliente.message}</p>}
+ {errors.cliente && <p className= "text-xs text-kx-erro-texto">{errors.cliente.message}</p>}
  {!errors.cliente && clientesLoading && (
- <p className="text-xs text-kx-legenda">Carregando clientes cadastrados...</p>
+ <p className= "text-xs text-kx-legenda">Carregando clientes cadastrados...</p>
  )}
  {showClienteWarning && (
- <p className="text-xs text-kx-alerta-texto">
+ <p className= "text-xs text-kx-alerta-texto">
  Cliente nao encontrado no cadastro. Voce pode salvar normalmente mesmo assim.
  </p>
  )}
  </FieldGroup>
 
  <FieldGroup>
- <Label className="text-kx-texto-2">Aos Cuidados de</Label>
+ <Label className= "text-kx-texto-2">Aos Cuidados de</Label>
  <GlassInput
- placeholder="Nome do responsavel / contato"
+ placeholder= "Nome do responsavel / contato"
  {...register("aosCuidados")}
  />
  </FieldGroup>
  </div>
 
- <div className="grid gap-4 sm:grid-cols-3">
+ <div className= "grid gap-4 sm:grid-cols-3">
  <FieldGroup>
- <Label className="text-kx-texto-2">Data de Emissao <Required /></Label>
+ <Label className= "text-kx-texto-2">Data de Emissao <Required /></Label>
  <GlassInput
- type="date"
+ type= "date"
  {...register("dataEmissao")}
  className={errors.dataEmissao ? "border-kx-erro-borda focus-visible:border-kx-erro-borda" : ""}
  />
  {errors.dataEmissao && (
- <p className="text-xs text-kx-erro-texto">{errors.dataEmissao.message}</p>
+ <p className= "text-xs text-kx-erro-texto">{errors.dataEmissao.message}</p>
  )}
  </FieldGroup>
 
  <FieldGroup>
- <Label className="text-kx-texto-2">Validade em Dias <Required /></Label>
+ <Label className= "text-kx-texto-2">Validade em Dias <Required /></Label>
  <GlassInput
- type="number"
+ type= "number"
  min={1}
  value={validadeDias}
  onChange={(event) => setValidadeDias(event.target.value)}
@@ -535,33 +535,33 @@ export default function NovaPropostaPage() {
  handleCalcularValidade();
  }
  }}
- placeholder="Ex: 30"
+ placeholder= "Ex: 30"
  className={`[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
  errors.validade ? "border-kx-erro-borda focus-visible:border-kx-erro-borda" : ""
  }`}
  />
- <input type="hidden" {...register("validade")} />
- <p className="text-xs text-kx-legenda">Pressione Enter para calcular a data final.</p>
+ <input type= "hidden" {...register("validade")} />
+ <p className= "text-xs text-kx-legenda">Pressione Enter para calcular a data final.</p>
  {validadeCalculadaBR && (
- <p className="text-xs text-kx-link">Data calculada: {validadeCalculadaBR}</p>
+ <p className= "text-xs text-kx-link">Data calculada: {validadeCalculadaBR}</p>
  )}
- {errors.validade && <p className="text-xs text-kx-erro-texto">{errors.validade.message}</p>}
+ {errors.validade && <p className= "text-xs text-kx-erro-texto">{errors.validade.message}</p>}
  </FieldGroup>
 
  <FieldGroup>
- <Label className="text-kx-texto-2">Proximo Contato</Label>
+ <Label className= "text-kx-texto-2">Proximo Contato</Label>
  <GlassInput
- type="date"
+ type= "date"
  {...register("proximoContato")}
  />
  </FieldGroup>
  </div>
 
- <div className="rounded-kx-cartao border border-kx-painel-borda/[0.07] bg-kx-painel/[0.02] overflow-hidden">
+ <div className= "rounded-kx-cartao border border-kx-painel-borda/[0.07] bg-kx-painel/[0.02] overflow-hidden">
  <button
- type="button"
+ type= "button"
  onClick={() => setTechnicalContextOpen((prev) => !prev)}
- className="flex w-full items-center justify-between px-5 py-3.5 text-left transition-colors hover:bg-kx-painel/[0.03]"
+ className= "flex w-full items-center justify-between px-5 py-3.5 text-left transition-colors hover:bg-kx-painel/[0.03]"
  >
  <SectionLabel>Contexto tecnico (opcional)</SectionLabel>
  <ChevronDown
@@ -572,19 +572,19 @@ export default function NovaPropostaPage() {
  </button>
 
  {technicalContextOpen && (
- <div className="grid gap-4 px-5 pb-5 sm:grid-cols-2">
+ <div className= "grid gap-4 px-5 pb-5 sm:grid-cols-2">
  <FieldGroup>
- <Label className="text-kx-texto-2">Aparelho / Equipamento</Label>
+ <Label className= "text-kx-texto-2">Aparelho / Equipamento</Label>
  <GlassInput
- placeholder="Ex: iPhone 13 Pro, Notebook Dell XPS 15"
+ placeholder= "Ex: iPhone 13 Pro, Notebook Dell XPS 15"
  {...register("equipamento")}
  />
  </FieldGroup>
 
  <FieldGroup>
- <Label className="text-kx-texto-2">Defeito Relatado / Solicitacao</Label>
+ <Label className= "text-kx-texto-2">Defeito Relatado / Solicitacao</Label>
  <GlassInput
- placeholder="Ex: Tela trincada, sem imagem, nao liga"
+ placeholder= "Ex: Tela trincada, sem imagem, nao liga"
  {...register("defeito")}
  />
  </FieldGroup>
@@ -593,10 +593,10 @@ export default function NovaPropostaPage() {
  </div>
 
  <FieldGroup>
- <Label className="text-kx-texto-2">Introducao da Proposta</Label>
+ <Label className= "text-kx-texto-2">Introducao da Proposta</Label>
  <GlassTextarea
  rows={4}
- placeholder="Texto de abertura que aparecera no PDF da proposta."
+ placeholder= "Texto de abertura que aparecera no PDF da proposta."
  {...register("introducao")}
  />
  </FieldGroup>
@@ -604,44 +604,44 @@ export default function NovaPropostaPage() {
  </GlassCard>
 
  <GlassCard>
- <div className="border-b border-kx-painel-borda px-6 py-5">
+ <div className= "border-b border-kx-painel-borda px-6 py-5">
  <SectionLabel>02 - Itens e servicos</SectionLabel>
- <h2 className="mt-1 text-base font-semibold text-kx-texto">Composicao da Proposta <Required /></h2>
+ <h2 className= "mt-1 text-base font-semibold text-kx-texto">Composicao da Proposta <Required /></h2>
  {errors.itens?.message && (
- <p className="mt-1 text-xs text-kx-erro-texto">{errors.itens.message}</p>
+ <p className= "mt-1 text-xs text-kx-erro-texto">{errors.itens.message}</p>
  )}
  </div>
 
- <div className="overflow-x-auto overflow-y-visible">
- <table className="w-full text-sm">
+ <div className= "overflow-x-auto overflow-y-visible">
+ <table className= "w-full text-sm">
  <thead>
- <tr className="border-b border-kx-painel-borda bg-kx-painel/[0.02]">
- <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.18em] text-kx-legenda w-full">
+ <tr className= "border-b border-kx-painel-borda bg-kx-painel/[0.02]">
+ <th className= "px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.18em] text-kx-legenda w-full">
  Produto / Servico
  </th>
- <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-[0.18em] text-kx-legenda w-20">
+ <th className= "px-4 py-3 text-center text-xs font-semibold uppercase tracking-[0.18em] text-kx-legenda w-20">
  Qtd
  </th>
- <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-[0.18em] text-kx-legenda w-32">
+ <th className= "px-4 py-3 text-right text-xs font-semibold uppercase tracking-[0.18em] text-kx-legenda w-32">
  Preco Un.
  </th>
- <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-[0.18em] text-kx-legenda w-24">
+ <th className= "px-4 py-3 text-center text-xs font-semibold uppercase tracking-[0.18em] text-kx-legenda w-24">
  Desc (%)
  </th>
- <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-[0.18em] text-kx-legenda w-36">
+ <th className= "px-4 py-3 text-right text-xs font-semibold uppercase tracking-[0.18em] text-kx-legenda w-36">
  Subtotal
  </th>
- <th className="px-4 py-3 w-10" />
+ <th className= "px-4 py-3 w-10" />
  </tr>
  </thead>
  <tbody>
  {fields.map((field, index) => (
- <tr key={field.id} className="group border-b border-kx-painel-borda/[0.06] hover:bg-kx-painel/[0.02]">
- <td className="px-4 py-2.5 align-top">
+ <tr key={field.id} className= "group border-b border-kx-painel-borda/[0.06] hover:bg-kx-painel/[0.02]">
+ <td className= "px-4 py-2.5 align-top">
  <div>
  <Input
  {...register(`itens.${index}.descricao`)}
- placeholder="Descricao do produto ou servico"
+ placeholder= "Descricao do produto ou servico"
  onFocus={() => setProdutoDropdownIndex(index)}
  onBlur={() => {
  setTimeout(() => {
@@ -677,11 +677,11 @@ export default function NovaPropostaPage() {
  if (sugestoes.length === 0) return null;
 
  return (
- <div className="mt-1 max-h-48 w-full overflow-y-auto rounded-xl border border-kx-painel-borda bg-kx-fundo p-1 shadow-xl">
+ <div className= "mt-1 max-h-48 w-full overflow-y-auto rounded-xl border border-kx-painel-borda bg-kx-fundo p-1 shadow-xl">
  {sugestoes.map((produto) => (
  <button
  key={produto.id}
- type="button"
+ type= "button"
  onMouseDown={(event) => {
  event.preventDefault();
  setValue(`itens.${index}.descricao`, produto.nome, {
@@ -694,10 +694,10 @@ export default function NovaPropostaPage() {
  });
  setProdutoDropdownIndex(null);
  }}
- className="flex w-full flex-col rounded-lg px-3 py-2 text-left hover:bg-kx-cartao"
+ className= "flex w-full flex-col rounded-lg px-3 py-2 text-left hover:bg-kx-cartao"
  >
- <span className="text-sm text-kx-texto">{produto.nome}</span>
- <span className="text-xs text-kx-legenda">
+ <span className= "text-sm text-kx-texto">{produto.nome}</span>
+ <span className= "text-xs text-kx-legenda">
  {produto.codigoBarras ?? "Sem codigo"}
  {produto.descricao ? ` - ${produto.descricao}` : ""}
  </span>
@@ -708,47 +708,47 @@ export default function NovaPropostaPage() {
  })()}
  </div>
  </td>
- <td className="px-4 py-2.5">
+ <td className= "px-4 py-2.5">
  <Input
- type="number"
+ type= "number"
  min={1}
  {...register(`itens.${index}.quantidade`, { valueAsNumber: true })}
- className="h-8 w-16 border-kx-painel-borda bg-kx-superficie text-center text-kx-texto focus-visible:border-kx-primaria [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+ className= "h-8 w-16 border-kx-painel-borda bg-kx-superficie text-center text-kx-texto focus-visible:border-kx-primaria [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
  />
  </td>
- <td className="px-4 py-2.5">
+ <td className= "px-4 py-2.5">
  <Input
- type="number"
+ type= "number"
  min={0}
  step={0.01}
  {...register(`itens.${index}.precoUnitario`, { valueAsNumber: true })}
- placeholder="0,00"
- className="h-8 w-28 border-kx-painel-borda bg-kx-superficie text-right text-kx-texto placeholder:text-kx-texto-2 focus-visible:border-kx-primaria [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+ placeholder= "0,00"
+ className= "h-8 w-28 border-kx-painel-borda bg-kx-superficie text-right text-kx-texto placeholder:text-kx-texto-2 focus-visible:border-kx-primaria [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
  />
  </td>
- <td className="px-4 py-2.5">
+ <td className= "px-4 py-2.5">
  <Input
- type="number"
+ type= "number"
  min={0}
  max={100}
  step={0.5}
  {...register(`itens.${index}.descontoPercentual`, { valueAsNumber: true })}
- placeholder="0"
- className="h-8 w-16 border-kx-painel-borda bg-kx-superficie text-center text-kx-texto placeholder:text-kx-texto-2 focus-visible:border-kx-primaria [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+ placeholder= "0"
+ className= "h-8 w-16 border-kx-painel-borda bg-kx-superficie text-center text-kx-texto placeholder:text-kx-texto-2 focus-visible:border-kx-primaria [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
  />
  </td>
- <td className="px-4 py-2.5 text-right font-medium text-kx-texto">
+ <td className= "px-4 py-2.5 text-right font-medium text-kx-texto">
  {formatCurrency(lineSubtotals[index] ?? 0)}
  </td>
- <td className="px-4 py-2.5 text-center">
+ <td className= "px-4 py-2.5 text-center">
  <button
- type="button"
+ type= "button"
  onClick={() => remove(index)}
  disabled={fields.length === 1}
- aria-label="Remover item"
- className="rounded-lg p-1.5 text-kx-texto-2 opacity-0 transition-all hover:bg-kx-erro-fundo hover:text-kx-erro-texto group-hover:opacity-100 disabled:pointer-events-none disabled:opacity-0"
+ aria-label= "Remover item"
+ className= "rounded-lg p-1.5 text-kx-texto-2 opacity-0 transition-all hover:bg-kx-erro-fundo hover:text-kx-erro-texto group-hover:opacity-100 disabled:pointer-events-none disabled:opacity-0"
  >
- <Trash2 className="h-3.5 w-3.5" />
+ <Trash2 className= "h-3.5 w-3.5" />
  </button>
  </td>
  </tr>
@@ -757,51 +757,51 @@ export default function NovaPropostaPage() {
  </table>
  </div>
 
- <div className="px-6 py-4 border-b border-kx-painel-borda">
+ <div className= "px-6 py-4 border-b border-kx-painel-borda">
  <Button
- type="button"
- variant="ghost"
- size="sm"
+ type= "button"
+ variant= "ghost"
+ size= "sm"
  onClick={handleAddItem}
  disabled={!lastItemFilled || isPending}
  title={!lastItemFilled ? "Preencha a descricao do item atual antes de adicionar outro" : undefined}
- className="text-kx-link hover:bg-kx-info-fundo hover:text-kx-link disabled:cursor-not-allowed disabled:text-kx-texto-2"
+ className= "text-kx-link hover:bg-kx-info-fundo hover:text-kx-link disabled:cursor-not-allowed disabled:text-kx-texto-2"
  >
- <Plus className="h-4 w-4" />
+ <Plus className= "h-4 w-4" />
  Adicionar Item
  </Button>
  </div>
 
- <div className="flex justify-end px-6 py-5">
- <div className="w-full max-w-xs space-y-2">
- <div className="flex items-center justify-between text-sm text-kx-legenda">
+ <div className= "flex justify-end px-6 py-5">
+ <div className= "w-full max-w-xs space-y-2">
+ <div className= "flex items-center justify-between text-sm text-kx-legenda">
  <span>Subtotal Bruto</span>
- <span className="text-kx-texto">{formatCurrency(totals.subtotalBruto)}</span>
+ <span className= "text-kx-texto">{formatCurrency(totals.subtotalBruto)}</span>
  </div>
- <div className="flex items-center justify-between text-sm text-kx-legenda">
+ <div className= "flex items-center justify-between text-sm text-kx-legenda">
  <span>Descontos</span>
- <span className="text-kx-erro-texto">- {formatCurrency(totals.descontoTotal)}</span>
+ <span className= "text-kx-erro-texto">- {formatCurrency(totals.descontoTotal)}</span>
  </div>
- <div className="flex items-center justify-between border-t border-kx-painel-borda pt-2">
- <span className="font-semibold text-kx-texto">Total da Proposta</span>
- <span className="text-lg font-bold text-kx-link">{formatCurrency(totals.valorTotal)}</span>
+ <div className= "flex items-center justify-between border-t border-kx-painel-borda pt-2">
+ <span className= "font-semibold text-kx-texto">Total da Proposta</span>
+ <span className= "text-lg font-bold text-kx-link">{formatCurrency(totals.valorTotal)}</span>
  </div>
  </div>
  </div>
  </GlassCard>
 
  <GlassCard>
- <div className="border-b border-kx-painel-borda px-6 py-5">
+ <div className= "border-b border-kx-painel-borda px-6 py-5">
  <SectionLabel>03 - Fechamento e observacoes</SectionLabel>
- <h2 className="mt-1 text-base font-semibold text-kx-texto">Condicoes e Termos</h2>
+ <h2 className= "mt-1 text-base font-semibold text-kx-texto">Condicoes e Termos</h2>
  </div>
 
- <div className="space-y-6 px-6 py-6">
+ <div className= "space-y-6 px-6 py-6">
  <FieldGroup>
- <Label className="text-kx-texto-2">Condicoes de Pagamento</Label>
+ <Label className= "text-kx-texto-2">Condicoes de Pagamento</Label>
  <Select value={paymentPreset} onValueChange={handlePaymentPreset}>
- <SelectTrigger className="border-kx-painel-borda bg-kx-superficie text-kx-texto focus:border-kx-primaria focus:ring-kx-foco data-[placeholder]:text-kx-legenda">
- <SelectValue placeholder="Selecione a condição de pagamento" />
+ <SelectTrigger className= "border-kx-painel-borda bg-kx-superficie text-kx-texto focus:border-kx-primaria focus:ring-kx-foco data-[placeholder]:text-kx-legenda">
+ <SelectValue placeholder= "Selecione a condição de pagamento" />
  </SelectTrigger>
  <SelectContent>
  {PAYMENT_CONDITIONS.map((condition) => (
@@ -811,26 +811,26 @@ export default function NovaPropostaPage() {
  ))}
  </SelectContent>
  </Select>
- <Label className="text-kx-legenda">Detalhes do Pagamento (Opcional)</Label>
+ <Label className= "text-kx-legenda">Detalhes do Pagamento (Opcional)</Label>
  <GlassInput
- placeholder="Ex: Em até 3x sem juros no cartão, ou 5% de desconto no PIX."
+ placeholder= "Ex: Em até 3x sem juros no cartão, ou 5% de desconto no PIX."
  {...register("detalhesPagamento")}
  />
  </FieldGroup>
 
- <div className="grid gap-4 sm:grid-cols-2">
+ <div className= "grid gap-4 sm:grid-cols-2">
  <FieldGroup>
- <Label className="text-kx-texto-2">Termos de Garantia</Label>
+ <Label className= "text-kx-texto-2">Termos de Garantia</Label>
  <GlassTextarea
- placeholder="Ex: Garantia de 90 dias para pecas originais e servicos realizados."
+ placeholder= "Ex: Garantia de 90 dias para pecas originais e servicos realizados."
  {...register("termosGarantia")}
  />
  </FieldGroup>
 
  <FieldGroup>
- <Label className="text-kx-texto-2">Observacoes Internas</Label>
+ <Label className= "text-kx-texto-2">Observacoes Internas</Label>
  <GlassTextarea
- placeholder="Notas internas (nao aparecem no PDF). Ex: cliente prefere contato por WhatsApp."
+ placeholder= "Notas internas (nao aparecem no PDF). Ex: cliente prefere contato por WhatsApp."
  {...register("observacoesInternas")}
  />
  </FieldGroup>
@@ -838,33 +838,33 @@ export default function NovaPropostaPage() {
  </div>
  </GlassCard>
 
- <div className="flex items-center justify-between rounded-kx-painel border border-kx-painel-borda bg-kx-painel px-6 py-4">
+ <div className= "flex items-center justify-between rounded-kx-painel border border-kx-painel-borda bg-kx-painel px-6 py-4">
  <Button
  asChild
- variant="ghost"
- className="text-kx-legenda hover:bg-kx-cartao hover:text-kx-texto"
+ variant= "ghost"
+ className= "text-kx-legenda hover:bg-kx-cartao hover:text-kx-texto"
  >
- <Link href="/crm/propostas">Cancelar</Link>
+ <Link href= "/crm/propostas">Cancelar</Link>
  </Button>
 
- <div className="flex items-center gap-3">
+ <div className= "flex items-center gap-3">
  <Button
- type="button"
- variant="outline"
- className="border-kx-painel-borda bg-kx-superficie text-kx-texto hover:bg-kx-painel/80"
+ type= "button"
+ variant= "outline"
+ className= "border-kx-painel-borda bg-kx-superficie text-kx-texto hover:bg-kx-painel/80"
  onClick={() => handleSave("RASCUNHO")}
  disabled={isPending}
  >
- {isDraftSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+ {isDraftSaving ? <Loader2 className= "h-4 w-4 animate-spin" /> : null}
  Salvar como Rascunho
  </Button>
  <Button
- type="button"
- className="bg-kx-primaria text-primary-foreground shadow-kx-flutuante hover:bg-kx-primaria"
+ type= "button"
+ className= "bg-kx-primaria text-primary-foreground shadow-kx-flutuante hover:bg-kx-primaria"
  onClick={() => handleSave("ENVIADA")}
  disabled={isPending}
  >
- {isFinalSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+ {isFinalSaving ? <Loader2 className= "h-4 w-4 animate-spin" /> : <Save className= "h-4 w-4" />}
  Salvar Proposta
  </Button>
  </div>

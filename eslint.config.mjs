@@ -30,7 +30,7 @@ import konextRegrasDinheiro from "./eslint-rules/dinheiro-fora-do-modulo.mjs";
  * uma cor nova nao encontra token, o caminho e criar o token (ver a familia
  * `--kx-info`, nascida assim) ou usar a familia semantica que corresponde.
  */
-const ARQUIVOS_COM_COR_LEGADA: string[] = [];
+const ARQUIVOS_COM_COR_LEGADA = [];
 
 const eslintConfig = defineConfig([
   ...nextVitals,

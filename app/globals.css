@@ -100,7 +100,7 @@
    * quando o usuário escolhe claro explicitamente com o SO no escuro.
    * O seletor por atributo fica declarado para compatibilidade futura.
    */
-  :root[data-theme="dark"] {
+  :root[data-theme= "dark"] {
     --receita: #3987e5;
     --despesa: #e66767;
     --lucro: #199e70;
@@ -310,13 +310,13 @@ html.dark ::-webkit-scrollbar-thumb {
 }
 
 /* Remove setas de campos numéricos em todo o projeto */
-input[type="number"]::-webkit-outer-spin-button,
-input[type="number"]::-webkit-inner-spin-button {
+input[type= "number"]::-webkit-outer-spin-button,
+input[type= "number"]::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
 
-input[type="number"] {
+input[type= "number"] {
   -moz-appearance: textfield;
   appearance: textfield;
 }
