@@ -36,6 +36,7 @@ export async function listarContasReceber(): Promise<ContaReceberFinanceiro[]> {
         dataVencimento: "asc",
       },
       where: {
+        estornadaEm: null,
         OR: [
           { cliente: { is: null } },
           { cliente: { is: { papel: "CLIENTE" } } },

@@ -75,7 +75,10 @@ export async function listarContasReceber(): Promise<ContaReceberFinanceiro[]> {
   const prisma = contexto.prisma;
 
   const contas = await prisma.contaReceber.findMany({
-    where: escopoContaReceber(contexto),
+    // Fase 2A-3: conta de venda estornada continua gravada (e o rastro), mas
+    // nao e mais conta a receber — sai da lista operacional. O estorno fica
+    // no log de auditoria e no proprio registro.
+    where: { ...escopoContaReceber(contexto), estornadaEm: null },
     include: {
       cliente: {
         select: {
@@ -587,7 +590,7 @@ export async function listarContasReceberFiltradas(
   }
 
   const contas = await prisma.contaReceber.findMany({
-    where,
+    where: { ...where, estornadaEm: null },
     include: {
       cliente: {
         select: { nomeRazaoSocial: true },

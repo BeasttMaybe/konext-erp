@@ -145,7 +145,8 @@ export async function obterReceitaTotalPadrao(
           LEFT JOIN "ContaReceber" cr ON cr."vendaId" = v.id
           LEFT JOIN "OrdemServico" os ON os.id = cr."ordemServicoId"
           LEFT JOIN "RetornoGarantiaOS" rg ON rg.id = os."retornoGarantiaId"
-          WHERE v."criadoEm" >= ${inicio}
+          WHERE v."estornadaEm" IS NULL
+            AND v."criadoEm" >= ${inicio}
             AND v."criadoEm" <= ${fim}
             AND (os.id IS NULL OR (os."excluidaEm" IS NULL AND os."entregueSemServico" = false))
             AND (
@@ -161,7 +162,8 @@ export async function obterReceitaTotalPadrao(
           FROM "ContaReceber" cr
           LEFT JOIN "OrdemServico" os ON os.id = cr."ordemServicoId"
           LEFT JOIN "RetornoGarantiaOS" rg ON rg.id = os."retornoGarantiaId"
-          WHERE cr.status::text = 'RECEBIDO'
+          WHERE cr."estornadaEm" IS NULL
+            AND cr.status::text = 'RECEBIDO'
             AND cr."vendaId" IS NULL
             AND COALESCE(cr."dataRecebimento", cr."criadoEm") >= ${inicio}
             AND COALESCE(cr."dataRecebimento", cr."criadoEm") <= ${fim}
@@ -185,7 +187,8 @@ export async function obterReceitaTotalPadrao(
         FROM "Venda" v
         LEFT JOIN "ContaReceber" cr ON cr."vendaId" = v.id
         LEFT JOIN "OrdemServico" os ON os.id = cr."ordemServicoId"
-        WHERE v."criadoEm" >= ${inicio}
+        WHERE v."estornadaEm" IS NULL
+          AND v."criadoEm" >= ${inicio}
           AND v."criadoEm" <= ${fim}
           AND (os.id IS NULL OR (os."excluidaEm" IS NULL AND os."entregueSemServico" = false))
 
@@ -194,7 +197,8 @@ export async function obterReceitaTotalPadrao(
         SELECT cr.valor AS valor
         FROM "ContaReceber" cr
         LEFT JOIN "OrdemServico" os ON os.id = cr."ordemServicoId"
-        WHERE cr.status::text = 'RECEBIDO'
+        WHERE cr."estornadaEm" IS NULL
+            AND cr.status::text = 'RECEBIDO'
           AND cr."vendaId" IS NULL
           AND COALESCE(cr."dataRecebimento", cr."criadoEm") >= ${inicio}
           AND COALESCE(cr."dataRecebimento", cr."criadoEm") <= ${fim}
@@ -231,7 +235,8 @@ export async function obterReceitaMensalPadrao(
             LEFT JOIN "ContaReceber" cr ON cr."vendaId" = v.id
             LEFT JOIN "OrdemServico" os ON os.id = cr."ordemServicoId"
             LEFT JOIN "RetornoGarantiaOS" rg ON rg.id = os."retornoGarantiaId"
-            WHERE v."criadoEm" >= ${inicio}
+            WHERE v."estornadaEm" IS NULL
+            AND v."criadoEm" >= ${inicio}
               AND v."criadoEm" <= ${fim}
               AND (os.id IS NULL OR (os."excluidaEm" IS NULL AND os."entregueSemServico" = false))
               AND (
@@ -248,7 +253,8 @@ export async function obterReceitaMensalPadrao(
             FROM "ContaReceber" cr
             LEFT JOIN "OrdemServico" os ON os.id = cr."ordemServicoId"
             LEFT JOIN "RetornoGarantiaOS" rg ON rg.id = os."retornoGarantiaId"
-            WHERE cr.status::text = 'RECEBIDO'
+            WHERE cr."estornadaEm" IS NULL
+            AND cr.status::text = 'RECEBIDO'
               AND cr."vendaId" IS NULL
               AND COALESCE(cr."dataRecebimento", cr."criadoEm") >= ${inicio}
               AND COALESCE(cr."dataRecebimento", cr."criadoEm") <= ${fim}
@@ -270,7 +276,8 @@ export async function obterReceitaMensalPadrao(
             FROM "Venda" v
             LEFT JOIN "ContaReceber" cr ON cr."vendaId" = v.id
             LEFT JOIN "OrdemServico" os ON os.id = cr."ordemServicoId"
-            WHERE v."criadoEm" >= ${inicio}
+            WHERE v."estornadaEm" IS NULL
+            AND v."criadoEm" >= ${inicio}
               AND v."criadoEm" <= ${fim}
               AND (os.id IS NULL OR (os."excluidaEm" IS NULL AND os."entregueSemServico" = false))
 
@@ -280,7 +287,8 @@ export async function obterReceitaMensalPadrao(
                    cr.valor AS valor
             FROM "ContaReceber" cr
             LEFT JOIN "OrdemServico" os ON os.id = cr."ordemServicoId"
-            WHERE cr.status::text = 'RECEBIDO'
+            WHERE cr."estornadaEm" IS NULL
+            AND cr.status::text = 'RECEBIDO'
               AND cr."vendaId" IS NULL
               AND COALESCE(cr."dataRecebimento", cr."criadoEm") >= ${inicio}
               AND COALESCE(cr."dataRecebimento", cr."criadoEm") <= ${fim}
@@ -327,7 +335,8 @@ export async function obterReceitaPorClientePadrao(
             LEFT JOIN "ContaReceber" cr ON cr."vendaId" = v.id
             LEFT JOIN "OrdemServico" os ON os.id = cr."ordemServicoId"
             LEFT JOIN "RetornoGarantiaOS" rg ON rg.id = os."retornoGarantiaId"
-            WHERE v."criadoEm" >= ${inicio}
+            WHERE v."estornadaEm" IS NULL
+            AND v."criadoEm" >= ${inicio}
               AND v."criadoEm" <= ${fim}
               AND (v."clienteId" IS NULL OR v."clienteId" != ${ID_CLIENTE_CONSUMIDOR_FINAL})
               AND (os.id IS NULL OR (os."excluidaEm" IS NULL AND os."entregueSemServico" = false))
@@ -345,7 +354,8 @@ export async function obterReceitaPorClientePadrao(
             LEFT JOIN "Cliente" c ON c.id = cr."clienteId"
             LEFT JOIN "OrdemServico" os ON os.id = cr."ordemServicoId"
             LEFT JOIN "RetornoGarantiaOS" rg ON rg.id = os."retornoGarantiaId"
-            WHERE cr.status::text = 'RECEBIDO'
+            WHERE cr."estornadaEm" IS NULL
+            AND cr.status::text = 'RECEBIDO'
               AND cr."vendaId" IS NULL
               AND (cr."clienteId" IS NULL OR cr."clienteId" != ${ID_CLIENTE_CONSUMIDOR_FINAL})
               AND COALESCE(cr."dataRecebimento", cr."criadoEm") >= ${inicio}
@@ -370,7 +380,8 @@ export async function obterReceitaPorClientePadrao(
             LEFT JOIN "Cliente" c ON c.id = v."clienteId"
             LEFT JOIN "ContaReceber" cr ON cr."vendaId" = v.id
             LEFT JOIN "OrdemServico" os ON os.id = cr."ordemServicoId"
-            WHERE v."criadoEm" >= ${inicio}
+            WHERE v."estornadaEm" IS NULL
+            AND v."criadoEm" >= ${inicio}
               AND v."criadoEm" <= ${fim}
               AND (v."clienteId" IS NULL OR v."clienteId" != ${ID_CLIENTE_CONSUMIDOR_FINAL})
               AND (os.id IS NULL OR (os."excluidaEm" IS NULL AND os."entregueSemServico" = false))
@@ -381,7 +392,8 @@ export async function obterReceitaPorClientePadrao(
             FROM "ContaReceber" cr
             LEFT JOIN "Cliente" c ON c.id = cr."clienteId"
             LEFT JOIN "OrdemServico" os ON os.id = cr."ordemServicoId"
-            WHERE cr.status::text = 'RECEBIDO'
+            WHERE cr."estornadaEm" IS NULL
+            AND cr.status::text = 'RECEBIDO'
               AND cr."vendaId" IS NULL
               AND (cr."clienteId" IS NULL OR cr."clienteId" != ${ID_CLIENTE_CONSUMIDOR_FINAL})
               AND COALESCE(cr."dataRecebimento", cr."criadoEm") >= ${inicio}

@@ -573,6 +573,13 @@ model ContaReceber {
   dataVencimento  DateTime
   dataRecebimento DateTime? @db.Timestamptz(3)
 
+  /**
+   * Fase 2A-3 (regra de estorno): quando a venda e estornada, a conta e
+   * MARCADA, nao apagada. O `cancelarPedido` antigo fazia `deleteMany` e
+   * nao sobrava rastro nenhum de que a venda existiu e foi cancelada.
+   */
+  estornadaEm DateTime? @db.Timestamptz(3)
+
   status           StatusPagamento @default(PENDENTE)
   formaPagamento   FormaPagamento?
   formaRecebimento FormaPagamento
@@ -599,6 +606,9 @@ enum StatusPagamento {
   RECEBIDO
   ATRASADO
   RENEGOCIADO
+  // Fase 2A-3: conta de venda estornada. Nao e pendente nem recebida — nao
+  // entra em nenhum dos dois totais, e continua existindo pra consulta.
+  ESTORNADO
 }
 
 enum FormaPagamento {
@@ -858,9 +868,29 @@ model Venda {
   // lib/dominio/pdv/idempotencia-venda.ts e app/actions/pdv.ts.
   chaveIdempotencia String? @unique
 
+  /**
+   * Fase 2A-3 (regra de estorno). A venda NUNCA sai de `caixaSessionId`: o
+   * esperado de fechamento daquela sessao e recalculado ao vivo a partir
+   * das vendas dela, e mexer nisso mudaria, dias depois, a diferenca de
+   * fechamento que alguem ja conferiu e assinou. O estorno e um movimento
+   * separado, que cai em `estornoCaixaSession` — a sessao aberta no momento
+   * do estorno, que e de onde o dinheiro de fato sai da gaveta.
+   *
+   * `estornadaEm` tambem e o que tira a venda da apuracao de receita:
+   * gaveta e apuracao sao duas contas diferentes, e tratar as duas junto foi
+   * o que deixou o cancelamento apagando conta a receber.
+   */
+  estornadaEm DateTime? @db.Timestamptz(3)
+
+  estornoCaixaSession   CaixaSession? @relation("VendasEstornadasNaSessao", fields: [estornoCaixaSessionId], references: [id])
+  estornoCaixaSessionId String?
+
   criadoEm       DateTime      @default(now()) @db.Timestamptz(3)
   caixaSession   CaixaSession? @relation(fields: [caixaSessionId], references: [id])
   caixaSessionId String?
+
+  @@index([estornadaEm])
+  @@index([estornoCaixaSessionId])
 }
 
 model VendaPagamento {
@@ -919,6 +949,9 @@ model CaixaSession {
   dataFechamento DateTime? @db.Timestamptz(3)
 
   vendas Venda[] // Vincula as vendas feitas nesta sessão
+
+  /** Vendas de OUTRAS sessoes cujo estorno caiu nesta — ver Venda.estornoCaixaSessionId. */
+  vendasEstornadasAqui Venda[] @relation("VendasEstornadasNaSessao")
 
   /** Quem abriu o caixa — fonte de "caixa.ver" sem "_todos" (Fase 1D-2, ver lib/auth/escopos.ts). Nulo em sessoes antigas, sem backfill. */
   abertoPorId String?

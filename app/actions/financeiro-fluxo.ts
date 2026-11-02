@@ -290,7 +290,9 @@ export async function obterServicoXProduto(referencia: Date = new Date()): Promi
       FROM "Venda" v
       LEFT JOIN "ContaReceber" cr ON cr."vendaId" = v.id
       LEFT JOIN "OrdemServico" os ON os.id = cr."ordemServicoId"
-      WHERE v."criadoEm" >= ${inicio}
+      -- Fase 2A-3: venda estornada nunca foi receita.
+      WHERE v."estornadaEm" IS NULL
+        AND v."criadoEm" >= ${inicio}
         AND v."criadoEm" <= ${fim}
         AND (os.id IS NULL OR (os."excluidaEm" IS NULL AND os."entregueSemServico" = false))
 
@@ -299,7 +301,8 @@ export async function obterServicoXProduto(referencia: Date = new Date()): Promi
       SELECT (os.id IS NOT NULL) AS "ehServico", cr.valor AS valor
       FROM "ContaReceber" cr
       LEFT JOIN "OrdemServico" os ON os.id = cr."ordemServicoId"
-      WHERE cr.status::text = 'RECEBIDO'
+      WHERE cr."estornadaEm" IS NULL
+        AND cr.status::text = 'RECEBIDO'
         AND cr."vendaId" IS NULL
         AND COALESCE(cr."dataRecebimento", cr."criadoEm") >= ${inicio}
         AND COALESCE(cr."dataRecebimento", cr."criadoEm") <= ${fim}
