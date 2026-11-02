@@ -6,7 +6,15 @@ import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 import { ErroPermissao, exigirPermissao } from "@/lib/auth/permissoes";
-import { deDecimal, dividirEmParcelas, paraMoeda } from "@/lib/dinheiro";
+import type { EntradaDecimal } from "@/lib/dinheiro";
+import {
+  deDecimal,
+  dividirEmParcelas,
+  lerEntradaMonetaria,
+  paraDecimal,
+  paraMoeda,
+  somar,
+} from "@/lib/dinheiro";
 import { validarMarcaDoItem } from "@/lib/dominio/os/marcas-peca";
 
 const tiposPecaValidos: TipoPeca[] = [
@@ -20,7 +28,11 @@ const tiposPecaValidos: TipoPeca[] = [
 
 type ItemOSDelegate = {
   findFirst?: (args: unknown) => Promise<{ id: string; osId?: string; ordemServicoId?: string } | null>;
-  findMany?: (args: unknown) => Promise<Array<{ valorCobrado: number }>>;
+  // `valorCobrado` e Decimal(12,2) no banco, nao number. Declarar `number`
+  // aqui era o mesmo engano que fez os KPIs do financeiro somarem string:
+  // o compilador aceitava `acumulador + item.valorCobrado` e o runtime
+  // concatenava. Tipado como EntradaDecimal, a unica saida e `deDecimal`.
+  findMany?: (args: unknown) => Promise<Array<{ valorCobrado: EntradaDecimal }>>;
   update?: (args: unknown) => Promise<unknown>;
   delete?: (args: unknown) => Promise<unknown>;
   create?: (args: unknown) => Promise<unknown>;
@@ -97,10 +109,19 @@ function normalizarMarcaPecaId(valor: string | null | undefined): string | null 
   return id.length > 0 ? id : null;
 }
 
-function paraNumero(valor: unknown): number {
-  const numero = typeof valor === "number" ? valor : Number(valor ?? 0);
-  if (!Number.isFinite(numero)) return 0;
-  return numero;
+/**
+ * Decimal do Prisma -> number em reais, so pra escrever no JSON do log de
+ * auditoria. `Prisma.Decimal` nao e serializavel em `createMany`, e um
+ * `dadosAntes` com Decimal cru derruba o registro do log junto com a
+ * transacao inteira.
+ */
+function moedaParaAuditoria(valor: unknown): number | null {
+  if (valor === null || valor === undefined) return null;
+  try {
+    return paraMoeda(deDecimal(valor as EntradaDecimal));
+  } catch {
+    return null;
+  }
 }
 
 function obterItemOSDelegate(client: unknown): ItemOSDelegate | null {
@@ -130,33 +151,7 @@ function obterVendaDelegate(client: unknown): VendaDelegate | null {
   return prismaClient.venda ?? prismaClient.Venda ?? null;
 }
 
-function arredondarMoeda(valor: number): number {
-  return Math.round((valor + Number.EPSILON) * 100) / 100;
-}
-
-function normalizarMoeda(valor: number | string): number | null {
-  if (typeof valor === "number") {
-    if (!Number.isFinite(valor)) return null;
-    return arredondarMoeda(valor);
-  }
-
-  const textoOriginal = String(valor ?? "").trim();
-  if (!textoOriginal) return null;
-
-  const textoSemSimbolo = textoOriginal.replace(/\s|R\$/gi, "");
-  const usaVirgulaDecimal = textoSemSimbolo.includes(",");
-
-  const normalizado = usaVirgulaDecimal
-    ? textoSemSimbolo.replace(/\./g, "").replace(",", ".")
-    : textoSemSimbolo;
-
-  const numero = Number(normalizado);
-  if (!Number.isFinite(numero)) return null;
-
-  return arredondarMoeda(numero);
-}
-
-async function calcularTotalOS(client: unknown, osId: string): Promise<number> {
+async function calcularTotalOSCentavos(client: unknown, osId: string): Promise<number> {
   const itemDelegate = obterItemOSDelegate(client);
 
   if (!itemDelegate?.findMany) {
@@ -168,17 +163,16 @@ async function calcularTotalOS(client: unknown, osId: string): Promise<number> {
     select: { valorCobrado: true },
   });
 
-  const total = itens.reduce((acumulador, item) => {
-    return acumulador + paraNumero(item.valorCobrado);
-  }, 0);
-
-  return arredondarMoeda(total);
+  // Soma de inteiros: nao existe resto de ponto flutuante pra arredondar
+  // depois. Este total alimenta ContaReceber e Venda, onde um centavo de
+  // diferenca fica visivel na conciliacao.
+  return itens.reduce((acumulador, item) => somar(acumulador, deDecimal(item.valorCobrado)), 0);
 }
 
 async function sincronizarTotaisFinanceirosOS(
   client: unknown,
   osId: string,
-  totalOS: number
+  totalOSCentavos: number
 ): Promise<void> {
   const contaReceberDelegate = obterContaReceberDelegate(client);
   const vendaDelegate = obterVendaDelegate(client);
@@ -202,21 +196,21 @@ async function sincronizarTotaisFinanceirosOS(
     return;
   }
 
-  const totalNormalizado = arredondarMoeda(totalOS);
   // Centavo-exato (Fase 2A-2 cont.): dividirEmParcelas (lib/dinheiro.ts) é o
   // único lugar autorizado a partir um total em N contas que somam
   // exatamente o total. A divisão manual anterior, além de reimplementar a
   // fórmula fora do módulo, jogava o resto na ÚLTIMA conta — invertendo a
   // convenção do projeto (resto vai pras PRIMEIRAS parcelas).
-  const valoresParcelasCentavos = dividirEmParcelas(deDecimal(totalNormalizado), contasDaOs.length);
+  const valoresParcelasCentavos = dividirEmParcelas(totalOSCentavos, contasDaOs.length);
 
   for (let indice = 0; indice < contasDaOs.length; indice += 1) {
     const conta = contasDaOs[indice];
-    const valorParcela = paraMoeda(valoresParcelasCentavos[indice]);
 
     await contaReceberDelegate.update({
       where: { id: conta.id },
-      data: { valor: valorParcela },
+      // String de `paraDecimal` em vez de number: e o formato que o Prisma
+      // grava em Decimal(12,2) sem passar por ponto flutuante de novo.
+      data: { valor: paraDecimal(valoresParcelasCentavos[indice]) },
     });
   }
 
@@ -235,7 +229,7 @@ async function sincronizarTotaisFinanceirosOS(
   for (const vendaId of vendaIds) {
     await vendaDelegate.update({
       where: { id: vendaId },
-      data: { valorTotal: totalNormalizado },
+      data: { valorTotal: paraDecimal(totalOSCentavos) },
     });
   }
 }
@@ -253,8 +247,11 @@ export async function adicionarItemOS(osId: string, data: DadosAdicionarItemOS) 
 
   const descricao = String(data?.descricao ?? "").trim();
   const tipoPeca = String(data?.tipoPeca ?? "") as TipoPeca;
-  const custoPeca = paraNumero(data?.custoPeca);
-  const valorManual = paraNumero(data?.valorManual);
+  // Mesma normalizacao da edicao. Antes era um `Number()` cru, que lia
+  // "1.234,56" como NaN e gravava 0 sem reclamar: a peca de 1.234 reais
+  // entrava na OS custando zero.
+  const custoPecaCentavos = lerEntradaMonetaria(data?.custoPeca ?? 0);
+  const valorManualCentavos = lerEntradaMonetaria(data?.valorManual);
   const marcaPecaId = normalizarMarcaPecaId(data?.marcaPecaId);
 
   if (!descricao) {
@@ -272,14 +269,14 @@ export async function adicionarItemOS(osId: string, data: DadosAdicionarItemOS) 
     throw new Error(marcaValida.erro);
   }
 
-  if (custoPeca < 0) {
-    throw new Error("O custo da peca nao pode ser negativo.");
+  if (custoPecaCentavos === null || custoPecaCentavos < 0) {
+    throw new Error("Informe um custo de peca valido (nao negativo).");
   }
 
   // O valor cobrado ao cliente é sempre o informado manualmente — sem cálculo automático de markup.
-  const valorCobrado = valorManual;
+  const valorCobradoCentavos = valorManualCentavos;
 
-  if (valorCobrado <= 0) {
+  if (valorCobradoCentavos === null || valorCobradoCentavos <= 0) {
     throw new Error("Informe um valor cobrado ao cliente válido (maior que zero).");
   }
 
@@ -334,7 +331,14 @@ export async function adicionarItemOS(osId: string, data: DadosAdicionarItemOS) 
     // Prisma sobre coluna inexistente. Com a marca de peca isso ficaria pior:
     // uma marca invalida viraria erro sobre `ordemServicoId`.
     const itemCriado = (await txItemOS.create({
-      data: { osId, descricao, tipoPeca, custoPeca, valorCobrado, marcaPecaId },
+      data: {
+        osId,
+        descricao,
+        tipoPeca,
+        custoPeca: paraDecimal(custoPecaCentavos),
+        valorCobrado: paraDecimal(valorCobradoCentavos),
+        marcaPecaId,
+      },
     })) as { id?: string };
     const itemCriadoId = itemCriado?.id ? String(itemCriado.id) : null;
 
@@ -346,7 +350,9 @@ export async function adicionarItemOS(osId: string, data: DadosAdicionarItemOS) 
     // lucro, mas nao vira conta em aberto. Antes nascia sempre PENDENTE
     // vencendo no mesmo dia, o que enchia Contas a Pagar de linhas que so
     // esperavam alguem dar baixa em algo ja pago.
-    if (custoPeca > 0 && txDespesa?.create && txParcelaDespesa?.create) {
+    if (custoPecaCentavos > 0 && txDespesa?.create && txParcelaDespesa?.create) {
+      const custoPecaDecimal = paraDecimal(custoPecaCentavos);
+
       // Busca o número da OS para compor a descrição legível
       const osDelegate = txAny.ordemServico ?? txAny.OrdemServico;
       const numeroOs = osDelegate?.findUnique
@@ -357,7 +363,7 @@ export async function adicionarItemOS(osId: string, data: DadosAdicionarItemOS) 
         data: {
           fornecedor: "Custo de peça (OS)",
           descricao: `Custo de Peça - OS #${numeroOs} - ${descricao}`,
-          valorTotal: custoPeca,
+          valorTotal: custoPecaDecimal,
           tipo: "UNICA",
           qtdParcelas: 1,
         },
@@ -369,10 +375,10 @@ export async function adicionarItemOS(osId: string, data: DadosAdicionarItemOS) 
         data: {
           despesaId: despesa.id,
           numeroParcela: 1,
-          valor: custoPeca,
+          valor: custoPecaDecimal,
           dataVencimento: agora,
           ...(custoPecaJaPago
-            ? { status: "PAGO", dataPagamento: agora, valorPago: custoPeca }
+            ? { status: "PAGO", dataPagamento: agora, valorPago: custoPecaDecimal }
             : { status: "PENDENTE" }),
         },
       });
@@ -389,8 +395,8 @@ export async function adicionarItemOS(osId: string, data: DadosAdicionarItemOS) 
           osId,
           descricao,
           tipoPeca,
-          custoPeca,
-          valorCobrado,
+          custoPeca: paraMoeda(custoPecaCentavos),
+          valorCobrado: paraMoeda(valorCobradoCentavos),
         },
       }
     );
@@ -417,8 +423,8 @@ export async function atualizarItemOS(input: EntradaAtualizarItemOS): Promise<Re
     const osId = String(input.osId ?? "").trim();
     const descricao = String(input.descricao ?? "").trim();
     const tipoPeca = String(input.tipoPeca ?? "") as TipoPeca;
-    const custoPeca = normalizarMoeda(input.custoPeca);
-    const valorCobrado = normalizarMoeda(input.valorCobrado);
+    const custoPecaCentavos = lerEntradaMonetaria(input.custoPeca);
+    const valorCobradoCentavos = lerEntradaMonetaria(input.valorCobrado);
     const marcaPecaId = normalizarMarcaPecaId(input.marcaPecaId);
 
     if (!itemId || !osId) {
@@ -440,15 +446,15 @@ export async function atualizarItemOS(input: EntradaAtualizarItemOS): Promise<Re
       return { sucesso: false, erro: marcaValida.erro };
     }
 
-    if (custoPeca === null || custoPeca < 0) {
+    if (custoPecaCentavos === null || custoPecaCentavos < 0) {
       return { sucesso: false, erro: "Informe um custo valido (nao negativo)." };
     }
 
-    if (valorCobrado === null || valorCobrado <= 0) {
+    if (valorCobradoCentavos === null || valorCobradoCentavos <= 0) {
       return { sucesso: false, erro: "Informe um valor cobrado valido (maior que zero)." };
     }
 
-    const totalOS = await prisma.$transaction(async (tx) => {
+    const totalOSCentavos = await prisma.$transaction(async (tx) => {
       const itemDelegate = obterItemOSDelegate(tx);
 
       if (!itemDelegate?.findFirst || !itemDelegate?.update) {
@@ -482,8 +488,8 @@ export async function atualizarItemOS(input: EntradaAtualizarItemOS): Promise<Re
         data: {
           tipoPeca,
           descricao,
-          custoPeca,
-          valorCobrado,
+          custoPeca: paraDecimal(custoPecaCentavos),
+          valorCobrado: paraDecimal(valorCobradoCentavos),
           marcaPecaId,
         },
       });
@@ -498,23 +504,23 @@ export async function atualizarItemOS(input: EntradaAtualizarItemOS): Promise<Re
           dadosAntes: {
             descricao: (itemExiste as Record<string, unknown>).descricao,
             tipoPeca: (itemExiste as Record<string, unknown>).tipoPeca,
-            custoPeca: (itemExiste as Record<string, unknown>).custoPeca,
-            valorCobrado: (itemExiste as Record<string, unknown>).valorCobrado,
+            custoPeca: moedaParaAuditoria((itemExiste as Record<string, unknown>).custoPeca),
+            valorCobrado: moedaParaAuditoria((itemExiste as Record<string, unknown>).valorCobrado),
             marcaPecaId: (itemExiste as Record<string, unknown>).marcaPecaId,
           },
           dadosDepois: {
             descricao,
             tipoPeca,
-            custoPeca,
-            valorCobrado,
+            custoPeca: paraMoeda(custoPecaCentavos),
+            valorCobrado: paraMoeda(valorCobradoCentavos),
             marcaPecaId,
           },
         }
       );
 
-      const totalAtualizado = await calcularTotalOS(tx, osId);
-      await sincronizarTotaisFinanceirosOS(tx, osId, totalAtualizado);
-      return totalAtualizado;
+      const totalAtualizadoCentavos = await calcularTotalOSCentavos(tx, osId);
+      await sincronizarTotaisFinanceirosOS(tx, osId, totalAtualizadoCentavos);
+      return totalAtualizadoCentavos;
     });
 
     revalidatePath(`/os/${osId}`);
@@ -528,7 +534,7 @@ export async function atualizarItemOS(input: EntradaAtualizarItemOS): Promise<Re
     return {
       sucesso: true,
       mensagem: "Item atualizado com sucesso.",
-      totalOS,
+      totalOS: paraMoeda(totalOSCentavos),
     };
   } catch (erro) {
     if (erro instanceof ErroPermissao) {
@@ -556,7 +562,7 @@ export async function removerItemOS(input: EntradaRemoverItemOS): Promise<Result
       return { sucesso: false, erro: "Item ou OS invalido." };
     }
 
-    const totalOS = await prisma.$transaction(async (tx) => {
+    const totalOSCentavos = await prisma.$transaction(async (tx) => {
       const itemDelegate = obterItemOSDelegate(tx);
 
       if (!itemDelegate?.findFirst || !itemDelegate?.delete) {
@@ -597,16 +603,16 @@ export async function removerItemOS(input: EntradaRemoverItemOS): Promise<Result
           dadosAntes: {
             descricao: (itemExiste as Record<string, unknown>).descricao,
             tipoPeca: (itemExiste as Record<string, unknown>).tipoPeca,
-            custoPeca: (itemExiste as Record<string, unknown>).custoPeca,
-            valorCobrado: (itemExiste as Record<string, unknown>).valorCobrado,
+            custoPeca: moedaParaAuditoria((itemExiste as Record<string, unknown>).custoPeca),
+            valorCobrado: moedaParaAuditoria((itemExiste as Record<string, unknown>).valorCobrado),
           },
           dadosDepois: null,
         }
       );
 
-      const totalAtualizado = await calcularTotalOS(tx, osId);
-      await sincronizarTotaisFinanceirosOS(tx, osId, totalAtualizado);
-      return totalAtualizado;
+      const totalAtualizadoCentavos = await calcularTotalOSCentavos(tx, osId);
+      await sincronizarTotaisFinanceirosOS(tx, osId, totalAtualizadoCentavos);
+      return totalAtualizadoCentavos;
     });
 
     revalidatePath(`/os/${osId}`);
@@ -620,7 +626,7 @@ export async function removerItemOS(input: EntradaRemoverItemOS): Promise<Result
     return {
       sucesso: true,
       mensagem: "Item removido com sucesso.",
-      totalOS,
+      totalOS: paraMoeda(totalOSCentavos),
     };
   } catch (erro) {
     if (erro instanceof ErroPermissao) {

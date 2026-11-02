@@ -264,3 +264,38 @@ export function paraMoeda(centavos: number): number {
   validarCentavos(centavos, "paraMoeda");
   return centavos / 100;
 }
+
+/**
+ * Valor digitado num formulário -> CENTAVOS INTEIROS, ou `null` quando o
+ * texto não é um valor monetário.
+ *
+ * Existe porque as duas bordas que recebem dinheiro da tela (criação da OS e
+ * item da OS) tinham cada uma o seu próprio parser, e os dois erravam do
+ * mesmo jeito: `Number("1.234,56")` é `NaN`, e o `NaN` virava `0` sem
+ * reclamação nenhuma — a peça de mil duzentos e trinta e quatro reais entrava
+ * custando zero. Devolve `null` em vez de lançar porque essas actions
+ * respondem `{ sucesso: false, erro }` pra tela, não exceção.
+ *
+ * Aceita as duas formas que de fato chegam do navegador:
+ * - pt-BR, com vírgula decimal e ponto de milhar: `"R$ 1.234,56"` -> `123456`
+ * - `input[type="number"]`, onde o ponto É o separador decimal: `"1234.56"`
+ *   -> `123456`
+ *
+ * A desambiguação é a vírgula: se ela aparece, o texto é pt-BR.
+ */
+export function lerEntradaMonetaria(valor: unknown): number | null {
+  if (typeof valor === "number") {
+    return Number.isFinite(valor) ? centavosDeNumero(valor) : null;
+  }
+
+  if (typeof valor !== "string") return null;
+
+  const semSimbolo = valor.trim().replace(/\s|R\$/gi, "");
+  if (!semSimbolo) return null;
+
+  try {
+    return semSimbolo.includes(",") ? lerReais(semSimbolo) : deDecimal(semSimbolo);
+  } catch {
+    return null;
+  }
+}
