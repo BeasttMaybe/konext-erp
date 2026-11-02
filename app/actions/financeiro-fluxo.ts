@@ -281,10 +281,12 @@ export async function obterServicoXProduto(referencia: Date = new Date()): Promi
   const { prisma } = contexto;
   const { inicio, fim } = inicioFimDoMes(referencia, contexto.fusoHorario);
 
-  const linhas = await prisma.$queryRaw<Array<{ ehServico: boolean; total: number }>>`
-    SELECT base."ehServico", COALESCE(SUM(base.valor), 0) AS total
+  // `::text` e sem cast interno: o `deDecimal` abaixo ja existia, mas somava
+  // um valor que o Postgres tinha convertido pra float antes (Fase 2A-3).
+  const linhas = await prisma.$queryRaw<Array<{ ehServico: boolean; total: string }>>`
+    SELECT base."ehServico", COALESCE(SUM(base.valor), 0)::text AS total
     FROM (
-      SELECT (os.id IS NOT NULL) AS "ehServico", v."valorTotal"::double precision AS valor
+      SELECT (os.id IS NOT NULL) AS "ehServico", v."valorTotal" AS valor
       FROM "Venda" v
       LEFT JOIN "ContaReceber" cr ON cr."vendaId" = v.id
       LEFT JOIN "OrdemServico" os ON os.id = cr."ordemServicoId"
@@ -294,7 +296,7 @@ export async function obterServicoXProduto(referencia: Date = new Date()): Promi
 
       UNION ALL
 
-      SELECT (os.id IS NOT NULL) AS "ehServico", cr.valor::double precision AS valor
+      SELECT (os.id IS NOT NULL) AS "ehServico", cr.valor AS valor
       FROM "ContaReceber" cr
       LEFT JOIN "OrdemServico" os ON os.id = cr."ordemServicoId"
       WHERE cr.status::text = 'RECEBIDO'

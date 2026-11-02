@@ -1,18 +1,23 @@
 import { Prisma } from "@prisma/client";
 import { ID_CLIENTE_CONSUMIDOR_FINAL } from "@/lib/dominio/crm/consumidor-final";
+import { deDecimal, paraMoeda } from "@/lib/dinheiro";
 
+// `total: string` porque o SQL devolve `SUM(...)::text` (Fase 2A-3). Antes
+// cada parcela da UNION era convertida pra `double precision` ANTES da soma,
+// entao o erro de arredondamento nascia dentro do Postgres — foi assim que a
+// receita da home chegou a mostrar centavos que nao existiam em conta nenhuma.
 type LinhaMesReceita = {
   mes: Date;
-  total: number | null;
+  total: string | null;
 };
 
 type LinhaTotal = {
-  total: number | null;
+  total: string | null;
 };
 
 type LinhaClienteReceita = {
   clienteNome: string | null;
-  total: number | null;
+  total: string | null;
 };
 
 export type ReceitaCliente = {
@@ -133,9 +138,9 @@ export async function obterReceitaTotalPadrao(
       contextoSchema.possuiColunaRetornoGarantiaId
     ) {
       const linhas = await client.$queryRaw<LinhaTotal[]>`
-        SELECT COALESCE(SUM(base.valor), 0) AS total
+        SELECT COALESCE(SUM(base.valor), 0)::text AS total
         FROM (
-          SELECT v."valorTotal"::double precision AS valor
+          SELECT v."valorTotal" AS valor
           FROM "Venda" v
           LEFT JOIN "ContaReceber" cr ON cr."vendaId" = v.id
           LEFT JOIN "OrdemServico" os ON os.id = cr."ordemServicoId"
@@ -152,7 +157,7 @@ export async function obterReceitaTotalPadrao(
 
           UNION ALL
 
-          SELECT cr.valor::double precision AS valor
+          SELECT cr.valor AS valor
           FROM "ContaReceber" cr
           LEFT JOIN "OrdemServico" os ON os.id = cr."ordemServicoId"
           LEFT JOIN "RetornoGarantiaOS" rg ON rg.id = os."retornoGarantiaId"
@@ -170,13 +175,13 @@ export async function obterReceitaTotalPadrao(
         ) base
       `;
 
-      return Number(linhas[0]?.total ?? 0);
+      return paraMoeda(deDecimal(linhas[0]?.total ?? 0));
     }
 
     const linhasLegado = await client.$queryRaw<LinhaTotal[]>`
-      SELECT COALESCE(SUM(base.valor), 0) AS total
+      SELECT COALESCE(SUM(base.valor), 0)::text AS total
       FROM (
-        SELECT v."valorTotal"::double precision AS valor
+        SELECT v."valorTotal" AS valor
         FROM "Venda" v
         LEFT JOIN "ContaReceber" cr ON cr."vendaId" = v.id
         LEFT JOIN "OrdemServico" os ON os.id = cr."ordemServicoId"
@@ -186,7 +191,7 @@ export async function obterReceitaTotalPadrao(
 
         UNION ALL
 
-        SELECT cr.valor::double precision AS valor
+        SELECT cr.valor AS valor
         FROM "ContaReceber" cr
         LEFT JOIN "OrdemServico" os ON os.id = cr."ordemServicoId"
         WHERE cr.status::text = 'RECEBIDO'
@@ -198,7 +203,7 @@ export async function obterReceitaTotalPadrao(
     `;
 
     console.error("[dashboard:raw] schema legado detectado para receita total", contextoSchema);
-    return Number(linhasLegado[0]?.total ?? 0);
+    return paraMoeda(deDecimal(linhasLegado[0]?.total ?? 0));
   } catch (erro) {
     registrarErroRawDashboard("obterReceitaTotalPadrao", erro);
     throw erro;
@@ -219,9 +224,9 @@ export async function obterReceitaMensalPadrao(
 
     const linhas = possuiCamposGarantia
       ? await client.$queryRaw<LinhaMesReceita[]>`
-          SELECT DATE_TRUNC('month', base.mes) AS mes, COALESCE(SUM(base.valor), 0) AS total
+          SELECT DATE_TRUNC('month', base.mes) AS mes, COALESCE(SUM(base.valor), 0)::text AS total
           FROM (
-            SELECT v."criadoEm" AS mes, v."valorTotal"::double precision AS valor
+            SELECT v."criadoEm" AS mes, v."valorTotal" AS valor
             FROM "Venda" v
             LEFT JOIN "ContaReceber" cr ON cr."vendaId" = v.id
             LEFT JOIN "OrdemServico" os ON os.id = cr."ordemServicoId"
@@ -239,7 +244,7 @@ export async function obterReceitaMensalPadrao(
             UNION ALL
 
             SELECT COALESCE(cr."dataRecebimento", cr."criadoEm") AS mes,
-                   cr.valor::double precision AS valor
+                   cr.valor AS valor
             FROM "ContaReceber" cr
             LEFT JOIN "OrdemServico" os ON os.id = cr."ordemServicoId"
             LEFT JOIN "RetornoGarantiaOS" rg ON rg.id = os."retornoGarantiaId"
@@ -259,9 +264,9 @@ export async function obterReceitaMensalPadrao(
           ORDER BY DATE_TRUNC('month', base.mes) ASC
         `
       : await client.$queryRaw<LinhaMesReceita[]>`
-          SELECT DATE_TRUNC('month', base.mes) AS mes, COALESCE(SUM(base.valor), 0) AS total
+          SELECT DATE_TRUNC('month', base.mes) AS mes, COALESCE(SUM(base.valor), 0)::text AS total
           FROM (
-            SELECT v."criadoEm" AS mes, v."valorTotal"::double precision AS valor
+            SELECT v."criadoEm" AS mes, v."valorTotal" AS valor
             FROM "Venda" v
             LEFT JOIN "ContaReceber" cr ON cr."vendaId" = v.id
             LEFT JOIN "OrdemServico" os ON os.id = cr."ordemServicoId"
@@ -272,7 +277,7 @@ export async function obterReceitaMensalPadrao(
             UNION ALL
 
             SELECT COALESCE(cr."dataRecebimento", cr."criadoEm") AS mes,
-                   cr.valor::double precision AS valor
+                   cr.valor AS valor
             FROM "ContaReceber" cr
             LEFT JOIN "OrdemServico" os ON os.id = cr."ordemServicoId"
             WHERE cr.status::text = 'RECEBIDO'
@@ -291,7 +296,7 @@ export async function obterReceitaMensalPadrao(
 
     return linhas.map((linha) => ({
       mes: new Date(linha.mes),
-      valor: Number(linha.total ?? 0),
+      valor: paraMoeda(deDecimal(linha.total ?? 0)),
     }));
   } catch (erro) {
     registrarErroRawDashboard("obterReceitaMensalPadrao", erro);
@@ -314,9 +319,9 @@ export async function obterReceitaPorClientePadrao(
 
     const linhas = possuiCamposGarantia
       ? await client.$queryRaw<LinhaClienteReceita[]>`
-          SELECT base."clienteNome", COALESCE(SUM(base.valor), 0) AS total
+          SELECT base."clienteNome", COALESCE(SUM(base.valor), 0)::text AS total
           FROM (
-            SELECT c."nomeRazaoSocial" AS "clienteNome", v."valorTotal"::double precision AS valor
+            SELECT c."nomeRazaoSocial" AS "clienteNome", v."valorTotal" AS valor
             FROM "Venda" v
             LEFT JOIN "Cliente" c ON c.id = v."clienteId"
             LEFT JOIN "ContaReceber" cr ON cr."vendaId" = v.id
@@ -335,7 +340,7 @@ export async function obterReceitaPorClientePadrao(
 
             UNION ALL
 
-            SELECT c."nomeRazaoSocial" AS "clienteNome", cr.valor::double precision AS valor
+            SELECT c."nomeRazaoSocial" AS "clienteNome", cr.valor AS valor
             FROM "ContaReceber" cr
             LEFT JOIN "Cliente" c ON c.id = cr."clienteId"
             LEFT JOIN "OrdemServico" os ON os.id = cr."ordemServicoId"
@@ -358,9 +363,9 @@ export async function obterReceitaPorClientePadrao(
           LIMIT ${limite}
         `
       : await client.$queryRaw<LinhaClienteReceita[]>`
-          SELECT base."clienteNome", COALESCE(SUM(base.valor), 0) AS total
+          SELECT base."clienteNome", COALESCE(SUM(base.valor), 0)::text AS total
           FROM (
-            SELECT c."nomeRazaoSocial" AS "clienteNome", v."valorTotal"::double precision AS valor
+            SELECT c."nomeRazaoSocial" AS "clienteNome", v."valorTotal" AS valor
             FROM "Venda" v
             LEFT JOIN "Cliente" c ON c.id = v."clienteId"
             LEFT JOIN "ContaReceber" cr ON cr."vendaId" = v.id
@@ -372,7 +377,7 @@ export async function obterReceitaPorClientePadrao(
 
             UNION ALL
 
-            SELECT c."nomeRazaoSocial" AS "clienteNome", cr.valor::double precision AS valor
+            SELECT c."nomeRazaoSocial" AS "clienteNome", cr.valor AS valor
             FROM "ContaReceber" cr
             LEFT JOIN "Cliente" c ON c.id = cr."clienteId"
             LEFT JOIN "OrdemServico" os ON os.id = cr."ordemServicoId"
@@ -394,7 +399,7 @@ export async function obterReceitaPorClientePadrao(
 
     return linhas.map((linha) => ({
       nome: normalizarNomeCliente(linha.clienteNome),
-      valor: Number(linha.total ?? 0),
+      valor: paraMoeda(deDecimal(linha.total ?? 0)),
     }));
   } catch (erro) {
     registrarErroRawDashboard("obterReceitaPorClientePadrao", erro);

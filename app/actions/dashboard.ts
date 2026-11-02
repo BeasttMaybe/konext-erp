@@ -5,6 +5,7 @@ import { exigirPermissao, temPermissao } from "@/lib/auth/permissoes";
 import { obterReceitaTotalPadrao } from "@/lib/dashboard/regras-financeiras";
 import { montarComparativo, type ComparativoKpi, type DirecaoBoaKpi } from "@/lib/dashboard/comparativo-kpi";
 import { escopoOrdemServico } from "@/lib/auth/escopos";
+import { deDecimal, paraMoeda, somar, subtrair } from "@/lib/dinheiro";
 import { paraEstagio, type EtapaOS } from "@/lib/dominio/os/etapas";
 import { Prisma } from "@prisma/client";
 import {
@@ -156,7 +157,10 @@ export type ResultadoFaturamentoHome =
 
 type LinhaDiaValor = {
   dia: Date;
-  total: number | null;
+  // `::text` no SQL (Fase 2A-3). Era `::double precision`, e cada SUM de
+  // numeric virava float antes de sair do banco: o erro de arredondamento
+  // nascia no Postgres e nenhuma conversao do lado do JS consertava depois.
+  total: string | null;
 };
 
 type PrismaDashboardClient = Awaited<ReturnType<typeof exigirContextoTenant>>["prisma"];
@@ -260,11 +264,12 @@ function construirDiasIntervalo(inicio: Date, fim: Date): Date[] {
   return dias;
 }
 
+/** Mapa dia -> CENTAVOS INTEIROS. Vira reais so em `paraMoeda`, na serie do grafico. */
 function transformarLinhasDia(linhas: LinhaDiaValor[]): Map<string, number> {
   const mapa = new Map<string, number>();
 
   for (const linha of linhas) {
-    mapa.set(chaveDia(new Date(linha.dia)), Number(linha.total ?? 0));
+    mapa.set(chaveDia(new Date(linha.dia)), deDecimal(linha.total ?? 0));
   }
 
   return mapa;
@@ -275,7 +280,7 @@ function somarMapas(...mapas: Map<string, number>[]): Map<string, number> {
 
   for (const mapa of mapas) {
     for (const [chave, total] of mapa.entries()) {
-      resultado.set(chave, (resultado.get(chave) ?? 0) + total);
+      resultado.set(chave, somar(resultado.get(chave) ?? 0, total));
     }
   }
 
@@ -297,13 +302,13 @@ async function obterReceitaServicosPorDia(
   try {
     const linhas = await prismaClient.$queryRaw<LinhaDiaValor[]>`
       SELECT DATE_TRUNC('day', base."referenciaDia") AS dia,
-             COALESCE(SUM(base."valorReceita"), 0) AS total
+             COALESCE(SUM(base."valorReceita"), 0)::text AS total
       FROM (
         SELECT os.id,
                os."atualizadoEm" AS "referenciaDia",
-               COALESCE(SUM(i."valorCobrado"), 0)::double precision AS "valorReceita",
+               COALESCE(SUM(i."valorCobrado"), 0) AS "valorReceita",
                os."ehRetornoGarantia" AS "ehRetorno",
-               COALESCE(r."valorAdicional", 0)::double precision AS "valorAdicional",
+               COALESCE(r."valorAdicional", 0) AS "valorAdicional",
                COALESCE(r."houveCobranca", false) AS "houveCobranca"
         FROM "OrdemServico" os
         LEFT JOIN "ItemOS" i ON i."osId" = os.id
@@ -526,11 +531,11 @@ async function obterTicketMedioEntreguesPeriodo(
   fim: Date
 ): Promise<number | null> {
   const linhas = await prismaClient.$queryRaw<LinhaTicketPeriodo[]>`
-    SELECT COALESCE(SUM(base.total_os), 0)::double precision AS total,
+    SELECT COALESCE(SUM(base.total_os), 0)::text AS total,
            COUNT(*)::int AS quantidade
     FROM (
       SELECT os.id,
-             COALESCE(SUM(i."valorCobrado"), 0)::double precision AS total_os
+             COALESCE(SUM(i."valorCobrado"), 0) AS total_os
       FROM "OrdemServico" os
       LEFT JOIN "ItemOS" i ON i."osId" = os.id
       WHERE os."excluidaEm" IS NULL
@@ -549,7 +554,9 @@ async function obterTicketMedioEntreguesPeriodo(
     return null;
   }
 
-  return Number(linhas[0]?.total ?? 0) / quantidade;
+  // Divisao em centavos: o ticket medio e media, nao valor exigivel, entao
+  // meio centavo arredondado aqui nao desencontra nada no financeiro.
+  return paraMoeda(Math.round(deDecimal(linhas[0]?.total ?? 0) / quantidade));
 }
 
 async function obterTempoMedioReparoDias(
@@ -557,6 +564,7 @@ async function obterTempoMedioReparoDias(
   inicio: Date
 ): Promise<number | null> {
   const linhas = await prismaClient.$queryRaw<LinhaTempoMedio[]>`
+    -- Float de proposito: isto e duracao em dias, nao dinheiro.
     SELECT AVG(EXTRACT(EPOCH FROM (os."atualizadoEm" - os."criadoEm")) / 86400.0)::double precision AS media,
            COUNT(*)::int AS quantidade
     FROM "OrdemServico" os
@@ -578,12 +586,12 @@ async function obterProntasAguardandoRetirada(
 ): Promise<{ quantidade: number; valor: number; acimaLimite: number }> {
   const linhas = await prismaClient.$queryRaw<LinhaProntasRetirada[]>`
     SELECT COUNT(*)::int AS quantidade,
-           COALESCE(SUM(base.valor), 0)::double precision AS valor,
+           COALESCE(SUM(base.valor), 0)::text AS valor,
            COUNT(*) FILTER (WHERE base."atualizadoEm" < ${limiteRetirada})::int AS "acimaLimite"
     FROM (
       SELECT os.id,
              os."atualizadoEm",
-             COALESCE(SUM(i."valorCobrado"), 0)::double precision AS valor
+             COALESCE(SUM(i."valorCobrado"), 0) AS valor
       FROM "OrdemServico" os
       LEFT JOIN "ItemOS" i ON i."osId" = os.id
       WHERE os."excluidaEm" IS NULL
@@ -595,14 +603,14 @@ async function obterProntasAguardandoRetirada(
 
   return {
     quantidade: Number(linhas[0]?.quantidade ?? 0),
-    valor: Number(linhas[0]?.valor ?? 0),
+    valor: paraMoeda(deDecimal(linhas[0]?.valor ?? 0)),
     acimaLimite: Number(linhas[0]?.acimaLimite ?? 0),
   };
 }
 
 async function obterValorEmAbertoOS(prismaClient: PrismaDashboardClient): Promise<number> {
   const linhas = await prismaClient.$queryRaw<LinhaValorAberto[]>`
-    SELECT COALESCE(SUM(i."valorCobrado"), 0)::double precision AS total
+    SELECT COALESCE(SUM(i."valorCobrado"), 0)::text AS total
     FROM "OrdemServico" os
     LEFT JOIN "ItemOS" i ON i."osId" = os.id
     WHERE os."excluidaEm" IS NULL
@@ -610,13 +618,13 @@ async function obterValorEmAbertoOS(prismaClient: PrismaDashboardClient): Promis
       AND os."status"::text <> 'ENTREGUE'
   `;
 
-  return Number(linhas[0]?.total ?? 0);
+  return paraMoeda(deDecimal(linhas[0]?.total ?? 0));
 }
 
 type LinhaDespesasPeriodo = {
-  operacionais: number | null;
-  custoPecas: number | null;
-  custoPdv: number | null;
+  operacionais: string | null;
+  custoPecas: string | null;
+  custoPdv: string | null;
 };
 
 async function obterDespesasPeriodo(
@@ -625,11 +633,11 @@ async function obterDespesasPeriodo(
   fim: Date,
   inicioCalendario: Date,
   fimCalendario: Date
-): Promise<{ operacionais: number; custoPecas: number; custoPdv: number }> {
+): Promise<{ operacionaisCentavos: number; custoPecasCentavos: number; custoPdvCentavos: number }> {
   const linhas = await prismaClient.$queryRaw<LinhaDespesasPeriodo[]>`
     SELECT
       (
-        SELECT COALESCE(SUM(pd."valor"), 0)::double precision
+        SELECT COALESCE(SUM(pd."valor"), 0)::text
         FROM "ParcelaDespesa" pd
         INNER JOIN "Despesa" d ON d.id = pd."despesaId"
         LEFT JOIN "Cliente" c ON c.id = d."clienteId"
@@ -640,7 +648,7 @@ async function obterDespesasPeriodo(
           AND (c.id IS NULL OR c."papel"::text = 'FORNECEDOR')
       ) AS "operacionais",
       (
-        SELECT COALESCE(SUM(i."custoPeca"), 0)::double precision
+        SELECT COALESCE(SUM(i."custoPeca"), 0)::text
         FROM "OrdemServico" os
         INNER JOIN "ItemOS" i ON i."osId" = os.id
         WHERE os."excluidaEm" IS NULL
@@ -650,7 +658,7 @@ async function obterDespesasPeriodo(
           AND os."atualizadoEm" <= ${fim}
       ) AS "custoPecas",
       (
-        SELECT COALESCE(SUM(iv."custoUnitario" * iv."quantidade"), 0)::double precision
+        SELECT COALESCE(SUM(iv."custoUnitario" * iv."quantidade"), 0)::text
         FROM "ItemVenda" iv
         INNER JOIN "Venda" v ON v.id = iv."vendaId"
         WHERE v."criadoEm" >= ${inicio} AND v."criadoEm" <= ${fim}
@@ -658,9 +666,9 @@ async function obterDespesasPeriodo(
   `;
 
   return {
-    operacionais: Number(linhas[0]?.operacionais ?? 0),
-    custoPecas: Number(linhas[0]?.custoPecas ?? 0),
-    custoPdv: Number(linhas[0]?.custoPdv ?? 0),
+    operacionaisCentavos: deDecimal(linhas[0]?.operacionais ?? 0),
+    custoPecasCentavos: deDecimal(linhas[0]?.custoPecas ?? 0),
+    custoPdvCentavos: deDecimal(linhas[0]?.custoPdv ?? 0),
   };
 }
 
@@ -954,7 +962,9 @@ export async function obterPainelOperacionalHome(
 
   const movimentacoesOS: LinhaMovimentacaoHome[] = osRecentesHome.map((os) => {
     const etapa = paraEstagio(os.status).etapa;
-    const valor = os.itens.reduce((soma, item) => soma + Number(item.valorCobrado ?? 0), 0);
+    const valor = paraMoeda(
+      os.itens.reduce((soma, item) => somar(soma, deDecimal(item.valorCobrado ?? 0)), 0)
+    );
 
     return {
       id: `OS-${os.id}`,
@@ -979,7 +989,7 @@ export async function obterPainelOperacionalHome(
     descricao: "Venda PDV",
     status: "Concluída",
     variante: "sucesso",
-    valor: Number(venda.valorTotal ?? 0),
+    valor: paraMoeda(deDecimal(venda.valorTotal ?? 0)),
     href: "/pdv",
     data: venda.criadoEm.toISOString(),
   }));
@@ -1160,7 +1170,7 @@ async function obterFaturamentoHome(
           intervaloPeriodo.inicioCalendario,
           intervaloPeriodo.fimCalendario
         ),
-      { operacionais: 0, custoPecas: 0, custoPdv: 0 }
+      { operacionaisCentavos: 0, custoPecasCentavos: 0, custoPdvCentavos: 0 }
     ),
     executarComFallback(
       "faturamentoHome.servicosPorDia",
@@ -1197,10 +1207,18 @@ async function obterFaturamentoHome(
     ),
   ]);
 
-  const despesasTotaisPeriodo =
-    despesasPeriodo.operacionais + despesasPeriodo.custoPecas + despesasPeriodo.custoPdv;
+  const despesasTotaisCentavos = somar(
+    despesasPeriodo.operacionaisCentavos,
+    despesasPeriodo.custoPecasCentavos,
+    despesasPeriodo.custoPdvCentavos
+  );
+  // Percentual de centavo sobre centavo: a razao e a mesma, e nenhum dos
+  // dois lados passa por float antes de dividir.
+  const receitaPeriodoCentavos = deDecimal(receitaPeriodo);
   const margemLiquidaPercentual =
-    receitaPeriodo > 0 ? ((receitaPeriodo - despesasTotaisPeriodo) / receitaPeriodo) * 100 : null;
+    receitaPeriodoCentavos > 0
+      ? (subtrair(receitaPeriodoCentavos, despesasTotaisCentavos) / receitaPeriodoCentavos) * 100
+      : null;
 
   const produtosPorDiaMap = somarMapas(vendaDiretaPorDiaMap, vendasAprovadasPorDiaMap);
   const dias = construirDiasIntervalo(intervaloPeriodo.inicio, intervaloPeriodo.fim);
@@ -1209,13 +1227,13 @@ async function obterFaturamentoHome(
 
     return {
       dia: formatarDiaPtBr(dia),
-      servicos: servicosPorDiaMap.get(chave) ?? 0,
-      produtos: produtosPorDiaMap.get(chave) ?? 0,
+      servicos: paraMoeda(servicosPorDiaMap.get(chave) ?? 0),
+      produtos: paraMoeda(produtosPorDiaMap.get(chave) ?? 0),
     };
   });
 
-  const receberAtrasadoValor = Number(receberAtrasado._sum.valor ?? 0);
-  const pagarAtrasadoValor = Number(pagarAtrasado._sum.valor ?? 0);
+  const receberAtrasadoValor = paraMoeda(deDecimal(receberAtrasado._sum.valor ?? 0));
+  const pagarAtrasadoValor = paraMoeda(deDecimal(pagarAtrasado._sum.valor ?? 0));
 
   const pendenciasFinanceiras: LinhaPendenciaHome[] = [];
 
