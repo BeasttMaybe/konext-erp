@@ -97,6 +97,9 @@ type PrismaFinanceiroPagarAny = Record<string, unknown> & {
  * `despesa` ou `Despesa`. Escrever `tx.despesa.delete(...)` direto foi o que
  * fez a exclusao falhar com a mensagem generica.
  */
+/** O que `deDecimal` aceita: numero, texto ou o Decimal do Prisma. */
+type EntradaDecimalPagar = number | string | { toString(): string };
+
 type DelegateDespesaCompleto = {
   findUnique?: (args: unknown) => Promise<Record<string, unknown> | null>;
   update?: (args: unknown) => Promise<unknown>;
@@ -405,6 +408,11 @@ export async function editarDespesa(
         throw new Error("Delegate Prisma de Despesa nao disponivel para edicao.");
       }
 
+      const delegateParcela = obterDelegateParcelaDespesa(
+        tx as unknown as PrismaFinanceiroPagarAny,
+        prisma as unknown as PrismaFinanceiroPagarAny
+      );
+
       const despesa = (await delegate.findUnique({
         where: { id },
         select: {
@@ -459,7 +467,7 @@ export async function editarDespesa(
         );
 
         for (let indice = 0; indice < despesa.parcelas.length; indice += 1) {
-          await tx.parcelaDespesa.update({
+          await delegateParcela.update?.({
             where: { id: despesa.parcelas[indice].id },
             data: { valor: paraDecimal(valoresCentavos[indice]) },
           });
@@ -472,7 +480,7 @@ export async function editarDespesa(
         // partir de uma edicao seria surpresa, nao correcao.
         const primeira = despesa.parcelas[0];
         if (primeira) {
-          await tx.parcelaDespesa.update({
+          await delegateParcela.update?.({
             where: { id: primeira.id },
             data: { dataVencimento: data.dataVencimento as Date },
           });
@@ -962,10 +970,19 @@ export async function pagarParcelasEmLote(ids: string[]): Promise<ResultadoAcaoL
       // segundos por padrao — com o banco na rede, isso estourava sempre. Era
       // o "Nao foi possivel concluir a operacao" que o dono reportou: nenhum
       // pagamento acontecia, e a mensagem nao dizia por que.
-      const parcelas = await tx.parcelaDespesa.findMany({
+      const delegateParcela = obterDelegateParcelaDespesa(
+        tx as unknown as PrismaFinanceiroPagarAny,
+        prisma as unknown as PrismaFinanceiroPagarAny
+      );
+
+      if (!delegateParcela.findMany || !delegateParcela.update) {
+        throw new Error("Delegate Prisma de ParcelaDespesa nao disponivel para o lote.");
+      }
+
+      const parcelas = (await delegateParcela.findMany({
         where: { id: { in: idsUnicos } },
         select: { id: true, status: true, valor: true, valorPago: true },
-      });
+      })) as Array<{ id: string; status: StatusParcelaDespesa; valor: unknown; valorPago: unknown }>;
 
       // As mesmas validacoes de antes, agora em memoria. Continuam parando o
       // lote inteiro: tudo-ou-nada e a regra, e pagar 19 de 20 em silencio
@@ -983,17 +1000,22 @@ export async function pagarParcelasEmLote(ids: string[]): Promise<ResultadoAcaoL
 
       const dataPagamento = new Date();
 
-      // Uma unica atualizacao para todas. `valorPago` recebe o proprio `valor`
-      // de cada linha — que e exatamente a regra do lote: cada parcela pelo seu
-      // valor original, sem desconto nem juros. `updateMany` do Prisma nao
-      // sabe copiar coluna para coluna, dai o SQL direto.
-      await tx.$executeRaw`
-        UPDATE "ParcelaDespesa"
-           SET "status" = 'PAGO',
-               "dataPagamento" = ${dataPagamento},
-               "valorPago" = "valor"
-         WHERE "id" = ANY(${idsUnicos})
-      `;
+      // Uma atualizacao por parcela, pelo acessor. Era um UPDATE unico em SQL
+      // direto (copiando `valor` para `valorPago` numa tacada), mas duas coisas
+      // podendo falhar ao mesmo tempo com a mesma mensagem generica tornaram o
+      // diagnostico caro demais. Com o limite de 20s, N atualizacoes cabem com
+      // folga: o que estourava antes eram as 3N idas do caminho original, nao
+      // estas.
+      for (const parcela of parcelas) {
+        await delegateParcela.update({
+          where: { id: parcela.id },
+          data: {
+            status: "PAGO",
+            dataPagamento,
+            valorPago: paraDecimal(deDecimal(parcela.valor as EntradaDecimalPagar)),
+          },
+        });
+      }
 
       // Uma unica gravacao de auditoria para os itens, mais a do lote.
       await registrarLogsAuditoriaEmLote(
@@ -1003,13 +1025,21 @@ export async function pagarParcelasEmLote(ids: string[]): Promise<ResultadoAcaoL
           acao: ACOES_AUDITORIA.FINALIZAR,
           entidade: ENTIDADES_AUDITORIA.CONTA_PAGAR,
           entidadeId: parcela.id,
-          dadosAntes: { status: parcela.status, valorPago: parcela.valorPago, valor: parcela.valor },
-          dadosDepois: { status: "PAGO", valorPago: parcela.valor, dataPagamento },
+          dadosAntes: {
+            status: parcela.status,
+            valorPago: paraAuditoria(parcela.valorPago),
+            valor: paraAuditoria(parcela.valor),
+          },
+          dadosDepois: {
+            status: "PAGO",
+            valorPago: paraAuditoria(parcela.valor),
+            dataPagamento: dataPagamento.toISOString(),
+          },
         }))
       );
 
       const acumuladoCentavos = parcelas.reduce(
-        (total, parcela) => somar(total, deDecimal(parcela.valor)),
+        (total, parcela) => somar(total, deDecimal(parcela.valor as EntradaDecimalPagar)),
         0
       );
 
