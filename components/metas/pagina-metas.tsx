@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Plus, Target } from "lucide-react";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { DashboardMetas } from "@/components/metas/dashboard-metas";
-import { CardMeta } from "@/components/metas/card-meta";
-import { FiltrosMetas } from "@/components/metas/filtros-metas";
-import { ModalNovaMeta } from "@/components/metas/modal-nova-meta";
+import { useEffect, useRef, useState } from"react";
+import { useRouter } from"next/navigation";
+import { Plus, Target } from"lucide-react";
+import { toast } from"sonner";
+import { Button } from"@/components/ui/button";
+import { DashboardMetas } from"@/components/metas/dashboard-metas";
+import { CardMeta } from"@/components/metas/card-meta";
+import { FiltrosMetas } from"@/components/metas/filtros-metas";
+import { ModalNovaMeta } from"@/components/metas/modal-nova-meta";
 import {
   listarMetas,
   obterDashboardMetas,
@@ -16,8 +16,8 @@ import {
   type LinhaMetaLista,
   type DashboardMetasResult,
   type FiltrosMetasInput,
-} from "@/app/actions/metas";
-import { useTemPermissao } from "@/contextos/contexto-permissoes";
+} from"@/app/actions/metas";
+import { useTemPermissao } from"@/contextos/contexto-permissoes";
 
 const dashboardVazio: DashboardMetasResult = {
   totalMetas: 0,
@@ -36,10 +36,10 @@ const dashboardVazio: DashboardMetasResult = {
 };
 
 const filtrosIniciais: FiltrosMetasInput = {
-  busca: "",
-  categoria: "TODAS",
-  status: "TODAS",
-  prioridade: "TODAS",
+  busca:"",
+  categoria:"TODAS",
+  status:"TODAS",
+  prioridade:"TODAS",
   pagina: 1,
   tamanhoPagina: 24,
 };
@@ -129,7 +129,7 @@ export function PaginaMetas() {
               onClick={atualizarMetasAutomaticas}
               disabled={sincronizandoAutomaticas}
             >
-              {sincronizandoAutomaticas ? "Sincronizando..." : "Atualizar metas automáticas"}
+              {sincronizandoAutomaticas ?"Sincronizando..." :"Atualizar metas automáticas"}
             </Button>
             <Button onClick={() => setModalAberto(true)}>
               <Plus className="h-4 w-4 mr-2" />
@@ -143,11 +143,11 @@ export function PaginaMetas() {
       {carregando ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-40 rounded-lg bg-slate-100 dark:bg-slate-800 animate-pulse" />
+            <div key={i} className="h-40 rounded-lg bg-kx-superficie animate-pulse" />
           ))}
         </div>
       ) : erro ? (
-        <div className="text-center py-16 text-slate-500">
+        <div className="text-center py-16 text-kx-legenda">
           <p>{erro}</p>
           <Button variant="outline" className="mt-4" onClick={() => carregar(filtros)}>
             Tentar novamente
@@ -155,11 +155,11 @@ export function PaginaMetas() {
         </div>
       ) : metas.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <Target className="h-14 w-14 text-slate-300 dark:text-slate-600 mb-4" />
-          <h3 className="text-lg font-semibold text-slate-600 dark:text-slate-300">
+          <Target className="h-14 w-14 text-kx-texto-2 mb-4" />
+          <h3 className="text-lg font-semibold text-kx-texto-2">
             Nenhuma meta encontrada
           </h3>
-          <p className="text-sm text-slate-400 mt-1 mb-6">
+          <p className="text-sm text-kx-legenda mt-1 mb-6">
             Crie a primeira meta da empresa para começar a acompanhar os objetivos.
           </p>
           {podeEditarMetas ? (

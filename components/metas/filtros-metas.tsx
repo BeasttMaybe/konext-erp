@@ -1,11 +1,11 @@
 "use client";
 
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
-import { X } from "lucide-react";
-import type { CategoriaMeta, StatusMeta, PrioridadeMeta } from "@prisma/client";
-import type { FiltrosMetasInput } from "@/app/actions/metas";
+import { Input } from"@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from"@/components/ui/select";
+import { Button } from"@/components/ui/button";
+import { X } from"lucide-react";
+import type { CategoriaMeta, StatusMeta, PrioridadeMeta } from"@prisma/client";
+import type { FiltrosMetasInput } from"@/app/actions/metas";
 
 type FiltrosMetasProps = {
   filtros: FiltrosMetasInput;
@@ -18,18 +18,18 @@ export function FiltrosMetas({ filtros, onChange }: FiltrosMetasProps) {
 
   const temFiltro =
     !!filtros.busca ||
-    (!!filtros.categoria && filtros.categoria !== "TODAS") ||
-    (!!filtros.status && filtros.status !== "TODAS") ||
-    (!!filtros.prioridade && filtros.prioridade !== "TODAS") ||
-    (!!filtros.origemProgresso && filtros.origemProgresso !== "TODAS");
+    (!!filtros.categoria && filtros.categoria !=="TODAS") ||
+    (!!filtros.status && filtros.status !=="TODAS") ||
+    (!!filtros.prioridade && filtros.prioridade !=="TODAS") ||
+    (!!filtros.origemProgresso && filtros.origemProgresso !=="TODAS");
 
   const limpar = () =>
     onChange({
-      busca: "",
-      categoria: "TODAS",
-      status: "TODAS",
-      prioridade: "TODAS",
-      origemProgresso: "TODAS",
+      busca:"",
+      categoria:"TODAS",
+      status:"TODAS",
+      prioridade:"TODAS",
+      origemProgresso:"TODAS",
       pagina: 1,
       tamanhoPagina: filtros.tamanhoPagina ?? 24,
     });
@@ -38,14 +38,14 @@ export function FiltrosMetas({ filtros, onChange }: FiltrosMetasProps) {
     <div className="flex flex-wrap gap-3 items-center">
       <Input
         placeholder="Buscar meta..."
-        value={filtros.busca ?? ""}
+        value={filtros.busca ??""}
         onChange={(e) => set({ busca: e.target.value })}
         className="max-w-xs h-9 text-sm"
       />
 
       <Select
-        value={filtros.categoria ?? "TODAS"}
-        onValueChange={(v) => set({ categoria: v === "TODAS" ? "TODAS" : (v as CategoriaMeta) })}
+        value={filtros.categoria ??"TODAS"}
+        onValueChange={(v) => set({ categoria: v ==="TODAS" ?"TODAS" : (v as CategoriaMeta) })}
       >
         <SelectTrigger className="w-40 h-9 text-sm">
           <SelectValue placeholder="Categoria" />
@@ -64,8 +64,8 @@ export function FiltrosMetas({ filtros, onChange }: FiltrosMetasProps) {
       </Select>
 
       <Select
-        value={filtros.status ?? "TODAS"}
-        onValueChange={(v) => set({ status: v === "TODAS" ? "TODAS" : (v as StatusMeta) })}
+        value={filtros.status ??"TODAS"}
+        onValueChange={(v) => set({ status: v ==="TODAS" ?"TODAS" : (v as StatusMeta) })}
       >
         <SelectTrigger className="w-40 h-9 text-sm">
           <SelectValue placeholder="Status" />
@@ -82,8 +82,8 @@ export function FiltrosMetas({ filtros, onChange }: FiltrosMetasProps) {
       </Select>
 
       <Select
-        value={filtros.prioridade ?? "TODAS"}
-        onValueChange={(v) => set({ prioridade: v === "TODAS" ? "TODAS" : (v as PrioridadeMeta) })}
+        value={filtros.prioridade ??"TODAS"}
+        onValueChange={(v) => set({ prioridade: v ==="TODAS" ?"TODAS" : (v as PrioridadeMeta) })}
       >
         <SelectTrigger className="w-36 h-9 text-sm">
           <SelectValue placeholder="Prioridade" />
@@ -98,9 +98,9 @@ export function FiltrosMetas({ filtros, onChange }: FiltrosMetasProps) {
       </Select>
 
       <Select
-        value={filtros.origemProgresso ?? "TODAS"}
+        value={filtros.origemProgresso ??"TODAS"}
         onValueChange={(v) =>
-          set({ origemProgresso: v === "TODAS" ? "TODAS" : (v as FiltrosMetasInput["origemProgresso"]) })
+          set({ origemProgresso: v ==="TODAS" ?"TODAS" : (v as FiltrosMetasInput["origemProgresso"]) })
         }
       >
         <SelectTrigger className="w-40 h-9 text-sm">
@@ -118,7 +118,7 @@ export function FiltrosMetas({ filtros, onChange }: FiltrosMetasProps) {
           variant="ghost"
           size="sm"
           onClick={limpar}
-          className="h-9 text-slate-500"
+          className="h-9 text-kx-legenda"
         >
           <X className="h-3.5 w-3.5 mr-1" />
           Limpar

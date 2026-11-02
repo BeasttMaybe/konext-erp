@@ -1,13 +1,19 @@
 "use client";
 
-import { Badge } from "@/components/ui/badge";
-import type { PrioridadeMeta } from "@prisma/client";
+import { Badge } from"@/components/ui/badge";
+import type { PrioridadeMeta } from"@prisma/client";
 
+/**
+ * Cada nível aponta pra uma família de feedback do design system, em vez de
+ * escolher um tom do Tailwind por conta: baixa é neutra, média é informativa,
+ * alta avisa e crítica é erro. Os tokens já cobrem tema claro e escuro, então
+ * não existe mais metade `dark:` pra manter em sincronia com a clara.
+ */
 const configPrioridade: Record<PrioridadeMeta, { label: string; classe: string }> = {
-  BAIXA:   { label: "Baixa",   classe: "bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-600" },
-  MEDIA:   { label: "Média",   classe: "bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-700" },
-  ALTA:    { label: "Alta",    classe: "bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-950/40 dark:text-orange-400 dark:border-orange-700" },
-  CRITICA: { label: "Crítica", classe: "bg-red-100 text-red-700 border-red-300 dark:bg-red-950/40 dark:text-red-400 dark:border-red-700" },
+  BAIXA:   { label:"Baixa",   classe:"bg-kx-superficie text-kx-legenda border-kx-painel-borda" },
+  MEDIA:   { label:"Média",   classe:"bg-kx-info-fundo text-kx-info-texto border-kx-info" },
+  ALTA:    { label:"Alta",    classe:"bg-kx-alerta-fundo text-kx-alerta-texto border-kx-alerta" },
+  CRITICA: { label:"Crítica", classe:"bg-kx-erro-fundo text-kx-erro-texto border-kx-erro-borda" },
 };
 
 export function BadgePrioridadeMeta({ prioridade }: { prioridade: PrioridadeMeta }) {

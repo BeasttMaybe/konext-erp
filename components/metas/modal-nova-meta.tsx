@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { toast } from "sonner";
+import { useState } from"react";
+import { toast } from"sonner";
 import {
   Dialog,
   DialogContent,
@@ -9,13 +9,13 @@ import {
   DialogTitle,
   DialogFooter,
   DialogDescription,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { criarMeta } from "@/app/actions/metas";
+} from"@/components/ui/dialog";
+import { Label } from"@/components/ui/label";
+import { Input } from"@/components/ui/input";
+import { Textarea } from"@/components/ui/textarea";
+import { Button } from"@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from"@/components/ui/select";
+import { criarMeta } from"@/app/actions/metas";
 import type {
   CategoriaMeta,
   TipoValorMeta,
@@ -24,7 +24,7 @@ import type {
   FonteAutomaticaMeta,
   MetricaAutomaticaMeta,
   DirecaoMeta,
-} from "@prisma/client";
+} from"@prisma/client";
 
 type ModalNovaMetaProps = {
   aberto: boolean;
@@ -33,43 +33,43 @@ type ModalNovaMetaProps = {
 };
 
 const categorias: Array<{ value: CategoriaMeta; label: string }> = [
-  { value: "FINANCEIRA", label: "Financeira" },
-  { value: "OPERACIONAL", label: "Operacional" },
-  { value: "COMERCIAL", label: "Comercial" },
-  { value: "ESTOQUE", label: "Estoque" },
-  { value: "ESTRUTURAL", label: "Estrutural" },
-  { value: "EQUIPAMENTO", label: "Equipamento" },
-  { value: "REFORMA", label: "Reforma" },
-  { value: "OUTRA", label: "Outra" },
+  { value:"FINANCEIRA", label:"Financeira" },
+  { value:"OPERACIONAL", label:"Operacional" },
+  { value:"COMERCIAL", label:"Comercial" },
+  { value:"ESTOQUE", label:"Estoque" },
+  { value:"ESTRUTURAL", label:"Estrutural" },
+  { value:"EQUIPAMENTO", label:"Equipamento" },
+  { value:"REFORMA", label:"Reforma" },
+  { value:"OUTRA", label:"Outra" },
 ];
 
 const tiposValor: Array<{ value: TipoValorMeta; label: string }> = [
-  { value: "DINHEIRO", label: "Financeiro (R$)" },
-  { value: "QUANTIDADE", label: "Quantidade" },
-  { value: "PERCENTUAL", label: "Percentual (%)" },
-  { value: "CHECKLIST", label: "Checklist" },
+  { value:"DINHEIRO", label:"Financeiro (R$)" },
+  { value:"QUANTIDADE", label:"Quantidade" },
+  { value:"PERCENTUAL", label:"Percentual (%)" },
+  { value:"CHECKLIST", label:"Checklist" },
 ];
 
 const prioridades: Array<{ value: PrioridadeMeta; label: string }> = [
-  { value: "BAIXA", label: "Baixa" },
-  { value: "MEDIA", label: "Média" },
-  { value: "ALTA", label: "Alta" },
-  { value: "CRITICA", label: "Crítica" },
+  { value:"BAIXA", label:"Baixa" },
+  { value:"MEDIA", label:"Média" },
+  { value:"ALTA", label:"Alta" },
+  { value:"CRITICA", label:"Crítica" },
 ];
 
 export function ModalNovaMeta({ aberto, aoFechar, aoConcluir }: ModalNovaMetaProps) {
   const [titulo, setTitulo] = useState("");
   const [descricao, setDescricao] = useState("");
-  const [categoria, setCategoria] = useState<CategoriaMeta | "">("");
-  const [tipoValor, setTipoValor] = useState<TipoValorMeta | "">("");
+  const [categoria, setCategoria] = useState<CategoriaMeta |"">("");
+  const [tipoValor, setTipoValor] = useState<TipoValorMeta |"">("");
   const [valorAlvo, setValorAlvo] = useState("");
   const [unidade, setUnidade] = useState("");
   const [dataInicio, setDataInicio] = useState("");
   const [dataPrazo, setDataPrazo] = useState("");
   const [prioridade, setPrioridade] = useState<PrioridadeMeta>("MEDIA");
   const [origemProgresso, setOrigemProgresso] = useState<OrigemProgressoMeta>("MANUAL");
-  const [fonteAutomatica, setFonteAutomatica] = useState<FonteAutomaticaMeta | "">("");
-  const [metricaAutomatica, setMetricaAutomatica] = useState<MetricaAutomaticaMeta | "">("");
+  const [fonteAutomatica, setFonteAutomatica] = useState<FonteAutomaticaMeta |"">("");
+  const [metricaAutomatica, setMetricaAutomatica] = useState<MetricaAutomaticaMeta |"">("");
   const [direcao, setDirecao] = useState<DirecaoMeta>("MAIOR_MELHOR");
   const [dataInicioAutomatica, setDataInicioAutomatica] = useState("");
   const [dataFimAutomatica, setDataFimAutomatica] = useState("");
@@ -78,27 +78,27 @@ export function ModalNovaMeta({ aberto, aoFechar, aoConcluir }: ModalNovaMetaPro
 
   const metricasPorFonte: Record<FonteAutomaticaMeta, Array<{ value: MetricaAutomaticaMeta; label: string }>> = {
     ORDENS_SERVICO: [
-      { value: "FATURAMENTO_OS", label: "Faturamento de OS" },
-      { value: "QUANTIDADE_OS_FINALIZADAS", label: "Quantidade de OS finalizadas" },
-      { value: "QUANTIDADE_OS_CRIADAS", label: "Quantidade de OS criadas" },
-      { value: "TICKET_MEDIO_OS", label: "Ticket médio de OS" },
+      { value:"FATURAMENTO_OS", label:"Faturamento de OS" },
+      { value:"QUANTIDADE_OS_FINALIZADAS", label:"Quantidade de OS finalizadas" },
+      { value:"QUANTIDADE_OS_CRIADAS", label:"Quantidade de OS criadas" },
+      { value:"TICKET_MEDIO_OS", label:"Ticket médio de OS" },
     ],
     GARANTIAS: [
-      { value: "RETORNOS_GARANTIA", label: "Retornos de garantia" },
-      { value: "TAXA_RETORNO_GARANTIA", label: "Taxa de retorno de garantia" },
-      { value: "GARANTIAS_ATIVAS", label: "Garantias ativas" },
+      { value:"RETORNOS_GARANTIA", label:"Retornos de garantia" },
+      { value:"TAXA_RETORNO_GARANTIA", label:"Taxa de retorno de garantia" },
+      { value:"GARANTIAS_ATIVAS", label:"Garantias ativas" },
     ],
     FINANCEIRO: [
-      { value: "RECEBIMENTOS_FINANCEIRO", label: "Recebimentos" },
-      { value: "DESPESAS_FINANCEIRO", label: "Despesas" },
+      { value:"RECEBIMENTOS_FINANCEIRO", label:"Recebimentos" },
+      { value:"DESPESAS_FINANCEIRO", label:"Despesas" },
     ],
-    PDV: [{ value: "FATURAMENTO_PDV", label: "Faturamento do PDV" }],
-    VENDAS: [{ value: "QUANTIDADE_VENDAS", label: "Quantidade de vendas" }],
-    ESTOQUE: [{ value: "QUANTIDADE_ITEM_ESTOQUE", label: "Quantidade em estoque por produto" }],
+    PDV: [{ value:"FATURAMENTO_PDV", label:"Faturamento do PDV" }],
+    VENDAS: [{ value:"QUANTIDADE_VENDAS", label:"Quantidade de vendas" }],
+    ESTOQUE: [{ value:"QUANTIDADE_ITEM_ESTOQUE", label:"Quantidade em estoque por produto" }],
   };
 
   const formatarDataBR = (valor: string) => {
-    const digitos = valor.replace(/\D/g, "").slice(0, 8);
+    const digitos = valor.replace(/\D/g,"").slice(0, 8);
     if (digitos.length <= 2) return digitos;
     if (digitos.length <= 4) return `${digitos.slice(0, 2)}/${digitos.slice(2)}`;
     return `${digitos.slice(0, 2)}/${digitos.slice(2, 4)}/${digitos.slice(4)}`;
@@ -159,7 +159,7 @@ export function ModalNovaMeta({ aberto, aoFechar, aoConcluir }: ModalNovaMetaPro
       return;
     }
 
-    if (origemProgresso === "AUTOMATICA" && (!fonteAutomatica || !metricaAutomatica)) {
+    if (origemProgresso ==="AUTOMATICA" && (!fonteAutomatica || !metricaAutomatica)) {
       toast.error("Selecione fonte e métrica para meta automática.");
       return;
     }
@@ -197,10 +197,10 @@ export function ModalNovaMeta({ aberto, aoFechar, aoConcluir }: ModalNovaMetaPro
         categoria,
         tipoValor,
         origemProgresso,
-        fonteAutomatica: origemProgresso === "AUTOMATICA" ? (fonteAutomatica || undefined) : undefined,
-        metricaAutomatica: origemProgresso === "AUTOMATICA" ? (metricaAutomatica || undefined) : undefined,
+        fonteAutomatica: origemProgresso ==="AUTOMATICA" ? (fonteAutomatica || undefined) : undefined,
+        metricaAutomatica: origemProgresso ==="AUTOMATICA" ? (metricaAutomatica || undefined) : undefined,
         configuracaoAutomatica:
-          origemProgresso === "AUTOMATICA"
+          origemProgresso ==="AUTOMATICA"
             ? {
                 dataInicio: dataInicioAutoIso ?? undefined,
                 dataFim: dataFimAutoIso ?? undefined,
@@ -208,7 +208,7 @@ export function ModalNovaMeta({ aberto, aoFechar, aoConcluir }: ModalNovaMetaPro
               }
             : undefined,
         direcao,
-        valorAlvo: tipoValor !== "CHECKLIST" && valorAlvo ? Number(valorAlvo) : undefined,
+        valorAlvo: tipoValor !=="CHECKLIST" && valorAlvo ? Number(valorAlvo) : undefined,
         unidade: unidade || undefined,
         dataInicio: dataInicioIso ?? undefined,
         dataPrazo: dataPrazoIso ?? undefined,
@@ -230,9 +230,9 @@ export function ModalNovaMeta({ aberto, aoFechar, aoConcluir }: ModalNovaMetaPro
     }
   };
 
-  const precisaValorAlvo = tipoValor !== "" && tipoValor !== "CHECKLIST";
+  const precisaValorAlvo = tipoValor !=="" && tipoValor !=="CHECKLIST";
   const opcoesMetricas = fonteAutomatica ? metricasPorFonte[fonteAutomatica] : [];
-  const ehAutomatica = origemProgresso === "AUTOMATICA";
+  const ehAutomatica = origemProgresso ==="AUTOMATICA";
 
   return (
     <Dialog open={aberto} onOpenChange={(v) => { if (!v) fechar(); }}>
@@ -306,7 +306,7 @@ export function ModalNovaMeta({ aberto, aoFechar, aoConcluir }: ModalNovaMetaPro
                   id="meta-valor-alvo"
                   type="number"
                   min={0}
-                  step={tipoValor === "DINHEIRO" ? "0.01" : "1"}
+                  step={tipoValor ==="DINHEIRO" ?"0.01" :"1"}
                   value={valorAlvo}
                   onChange={(e) => setValorAlvo(e.target.value)}
                   placeholder="0"
@@ -319,7 +319,7 @@ export function ModalNovaMeta({ aberto, aoFechar, aoConcluir }: ModalNovaMetaPro
                   id="meta-unidade"
                   value={unidade}
                   onChange={(e) => setUnidade(e.target.value)}
-                  placeholder={tipoValor === "PERCENTUAL" ? "%" : "Ex: OS, peças..."}
+                  placeholder={tipoValor ==="PERCENTUAL" ?"%" :"Ex: OS, peças..."}
                   maxLength={30}
                   disabled={salvando}
                 />
@@ -334,7 +334,7 @@ export function ModalNovaMeta({ aberto, aoFechar, aoConcluir }: ModalNovaMetaPro
                 value={origemProgresso}
                 onValueChange={(v) => {
                   setOrigemProgresso(v as OrigemProgressoMeta);
-                  if (v === "MANUAL") {
+                  if (v ==="MANUAL") {
                     setFonteAutomatica("");
                     setMetricaAutomatica("");
                   }
@@ -367,8 +367,8 @@ export function ModalNovaMeta({ aberto, aoFechar, aoConcluir }: ModalNovaMetaPro
           </div>
 
           {ehAutomatica && (
-            <div className="space-y-3 rounded-md border border-slate-200 dark:border-slate-700 p-3">
-              <p className="text-xs text-slate-500">Configuração automática</p>
+            <div className="space-y-3 rounded-md border border-kx-painel-borda p-3">
+              <p className="text-xs text-kx-legenda">Configuração automática</p>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label>Fonte automática *</Label>
@@ -504,7 +504,7 @@ export function ModalNovaMeta({ aberto, aoFechar, aoConcluir }: ModalNovaMetaPro
         <DialogFooter>
           <Button variant="outline" onClick={fechar} disabled={salvando}>Cancelar</Button>
           <Button onClick={salvar} disabled={salvando || !titulo.trim() || !categoria || !tipoValor}>
-            {salvando ? "Salvando..." : "Criar meta"}
+            {salvando ?"Salvando..." :"Criar meta"}
           </Button>
         </DialogFooter>
       </DialogContent>

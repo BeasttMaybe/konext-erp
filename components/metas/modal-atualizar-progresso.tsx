@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { toast } from "sonner";
+import { useState } from"react";
+import { toast } from"sonner";
 import {
   Dialog,
   DialogContent,
@@ -9,13 +9,13 @@ import {
   DialogTitle,
   DialogFooter,
   DialogDescription,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
-import { atualizarProgressoMeta } from "@/app/actions/metas";
-import type { TipoValorMeta, OrigemProgressoMeta } from "@prisma/client";
+} from"@/components/ui/dialog";
+import { Label } from"@/components/ui/label";
+import { Input } from"@/components/ui/input";
+import { Textarea } from"@/components/ui/textarea";
+import { Button } from"@/components/ui/button";
+import { atualizarProgressoMeta } from"@/app/actions/metas";
+import type { TipoValorMeta, OrigemProgressoMeta } from"@prisma/client";
 
 type ModalAtualizarProgressoProps = {
   aberto: boolean;
@@ -54,7 +54,7 @@ export function ModalAtualizarProgresso({
   };
 
   const salvar = async () => {
-    if (origemProgresso === "AUTOMATICA") {
+    if (origemProgresso ==="AUTOMATICA") {
       toast.error("Metas automáticas devem ser atualizadas via sincronização.");
       return;
     }
@@ -88,7 +88,7 @@ export function ModalAtualizarProgresso({
     }
   };
 
-  const sufixo = tipoValor === "PERCENTUAL" ? "%" : (unidade ?? "");
+  const sufixo = tipoValor ==="PERCENTUAL" ?"%" : (unidade ??"");
 
   return (
     <Dialog open={aberto} onOpenChange={(v) => { if (!v) fechar(); }}>
@@ -101,21 +101,21 @@ export function ModalAtualizarProgresso({
         <div className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="novo-valor">
-              Novo valor atual {sufixo ? `(${sufixo})` : ""}
+              Novo valor atual {sufixo ? `(${sufixo})` :""}
             </Label>
             <div className="flex items-center gap-2">
               <Input
                 id="novo-valor"
                 type="number"
                 min={0}
-                step={tipoValor === "DINHEIRO" ? "0.01" : "1"}
+                step={tipoValor ==="DINHEIRO" ?"0.01" :"1"}
                 value={valorNovo}
                 onChange={(e) => setValorNovo(e.target.value)}
                 disabled={salvando}
                 autoFocus
               />
               {valorAlvo && (
-                <span className="text-sm text-slate-500 whitespace-nowrap shrink-0">
+                <span className="text-sm text-kx-legenda whitespace-nowrap shrink-0">
                   / {valorAlvo}{sufixo}
                 </span>
               )}
@@ -133,14 +133,14 @@ export function ModalAtualizarProgresso({
               disabled={salvando}
               className="resize-none h-20"
             />
-            <p className="text-xs text-slate-400">{observacao.length}/500</p>
+            <p className="text-xs text-kx-legenda">{observacao.length}/500</p>
           </div>
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={fechar} disabled={salvando}>Cancelar</Button>
           <Button onClick={salvar} disabled={salvando}>
-            {salvando ? "Salvando..." : "Atualizar"}
+            {salvando ?"Salvando..." :"Atualizar"}
           </Button>
         </DialogFooter>
       </DialogContent>

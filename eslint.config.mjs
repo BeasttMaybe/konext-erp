@@ -25,9 +25,7 @@ const ARQUIVOS_COM_COR_LEGADA = [
   "app/(dashboard)/crm/propostas/nova/page.tsx",
   "app/(dashboard)/crm/propostas/page.tsx",
   "app/(dashboard)/crm/propostas/\\[id\\]/page.tsx",
-  "app/(dashboard)/estoque/page.tsx",
   "app/(dashboard)/inicio/page.tsx",
-  "app/(dashboard)/metas/page.tsx",
   "app/(dashboard)/perfil/page.tsx",
   "app/(dashboard)/vendas/historico/page.tsx",
   "app/(dashboard)/vendas/page.tsx",
@@ -36,21 +34,8 @@ const ARQUIVOS_COM_COR_LEGADA = [
   "app/rastreio/\\[id\\]/page.tsx",
   "components/crm/funil-vendas-kanban.tsx",
   "components/crm/proposal-actions-cell.tsx",
-  "components/estoque/modal-novo-produto.tsx",
   "components/financeiro/notas-fiscais/pagina-notas-fiscais.tsx",
   "components/layout/sino-notificacoes.tsx",
-  "components/metas/badge-prioridade-meta.tsx",
-  "components/metas/badge-status-meta.tsx",
-  "components/metas/barra-progresso-meta.tsx",
-  "components/metas/checklist-meta.tsx",
-  "components/metas/dashboard-metas.tsx",
-  "components/metas/detalhe-meta-cliente.tsx",
-  "components/metas/filtros-metas.tsx",
-  "components/metas/historico-meta.tsx",
-  "components/metas/modal-atualizar-progresso.tsx",
-  "components/metas/modal-nova-meta.tsx",
-  "components/metas/pagina-metas.tsx",
-  "components/metas/card-meta.tsx",
   "components/os/garantias/termo-garantia-documento.tsx",
   "components/os/impressao/estilos-impressao.ts",
   "components/os/impressao/os-impressao-a4.tsx",
@@ -63,9 +48,19 @@ const ARQUIVOS_COM_COR_LEGADA = [
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
+  // `lib/**` entrou em 02/11/2026: a regra cobria so app/** e components/**, e
+  // o resultado foi um mapa de cor de status (CLASSES_STATUS_OS, 8 status x 3
+  // strings de Tailwind cru) morando em lib/dominio/os/maquina-estados.ts, fora
+  // do alcance dela, parecendo fonte de verdade. Cor nao deixa de ser cor por
+  // estar numa pasta de dominio.
   {
-    files: ["app/**/*.{ts,tsx}", "components/**/*.{ts,tsx}"],
-    ignores: ARQUIVOS_COM_COR_LEGADA,
+    files: ["app/**/*.{ts,tsx}", "components/**/*.{ts,tsx}", "lib/**/*.{ts,tsx}"],
+    // Teste nao renderiza nada, e um teste de cor precisa conter cor: o
+    // contraste-feedback.test.ts afirma sobre `#000000`/`#ffffff` de proposito,
+    // e o validacao-imei.test.ts usa "123#456" como IMEI invalido, que nem e
+    // cor. Por isso ficam fora, e nao na lista de cor legada — que significa
+    // outra coisa (tela antiga ainda por converter).
+    ignores: [...ARQUIVOS_COM_COR_LEGADA, "**/*.test.ts", "**/*.test.tsx"],
     plugins: { konext: konextRegrasCor },
     rules: {
       "konext/sem-hex-hardcoded": "error",

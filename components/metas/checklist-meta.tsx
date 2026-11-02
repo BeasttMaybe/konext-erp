@@ -1,15 +1,15 @@
 "use client";
 
-import { useState } from "react";
-import { toast } from "sonner";
-import { Plus, Trash2, CheckSquare, Square } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { useState } from"react";
+import { toast } from"sonner";
+import { Plus, Trash2, CheckSquare, Square } from"lucide-react";
+import { Button } from"@/components/ui/button";
+import { Input } from"@/components/ui/input";
 import {
   adicionarItemChecklistMeta,
   alternarItemChecklistMeta,
   removerItemChecklistMeta,
-} from "@/app/actions/metas";
+} from"@/app/actions/metas";
 
 type Item = {
   id: string;
@@ -93,33 +93,33 @@ export function ChecklistMeta({ metaId, itens, somenteLeitura = false, aoAtualiz
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+        <h3 className="text-sm font-semibold text-kx-texto">
           Checklist
         </h3>
-        <span className="text-xs text-slate-500 dark:text-slate-400">
+        <span className="text-xs text-kx-legenda">
           {concluidos}/{itens.length} concluídos
         </span>
       </div>
 
       <div className="space-y-2">
         {itens.length === 0 && (
-          <p className="text-sm text-slate-400 dark:text-slate-500 text-center py-4">
+          <p className="text-sm text-kx-legenda text-center py-4">
             Nenhum item no checklist.
           </p>
         )}
         {itens.map((item) => (
           <div
             key={item.id}
-            className="flex items-center gap-3 p-2 rounded-md bg-slate-50 dark:bg-slate-800/50 group"
+            className="flex items-center gap-3 p-2 rounded-md bg-kx-superficie/50 group"
           >
             <button
               onClick={() => !somenteLeitura && handleAlternar(item.id)}
               disabled={processando === item.id || somenteLeitura}
-              className="shrink-0 text-slate-400 hover:text-emerald-500 transition-colors disabled:opacity-50"
-              aria-label={item.concluido ? "Desmarcar item" : "Marcar como concluído"}
+              className="shrink-0 text-kx-legenda hover:text-kx-sucesso transition-colors disabled:opacity-50"
+              aria-label={item.concluido ?"Desmarcar item" :"Marcar como concluído"}
             >
               {item.concluido ? (
-                <CheckSquare className="h-4 w-4 text-emerald-500" />
+                <CheckSquare className="h-4 w-4 text-kx-sucesso" />
               ) : (
                 <Square className="h-4 w-4" />
               )}
@@ -128,8 +128,8 @@ export function ChecklistMeta({ metaId, itens, somenteLeitura = false, aoAtualiz
             <span
               className={`flex-1 text-sm ${
                 item.concluido
-                  ? "line-through text-slate-400 dark:text-slate-500"
-                  : "text-slate-700 dark:text-slate-200"
+                  ?"line-through text-kx-legenda"
+                  :"text-kx-texto"
               }`}
             >
               {item.titulo}
@@ -139,7 +139,7 @@ export function ChecklistMeta({ metaId, itens, somenteLeitura = false, aoAtualiz
               <button
                 onClick={() => handleRemover(item.id)}
                 disabled={processando === item.id}
-                className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-red-500 disabled:opacity-30"
+                className="opacity-0 group-hover:opacity-100 transition-opacity text-kx-legenda hover:text-kx-erro-texto disabled:opacity-30"
                 aria-label="Remover item"
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -155,7 +155,7 @@ export function ChecklistMeta({ metaId, itens, somenteLeitura = false, aoAtualiz
             placeholder="Novo item do checklist..."
             value={novoItem}
             onChange={(e) => setNovoItem(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleAdicionar()}
+            onKeyDown={(e) => e.key ==="Enter" && handleAdicionar()}
             maxLength={160}
             disabled={adicionando}
             className="h-8 text-sm"

@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
-import { Controller, useForm, useWatch, type Resolver } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2 } from "lucide-react";
+import { useEffect, useMemo } from"react";
+import { Controller, useForm, useWatch, type Resolver } from"react-hook-form";
+import { zodResolver } from"@hookform/resolvers/zod";
+import { Loader2 } from"lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -11,24 +11,24 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+} from"@/components/ui/dialog";
+import { Button } from"@/components/ui/button";
+import { Input } from"@/components/ui/input";
+import { Label } from"@/components/ui/label";
+import { Textarea } from"@/components/ui/textarea";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from"@/components/ui/select";
 import {
   categoriasProduto,
   formProdutoSchema,
   type FormProduto,
-} from "@/lib/validations/estoque";
-import { deDecimal, subtrair } from "@/lib/dinheiro";
+} from"@/lib/validations/estoque";
+import { deDecimal, subtrair } from"@/lib/dinheiro";
 
 interface PropsModalNovoProduto {
   aberto: boolean;
@@ -38,11 +38,11 @@ interface PropsModalNovoProduto {
 }
 
 const valoresPadrao: FormProduto = {
-  nome: "",
-  codigoBarras: "",
-  imagemUrl: "",
-  descricao: "",
-  categoria: "ACESSORIO",
+  nome:"",
+  codigoBarras:"",
+  imagemUrl:"",
+  descricao:"",
+  categoria:"ACESSORIO",
   custo: 0,
   precoVenda: 0,
   quantidadeEstoque: 0,
@@ -50,11 +50,11 @@ const valoresPadrao: FormProduto = {
 };
 
 const mapaCategoriaRotulo: Record<(typeof categoriasProduto)[number], string> = {
-  ACESSORIO: "Acessorio",
-  PECA_REPARO: "Peca de Reparo",
-  EQUIPAMENTO_REDE: "Equipamento de Rede",
-  SERVICO: "Servico",
-  OUTROS: "Outros",
+  ACESSORIO:"Acessorio",
+  PECA_REPARO:"Peca de Reparo",
+  EQUIPAMENTO_REDE:"Equipamento de Rede",
+  SERVICO:"Servico",
+  OUTROS:"Outros",
 };
 
 export function ModalNovoProduto({
@@ -73,8 +73,8 @@ export function ModalNovoProduto({
     defaultValues: valoresPadrao,
   });
 
-  const custo = useWatch({ control, name: "custo" }) ?? 0;
-  const precoVenda = useWatch({ control, name: "precoVenda" }) ?? 0;
+  const custo = useWatch({ control, name:"custo" }) ?? 0;
+  const precoVenda = useWatch({ control, name:"precoVenda" }) ?? 0;
 
   const margemBruta = useMemo(() => {
     if (precoVenda <= 0) return 0;
@@ -95,9 +95,9 @@ export function ModalNovoProduto({
     if (produtoInicial) {
       reset({
         nome: produtoInicial.nome,
-        codigoBarras: produtoInicial.codigoBarras || "",
-        imagemUrl: produtoInicial.imagemUrl || "",
-        descricao: produtoInicial.descricao || "",
+        codigoBarras: produtoInicial.codigoBarras ||"",
+        imagemUrl: produtoInicial.imagemUrl ||"",
+        descricao: produtoInicial.descricao ||"",
         categoria: produtoInicial.categoria,
         custo: produtoInicial.custo,
         precoVenda: produtoInicial.precoVenda,
@@ -132,11 +132,11 @@ export function ModalNovoProduto({
     >
       <DialogContent className="max-w-3xl bg-background border-border">
         <DialogHeader>
-          <DialogTitle>{produtoInicial ? "Editar Produto" : "Novo Produto"}</DialogTitle>
+          <DialogTitle>{produtoInicial ?"Editar Produto" :"Novo Produto"}</DialogTitle>
           <DialogDescription>
             {produtoInicial
-              ? "Atualize os dados do produto selecionado."
-              : "Cadastre produtos de estoque e servicos para venda no PDV."}
+              ?"Atualize os dados do produto selecionado."
+              :"Cadastre produtos de estoque e servicos para venda no PDV."}
           </DialogDescription>
         </DialogHeader>
 
@@ -151,7 +151,7 @@ export function ModalNovoProduto({
                   <Input
                     id="nome"
                     {...field}
-                    className={errors.nome ? "border-destructive" : ""}
+                    className={errors.nome ?"border-destructive" :""}
                   />
                 )}
               />
@@ -166,7 +166,7 @@ export function ModalNovoProduto({
                 name="codigoBarras"
                 control={control}
                 render={({ field }) => (
-                  <Input id="codigoBarras" {...field} value={field.value || ""} />
+                  <Input id="codigoBarras" {...field} value={field.value ||""} />
                 )}
               />
             </div>
@@ -181,8 +181,8 @@ export function ModalNovoProduto({
                     id="imagemUrl"
                     placeholder="https://exemplo.com/imagem.jpg"
                     {...field}
-                    value={field.value || ""}
-                    className={errors.imagemUrl ? "border-destructive" : ""}
+                    value={field.value ||""}
+                    className={errors.imagemUrl ?"border-destructive" :""}
                   />
                 )}
               />
@@ -224,9 +224,9 @@ export function ModalNovoProduto({
                     type="number"
                     min={0}
                     step="0.01"
-                    value={field.value || ""}
+                    value={field.value ||""}
                     onChange={(evento) => field.onChange(Number(evento.target.value) || 0)}
-                    className={errors.custo ? "border-destructive" : ""}
+                    className={errors.custo ?"border-destructive" :""}
                   />
                 )}
               />
@@ -246,9 +246,9 @@ export function ModalNovoProduto({
                     type="number"
                     min={0}
                     step="0.01"
-                    value={field.value || ""}
+                    value={field.value ||""}
                     onChange={(evento) => field.onChange(Number(evento.target.value) || 0)}
-                    className={errors.precoVenda ? "border-destructive" : ""}
+                    className={errors.precoVenda ?"border-destructive" :""}
                   />
                 )}
               />
@@ -268,11 +268,11 @@ export function ModalNovoProduto({
                     type="number"
                     min={0}
                     step="1"
-                    value={field.value || ""}
+                    value={field.value ||""}
                     onChange={(evento) =>
                       field.onChange(Math.floor(Number(evento.target.value) || 0))
                     }
-                    className={errors.quantidadeEstoque ? "border-destructive" : ""}
+                    className={errors.quantidadeEstoque ?"border-destructive" :""}
                   />
                 )}
               />
@@ -292,11 +292,11 @@ export function ModalNovoProduto({
                     type="number"
                     min={0}
                     step="1"
-                    value={field.value || ""}
+                    value={field.value ||""}
                     onChange={(evento) =>
                       field.onChange(Math.floor(Number(evento.target.value) || 0))
                     }
-                    className={errors.estoqueMinimo ? "border-destructive" : ""}
+                    className={errors.estoqueMinimo ?"border-destructive" :""}
                   />
                 )}
               />
@@ -311,7 +311,7 @@ export function ModalNovoProduto({
                 name="descricao"
                 control={control}
                 render={({ field }) => (
-                  <Textarea id="descricao" rows={4} {...field} value={field.value || ""} />
+                  <Textarea id="descricao" rows={4} {...field} value={field.value ||""} />
                 )}
               />
             </div>
@@ -322,7 +322,7 @@ export function ModalNovoProduto({
               Calculo de Margem Bruta: 
               <span
                 className={`ml-1 font-semibold ${
-                  margemBruta < 0 ? "text-destructive" : "text-emerald-600"
+                  margemBruta < 0 ?"text-destructive" :"text-kx-sucesso"
                 }`}
               >
                 Margem: {margemBruta.toFixed(1)}%
@@ -336,7 +336,7 @@ export function ModalNovoProduto({
             </Button>
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              {produtoInicial ? "Salvar Alteracoes" : "Salvar Produto"}
+              {produtoInicial ?"Salvar Alteracoes" :"Salvar Produto"}
             </Button>
           </DialogFooter>
         </form>

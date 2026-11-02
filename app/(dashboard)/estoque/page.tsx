@@ -1,25 +1,25 @@
 "use client";
 
-import { useCallback, useEffect, useState, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { MoreHorizontal, Package, Plus, Search } from "lucide-react";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { useCallback, useEffect, useState, Suspense } from"react";
+import { useRouter, useSearchParams } from"next/navigation";
+import { MoreHorizontal, Package, Plus, Search } from"lucide-react";
+import { toast } from"sonner";
+import { Button } from"@/components/ui/button";
+import { Input } from"@/components/ui/input";
+import { Badge } from"@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from"@/components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from"@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -27,18 +27,18 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { Card } from "@/components/ui/card";
+} from"@/components/ui/table";
+import { Card } from"@/components/ui/card";
 import {
   atualizarProduto,
   criarProduto,
   excluirProduto,
   listarProdutosPaginado,
-} from "@/app/actions/estoque";
-import { ModalNovoProduto } from "@/components/estoque/modal-novo-produto";
-import { PaginationControls } from "@/components/ui/pagination-controls";
-import { categoriasProduto, type FormProduto } from "@/lib/validations/estoque";
-import { useTemPermissao } from "@/contextos/contexto-permissoes";
+} from"@/app/actions/estoque";
+import { ModalNovoProduto } from"@/components/estoque/modal-novo-produto";
+import { PaginationControls } from"@/components/ui/pagination-controls";
+import { categoriasProduto, type FormProduto } from"@/lib/validations/estoque";
+import { useTemPermissao } from"@/contextos/contexto-permissoes";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -48,7 +48,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+} from"@/components/ui/alert-dialog";
 
 const LIMITE_POR_PAGINA = 20;
 
@@ -57,19 +57,19 @@ const LIMITE_POR_PAGINA = 20;
 function SkeletonEstoque() {
   return (
     <div className="w-full flex flex-col bg-transparent">
-      <div className="border-b border-slate-200/70 bg-white/75 px-6 py-6 backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/50 lg:px-8">
+      <div className="border-b border-kx-painel-borda/70 bg-kx-painel/75 px-6 py-6 backdrop-blur-sm lg:px-8">
         <div className="max-w-7xl mx-auto w-full">
-          <div className="h-9 w-56 rounded-lg bg-slate-200 dark:bg-slate-700 animate-pulse" />
-          <div className="h-4 w-80 rounded bg-slate-100 dark:bg-slate-800 animate-pulse mt-2" />
+          <div className="h-9 w-56 rounded-lg bg-kx-painel-borda animate-pulse" />
+          <div className="h-4 w-80 rounded bg-kx-superficie animate-pulse mt-2" />
         </div>
       </div>
       <div className="px-6 lg:px-8 py-6">
         <div className="max-w-7xl mx-auto">
           <div className="rounded-xl border border-border bg-card p-5 space-y-4">
             <div className="flex gap-3">
-              <div className="flex-1 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 animate-pulse" />
-              <div className="w-52 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 animate-pulse" />
-              <div className="w-36 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 animate-pulse" />
+              <div className="flex-1 h-10 rounded-lg bg-kx-superficie animate-pulse" />
+              <div className="w-52 h-10 rounded-lg bg-kx-superficie animate-pulse" />
+              <div className="w-36 h-10 rounded-lg bg-kx-superficie animate-pulse" />
             </div>
             <div className="rounded-lg border border-border overflow-hidden">
               {Array.from({ length: 8 }).map((_, i) => (
@@ -77,13 +77,13 @@ function SkeletonEstoque() {
                   key={i}
                   className="flex gap-4 items-center px-4 py-3 border-b border-border last:border-0"
                 >
-                  <div className="w-10 h-10 rounded-md bg-slate-100 dark:bg-slate-800 animate-pulse shrink-0" />
-                  <div className="flex-1 h-4 rounded bg-slate-100 dark:bg-slate-800 animate-pulse" />
-                  <div className="w-24 h-4 rounded bg-slate-100 dark:bg-slate-800 animate-pulse" />
-                  <div className="w-20 h-4 rounded bg-slate-100 dark:bg-slate-800 animate-pulse" />
-                  <div className="w-20 h-4 rounded bg-slate-100 dark:bg-slate-800 animate-pulse" />
-                  <div className="w-16 h-6 rounded-full bg-slate-100 dark:bg-slate-800 animate-pulse" />
-                  <div className="w-8 h-8 rounded-md bg-slate-100 dark:bg-slate-800 animate-pulse ml-auto" />
+                  <div className="w-10 h-10 rounded-md bg-kx-superficie animate-pulse shrink-0" />
+                  <div className="flex-1 h-4 rounded bg-kx-superficie animate-pulse" />
+                  <div className="w-24 h-4 rounded bg-kx-superficie animate-pulse" />
+                  <div className="w-20 h-4 rounded bg-kx-superficie animate-pulse" />
+                  <div className="w-20 h-4 rounded bg-kx-superficie animate-pulse" />
+                  <div className="w-16 h-6 rounded-full bg-kx-superficie animate-pulse" />
+                  <div className="w-8 h-8 rounded-md bg-kx-superficie animate-pulse ml-auto" />
                 </div>
               ))}
             </div>
@@ -111,20 +111,20 @@ interface ProdutoTabela {
 }
 
 const mapaCategoriaRotulo: Record<CategoriaProduto, string> = {
-  ACESSORIO: "Acessorio",
-  PECA_REPARO: "Peca de Reparo",
-  EQUIPAMENTO_REDE: "Equipamento de Rede",
-  SERVICO: "Servico",
-  OUTROS: "Outros",
+  ACESSORIO:"Acessorio",
+  PECA_REPARO:"Peca de Reparo",
+  EQUIPAMENTO_REDE:"Equipamento de Rede",
+  SERVICO:"Servico",
+  OUTROS:"Outros",
 };
 
 const formatarMoeda = (valor: number) =>
   new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
+    style:"currency",
+    currency:"BRL",
   }).format(valor);
 
-const normalizarTexto = (texto: string) => texto.toLowerCase().replace(/[^a-z0-9]/gi, "");
+const normalizarTexto = (texto: string) => texto.toLowerCase().replace(/[^a-z0-9]/gi,"");
 
 function ConteudoEstoque() {
   const router = useRouter();
@@ -133,7 +133,7 @@ function ConteudoEstoque() {
   const podeExcluirEstoque = useTemPermissao("estoque.excluir");
 
   // Página atual lida da URL (?page=N), com fallback para 1
-  const currentPage = Math.max(1, Number(searchParams.get("page") ?? "1"));
+  const currentPage = Math.max(1, Number(searchParams.get("page") ??"1"));
 
   const [produtos, setProdutos] = useState<ProdutoTabela[]>([]);
   const [totalProdutos, setTotalProdutos] = useState(0);
@@ -164,7 +164,7 @@ function ConteudoEstoque() {
   };
 
   const aoAlterarCategoria = (valor: string) => {
-    setCategoriaSelecionada(valor as "TODAS" | CategoriaProduto);
+    setCategoriaSelecionada(valor as"TODAS" | CategoriaProduto);
     irParaPagina(1);
   };
 
@@ -224,7 +224,7 @@ function ConteudoEstoque() {
     }
 
     toast.success(
-      produtoEditando ? "Produto atualizado com sucesso!" : "Produto cadastrado com sucesso!"
+      produtoEditando ?"Produto atualizado com sucesso!" :"Produto cadastrado com sucesso!"
     );
 
     setProdutoEditando(null);
@@ -266,7 +266,7 @@ function ConteudoEstoque() {
 
   return (
     <div className="w-full flex flex-col bg-transparent">
-      <div className="border-b border-slate-200/70 bg-white/75 px-6 py-6 backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/50 lg:px-8">
+      <div className="border-b border-kx-painel-borda/70 bg-kx-painel/75 px-6 py-6 backdrop-blur-sm lg:px-8">
         <div className="max-w-7xl mx-auto w-full">
           <h1 className="text-3xl font-bold text-foreground">Estoque & Produtos</h1>
           <p className="text-muted-foreground mt-2 text-sm">
@@ -350,10 +350,10 @@ function ConteudoEstoque() {
                           </TableCell>
                           <TableCell className="font-medium text-foreground">{produto.nome}</TableCell>
                           <TableCell>{mapaCategoriaRotulo[produto.categoria]}</TableCell>
-                          <TableCell>{produto.custo === null ? "—" : formatarMoeda(produto.custo)}</TableCell>
+                          <TableCell>{produto.custo === null ?"—" : formatarMoeda(produto.custo)}</TableCell>
                           <TableCell>{formatarMoeda(produto.precoVenda)}</TableCell>
                           <TableCell>
-                            <Badge variant={estoqueBaixo ? "destructive" : "outline"}>
+                            <Badge variant={estoqueBaixo ?"destructive" :"outline"}>
                               {produto.quantidadeEstoque}
                             </Badge>
                           </TableCell>
