@@ -19,21 +19,13 @@ const ARQUIVOS_COM_COR_LEGADA = [
   "app/(auth)/layout.tsx",
   "app/(auth)/login/page.tsx",
   "app/(auth)/login/recuperar/page.tsx",
-  "app/(dashboard)/crm/propostas/nova/page.tsx",
-  "app/(dashboard)/crm/propostas/page.tsx",
-  "app/(dashboard)/crm/propostas/\\[id\\]/page.tsx",
-  "app/(dashboard)/vendas/historico/page.tsx",
-  "app/(dashboard)/vendas/page.tsx",
   "app/(printer)/os/\\[id\\]/garantia/page.tsx",
   "app/(printer)/recibo/\\[id\\]/page.tsx",
-  "components/crm/proposal-actions-cell.tsx",
   "components/os/garantias/termo-garantia-documento.tsx",
   "components/os/impressao/estilos-impressao.ts",
   "components/os/impressao/os-impressao-a4.tsx",
   "components/pdf/PropostaPDF.tsx",
   "components/pdf/proposta-pdf-viewer.tsx",
-  "components/vendas/new-sales-order-wizard.tsx",
-  "components/vendas/sales-history-order-sheet.tsx",
 ];
 
 const eslintConfig = defineConfig([
