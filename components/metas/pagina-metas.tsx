@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Target } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { DashboardMetas } from "@/components/metas/dashboard-metas";
-import { CardMeta } from "@/components/metas/card-meta";
+import { ResumoMetas } from "@/components/metas/resumo-metas";
+import { LinhaMeta } from "@/components/metas/linha-meta";
+import { pesoDeUrgencia, calcularRitmo } from "@/lib/dominio/metas/ritmo";
 import { FiltrosMetas } from "@/components/metas/filtros-metas";
 import { ModalNovaMeta } from "@/components/metas/modal-nova-meta";
 import {
@@ -48,6 +49,45 @@ export function PaginaMetas() {
   const router = useRouter();
   const [filtros, setFiltros] = useState<FiltrosMetasInput>(filtrosIniciais);
   const [metas, setMetas] = useState<LinhaMetaLista[]>([]);
+
+  /**
+   * "Agora" fixado por montagem, e nao lido a cada render: o ritmo de cada
+   * linha depende dele, e um `new Date()` dentro do render daria um instante
+   * diferente por linha e por renderizacao — duas metas identicas poderiam
+   * mostrar dias restantes diferentes.
+   */
+  const agora = useMemo(() => new Date(), []);
+
+  /**
+   * Ordem por URGENCIA, nao por data de criacao. A lista tem que responder
+   * "o que eu faco agora": sincronizacao quebrada primeiro (o numero nao e
+   * confiavel), depois prazo vencido, depois fora do ritmo com prazo mais
+   * curto, e o que esta em ordem no fim.
+   */
+  const metasOrdenadas = useMemo(() => {
+    return [...metas]
+      .map((meta) => {
+        const ritmo = calcularRitmo({
+          progresso: meta.progresso,
+          inicio: meta.dataInicio ? new Date(meta.dataInicio) : null,
+          prazo: meta.dataPrazo ? new Date(meta.dataPrazo) : null,
+          agora,
+        });
+
+        return {
+          meta,
+          peso: pesoDeUrgencia({
+            situacao: ritmo.situacao,
+            status: meta.status,
+            folga: ritmo.folga,
+            diasRestantes: ritmo.diasRestantes,
+            temErroSincronizacao: Boolean(meta.erroSincronizacao),
+          }),
+        };
+      })
+      .sort((a, b) => a.peso - b.peso)
+      .map((item) => item.meta);
+  }, [metas, agora]);
   const [dashboard, setDashboard] = useState<DashboardMetasResult>(dashboardVazio);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
@@ -116,8 +156,7 @@ export function PaginaMetas() {
 
   return (
     <div className="space-y-6">
-      {/* Dashboard */}
-      <DashboardMetas dados={dashboard} />
+      <ResumoMetas dados={dashboard} />
 
       {/* Barra de ações */}
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -141,11 +180,11 @@ export function PaginaMetas() {
 
       {/* Lista */}
       {carregando ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+        <ul className="flex flex-col gap-2" aria-hidden>
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-40 rounded-lg bg-kx-superficie animate-pulse" />
+            <li key={i} className="h-[66px] rounded-kx-botao bg-kx-superficie animate-pulse" />
           ))}
-        </div>
+        </ul>
       ) : erro ? (
         <div className="text-center py-16 text-kx-legenda">
           <p>{erro}</p>
@@ -170,11 +209,11 @@ export function PaginaMetas() {
           ) : null}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-          {metas.map((m) => (
-            <CardMeta key={m.id} meta={m} />
+        <ul className="flex flex-col gap-2">
+          {metasOrdenadas.map((m) => (
+            <LinhaMeta key={m.id} meta={m} agora={agora} />
           ))}
-        </div>
+        </ul>
       )}
 
       <ModalNovaMeta
