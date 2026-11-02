@@ -5,7 +5,12 @@
  * `lib/dominio/os/maquina-estados.ts`, fonte unica de verdade do ciclo de vida
  * da OS. Este arquivo so re-exporta para nao quebrar os importadores atuais:
  *   - components/os/cartao-os.tsx
- *   - components/os/coluna-kanban.tsx  (componente morto, ver AUDIT_REPORT 17.2)
+ *
+ * O `coluna-kanban.tsx` que tambem importava daqui foi REMOVIDO em
+ * 02/11/2026: era o componente morto do AUDIT_REPORT 17.2, sem nenhum
+ * importador (so aparecia num barrel que tambem nao tinha consumidor), e
+ * apareceu quando a regra de cor passou a valer pra ele. Repintar componente
+ * que ninguem renderiza e trabalho jogado fora.
  *
  * O nome "mock-os" tambem e enganoso: nunca houve dado mockado aqui (F-67).
  * Nao adicione nada novo neste arquivo.

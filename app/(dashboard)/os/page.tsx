@@ -1,12 +1,12 @@
-import { DashboardOS } from "@/components/os/dashboard-os";
-import { obterDadosDashboardOS } from "@/app/actions/os";
-import { obterConfiguracoes } from "@/app/actions/configuracoes";
-import { listarGarantiasOS, obterDashboardGarantiasOS, type DashboardGarantiasOS, type LinhaGarantiaOS } from "@/app/actions/garantias";
-import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
+import { DashboardOS } from"@/components/os/dashboard-os";
+import { obterDadosDashboardOS } from"@/app/actions/os";
+import { obterConfiguracoes } from"@/app/actions/configuracoes";
+import { listarGarantiasOS, obterDashboardGarantiasOS, type DashboardGarantiasOS, type LinhaGarantiaOS } from"@/app/actions/garantias";
+import { exigirContextoTenant } from"@/lib/tenant/exigir-contexto-tenant";
 
 export const metadata = {
-  title: "Ordem de Serviço - Konext ERP",
-  description: "Gerenciar ordens de serviço e manutenção",
+  title:"Ordem de Serviço - Konext ERP",
+  description:"Gerenciar ordens de serviço e manutenção",
 };
 
 const DASHBOARD_GARANTIAS_VAZIO: DashboardGarantiasOS = {
@@ -22,9 +22,9 @@ const DASHBOARD_GARANTIAS_VAZIO: DashboardGarantiasOS = {
 };
 
 const FILTROS_GARANTIAS_INICIAIS = {
-  busca: "",
-  status: "TODAS" as const,
-  retorno: "TODAS" as const,
+  busca:"",
+  status:"TODAS" as const,
+  retorno:"TODAS" as const,
   pagina: 1,
   tamanhoPagina: 20,
 };
@@ -36,16 +36,16 @@ export default async function OSPage({
 }) {
   const params = await searchParams;
   const clienteIdInicial = params.clienteId ?? null;
-  const modoParam = String(params.modo ?? "").toLowerCase();
-  // "excluidas" e o link antigo de uma aba propria — vira o filtro de
+  const modoParam = String(params.modo ??"").toLowerCase();
+  //"excluidas" e o link antigo de uma aba propria — vira o filtro de
   // excluidas ja ligado dentro da aba Finalizadas (Fase 1C-3, Parte 5).
   const modoInicial =
-    modoParam === "lista" || modoParam === "excluidas"
-      ? "LISTA_FINALIZADAS"
-      : modoParam === "garantia"
-        ? "GARANTIA"
-        : "KANBAN";
-  const mostrarExcluidasInicial = modoParam === "excluidas";
+    modoParam ==="lista" || modoParam ==="excluidas"
+      ?"LISTA_FINALIZADAS"
+      : modoParam ==="garantia"
+        ?"GARANTIA"
+        :"KANBAN";
+  const mostrarExcluidasInicial = modoParam ==="excluidas";
 
   const [contexto, dadosDashboard, configuracoes, dashboardGarantias, listagemGarantias] = await Promise.all([
     exigirContextoTenant(),
@@ -61,12 +61,12 @@ export default async function OSPage({
   return (
     <div className="w-full bg-transparent">
       {/* Header Section */}
-      <div className="border-b border-slate-200/70 bg-white/75 px-6 py-6 backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/50 lg:px-8">
+      <div className="border-b border-kx-painel-borda/70 bg-kx-painel/75 px-6 py-6 backdrop-blur-sm lg:px-8">
         <div className="max-w-7xl">
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-50">
+          <h1 className="text-3xl font-bold text-kx-texto">
             Ordem de Serviço (OS)
           </h1>
-          <p className="text-slate-600 dark:text-slate-400 mt-2 text-sm">
+          <p className="text-kx-legenda mt-2 text-sm">
             Gerenciar entradas, orçamentos e status de manutenção de equipamentos
           </p>
         </div>

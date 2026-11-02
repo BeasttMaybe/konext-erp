@@ -225,7 +225,7 @@ export function ModalFinalizarRetornoGarantia({
                   onChange={(event) => setValorAdicional(event.target.value)}
                   disabled={processando}
                 />
-                {erroCobranca && <p className="text-xs text-red-600">{erroCobranca}</p>}
+                {erroCobranca && <p className="text-xs text-kx-erro-texto">{erroCobranca}</p>}
               </div>
             )}
           </div>

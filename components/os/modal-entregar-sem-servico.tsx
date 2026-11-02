@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState } from"react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -10,10 +10,10 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import type { OrdemServico } from "@/types/os";
+} from"@/components/ui/alert-dialog";
+import { Label } from"@/components/ui/label";
+import { Textarea } from"@/components/ui/textarea";
+import type { OrdemServico } from"@/types/os";
 
 const MOTIVO_MINIMO = 10;
 const MOTIVO_MAXIMO = 500;
@@ -21,7 +21,7 @@ const MOTIVO_MAXIMO = 500;
 export type ModalEntregarSemServicoProps = {
   aberta: boolean;
   onAbrirMudar: (aberta: boolean) => void;
-  os: Pick<OrdemServico, "id" | "numeroOS"> | null;
+  os: Pick<OrdemServico,"id" |"numeroOS"> | null;
   processando: boolean;
   onConfirmar: (motivo: string) => Promise<void>;
 };
@@ -38,7 +38,7 @@ export function ModalEntregarSemServico({
   processando,
   onConfirmar,
 }: ModalEntregarSemServicoProps) {
-  const [etapa, setEtapa] = useState<"confirmar" | "motivo">("confirmar");
+  const [etapa, setEtapa] = useState<"confirmar" |"motivo">("confirmar");
   const [motivo, setMotivo] = useState("");
 
   const motivoValido = motivo.trim().length >= MOTIVO_MINIMO;
@@ -46,12 +46,12 @@ export function ModalEntregarSemServico({
   return (
     <AlertDialog open={aberta} onOpenChange={onAbrirMudar}>
       <AlertDialogContent>
-        {etapa === "confirmar" ? (
+        {etapa ==="confirmar" ? (
           <>
             <AlertDialogHeader>
               <AlertDialogTitle>Encerrar sem serviço?</AlertDialogTitle>
               <AlertDialogDescription>
-                {`Tem certeza que deseja encerrar sem serviço vinculado na OS ${os?.numeroOS ?? ""}?`}
+                {`Tem certeza que deseja encerrar sem serviço vinculado na OS ${os?.numeroOS ??""}?`}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -71,7 +71,7 @@ export function ModalEntregarSemServico({
             <AlertDialogHeader>
               <AlertDialogTitle>Motivo do encerramento</AlertDialogTitle>
               <AlertDialogDescription>
-                {`Explique por que a OS ${os?.numeroOS ?? ""} está sendo encerrada sem peça ou serviço vinculado.`}
+                {`Explique por que a OS ${os?.numeroOS ??""} está sendo encerrada sem peça ou serviço vinculado.`}
               </AlertDialogDescription>
             </AlertDialogHeader>
 
@@ -87,7 +87,7 @@ export function ModalEntregarSemServico({
                 disabled={processando}
                 autoFocus
               />
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-kx-legenda">
                 {motivo.trim().length}/{MOTIVO_MAXIMO} caracteres (mínimo {MOTIVO_MINIMO})
               </p>
             </div>
@@ -101,7 +101,7 @@ export function ModalEntregarSemServico({
                   void onConfirmar(motivo.trim());
                 }}
               >
-                {processando ? "Encerrando..." : "Sim, encerrar sem serviço"}
+                {processando ?"Encerrando..." :"Sim, encerrar sem serviço"}
               </AlertDialogAction>
             </AlertDialogFooter>
           </>

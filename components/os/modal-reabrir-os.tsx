@@ -112,7 +112,7 @@ export function ModalReabrirOS({
               disabled={processando}
             />
             {erroMotivo ? (
-              <p className="text-xs text-red-600 dark:text-red-400">{erroMotivo}</p>
+              <p className="text-xs text-kx-erro-texto">{erroMotivo}</p>
             ) : (
               <p className="text-xs text-muted-foreground">
                 O motivo fica registrado na auditoria da OS.
