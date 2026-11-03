@@ -799,6 +799,12 @@ model Produto {
   ativo Boolean @default(true)
   criadoEm     DateTime @default(now()) @db.Timestamptz(3)
   atualizadoEm DateTime @updatedAt @db.Timestamptz(3)
+
+  /// O filtro da lista de estoque e os chips do PDV filtram por categoria.
+  /// O Prisma não cria índice de chave estrangeira sozinho no PostgreSQL —
+  /// sem esta linha, o `migrate diff` do CI pede a remoção do índice que a
+  /// migration cria (foi o que aconteceu).
+  @@index([categoriaId])
 }
 
 /**
