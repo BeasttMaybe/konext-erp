@@ -6,13 +6,15 @@
  */
 
 /**
- * Margem sobre o PREÇO DE VENDA: (preço − custo) ÷ preço.
+ * Margem LÍQUIDA, sobre o preço de venda: (preço − custo) ÷ preço.
  *
  * É a definição que a referência aprovada usa — custo R$ 12,00 e preço
- * R$ 34,90 aparecem como "Margem 65%", e 22,90 ÷ 34,90 = 65,6%. Vale deixar
- * escrito porque a outra conta possível com os mesmos dois números, o markup
- * ((preço − custo) ÷ custo), dá 190% para esse mesmo produto. Mostrar 190%
- * onde o dono espera 65% faria qualquer decisão de preço sair errada.
+ * R$ 34,90 aparecem como "Margem 65%", e 22,90 ÷ 34,90 = 65,6%. É também a
+ * conta que responde "de cada real que entra, quanto sobra".
+ *
+ * Não confundir com `markupPercentual`, que é a outra conta possível com os
+ * mesmos dois números e dá 190% para este mesmo produto. A tela mostra as
+ * duas, lado a lado e nomeadas, porque são perguntas diferentes.
  *
  * `null` quando o preço é zero ou negativo: sem preço não há margem, e exibir
  * 0% ou −100% nesse caso seria inventar um número para um produto que ainda
@@ -21,6 +23,32 @@
 export function margemPercentual(custoCentavos: number, precoCentavos: number): number | null {
   if (precoCentavos <= 0) return null;
   return ((precoCentavos - custoCentavos) / precoCentavos) * 100;
+}
+
+/**
+ * Markup, sobre o CUSTO: (preço − custo) ÷ custo.
+ *
+ * É a conta de quem forma preço a partir do que pagou — "multipliquei por
+ * quanto". O mesmo produto de custo R$ 12,00 vendido a R$ 34,90 tem markup de
+ * 190% e margem líquida de 65%: os dois números estão certos e respondem
+ * coisas diferentes, e é por isso que a tela mostra ambos nomeados. Um número
+ * de margem sem dizer qual é a base é um número que não dá pra usar.
+ *
+ * `null` em dois casos, por motivos diferentes:
+ *
+ * - **custo zero ou negativo**: dividir por zero daria infinito, e "markup
+ *   infinito" num brinde ou numa mão de obra sem custo de compra não é
+ *   informação, é ruído. A margem líquida desse mesmo produto é 100%, e essa
+ *   sim é verdadeira.
+ * - **preço zero ou negativo**: aqui a conta até funciona e dá −100%, mas o
+ *   caso real por trás de preço zero é "ainda não preenchi o preço", não
+ *   "decidi dar de graça". Mostrar −100% ali seria responder uma pergunta que
+ *   ninguém fez — e é o mesmo motivo de `margemPercentual` devolver `null`.
+ */
+export function markupPercentual(custoCentavos: number, precoCentavos: number): number | null {
+  if (custoCentavos <= 0) return null;
+  if (precoCentavos <= 0) return null;
+  return ((precoCentavos - custoCentavos) / custoCentavos) * 100;
 }
 
 /** Quanto sobra, em centavos, por unidade vendida. */

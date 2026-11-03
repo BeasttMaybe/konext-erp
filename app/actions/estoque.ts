@@ -9,7 +9,6 @@ import { formProdutoSchema, type FormProdutoEntrada } from "@/lib/validations/es
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 import { prefixoDaCategoria, proximoSku, validarSku } from "@/lib/dominio/estoque/sku";
-import { margemPercentual } from "@/lib/dominio/estoque/preco";
 import { codigoDaEtiqueta, digitoVerificadorEanConfere } from "@/lib/dominio/estoque/etiqueta";
 import { gerarCodigoDeBarrasSvg } from "@/lib/estoque/codigo-de-barras";
 import { deDecimal, multiplicarPorQuantidade, paraMoeda, somar, subtrair } from "@/lib/dinheiro";
@@ -929,8 +928,6 @@ export type ResumoProduto = {
   ultimaEntrada: { quando: string; custoUnitario: number | null } | null;
   /** Saldo × custo. `null` sem a permissão estoque.ver_custos. */
   valorParado: number | null;
-  /** Margem sobre o preço de venda, em pontos. `null` sem preço ou sem permissão. */
-  margem: number | null;
 };
 
 /**
@@ -949,7 +946,7 @@ export async function obterResumoProduto(produtoId: string): Promise<ResumoProdu
 
   const produto = await prisma.produto.findUnique({
     where: { id: produtoId },
-    select: { custo: true, precoVenda: true, quantidadeEstoque: true },
+    select: { custo: true, quantidadeEstoque: true },
   });
 
   if (!produto) return null;
@@ -974,7 +971,6 @@ export async function obterResumoProduto(produtoId: string): Promise<ResumoProdu
   ]);
 
   const custoCentavos = deDecimal(produto.custo);
-  const precoCentavos = deDecimal(produto.precoVenda);
 
   return {
     vendidasNoMes: doMes._sum.quantidade ?? 0,
@@ -991,7 +987,6 @@ export async function obterResumoProduto(produtoId: string): Promise<ResumoProdu
     valorParado: podeVerCustos
       ? paraMoeda(multiplicarPorQuantidade(custoCentavos, produto.quantidadeEstoque))
       : null,
-    margem: podeVerCustos ? margemPercentual(custoCentavos, precoCentavos) : null,
   };
 }
 
