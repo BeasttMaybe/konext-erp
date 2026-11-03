@@ -7,6 +7,10 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AssistenteNovaOS } from "./nova-os/assistente-nova-os";
+import {
+  ProvedorFotosPendentes,
+  useFotosPendentes,
+} from "./nova-os/fotos-da-entrada";
 import { validarFormatoImei } from "@/lib/dominio/os/validacao-imei";
 
 // Validação com Zod
@@ -64,7 +68,11 @@ type DadosNovaOSPayload = DadosNovaOS & { equipamento: string };
 interface ModalNovaOSProps {
   aberta: boolean;
   onAbrirMudar: (aberta: boolean) => void;
-  onSalvar?: (dados: DadosNovaOSPayload) => Promise<void>;
+  /**
+   * Devolve o id da OS criada, quando quem salva souber dele: é com ele que
+   * as fotos tiradas no cadastro sobem, logo depois.
+   */
+  onSalvar?: (dados: DadosNovaOSPayload) => Promise<string | void>;
   /** Quando informado, o cliente é pré-selecionado automaticamente ao abrir o modal. */
   clienteIdInicial?: string;
 }
@@ -102,6 +110,8 @@ export function ModalNovaOS({
     return parts.join(" ");
   };
 
+  const fotosPendentes = useFotosPendentes();
+
   const handleSalvar = async (dados: DadosNovaOS) => {
     try {
       setSalvando(true);
@@ -110,7 +120,25 @@ export function ModalNovaOS({
         equipamento: buildEquipamento(dados.marca, dados.modelo),
       };
 
-      await onSalvar?.(payload);
+      const ordemServicoId = await onSalvar?.(payload);
+
+      // As fotos sobem DEPOIS da OS existir, porque antes disso não há id a que
+      // ligá-las. Falha aqui não desfaz a OS: ela já está criada.
+      if (typeof ordemServicoId === "string" && ordemServicoId.length > 0) {
+        const { enviadas, falhas } = await fotosPendentes.enviarPara(ordemServicoId);
+
+        if (falhas > 0) {
+          toast.error(
+            falhas === 1
+              ? "A OS foi criada, mas 1 foto não subiu. Você pode adicioná-la na tela da OS."
+              : `A OS foi criada, mas ${falhas} fotos não subiram. Você pode adicioná-las na tela da OS.`
+          );
+        } else if (enviadas > 0) {
+          toast.success(enviadas === 1 ? "1 foto anexada à OS." : `${enviadas} fotos anexadas à OS.`);
+        }
+      }
+
+      fotosPendentes.limpar();
       formulario.reset();
       onAbrirMudar(false);
     } catch (error) {
@@ -137,6 +165,7 @@ export function ModalNovaOS({
           Assistente de 3 passos para cadastrar uma nova ordem de serviço: cliente e aparelho, entrada e orçamento.
         </DialogDescription>
         <FormProvider {...formulario}>
+          <ProvedorFotosPendentes valor={fotosPendentes}>
           <form onSubmit={formulario.handleSubmit(handleSalvar)} className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-6">
             <AssistenteNovaOS
               onCancelar={handleFechar}
@@ -145,6 +174,7 @@ export function ModalNovaOS({
               clienteIdInicial={clienteIdInicial}
             />
           </form>
+          </ProvedorFotosPendentes>
         </FormProvider>
       </DialogContent>
     </Dialog>

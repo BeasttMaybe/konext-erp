@@ -1,10 +1,10 @@
 "use client";
 
 import { useFormContext } from "react-hook-form";
-import { ImageOff } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { PainelFotosDaEntrada } from "./fotos-da-entrada";
 
 const CAMPO = "h-[46px] rounded-kx-botao border-kx-campo-borda bg-kx-superficie px-3.5 text-sm text-kx-texto placeholder:text-kx-placeholder";
 
@@ -51,20 +51,7 @@ export function PassoEntrada() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 rounded-kx-cartao bg-kx-superficie p-4">
-        <div className="flex items-center gap-2.5">
-          <span className="text-sm font-bold text-kx-texto">Fotos da entrada</span>
-          <span className="text-xs text-kx-legenda">Recomendado: registre o estado do aparelho</span>
-        </div>
-
-        {/* UI-only nesta fase — mesma regra da Parte 3 (fotos da OS): sem upload,
-            sem mudança de schema. Chega numa fase futura. */}
-        <div className="flex flex-col items-center gap-2 rounded-kx-botao border border-dashed border-kx-campo-borda bg-kx-cartao px-4 py-8 text-center">
-          <ImageOff className="h-6 w-6 text-kx-legenda" aria-hidden="true" />
-          <span className="text-xs text-kx-legenda">Fotos do aparelho chegam numa fase futura — por enquanto, use o checklist acima.</span>
-        </div>
-        <span className="text-xs text-kx-legenda">Pelo celular: abra a OS no aparelho ou use o QR Code depois de salvar.</span>
-      </div>
+      <PainelFotosDaEntrada />
     </div>
   );
 }
