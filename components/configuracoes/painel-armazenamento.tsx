@@ -77,11 +77,40 @@ export function PainelArmazenamento() {
         {situacao === null ? (
           <div className="mt-4 h-20 animate-pulse rounded-kx-botao bg-kx-superficie" />
         ) : situacao.configurado ? (
-          <dl className="mt-4 space-y-2">
-            <Linha rotulo="Bucket" valor={situacao.bucket ?? "—"} />
-            <Linha rotulo="Conta Cloudflare" valor={situacao.accountId ?? "—"} />
-            <Linha rotulo="Chaves de acesso" valor="Configuradas (não exibidas)" />
-          </dl>
+          <>
+            <dl className="mt-4 space-y-2">
+              <Linha rotulo="Bucket" valor={situacao.bucket ?? "—"} />
+              <Linha rotulo="Conta Cloudflare" valor={situacao.accountId ?? "—"} />
+              <Linha rotulo="Chaves de acesso" valor="Configuradas (não exibidas)" />
+            </dl>
+
+            {/* Formato impossível é detectado sem falar com a Cloudflare, então
+                aparece assim que a tela abre — antes de alguém clicar em testar
+                e receber um erro do SDK em inglês. */}
+            {situacao.problemasDeFormato.length > 0 && (
+              <div className="mt-4 rounded-kx-botao border border-kx-alerta bg-kx-alerta-fundo p-4">
+                <p className="text-sm font-bold text-kx-alerta-texto">
+                  {situacao.problemasDeFormato.length === 1
+                    ? "Um valor está com o formato errado"
+                    : `${situacao.problemasDeFormato.length} valores estão com o formato errado`}
+                </p>
+                <ul className="mt-2 space-y-2">
+                  {situacao.problemasDeFormato.map((problema) => (
+                    <li key={problema.variavel} className="text-sm text-kx-texto-2">
+                      <span className="font-bold tabular-nums text-kx-texto">
+                        {problema.variavel}
+                      </span>{" "}
+                      {problema.problema}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-3 text-xs text-kx-legenda">
+                  Corrija no Vercel, em Settings → Environment Variables. O sistema lê o valor
+                  novo no próximo deploy.
+                </p>
+              </div>
+            )}
+          </>
         ) : (
           <div className="mt-4 rounded-kx-botao border border-kx-alerta bg-kx-alerta-fundo p-4">
             <p className="text-sm font-bold text-kx-alerta-texto">
