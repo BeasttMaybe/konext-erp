@@ -76,18 +76,43 @@ export function GavetaLateralMobile() {
             const Icone = ICONES[item.iconKey] ?? LayoutDashboard;
 
             return (
-              <Link
-                key={item.path}
-                href={caminho}
-                aria-current={ativo ? "page" : undefined}
-                className={cn(
-                  "flex h-11 items-center gap-3 rounded-kx-botao px-3 text-sm font-medium",
-                  ativo ? "bg-kx-superficie text-kx-texto" : "text-kx-texto-2"
+              <div key={item.path}>
+                <Link
+                  href={caminho}
+                  aria-current={ativo ? "page" : undefined}
+                  className={cn(
+                    "flex h-11 items-center gap-3 rounded-kx-botao px-3 text-sm font-medium",
+                    ativo ? "bg-kx-superficie text-kx-texto" : "text-kx-texto-2"
+                  )}
+                >
+                  <Icone className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
+                  {item.label}
+                </Link>
+
+                {/* Aqui TODAS as seções ficam abertas, diferente da barra do
+                    desktop, onde só a ativa abre.
+
+                    A gaveta é aberta justamente pra ir pra outro lugar, e
+                    fecha assim que alguém navega. Exigir que a pessoa abra a
+                    seção primeiro pra só então ver "Contas a Receber"
+                    significaria abrir a gaveta, navegar pro Financeiro, abrir
+                    a gaveta de novo. A barra do desktop fica sempre à vista e
+                    não tem esse problema — por isso lá vale economizar linha. */}
+                {filhos.length > 1 && (
+                  <ul className="mb-1 mt-0.5 space-y-0.5 border-l border-kx-painel-borda pl-5">
+                    {filhos.map((filho) => (
+                      <li key={filho.path}>
+                        <Link
+                          href={filho.path}
+                          className="flex h-10 items-center rounded-kx-botao px-3 text-[13px] text-kx-texto-2"
+                        >
+                          {filho.label}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
                 )}
-              >
-                <Icone className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
-                {item.label}
-              </Link>
+              </div>
             );
           })}
         </nav>

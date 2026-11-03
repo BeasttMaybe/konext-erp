@@ -54,7 +54,15 @@ export const ITENS_NAVEGACAO: readonly ItemNavegacao[] = [
       { label: "Histórico", path: "/vendas/historico" },
     ],
   },
-  { label: "Estoque", path: "/estoque", iconKey: "Estoque" },
+  {
+    label: "Estoque",
+    path: "/estoque",
+    iconKey: "Estoque",
+    filhos: [
+      { label: "Produtos", path: "/estoque" },
+      { label: "Entrada de nota", path: "/estoque/notas/nova", permissoesRequeridas: ["estoque.editar"] },
+    ],
+  },
   {
     label: "Financeiro",
     path: "/financeiro",

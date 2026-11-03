@@ -18,7 +18,13 @@ import {
 import { cn } from "@/lib/utils";
 import { usePermissoes } from "@/contextos/contexto-permissoes";
 import type { Permissao } from "@/lib/auth/permissoes";
-import { caminhoDoItem, filhosVisiveis, ITENS_NAVEGACAO, itemEstaAtivo } from "@/lib/navegacao/itens-navegacao";
+import {
+  caminhoDoItem,
+  filhosVisiveis,
+  indiceFilhoAtivo,
+  ITENS_NAVEGACAO,
+  itemEstaAtivo,
+} from "@/lib/navegacao/itens-navegacao";
 import { logout } from "@/app/actions/auth";
 import { obterDadosPerfilConfiguracao } from "@/app/actions/configuracoes";
 import { StatusCaixa } from "./status-caixa";
@@ -113,6 +119,20 @@ export function BarraLateral() {
 
   const indiceAtivo = itensRenderizados.findIndex(({ item }) => itemEstaAtivo(item, pathname, searchParams));
 
+  // Os filhos da seção ABERTA, e só dela.
+  //
+  // A barra vinha calculando `filhosVisiveis` e não renderizando nada com o
+  // resultado: todo submenu do sistema era navegação morta. Propostas,
+  // Histórico de Vendas, Contas a Receber, Contas a Pagar, Fluxo e Notas
+  // Fiscais existiam, funcionavam e não tinham link em lugar nenhum — quem
+  // não soubesse a URL de cor não chegava.
+  //
+  // Só a seção ativa abre porque abrir todas daria vinte linhas numa barra
+  // de oito: o menu deixaria de ser um mapa e viraria uma lista pra ler.
+  const filhosAbertos = indiceAtivo >= 0 ? itensRenderizados[indiceAtivo].filhos : [];
+
+  const indiceDoFilhoAtivo = indiceFilhoAtivo(filhosAbertos, pathname, searchParams);
+
   // Mede a posição real do item ativo a cada troca de rota ou de lista
   // (permissão carregando de forma assíncrona pode mudar quantos itens
   // aparecem) — nunca calcula, sempre lê do elemento de verdade.
@@ -125,7 +145,10 @@ export function BarraLateral() {
     if (elementoAtivo) {
       setTopoIndicador(elementoAtivo.offsetTop);
     }
-  }, [indiceAtivo, itensRenderizados.length]);
+    // `filhosAbertos.length` entra nas dependências porque os filhos da seção
+    // aberta empurram pra baixo todo item que vem depois dela: sem isso o
+    // indicador fica medido na posição antiga e flutua sozinho na barra.
+  }, [indiceAtivo, itensRenderizados.length, filhosAbertos.length]);
 
   useEffect(() => {
     let ativo = true;
@@ -179,28 +202,63 @@ export function BarraLateral() {
             const Icone = ICONES[item.iconKey] ?? LayoutDashboard;
 
             return (
-              <Link
-                key={item.path}
-                ref={(elemento) => {
-                  refsItens.current[indice] = elemento;
-                }}
-                href={caminho}
-                aria-current={ativo ? "page" : undefined}
-                title={item.label}
-                className={cn(
-                  "kx-item-nav relative flex h-12 items-center justify-center gap-3 rounded-kx-botao px-0 text-sm font-medium xl:justify-start xl:px-3",
-                  ativo ? "font-bold text-kx-texto" : "text-kx-texto-2 hover:bg-kx-superficie/50 hover:text-kx-texto"
-                )}
-              >
-                <Icone
+              <div key={item.path}>
+                <Link
+                  ref={(elemento) => {
+                    refsItens.current[indice] = elemento;
+                  }}
+                  href={caminho}
+                  // Quando um filho é o destino exato, é ELE que carrega o
+                  // `aria-current`: dois "page" no mesmo menu fazem o leitor
+                  // de tela anunciar duas páginas atuais. O pai continua com
+                  // o destaque visual da seção, que é outra coisa.
+                  aria-current={ativo && indiceDoFilhoAtivo < 0 ? "page" : undefined}
+                  title={item.label}
                   className={cn(
-                    "h-5 w-5 shrink-0 transition-colors duration-200 ease-in-out",
-                    ativo && "text-kx-destaque"
+                    "kx-item-nav relative flex h-12 items-center justify-center gap-3 rounded-kx-botao px-0 text-sm font-medium xl:justify-start xl:px-3",
+                    ativo ? "font-bold text-kx-texto" : "text-kx-texto-2 hover:bg-kx-superficie/50 hover:text-kx-texto"
                   )}
-                  aria-hidden="true"
-                />
-                <span className="hidden truncate xl:inline">{item.label}</span>
-              </Link>
+                >
+                  <Icone
+                    className={cn(
+                      "h-5 w-5 shrink-0 transition-colors duration-200 ease-in-out",
+                      ativo && "text-kx-destaque"
+                    )}
+                    aria-hidden="true"
+                  />
+                  <span className="hidden truncate xl:inline">{item.label}</span>
+                </Link>
+
+                {/* Os filhos da seção aberta. Só aparecem na barra expandida
+                    (`xl`): no trilho de 72px não há onde escrever "Contas a
+                    Receber", e um ícone repetido oito vezes não é navegação.
+                    Nessa largura o caminho continua sendo a própria página,
+                    que tem as abas dela. */}
+                {ativo && filhos.length > 1 && (
+                  <ul className="mt-1 hidden space-y-0.5 border-l border-kx-painel-borda pl-3 xl:block">
+                    {filhos.map((filho, indiceDoFilho) => {
+                      const filhoAtivo = indiceDoFilho === indiceDoFilhoAtivo;
+
+                      return (
+                        <li key={filho.path}>
+                          <Link
+                            href={filho.path}
+                            aria-current={filhoAtivo ? "page" : undefined}
+                            className={cn(
+                              "flex h-9 items-center truncate rounded-kx-botao px-3 text-[13px]",
+                              filhoAtivo
+                                ? "bg-kx-superficie font-semibold text-kx-texto"
+                                : "text-kx-texto-2 hover:bg-kx-superficie/50 hover:text-kx-texto"
+                            )}
+                          >
+                            {filho.label}
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
             );
           })}
         </div>
