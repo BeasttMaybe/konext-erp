@@ -35,7 +35,9 @@ import { digitoVerificadorEanConfere } from "@/lib/dominio/estoque/etiqueta";
 import {
   UNIDADES_DE_MEDIDA,
   UNIDADE_PADRAO,
+  lucroPorUnidadeCentavos,
   margemPercentual,
+  markupPercentual,
   saudeDaMargem,
 } from "@/lib/dominio/estoque/preco";
 
@@ -153,11 +155,18 @@ export function PaginaProduto({
   const custoEmReais = Number(campos.custo.replace(",", ".")) || 0;
   const precoEmReais = Number(campos.precoVenda.replace(",", ".")) || 0;
 
-  const margem = useMemo(
-    () => margemPercentual(deDecimal(custoEmReais), deDecimal(precoEmReais)),
-    [custoEmReais, precoEmReais]
-  );
-  const saude = saudeDaMargem(margem);
+  const precificacao = useMemo(() => {
+    const custoCentavos = deDecimal(custoEmReais);
+    const precoCentavos = deDecimal(precoEmReais);
+
+    return {
+      margem: margemPercentual(custoCentavos, precoCentavos),
+      markup: markupPercentual(custoCentavos, precoCentavos),
+      lucroCentavos: lucroPorUnidadeCentavos(custoCentavos, precoCentavos),
+    };
+  }, [custoEmReais, precoEmReais]);
+
+  const saude = saudeDaMargem(precificacao.margem);
 
   // O verificador é conferido na tela, antes de salvar: um dígito trocado só
   // apareceria na hora de imprimir, e lá a mensagem vem do gerador.
@@ -435,7 +444,13 @@ export function PaginaProduto({
             <section className="rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5">
               <div className="flex items-center justify-between gap-3">
                 <h2 className="text-base font-semibold text-kx-texto">Preço e estoque</h2>
-                {podeVerCustos && <PilulaDeMargem margem={margem} saude={saude} />}
+                {podeVerCustos && (
+                  <PilulasDePrecificacao
+                    margem={precificacao.margem}
+                    markup={precificacao.markup}
+                    saude={saude}
+                  />
+                )}
               </div>
 
               <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -500,6 +515,15 @@ export function PaginaProduto({
                   <p className="text-xs text-kx-legenda">Avisa no painel abaixo disto.</p>
                 </div>
               </div>
+
+              {podeVerCustos && saude !== "SEM_PRECO" && (
+                <p className="mt-3 text-sm text-kx-texto-2">
+                  Sobra <span className="font-bold tabular-nums text-kx-texto">
+                    {formatarReais(precificacao.lucroCentavos)}
+                  </span>{" "}
+                  por {campos.unidade === "UN" ? "unidade" : "item"} vendido.
+                </p>
+              )}
 
               <div className="mt-4 flex items-center gap-3 rounded-kx-botao bg-kx-superficie px-4 py-3">
                 <div className="flex-1">
@@ -597,21 +621,44 @@ export function PaginaProduto({
   );
 }
 
-function PilulaDeMargem({
+/**
+ * Markup e margem líquida, lado a lado e NOMEADOS.
+ *
+ * São o par clássico de formação de preço, e dão números bem diferentes para o
+ * mesmo produto: custo R$ 12,00 vendido a R$ 34,90 tem markup de 190% e margem
+ * líquida de 65%. Os dois estão certos — markup responde "multipliquei por
+ * quanto sobre o que paguei", margem líquida responde "de cada real que entra,
+ * quanto sobra". Um número de margem sem dizer qual é a base é um número que
+ * não dá pra usar, e é por isso que o rótulo vem junto.
+ *
+ * A cor segue a margem LÍQUIDA, não o markup: é ela que diz se o negócio se
+ * sustenta. Um markup de 50% parece confortável e é margem de 33%.
+ */
+function PilulasDePrecificacao({
   margem,
+  markup,
   saude,
 }: {
   margem: number | null;
+  markup: number | null;
   saude: ReturnType<typeof saudeDaMargem>;
 }) {
   if (saude === "SEM_PRECO") {
     return <PilulaStatus variante="neutro">Sem preço</PilulaStatus>;
   }
 
-  const texto = `Margem ${Math.round(margem ?? 0)}%`;
+  const variante =
+    saude === "PREJUIZO" ? "erro" : saude === "APERTADA" ? "alerta" : "sucesso";
 
-  if (saude === "PREJUIZO") return <PilulaStatus variante="erro">{texto}</PilulaStatus>;
-  if (saude === "APERTADA") return <PilulaStatus variante="alerta">{texto}</PilulaStatus>;
-
-  return <PilulaStatus variante="sucesso">{texto}</PilulaStatus>;
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <PilulaStatus variante={variante}>Margem líquida {Math.round(margem ?? 0)}%</PilulaStatus>
+      {markup !== null ? (
+        <PilulaStatus variante="neutro">Markup {Math.round(markup)}%</PilulaStatus>
+      ) : (
+        // Markup nulo aqui é custo zero: brinde, mão de obra, serviço.
+        <PilulaStatus variante="neutro">Sem custo</PilulaStatus>
+      )}
+    </div>
+  );
 }

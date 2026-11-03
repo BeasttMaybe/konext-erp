@@ -5,6 +5,7 @@ import {
   ehUnidadeValida,
   lucroPorUnidadeCentavos,
   margemPercentual,
+  markupPercentual,
   rotuloDaUnidade,
   saudeDaMargem,
 } from "./preco";
@@ -41,6 +42,48 @@ describe("estoque/preco — margem", () => {
   it("o lucro por unidade sai em centavos", () => {
     expect(lucroPorUnidadeCentavos(1200, 3490)).toBe(2290);
     expect(lucroPorUnidadeCentavos(3490, 1200)).toBe(-2290);
+  });
+});
+
+describe("estoque/preco — markup", () => {
+  /**
+   * O par clássico: o MESMO produto tem markup 190% e margem líquida 65%. Os
+   * dois números estão certos e respondem perguntas diferentes — markup é
+   * "multipliquei por quanto sobre o que paguei", margem líquida é "de cada
+   * real que entra, quanto sobra".
+   */
+  it("o mesmo produto dá 190% de markup e 65% de margem líquida", () => {
+    expect(markupPercentual(1200, 3490)).toBeCloseTo(190.83, 1);
+    expect(margemPercentual(1200, 3490)).toBeCloseTo(65.61, 1);
+  });
+
+  it("dobrar o preço do custo é markup de 100% e margem de 50%", () => {
+    expect(markupPercentual(1000, 2000)).toBe(100);
+    expect(margemPercentual(1000, 2000)).toBe(50);
+  });
+
+  it("preço igual ao custo é zero nas duas contas", () => {
+    expect(markupPercentual(1000, 1000)).toBe(0);
+    expect(margemPercentual(1000, 1000)).toBe(0);
+  });
+
+  it("vender abaixo do custo é negativo nas duas", () => {
+    expect(markupPercentual(2000, 1000)).toBe(-50);
+    expect(margemPercentual(2000, 1000)).toBe(-100);
+  });
+
+  it("sem custo não existe markup, mas a margem líquida existe", () => {
+    // Brinde e mão de obra não têm custo de compra. "Markup infinito" ali não
+    // é informação; margem líquida de 100% é verdade.
+    expect(markupPercentual(0, 3490)).toBeNull();
+    expect(margemPercentual(0, 3490)).toBe(100);
+  });
+
+  it("sem preço não existe nenhuma das duas", () => {
+    // A conta de markup até funcionaria aqui (daria −100%), mas preço zero na
+    // prática é "ainda não preenchi", não "decidi dar de graça".
+    expect(markupPercentual(1200, 0)).toBeNull();
+    expect(margemPercentual(1200, 0)).toBeNull();
   });
 });
 
