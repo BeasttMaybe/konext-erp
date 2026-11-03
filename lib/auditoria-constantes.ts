@@ -75,6 +75,12 @@ export const ACOES_AUDITORIA = {
   // produtos de uma vez, que e a coisa mais consequente que alguem faz no
   // estoque sem estar vendendo nada.
   LANCAR_NOTA_DE_COMPRA: "LANCAR_NOTA_DE_COMPRA",
+  // Link de envio de foto pelo celular. Criar e revogar sao registrados
+  // porque o link e credencial portadora: quem tem ele sobe foto na OS sem
+  // fazer login. Quem abriu esse acesso e quando, e quem fechou, e a unica
+  // forma de responder "de onde veio essa foto?" depois.
+  CRIAR_LINK_FOTO_OS: "CRIAR_LINK_FOTO_OS",
+  REVOGAR_LINK_FOTO_OS: "REVOGAR_LINK_FOTO_OS",
 } as const;
 
 export const ENTIDADES_AUDITORIA = {

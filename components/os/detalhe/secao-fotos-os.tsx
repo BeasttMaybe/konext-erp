@@ -28,6 +28,7 @@ import {
   type MomentoFoto,
 } from "@/lib/dominio/os/fotos";
 import { reduzirImagem } from "@/lib/fotos/reduzir-imagem";
+import { PainelLinkDoCelular } from "@/components/os/fotos/painel-link-do-celular";
 
 /**
  * Fotos do aparelho.
@@ -52,6 +53,7 @@ export function SecaoFotosOS({ ordemServicoId }: { ordemServicoId: string }) {
   const [configurado, setConfigurado] = useState<boolean | null>(null);
   const [limite, setLimite] = useState(20);
   const [enviando, setEnviando] = useState(false);
+  const [painelDoCelularAberto, setPainelDoCelularAberto] = useState(false);
   const [momentoDoEnvio, setMomentoDoEnvio] = useState<MomentoFoto>("ENTRADA");
   const [ampliada, setAmpliada] = useState<FotoDaOS | null>(null);
   const [paraApagar, setParaApagar] = useState<FotoDaOS | null>(null);
@@ -166,9 +168,7 @@ export function SecaoFotosOS({ ordemServicoId }: { ordemServicoId: string }) {
               type="button"
               variant="outline"
               size="sm"
-              disabled
-              title="Chega na próxima etapa"
-              className="opacity-60"
+              onClick={() => setPainelDoCelularAberto(true)}
             >
               <Smartphone className="h-4 w-4" />
               Enviar pelo celular
@@ -378,6 +378,12 @@ export function SecaoFotosOS({ ordemServicoId }: { ordemServicoId: string }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <PainelLinkDoCelular
+        ordemServicoId={ordemServicoId}
+        aberto={painelDoCelularAberto}
+        aoFechar={() => setPainelDoCelularAberto(false)}
+      />
     </div>
   );
 }
