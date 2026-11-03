@@ -5,60 +5,322 @@ import { revalidatePath } from "next/cache";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { exigirPermissao, temPermissao } from "@/lib/auth/permissoes";
 import { mensagemDeErroConhecido } from "@/lib/erros";
-import { formProdutoSchema, type FormProduto } from "@/lib/validations/estoque";
+import { formProdutoSchema, type FormProdutoEntrada } from "@/lib/validations/estoque";
+import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
+import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
+import { prefixoDaCategoria, proximoSku, validarSku } from "@/lib/dominio/estoque/sku";
+import { margemPercentual } from "@/lib/dominio/estoque/preco";
+import { codigoDaEtiqueta, digitoVerificadorEanConfere } from "@/lib/dominio/estoque/etiqueta";
+import { gerarCodigoDeBarrasSvg } from "@/lib/estoque/codigo-de-barras";
 import { deDecimal, multiplicarPorQuantidade, paraMoeda, somar, subtrair } from "@/lib/dinheiro";
 import { agoraNaLoja, somarDias } from "@/lib/datas";
 import { registrarMovimentacaoEstoque } from "@/lib/estoque-movimentacao";
 
-type ResultadoCriarProduto =
-  | { sucesso: true; mensagem: string }
+type ResultadoProduto =
+  | { sucesso: true; mensagem: string; produtoId: string }
   | { sucesso: false; mensagem: string };
 
-export async function criarProduto(data: FormProduto): Promise<ResultadoCriarProduto> {
+/**
+ * SKU sugerido para uma categoria: prefixo dela + o próximo sequencial livre.
+ *
+ * Fica no servidor porque depende dos SKUs já gravados. A tela chama isto ao
+ * escolher a categoria no cadastro de um produto novo, e o dono pode trocar o
+ * valor por um código próprio.
+ */
+export async function sugerirSku(categoriaId: string): Promise<string | null> {
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "estoque.ver");
+
+  const categoria = await contexto.prisma.categoriaProduto.findUnique({
+    where: { id: categoriaId },
+    select: { nome: true },
+  });
+
+  if (!categoria) return null;
+
+  const prefixo = prefixoDaCategoria(categoria.nome);
+
+  // Só os SKUs do prefixo interessam, e eles são poucos por categoria. Buscar
+  // todos e achar o maior em memória é mais simples (e mais correto) que um
+  // MAX() em SQL, que precisaria desmontar o texto pra achar o número.
+  const existentes = await contexto.prisma.produto.findMany({
+    where: { sku: { startsWith: `${prefixo}-` } },
+    select: { sku: true },
+  });
+
+  return proximoSku(
+    prefixo,
+    existentes.map((produto) => produto.sku ?? "").filter((sku) => sku.length > 0)
+  );
+}
+
+export type ProdutoParaEdicao = {
+  id: string;
+  nome: string;
+  categoriaId: string;
+  sku: string | null;
+  unidade: string;
+  codigoBarras: string | null;
+  compatibilidade: string | null;
+  imagemUrl: string | null;
+  descricao: string | null;
+  /** `null` sem a permissão estoque.ver_custos (F-41). */
+  custo: number | null;
+  precoVenda: number;
+  quantidadeEstoque: number;
+  estoqueMinimo: number;
+  permiteVendaSemEstoque: boolean;
+  ativo: boolean;
+};
+
+export async function obterProdutoParaEdicao(id: string): Promise<ProdutoParaEdicao | null> {
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "estoque.ver");
+  const podeVerCustos = temPermissao(contexto, "estoque.ver_custos");
+
+  const produto = await contexto.prisma.produto.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      nome: true,
+      categoriaId: true,
+      sku: true,
+      unidade: true,
+      codigoBarras: true,
+      compatibilidade: true,
+      imagemUrl: true,
+      descricao: true,
+      custo: true,
+      precoVenda: true,
+      quantidadeEstoque: true,
+      estoqueMinimo: true,
+      permiteVendaSemEstoque: true,
+      ativo: true,
+    },
+  });
+
+  if (!produto) return null;
+
+  return {
+    ...produto,
+    custo: podeVerCustos ? paraMoeda(deDecimal(produto.custo)) : null,
+    precoVenda: paraMoeda(deDecimal(produto.precoVenda)),
+  };
+}
+
+/**
+ * Cria ou atualiza um produto. `id` nulo é cadastro novo.
+ *
+ * Era duas actions (`criarProduto` e `atualizarProduto`) com o mesmo corpo
+ * copiado, e a divergência já tinha começado: só a de atualizar registrava
+ * movimentação de ajuste de saldo. Uma função, uma regra.
+ *
+ * Registra auditoria, que NENHUMA das duas fazia. Mudança de custo e de preço
+ * de venda é mudança de dinheiro: sem log, não há como responder depois por que
+ * a margem de um produto mudou, nem quem mudou.
+ */
+export async function salvarProduto(
+  id: string | null,
+  dados: FormProdutoEntrada
+): Promise<ResultadoProduto> {
   try {
     const contexto = await exigirContextoTenant();
     exigirPermissao(contexto, "estoque.editar");
     const prisma = contexto.prisma;
-    const dadosValidados = formProdutoSchema.parse(data);
 
-    // Fase 4: produto e saldo inicial nascem na MESMA transacao do movimento
-    // que explica esse saldo. Sem isso, o primeiro numero de todo produto
-    // apareceria no livro como se tivesse surgido do nada.
-    await prisma.$transaction(async (tx) => {
-      const criado = await tx.produto.create({
-        data: {
-          nome: dadosValidados.nome.trim(),
-          codigoBarras: dadosValidados.codigoBarras?.trim() || null,
-          imagemUrl: dadosValidados.imagemUrl?.trim() || null,
-          descricao: dadosValidados.descricao?.trim() || null,
-          categoria: dadosValidados.categoria,
-          custo: dadosValidados.custo,
-          precoVenda: dadosValidados.precoVenda,
-          quantidadeEstoque: dadosValidados.quantidadeEstoque,
-          estoqueMinimo: dadosValidados.estoqueMinimo,
+    const validados = formProdutoSchema.parse(dados);
+
+    const categoria = await prisma.categoriaProduto.findUnique({
+      where: { id: validados.categoriaId },
+      select: { id: true, nome: true, ativa: true },
+    });
+
+    if (!categoria) {
+      return { sucesso: false, mensagem: "Categoria não encontrada." };
+    }
+
+    // Categoria desativada só continua valendo para o produto que já estava
+    // nela: bloquear a edição de um produto por causa disso prenderia o dono
+    // num beco — ele não conseguiria nem trocar a categoria, que é a saída.
+    if (!categoria.ativa && id === null) {
+      return { sucesso: false, mensagem: "Esta categoria está desativada. Escolha outra." };
+    }
+
+    let sku: string | null = null;
+
+    if (validados.sku && validados.sku.trim().length > 0) {
+      const validacao = validarSku(validados.sku);
+      if (!validacao.valido) {
+        return { sucesso: false, mensagem: validacao.erro };
+      }
+      sku = validacao.sku;
+    } else if (id === null) {
+      // Só gera no cadastro. Num produto antigo sem SKU, gerar aqui criaria um
+      // código em silêncio para um item que já está na prateleira sem etiqueta.
+      sku = await sugerirSku(categoria.id);
+    }
+
+    const camposDoCadastro = {
+      nome: validados.nome,
+      categoriaId: categoria.id,
+      unidade: validados.unidade,
+      codigoBarras: validados.codigoBarras || null,
+      compatibilidade: validados.compatibilidade || null,
+      imagemUrl: validados.imagemUrl || null,
+      descricao: validados.descricao || null,
+      custo: validados.custo,
+      precoVenda: validados.precoVenda,
+      estoqueMinimo: validados.estoqueMinimo,
+      permiteVendaSemEstoque: validados.permiteVendaSemEstoque,
+      ativo: validados.ativo,
+    };
+
+    const produtoId = await prisma.$transaction(async (tx) => {
+      if (id === null) {
+        // Produto e saldo inicial nascem na MESMA transação do movimento que
+        // explica esse saldo. Sem isso, o primeiro número de todo produto
+        // apareceria no livro como se tivesse surgido do nada.
+        const criado = await tx.produto.create({
+          data: {
+            ...camposDoCadastro,
+            sku,
+            quantidadeEstoque: validados.quantidadeEstoque,
+          },
+          select: { id: true, quantidadeEstoque: true },
+        });
+
+        if (criado.quantidadeEstoque > 0) {
+          await registrarMovimentacaoEstoque(tx, {
+            produtoId: criado.id,
+            origem: "CADASTRO",
+            quantidade: criado.quantidadeEstoque,
+            saldoPosterior: criado.quantidadeEstoque,
+            custoUnitario: validados.custo,
+            observacao: "Saldo informado no cadastro do produto",
+            registradoPorId: contexto.usuarioOperacional?.id ?? null,
+          });
+        }
+
+        await registrarLogAuditoria(
+          tx,
+          contextoAuditoriaDoUsuario(
+            contexto.usuarioOperacional,
+            "app/actions/estoque.ts:salvarProduto"
+          ),
+          {
+            acao: ACOES_AUDITORIA.CRIAR,
+            entidade: ENTIDADES_AUDITORIA.PRODUTO,
+            entidadeId: criado.id,
+            dadosDepois: {
+              nome: validados.nome,
+              sku,
+              categoria: categoria.nome,
+              custo: validados.custo,
+              precoVenda: validados.precoVenda,
+              saldoInicial: criado.quantidadeEstoque,
+            },
+          }
+        );
+
+        return criado.id;
+      }
+
+      // Lê ANTES de escrever: é a única forma de saber se a edição mexeu no
+      // saldo, de quanto foi a diferença, e o que mudou de dinheiro.
+      const antes = await tx.produto.findUnique({
+        where: { id },
+        select: {
+          quantidadeEstoque: true,
+          custo: true,
+          precoVenda: true,
+          nome: true,
+          sku: true,
+          categoriaId: true,
+          ativo: true,
         },
-        select: { id: true, quantidadeEstoque: true },
       });
 
-      if (criado.quantidadeEstoque > 0) {
+      if (!antes) {
+        throw new Prisma.PrismaClientKnownRequestError("Produto não encontrado", {
+          code: "P2025",
+          clientVersion: "manual",
+        });
+      }
+
+      await tx.produto.update({
+        where: { id },
+        data: {
+          ...camposDoCadastro,
+          // SKU só é sobrescrito quando veio preenchido: salvar a tela sem
+          // tocar no campo não deve apagar o código que já está na etiqueta.
+          ...(sku !== null ? { sku } : {}),
+          quantidadeEstoque: validados.quantidadeEstoque,
+        },
+      });
+
+      const saldoNovo = validados.quantidadeEstoque;
+
+      // Edição que não toca no saldo não vira movimento: o livro é de estoque,
+      // não de cadastro. Trocar o nome do produto não é entrada nem saída.
+      if (saldoNovo !== antes.quantidadeEstoque) {
+        const diferenca = saldoNovo - antes.quantidadeEstoque;
+
         await registrarMovimentacaoEstoque(tx, {
-          produtoId: criado.id,
-          origem: "CADASTRO",
-          quantidade: criado.quantidadeEstoque,
-          saldoPosterior: criado.quantidadeEstoque,
-          custoUnitario: dadosValidados.custo,
-          observacao: "Saldo informado no cadastro do produto",
+          produtoId: id,
+          origem: "AJUSTE_MANUAL",
+          tipo: "AJUSTE",
+          quantidade: Math.abs(diferenca),
+          saldoPosterior: saldoNovo,
+          custoUnitario: validados.custo,
+          observacao:
+            diferenca > 0
+              ? `Saldo corrigido à mão de ${antes.quantidadeEstoque} para ${saldoNovo} (+${diferenca})`
+              : `Saldo corrigido à mão de ${antes.quantidadeEstoque} para ${saldoNovo} (${diferenca})`,
           registradoPorId: contexto.usuarioOperacional?.id ?? null,
         });
       }
+
+      await registrarLogAuditoria(
+        tx,
+        contextoAuditoriaDoUsuario(
+          contexto.usuarioOperacional,
+          "app/actions/estoque.ts:salvarProduto"
+        ),
+        {
+          acao: ACOES_AUDITORIA.ATUALIZAR_PRODUTO,
+          entidade: ENTIDADES_AUDITORIA.PRODUTO,
+          entidadeId: id,
+          dadosAntes: {
+            nome: antes.nome,
+            sku: antes.sku,
+            custo: paraMoeda(deDecimal(antes.custo)),
+            precoVenda: paraMoeda(deDecimal(antes.precoVenda)),
+            saldo: antes.quantidadeEstoque,
+            ativo: antes.ativo,
+          },
+          dadosDepois: {
+            nome: validados.nome,
+            sku: sku ?? antes.sku,
+            custo: validados.custo,
+            precoVenda: validados.precoVenda,
+            saldo: saldoNovo,
+            ativo: validados.ativo,
+          },
+        }
+      );
+
+      return id;
     });
 
     revalidatePath("/estoque");
+    revalidatePath(`/estoque/produtos/${produtoId}`);
+    revalidatePath("/pdv");
     revalidatePath("/");
 
     return {
       sucesso: true,
-      mensagem: "Produto cadastrado com sucesso.",
+      mensagem: id === null ? "Produto cadastrado." : "Produto atualizado.",
+      produtoId,
     };
   } catch (erro) {
     const mensagemConhecida = mensagemDeErroConhecido(erro);
@@ -66,22 +328,21 @@ export async function criarProduto(data: FormProduto): Promise<ResultadoCriarPro
       return { sucesso: false, mensagem: mensagemConhecida };
     }
 
-    if (
-      erro instanceof Prisma.PrismaClientKnownRequestError &&
-      erro.code === "P2002"
-    ) {
-      return {
-        sucesso: false,
-        mensagem: "Ja existe um produto com este codigo de barras.",
-      };
+    if (erro instanceof Prisma.PrismaClientKnownRequestError && erro.code === "P2002") {
+      // O índice único é por campo: dizer QUAL colidiu evita a caça ao erro.
+      const alvo = String(erro.meta?.target ?? "");
+      if (alvo.includes("sku")) {
+        return { sucesso: false, mensagem: "Já existe um produto com este SKU." };
+      }
+      return { sucesso: false, mensagem: "Já existe um produto com este código de barras." };
     }
 
-    console.error("Erro ao criar produto:", erro);
+    if (erro instanceof Prisma.PrismaClientKnownRequestError && erro.code === "P2025") {
+      return { sucesso: false, mensagem: "Produto não encontrado." };
+    }
 
-    return {
-      sucesso: false,
-      mensagem: "Nao foi possivel cadastrar o produto. Tente novamente.",
-    };
+    console.error("Erro ao salvar produto:", erro);
+    return { sucesso: false, mensagem: "Não foi possível salvar o produto. Tente novamente." };
   }
 }
 
@@ -141,7 +402,8 @@ export async function listarProdutosPaginado(
   page: number = 1,
   limit: number = 20,
   busca?: string,
-  categoria?: FormProduto["categoria"] | "TODAS",
+  /** Id da categoria cadastrada, ou "TODAS". */
+  categoriaId?: string,
   situacao: SituacaoEstoque = "TODAS",
   ordem: "nome" | "menor_saldo" | "maior_valor" = "nome"
 ): Promise<PaginatedResult<{
@@ -150,6 +412,10 @@ export async function listarProdutosPaginado(
   codigoBarras: string | null;
   imagemUrl: string | null;
   descricao: string | null;
+  sku: string | null;
+  unidade: string;
+  categoriaId: string;
+  /** Nome da categoria cadastrada, pra tela não precisar de um segundo mapa. */
   categoria: string;
   /** null quando o usuario logado nao tem a permissao estoque.ver_custos (F-41). */
   custo: number | null;
@@ -165,15 +431,19 @@ export async function listarProdutosPaginado(
 
   const where: Prisma.ProdutoWhereInput = { ativo: true };
 
-  if (categoria && categoria !== "TODAS") {
-    where.categoria = categoria;
+  if (categoriaId && categoriaId !== "TODAS") {
+    where.categoriaId = categoriaId;
   }
 
   if (busca && busca.trim().length > 0) {
     const termo = busca.trim();
     where.OR = [
-      { nome:          { contains: termo, mode: "insensitive" } },
-      { codigoBarras:  { contains: termo, mode: "insensitive" } },
+      { nome: { contains: termo, mode: "insensitive" } },
+      { codigoBarras: { contains: termo, mode: "insensitive" } },
+      // O SKU é justamente o código curto que se digita pra achar o produto:
+      // deixá-lo fora da busca seria criar o campo e esconder o uso dele.
+      { sku: { contains: termo, mode: "insensitive" } },
+      { compatibilidade: { contains: termo, mode: "insensitive" } },
     ];
   }
 
@@ -215,7 +485,10 @@ export async function listarProdutosPaginado(
         codigoBarras: true,
         imagemUrl: true,
         descricao: true,
-        categoria: true,
+        sku: true,
+        unidade: true,
+        categoriaId: true,
+        categoriaDoProduto: { select: { nome: true } },
         custo: true,
         precoVenda: true,
         quantidadeEstoque: true,
@@ -227,8 +500,9 @@ export async function listarProdutosPaginado(
   return {
     // Custo/margem só vai para o cliente com estoque.ver_custos (F-41).
     // Omitido no mapeamento do servidor — nunca filtrado na UI.
-    data: produtos.map((produto) => ({
+    data: produtos.map(({ categoriaDoProduto, ...produto }) => ({
       ...produto,
+      categoria: categoriaDoProduto.nome,
       custo: podeVerCustos && produto.custo !== null ? paraMoeda(deDecimal(produto.custo)) : null,
       precoVenda: paraMoeda(deDecimal(produto.precoVenda)),
     })),
@@ -238,106 +512,25 @@ export async function listarProdutosPaginado(
   };
 }
 
-export async function atualizarProduto(
-  id: string,
-  data: FormProduto
-): Promise<ResultadoCriarProduto> {
-  try {
-    const contexto = await exigirContextoTenant();
-    exigirPermissao(contexto, "estoque.editar");
-    const prisma = contexto.prisma;
-    const dadosValidados = formProdutoSchema.parse(data);
-
-    await prisma.$transaction(async (tx) => {
-      // Le o saldo ANTES de escrever: e a unica forma de saber se a edicao
-      // mexeu no estoque, e de quanto foi a diferenca.
-      const antes = await tx.produto.findUnique({
-        where: { id },
-        select: { quantidadeEstoque: true },
-      });
-
-      await tx.produto.update({
-        where: { id },
-        data: {
-          nome: dadosValidados.nome.trim(),
-          codigoBarras: dadosValidados.codigoBarras?.trim() || null,
-          imagemUrl: dadosValidados.imagemUrl?.trim() || null,
-          descricao: dadosValidados.descricao?.trim() || null,
-          categoria: dadosValidados.categoria,
-          custo: dadosValidados.custo,
-          precoVenda: dadosValidados.precoVenda,
-          quantidadeEstoque: dadosValidados.quantidadeEstoque,
-          estoqueMinimo: dadosValidados.estoqueMinimo,
-        },
-      });
-
-      const saldoNovo = dadosValidados.quantidadeEstoque;
-      const saldoVelho = antes?.quantidadeEstoque ?? null;
-
-      // Edicao que nao toca no saldo nao vira movimento: o livro e de estoque,
-      // nao de cadastro. Trocar o nome do produto nao e entrada nem saida.
-      if (saldoVelho !== null && saldoNovo !== saldoVelho) {
-        const diferenca = saldoNovo - saldoVelho;
-
-        await registrarMovimentacaoEstoque(tx, {
-          produtoId: id,
-          origem: "AJUSTE_MANUAL",
-          tipo: "AJUSTE",
-          quantidade: Math.abs(diferenca),
-          saldoPosterior: saldoNovo,
-          custoUnitario: dadosValidados.custo,
-          observacao:
-            diferenca > 0
-              ? `Saldo corrigido a mao de ${saldoVelho} para ${saldoNovo} (+${diferenca})`
-              : `Saldo corrigido a mao de ${saldoVelho} para ${saldoNovo} (${diferenca})`,
-          registradoPorId: contexto.usuarioOperacional?.id ?? null,
-        });
-      }
-    });
-
-    revalidatePath("/estoque");
-    revalidatePath("/");
-
-    return {
-      sucesso: true,
-      mensagem: "Produto atualizado com sucesso.",
-    };
-  } catch (erro) {
-    const mensagemConhecida = mensagemDeErroConhecido(erro);
-    if (mensagemConhecida !== null) {
-      return { sucesso: false, mensagem: mensagemConhecida };
-    }
-
-    if (
-      erro instanceof Prisma.PrismaClientKnownRequestError &&
-      erro.code === "P2002"
-    ) {
-      return {
-        sucesso: false,
-        mensagem: "Ja existe um produto com este codigo de barras.",
-      };
-    }
-
-    if (
-      erro instanceof Prisma.PrismaClientKnownRequestError &&
-      erro.code === "P2025"
-    ) {
-      return {
-        sucesso: false,
-        mensagem: "Produto nao encontrado para atualizacao.",
-      };
-    }
-
-    console.error("Erro ao atualizar produto:", erro);
-
-    return {
-      sucesso: false,
-      mensagem: "Nao foi possivel atualizar o produto. Tente novamente.",
-    };
-  }
-}
-
-export async function excluirProduto(
+/**
+ * Desativa o produto. NÃO apaga.
+ *
+ * Era `prisma.produto.delete()`, e isso tinha dois problemas:
+ *
+ * 1. `MovimentacaoEstoque` tem `onDelete: Cascade` para o produto — ou seja,
+ *    apagar o produto APAGAVA o livro de movimentações dele. O livro existe
+ *    justamente para que o saldo tenha história; perder a história junto com o
+ *    cadastro é o pior resultado possível.
+ * 2. `ItemVenda.produtoId` não cascateia, então qualquer produto já vendido
+ *    recusava a exclusão com erro de chave estrangeira. Na prática, o botão
+ *    "excluir" só funcionava em produto que nunca vendeu — e, nesse caso, era
+ *    quando mais destruía (apagava o livro sem nada impedir).
+ *
+ * `ativo: false` tira o produto da lista, do PDV e dos indicadores, mantendo
+ * saldo, histórico e vendas de pé. É o que o negócio quer dizer com "sair de
+ * linha", e é o que a referência da página do produto chama de "Desativar".
+ */
+export async function desativarProduto(
   id: string
 ): Promise<{ sucesso: boolean; mensagem: string }> {
   try {
@@ -345,16 +538,43 @@ export async function excluirProduto(
     exigirPermissao(contexto, "estoque.excluir");
     const prisma = contexto.prisma;
 
-    await prisma.produto.delete({
+    const produto = await prisma.produto.update({
       where: { id },
+      data: { ativo: false },
+      select: { id: true, nome: true, quantidadeEstoque: true },
     });
 
+    await registrarLogAuditoria(
+      prisma,
+      contextoAuditoriaDoUsuario(
+        contexto.usuarioOperacional,
+        "app/actions/estoque.ts:desativarProduto"
+      ),
+      {
+        acao: ACOES_AUDITORIA.EXCLUIR_LOGICO,
+        entidade: ENTIDADES_AUDITORIA.PRODUTO,
+        entidadeId: produto.id,
+        dadosDepois: {
+          nome: produto.nome,
+          ativo: false,
+          // Vale registrar: produto desativado com saldo continua contando no
+          // valor do estoque de nada, porque sai dos indicadores. Quem lê o log
+          // depois precisa saber que havia saldo aqui.
+          saldoNoMomento: produto.quantidadeEstoque,
+        },
+      }
+    );
+
     revalidatePath("/estoque");
+    revalidatePath("/pdv");
     revalidatePath("/");
 
     return {
       sucesso: true,
-      mensagem: "Produto excluido com sucesso.",
+      mensagem:
+        produto.quantidadeEstoque > 0
+          ? `"${produto.nome}" foi desativado. Ainda havia ${produto.quantidadeEstoque} em estoque.`
+          : `"${produto.nome}" foi desativado.`,
     };
   } catch (erro) {
     const mensagemConhecida = mensagemDeErroConhecido(erro);
@@ -362,22 +582,59 @@ export async function excluirProduto(
       return { sucesso: false, mensagem: mensagemConhecida };
     }
 
-    if (
-      erro instanceof Prisma.PrismaClientKnownRequestError &&
-      erro.code === "P2025"
-    ) {
-      return {
-        sucesso: false,
-        mensagem: "Produto nao encontrado para exclusao.",
-      };
+    if (erro instanceof Prisma.PrismaClientKnownRequestError && erro.code === "P2025") {
+      return { sucesso: false, mensagem: "Produto não encontrado." };
     }
 
-    console.error("Erro ao excluir produto:", erro);
+    console.error("Erro ao desativar produto:", erro);
+    return { sucesso: false, mensagem: "Não foi possível desativar o produto." };
+  }
+}
 
-    return {
-      sucesso: false,
-      mensagem: "Nao foi possivel excluir o produto. Tente novamente.",
-    };
+/** Volta o produto para a lista e para o PDV. */
+export async function reativarProduto(
+  id: string
+): Promise<{ sucesso: boolean; mensagem: string }> {
+  try {
+    const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "estoque.editar");
+
+    const produto = await contexto.prisma.produto.update({
+      where: { id },
+      data: { ativo: true },
+      select: { id: true, nome: true },
+    });
+
+    await registrarLogAuditoria(
+      contexto.prisma,
+      contextoAuditoriaDoUsuario(
+        contexto.usuarioOperacional,
+        "app/actions/estoque.ts:reativarProduto"
+      ),
+      {
+        acao: ACOES_AUDITORIA.REATIVAR_PRODUTO,
+        entidade: ENTIDADES_AUDITORIA.PRODUTO,
+        entidadeId: produto.id,
+        dadosDepois: { nome: produto.nome, ativo: true },
+      }
+    );
+
+    revalidatePath("/estoque");
+    revalidatePath("/pdv");
+
+    return { sucesso: true, mensagem: `"${produto.nome}" foi reativado.` };
+  } catch (erro) {
+    const mensagemConhecida = mensagemDeErroConhecido(erro);
+    if (mensagemConhecida !== null) {
+      return { sucesso: false, mensagem: mensagemConhecida };
+    }
+
+    if (erro instanceof Prisma.PrismaClientKnownRequestError && erro.code === "P2025") {
+      return { sucesso: false, mensagem: "Produto não encontrado." };
+    }
+
+    console.error("Erro ao reativar produto:", erro);
+    return { sucesso: false, mensagem: "Não foi possível reativar o produto." };
   }
 }
 
@@ -659,4 +916,127 @@ export async function listarMovimentacoesProduto(
     observacao: movimentacao.observacao,
     criadoEm: movimentacao.criadoEm.toISOString(),
   }));
+}
+
+// ── Resumo de um produto (painel da página do produto) ────────────────────────
+
+export type ResumoProduto = {
+  /** Unidades vendidas nos últimos 30 dias. */
+  vendidasNoMes: number;
+  /** Unidades que saíram por venda em toda a história registrada. */
+  vendidasNoTotal: number;
+  /** Última entrada registrada no livro: quando e a que custo. */
+  ultimaEntrada: { quando: string; custoUnitario: number | null } | null;
+  /** Saldo × custo. `null` sem a permissão estoque.ver_custos. */
+  valorParado: number | null;
+  /** Margem sobre o preço de venda, em pontos. `null` sem preço ou sem permissão. */
+  margem: number | null;
+};
+
+/**
+ * O painel "Resumo" da página do produto.
+ *
+ * As vendas saem de `ItemVenda`, e não do livro de movimentações, de propósito:
+ * o livro começou na Fase 4 e as saídas anteriores foram reconstruídas sem
+ * saldo, então contar por ele daria números menores que a realidade pra
+ * qualquer produto com histórico. A ENTRADA, ao contrário, só existe no livro.
+ */
+export async function obterResumoProduto(produtoId: string): Promise<ResumoProduto | null> {
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "estoque.ver");
+  const prisma = contexto.prisma;
+  const podeVerCustos = temPermissao(contexto, "estoque.ver_custos");
+
+  const produto = await prisma.produto.findUnique({
+    where: { id: produtoId },
+    select: { custo: true, precoVenda: true, quantidadeEstoque: true },
+  });
+
+  if (!produto) return null;
+
+  const agora = agoraNaLoja(contexto.fusoHorario);
+  const trintaDiasAtras = somarDias(agora, -30, contexto.fusoHorario);
+
+  const [doMes, doTotal, ultimaEntrada] = await Promise.all([
+    prisma.itemVenda.aggregate({
+      where: { produtoId, venda: { criadoEm: { gte: trintaDiasAtras }, estornadaEm: null } },
+      _sum: { quantidade: true },
+    }),
+    prisma.itemVenda.aggregate({
+      where: { produtoId, venda: { estornadaEm: null } },
+      _sum: { quantidade: true },
+    }),
+    prisma.movimentacaoEstoque.findFirst({
+      where: { produtoId, tipo: "ENTRADA" },
+      orderBy: { criadoEm: "desc" },
+      select: { criadoEm: true, custoUnitario: true },
+    }),
+  ]);
+
+  const custoCentavos = deDecimal(produto.custo);
+  const precoCentavos = deDecimal(produto.precoVenda);
+
+  return {
+    vendidasNoMes: doMes._sum.quantidade ?? 0,
+    vendidasNoTotal: doTotal._sum.quantidade ?? 0,
+    ultimaEntrada: ultimaEntrada
+      ? {
+          quando: ultimaEntrada.criadoEm.toISOString(),
+          custoUnitario:
+            podeVerCustos && ultimaEntrada.custoUnitario !== null
+              ? paraMoeda(deDecimal(ultimaEntrada.custoUnitario))
+              : null,
+        }
+      : null,
+    valorParado: podeVerCustos
+      ? paraMoeda(multiplicarPorQuantidade(custoCentavos, produto.quantidadeEstoque))
+      : null,
+    margem: podeVerCustos ? margemPercentual(custoCentavos, precoCentavos) : null,
+  };
+}
+
+// ── Prévia da etiqueta ────────────────────────────────────────────────────────
+
+export type PreviaEtiqueta =
+  | { ok: true; svg: string; legenda: string; origem: "CODIGO_DE_BARRAS" | "SKU" }
+  | { ok: false; erro: string };
+
+/**
+ * Prévia do código de barras a partir do que está DIGITADO na tela, não do que
+ * está salvo.
+ *
+ * Fica no servidor porque o gerador é Node. Recebe os valores em vez do id do
+ * produto para que a prévia acompanhe a edição: trocar o código de barras e só
+ * ver o resultado depois de salvar transformaria "confira antes de imprimir" em
+ * "salve e descubra".
+ */
+export async function gerarPreviaEtiqueta(entrada: {
+  codigoBarras: string | null;
+  sku: string | null;
+}): Promise<PreviaEtiqueta> {
+  await exigirContextoTenant();
+
+  const codigo = codigoDaEtiqueta(entrada);
+
+  if (!codigo) {
+    return {
+      ok: false,
+      erro: "Sem código de barras e sem SKU não há o que o leitor devolva.",
+    };
+  }
+
+  if (digitoVerificadorEanConfere(codigo.conteudo) === false) {
+    return {
+      ok: false,
+      erro: "O dígito verificador deste código de barras não fecha — confira o número na embalagem.",
+    };
+  }
+
+  const resultado = gerarCodigoDeBarrasSvg(codigo.simbologia, codigo.conteudo);
+
+  if (!resultado.ok) {
+    return { ok: false, erro: resultado.erro };
+  }
+
+  return { ok: true, svg: resultado.svg, legenda: codigo.legenda, origem: codigo.origem };
 }

@@ -720,6 +720,34 @@ enum StatusNotaFiscal {
 // ==========================================
 // MÓDULO: ESTOQUE E PRODUTOS
 // ==========================================
+/// Categoria de produto, cadastrada pelo dono.
+///
+/// Antes eram cinco valores fixos no enum `CategoriaProdutoLegado` (hoje
+/// renomeado e a caminho da remoção). Nada no sistema se comportava diferente
+/// por causa deles: serviam só de rótulo na tela e de filtro na lista — ou
+/// seja, eram um cadastro travado em código por acidente, e "Capas" exigia
+/// migration e deploy.
+///
+/// Mesmo formato de `MarcaPeca`: nome como o dono escreve, `nomeNormalizado`
+/// como unicidade real (ver lib/dominio/texto/chave-de-nome.ts).
+model CategoriaProduto {
+  id   String @id @default(uuid())
+  nome String
+
+  /// `nome` em minúsculas, sem acento e sem espaço duplicado. Impede que
+  /// "Capas", "capas" e "CAPAS " coexistam e quebrem o filtro da lista.
+  nomeNormalizado String @unique
+
+  ativa Boolean @default(true)
+
+  produtos Produto[]
+
+  criadoEm     DateTime @default(now()) @db.Timestamptz(3)
+  atualizadoEm DateTime @updatedAt @db.Timestamptz(3)
+
+  @@index([ativa])
+}
+
 model Produto {
   id           String  @id @default(uuid())
   codigoBarras String? @unique
@@ -727,7 +755,35 @@ model Produto {
   nome         String
   descricao    String?
 
-  categoria CategoriaProduto
+  /// Código curto do produto, `PREFIXO-0000` (ver lib/dominio/estoque/sku.ts).
+  /// Gerado pelo sistema e editável: quem já tem código próprio não deve ser
+  /// forçado a trocar. Anulável só por causa do histórico — produto cadastrado
+  /// antes desta coluna não tinha SKU, e inventar um na migration criaria
+  /// código que nunca foi impresso em etiqueta nenhuma.
+  sku String? @unique
+
+  /// Unidade de medida (UN, CX, PCT...). Lista fixa em
+  /// lib/dominio/estoque/preco.ts: unidade de medida é padrão de mercado, não
+  /// cadastro do dono.
+  unidade String @default("UN")
+
+  /// "iPhone 13 / 13 Pro" — para que serve ou com o que combina. O campo
+  /// `descricao` existia e virava depósito de tudo; compatibilidade é o que a
+  /// pessoa no balcão realmente procura.
+  compatibilidade String?
+
+  /// Exceção por produto à regra de estoque: permite fechar venda com saldo
+  /// zerado mesmo com a configuração global do PDV desligada. Serve pro item
+  /// que a loja encomenda sob demanda.
+  permiteVendaSemEstoque Boolean @default(false)
+
+  /// Mantida anulável e sem uso novo: é a coluna do enum antigo, preenchida só
+  /// nos produtos que existiam antes da troca, e será removida numa migration
+  /// de limpeza. A categoria de verdade é `categoriaId`.
+  categoria CategoriaProdutoLegado?
+
+  categoriaId String
+  categoriaDoProduto CategoriaProduto @relation(fields: [categoriaId], references: [id])
 
   itensVenda ItemVenda[]
   pedidoVendaItens PedidoVendaItem[]
@@ -743,6 +799,12 @@ model Produto {
   ativo Boolean @default(true)
   criadoEm     DateTime @default(now()) @db.Timestamptz(3)
   atualizadoEm DateTime @updatedAt @db.Timestamptz(3)
+
+  /// O filtro da lista de estoque e os chips do PDV filtram por categoria.
+  /// O Prisma não cria índice de chave estrangeira sozinho no PostgreSQL —
+  /// sem esta linha, o `migrate diff` do CI pede a remoção do índice que a
+  /// migration cria (foi o que aconteceu).
+  @@index([categoriaId])
 }
 
 /**
@@ -849,11 +911,18 @@ model Conta {
   atualizadoEm DateTime @updatedAt @db.Timestamptz(3)
 }
 
-enum CategoriaProduto {
-  ACESSORIO // Cabos, Capas, Películas (quando aplicável)
-  PECA_REPARO // Telas, Baterias, Conectores
-  EQUIPAMENTO_REDE // Switches, Roteadores (para B2B/Licitações)
-  SERVICO // Mão de obra (não movimenta estoque físico)
+/// Enum antigo de categoria de produto, a caminho da remoção.
+///
+/// Foi renomeado (era `CategoriaProduto`) para liberar o nome pra tabela
+/// `CategoriaProduto`, que é onde as categorias passaram a viver — no Postgres
+/// uma tabela e um tipo não podem ter o mesmo nome. Continua declarado só
+/// porque `Produto.categoria` ainda existe, preenchido nos produtos anteriores
+/// à troca; a migration de limpeza remove a coluna e este tipo junto.
+enum CategoriaProdutoLegado {
+  ACESSORIO
+  PECA_REPARO
+  EQUIPAMENTO_REDE
+  SERVICO
   OUTROS
 }
 

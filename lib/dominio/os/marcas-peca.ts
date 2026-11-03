@@ -10,6 +10,8 @@
 
 import type { TipoPeca } from "@prisma/client";
 
+import { formatarNome, normalizarNome } from "@/lib/dominio/texto/chave-de-nome";
+
 /** Nome mais longo que isso não é marca, é descrição no campo errado. */
 export const TAMANHO_MAXIMO_NOME_MARCA = 40;
 
@@ -26,21 +28,16 @@ const TIPO_SEM_MARCA: TipoPeca = "OUTROS";
  * no mesmo valor, que é exatamente o ponto — sem isso o relatório trata cada
  * grafia como uma marca diferente.
  *
- * `NFD` separa a letra do acento e o intervalo U+0300–U+036F remove as marcas de
- * combinação que sobram.
+ * A regra em si vive em `lib/dominio/texto/chave-de-nome.ts`, compartilhada com
+ * as categorias de produto: duas cópias dela divergiriam na primeira mudança.
  */
 export function normalizarNomeMarca(nome: string): string {
-  return nome
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .trim()
-    .replace(/\s+/g, " ")
-    .toLowerCase();
+  return normalizarNome(nome);
 }
 
 /** Como a marca é exibida e gravada: espaços colapsados, acento preservado. */
 export function formatarNomeMarca(nome: string): string {
-  return nome.trim().replace(/\s+/g, " ");
+  return formatarNome(nome);
 }
 
 export type ValidacaoNomeMarca =

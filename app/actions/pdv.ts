@@ -58,8 +58,11 @@ export interface ProdutoPDVBanco {
   categoria: string;
   quantidadeEstoque: number;
   estoqueMinimo: number;
-  /** Único identificador "de leitor" do produto hoje no schema — exibido como SKU/código na Etapa Produto do balcão. */
   codigoBarras: string | null;
+  /** Código curto do produto. Antes a Etapa Produto exibia o código de barras no lugar dele, porque não existia SKU. */
+  sku: string | null;
+  /** Este produto pode ser vendido com saldo zerado, mesmo sem a configuração global. */
+  permiteVendaSemEstoque: boolean;
 }
 
 /**
@@ -877,25 +880,41 @@ export async function listarClientesPDV(): Promise<ClientePDV[]> {
   return clientes;
 }
 
+/**
+ * Produtos do balcão.
+ *
+ * O filtro de saldo aqui era `quantidadeEstoque > 0` incondicional, e isso
+ * deixava a configuração "permitir venda sem estoque" SEM EFEITO no balcão: a
+ * venda estava liberada no fecho (`baixarEstoqueVenda` respeitava a flag), mas
+ * o produto zerado nunca aparecia na tela pra ser escolhido. Opção de
+ * configuração que não muda nada é pior que opção ausente.
+ *
+ * Agora o saldo zerado aparece quando a configuração global permite OU quando
+ * aquele produto específico permite — a exceção por produto existe pro item que
+ * a loja encomenda sob demanda.
+ */
 export async function listarProdutosPDV(): Promise<ProdutoPDVBanco[]> {
   const { prisma } = await exigirContextoTenant();
+  const configuracao = await obterConfiguracaoPagamentosInterna(prisma);
 
   const produtos = await prisma.produto.findMany({
     where: {
       ativo: true,
-      quantidadeEstoque: {
-        gt: 0,
-      },
+      ...(configuracao.permitirVendaSemEstoque
+        ? {}
+        : { OR: [{ quantidadeEstoque: { gt: 0 } }, { permiteVendaSemEstoque: true }] }),
     },
     select: {
       id: true,
       nome: true,
       precoVenda: true,
       imagemUrl: true,
-      categoria: true,
+      categoriaDoProduto: { select: { nome: true } },
       quantidadeEstoque: true,
       estoqueMinimo: true,
       codigoBarras: true,
+      sku: true,
+      permiteVendaSemEstoque: true,
     },
     orderBy: {
       nome: "asc",
@@ -907,10 +926,12 @@ export async function listarProdutosPDV(): Promise<ProdutoPDVBanco[]> {
     nome: produto.nome,
     preco: paraMoeda(deDecimal(produto.precoVenda)),
     imagemUrl: produto.imagemUrl,
-    categoria: produto.categoria,
+    categoria: produto.categoriaDoProduto.nome,
     quantidadeEstoque: produto.quantidadeEstoque,
     estoqueMinimo: produto.estoqueMinimo,
     codigoBarras: produto.codigoBarras,
+    sku: produto.sku,
+    permiteVendaSemEstoque: produto.permiteVendaSemEstoque,
   }));
 }
 
@@ -1016,6 +1037,11 @@ type ResultadoBaixaEstoqueItem = {
  * este passo, a venda falha com estoque insuficiente. Com a flag ligada, a
  * baixa e incondicional (o estoque pode ficar negativo) e cada produto que
  * ficou negativo e devolvido para entrar na trilha de auditoria da venda.
+ *
+ * A permissao e por ITEM, nao pela venda: vale a configuracao global OU a
+ * excecao do proprio produto (`Produto.permiteVendaSemEstoque`), que existe
+ * pro item que a loja encomenda sob demanda. Os dois juntos de proposito —
+ * a global liga pra tudo, a do produto abre so uma porta.
  */
 async function baixarEstoqueVenda(
   tx: Prisma.TransactionClient,
@@ -1034,10 +1060,25 @@ async function baixarEstoqueVenda(
 ): Promise<ResultadoBaixaEstoqueItem[]> {
   const resultados: ResultadoBaixaEstoqueItem[] = [];
 
+  // Uma consulta pra todos os itens, antes do laco: a excecao por produto e
+  // lida aqui, dentro da mesma transacao da venda, e nao vem do payload do
+  // cliente (mesmo motivo de preco e custo — F-04/F-33).
+  const excecoesPorProduto = new Map(
+    (
+      await tx.produto.findMany({
+        where: { id: { in: Array.from(new Set(itens.map((item) => item.produtoId))) } },
+        select: { id: true, permiteVendaSemEstoque: true },
+      })
+    ).map((produto) => [produto.id, produto.permiteVendaSemEstoque])
+  );
+
   for (const item of itens) {
     let produtoAtualizado: { nome: string; quantidadeEstoque: number; estoqueMinimo: number };
 
-    if (!permitirVendaSemEstoque) {
+    const podeVenderSemSaldo =
+      permitirVendaSemEstoque || excecoesPorProduto.get(item.produtoId) === true;
+
+    if (!podeVenderSemSaldo) {
       const atualizacao = await tx.produto.updateMany({
         where: {
           id: item.produtoId,
