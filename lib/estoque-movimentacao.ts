@@ -70,6 +70,8 @@ export type EntradaMovimentacao = {
   saldoPosterior?: number | null;
   custoUnitario?: number | string | null;
   vendaId?: string | null;
+  /** Nota de compra que originou a entrada, quando a origem for COMPRA_NOTA. */
+  notaDeCompraId?: string | null;
   observacao?: string | null;
   registradoPorId?: string | null;
   /** Só para AJUSTE_MANUAL e INVENTARIO, onde a origem não decide o sentido. */
@@ -110,6 +112,7 @@ export async function registrarMovimentacaoEstoque(
       saldoPosterior,
       custoUnitario: normalizarCusto(entrada.custoUnitario),
       vendaId: entrada.vendaId ?? null,
+      notaDeCompraId: entrada.notaDeCompraId ?? null,
       observacao: entrada.observacao ?? null,
       registradoPorId: entrada.registradoPorId ?? null,
     },

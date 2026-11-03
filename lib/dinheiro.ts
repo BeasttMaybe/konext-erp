@@ -202,6 +202,71 @@ export function dividirEmParcelas(centavos: number, quantidadeParcelas: number):
 }
 
 /**
+ * Distribui um valor em CENTAVOS INTEIROS entre várias linhas na PROPORÇÃO
+ * dos pesos informados, de modo que as partes somem EXATAMENTE o valor
+ * original — nem um centavo a mais, nem a menos.
+ *
+ * Serve pro rateio de frete de uma nota de compra: o frete é um valor único
+ * do documento, mas o custo real de cada produto precisa carregar a fatia
+ * dele, senão a margem do item sai errada. Com R$ 25,00 de frete numa nota
+ * de R$ 501,00, são 5% em cima do custo — num produto comprado a R$ 6,50 e
+ * vendido a R$ 19,90 isso não é ruído, é a diferença entre saber e achar
+ * que sabe a margem.
+ *
+ * Usa o método do MAIOR RESTO (Hare): cada linha fica com a parte inteira
+ * da sua cota, e os centavos que sobraram da truncagem vão, um a um, pras
+ * linhas cujo resto descartado foi maior. É o mesmo critério de
+ * `dividirEmParcelas` (nada se perde), só que ponderado em vez de igual, e
+ * é o que faz a linha mais cara absorver o centavo órfão em vez da mais
+ * barata — proporcional até no resto.
+ *
+ * Empate de resto é desempatado pela ORDEM da linha (a primeira leva), não
+ * por valor: precisa ser determinístico pra conferência de ontem bater com
+ * a de hoje.
+ *
+ * Com todos os pesos zerados não existe proporção nenhuma pra respeitar —
+ * cai pra divisão igual, que é a única resposta honesta nesse caso.
+ */
+export function ratearProporcionalmente(centavos: number, pesos: number[]): number[] {
+  validarCentavos(centavos, "ratearProporcionalmente");
+
+  if (pesos.length === 0) return [];
+
+  for (const peso of pesos) {
+    if (!Number.isFinite(peso) || peso < 0) {
+      throw new Error(
+        `[lib/dinheiro] ratearProporcionalmente: peso precisa ser um número não negativo, recebeu ${String(peso)}.`
+      );
+    }
+  }
+
+  const somaDosPesos = pesos.reduce((total, peso) => total + peso, 0);
+  if (somaDosPesos === 0) return dividirEmParcelas(centavos, pesos.length);
+
+  const sinal = centavos < 0 ? -1 : 1;
+  const absoluto = Math.abs(centavos);
+
+  const cotas = pesos.map((peso) => (absoluto * peso) / somaDosPesos);
+  const partes = cotas.map((cota) => Math.floor(cota));
+
+  const jaDistribuido = partes.reduce((total, parte) => total + parte, 0);
+  let sobra = absoluto - jaDistribuido;
+
+  // Maior resto primeiro; empate resolvido pelo índice, pra ser determinístico.
+  const porRestoDecrescente = cotas
+    .map((cota, indice) => ({ indice, resto: cota - Math.floor(cota) }))
+    .sort((a, b) => b.resto - a.resto || a.indice - b.indice);
+
+  for (const { indice } of porRestoDecrescente) {
+    if (sobra <= 0) break;
+    partes[indice] += 1;
+    sobra -= 1;
+  }
+
+  return partes.map((parte) => sinal * parte);
+}
+
+/**
  * Formata CENTAVOS INTEIROS como "R$ 1.409,89" (pt-BR, com separador de
  * milhar). Única função autorizada a transformar dinheiro em texto pro
  * usuário — nunca `toFixed`/interpolação manual fora deste módulo.

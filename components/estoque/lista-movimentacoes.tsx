@@ -16,7 +16,7 @@ const ROTULO_ORIGEM: Record<string, string> = {
   ESTORNO_VENDA: "Estorno de venda",
   CADASTRO: "Cadastro do produto",
   AJUSTE_MANUAL: "Ajuste manual",
-  COMPRA_XML: "Nota de compra",
+  COMPRA_NOTA: "Nota de compra",
   INVENTARIO: "Inventário",
   HISTORICO_RECONSTRUIDO: "Histórico reconstruído",
 };
