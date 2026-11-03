@@ -90,16 +90,39 @@ export type FinalizarRetornoGarantiaInput = {
   observacoesTecnicas?: string;
 };
 
+/**
+ * Abas de triagem da tela de Garantias.
+ *
+ * São recortes por DATA e por cancelamento, não pelo `statusGarantia` da
+ * linha — e isso é de propósito. A máquina de status coloca "teve retorno"
+ * ACIMA do vencimento, então uma garantia vencida que já teve retorno nunca
+ * aparece como VENCIDA. Para quem pergunta "o que já expirou?", a resposta é
+ * sobre a data; o status continua na pílula de cada linha, com a nuance toda.
+ *
+ * Todos são expressáveis em SQL, o que importa: a versão anterior filtrava
+ * status DEPOIS da paginação, em memória, então o filtro alcançava só as 20
+ * linhas da página aberta e o total continuava sendo o de tudo.
+ */
+export type SituacaoGarantia =
+  | "VIGENTES"
+  | "VENCENDO"
+  | "VENCIDAS"
+  | "COM_RETORNO"
+  | "CANCELADAS"
+  | "TODAS";
+
 export type FiltrosGarantiaInput = {
   busca?: string;
-  status?: "TODAS" | StatusGarantia;
+  situacao?: SituacaoGarantia;
   retorno?: "TODAS" | "COM_RETORNO" | "SEM_RETORNO";
-  vencimentoProximo?: boolean;
   dataInicio?: string;
   dataFim?: string;
   pagina?: number;
   tamanhoPagina?: number;
 };
+
+/** Dias antes do fim em que a garantia entra em "vencendo". */
+export const DIAS_PARA_VENCIMENTO_PROXIMO = 7;
 
 export type LinhaGarantiaOS = {
   termoGarantiaId: string;
@@ -1018,13 +1041,62 @@ export async function listarGarantiasOS(filtros: FiltrosGarantiaInput = {}): Pro
       : null;
     const fimFiltro = filtros.dataFim ? fimDoDia(new Date(filtros.dataFim), contexto.fusoHorario) : null;
 
+    // Hoje e o limite de "vencendo", no fuso da LOJA. Usados no SQL abaixo.
+    const hojeNaLoja = inicioDoDia(new Date(), contexto.fusoHorario);
+    const limiteVencendo = fimDoDia(
+      somarDias(hojeNaLoja, DIAS_PARA_VENCIMENTO_PROXIMO, contexto.fusoHorario),
+      contexto.fusoHorario
+    );
+
+    // Cancelada = o termo foi cancelado OU a OS foi excluida. As duas tiram a
+    // garantia de circulacao, e quem olha a tela nao distingue uma da outra.
+    const naoCancelada: Prisma.TermoGarantiaOSWhereInput = {
+      canceladaEm: null,
+      os: { is: { excluidaEm: null } },
+    };
+
+    const filtroDeSituacao: Prisma.TermoGarantiaOSWhereInput = (() => {
+      switch (filtros.situacao ?? "TODAS") {
+        case "VIGENTES":
+          return { ...naoCancelada, dataFimGarantia: { gte: hojeNaLoja } };
+        case "VENCENDO":
+          return {
+            ...naoCancelada,
+            dataFimGarantia: { gte: hojeNaLoja, lte: limiteVencendo },
+          };
+        case "VENCIDAS":
+          return { ...naoCancelada, dataFimGarantia: { lt: hojeNaLoja } };
+        case "COM_RETORNO":
+          return { retornos: { some: {} } };
+        case "CANCELADAS":
+          return { OR: [{ canceladaEm: { not: null } }, { os: { is: { excluidaEm: { not: null } } } }] };
+        default:
+          return {};
+      }
+    })();
+
+    // `retorno` tambem passou a ser SQL: antes era filtro em memoria depois da
+    // paginacao, o que alcancava so a pagina aberta.
+    const filtroDeRetorno: Prisma.TermoGarantiaOSWhereInput =
+      filtros.retorno === "COM_RETORNO"
+        ? { retornos: { some: {} } }
+        : filtros.retorno === "SEM_RETORNO"
+          ? { retornos: { none: {} } }
+          : {};
+
     const whereBase: Prisma.TermoGarantiaOSWhereInput = {
       // Escopo de visibilidade (Fase 1D-2): sem os.ver_todas, so garantias
       // de OS que o usuario criou ou em que aparece como tecnico — ver
       // lib/auth/escopos.ts.
-      os: {
-        is: escopoOrdemServico(contexto),
-      },
+      //
+      // `AND` explicito porque `filtroDeSituacao` e `filtroDeRetorno` podem
+      // trazer a chave `os` ou `retornos` cada um: espalhar os dois no mesmo
+      // objeto faria o segundo sobrescrever o primeiro em silencio.
+      AND: [
+        { os: { is: escopoOrdemServico(contexto) } },
+        filtroDeSituacao,
+        filtroDeRetorno,
+      ],
       ...(inicioFiltro || fimFiltro
         ? {
             dataInicioGarantia: {
@@ -1141,7 +1213,7 @@ export async function listarGarantiasOS(filtros: FiltrosGarantiaInput = {}): Pro
 
     const hoje = agoraNaLoja(contexto.fusoHorario);
 
-    let linhas = termos.map((termo): LinhaGarantiaOS => {
+    const linhas = termos.map((termo): LinhaGarantiaOS => {
       const quantidadeRetornos = termo.retornos.length;
       const ultimoRetorno = termo.retornos[0] ?? null;
       const retornoEmAndamento = termo.retornos.some((retorno) => !retorno.finalizadoEm);
@@ -1188,21 +1260,8 @@ export async function listarGarantiasOS(filtros: FiltrosGarantiaInput = {}): Pro
       };
     });
 
-    if (filtros.retorno === "COM_RETORNO") {
-      linhas = linhas.filter((linha) => linha.teveRetorno);
-    }
-
-    if (filtros.retorno === "SEM_RETORNO") {
-      linhas = linhas.filter((linha) => !linha.teveRetorno);
-    }
-
-    if (filtros.vencimentoProximo) {
-      linhas = linhas.filter((linha) => linha.statusGarantia === "PERTO_DO_VENCIMENTO");
-    }
-
-    if (filtros.status && filtros.status !== "TODAS") {
-      linhas = linhas.filter((linha) => linha.statusGarantia === filtros.status);
-    }
+    // Nao ha mais filtro em memoria aqui. Todos entram no `whereBase`, que e o
+    // mesmo objeto do `count()` — e e por isso que o total bate com a lista.
 
     return {
       sucesso: true,
