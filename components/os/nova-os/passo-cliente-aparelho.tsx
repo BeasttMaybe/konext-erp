@@ -231,7 +231,19 @@ export function PassoClienteAparelho({ clienteIdInicial, clienteNomeInicial, onC
             <Label htmlFor="imei" className="text-[13px] font-bold text-kx-texto">
               IMEI / Nº de série
             </Label>
-            <Input id="imei" placeholder="Só números" className={CAMPO} {...register("imei")} />
+            {/* `autoComplete="off"` e `inputMode` não são detalhe: o Chrome enfia
+                e-mail salvo num campo de texto solto perto de nome e telefone,
+                e há OS em produção com e-mail gravado no IMEI por causa disso.
+                A validação de formato já recusa isso ao salvar — mas recusar
+                depois de digitar é pior que não ser preenchido errado. */}
+            <Input
+              id="imei"
+              placeholder="Só números"
+              className={CAMPO}
+              autoComplete="off"
+              inputMode="numeric"
+              {...register("imei")}
+            />
             {errors.imei ? (
               <span className="text-[11px] text-kx-erro-texto">{String(errors.imei.message)}</span>
             ) : (

@@ -1,118 +1,108 @@
 "use client";
 
-import { useMemo } from "react";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import type { FiltrosGarantiaInput, StatusGarantia } from "@/app/actions/garantias";
+import { Search } from "lucide-react";
 
-type FiltrosGarantiasProps = {
+import { FiltroPeriodoPagina } from "@/components/ui/filtro-periodo-pagina";
+import { Input } from "@/components/ui/input";
+import type { FiltrosGarantiaInput } from "@/app/actions/garantias";
+import {
+  ABAS_DE_GARANTIA,
+  ajudaDaSituacao,
+} from "@/lib/dominio/os/garantias";
+
+/**
+ * Filtros das Garantias.
+ *
+ * Antes eram: uma busca, dois `select` (status e retorno) e dois campos
+ * `dd/mm/aaaa` crus, tudo numa grade de seis colunas. Dois problemas, e o
+ * segundo era grave:
+ *
+ * 1. Os campos de data eram `<input type="date">` soltos, diferentes do
+ *    filtro de período que o resto do sistema usa.
+ * 2. O `select` de status filtrava DEPOIS da paginação, em memória — ou seja,
+ *    escolher "Vencidas" filtrava apenas as 20 linhas da página aberta, e o
+ *    total continuava sendo o de tudo. O filtro parecia funcionar e mentia.
+ *
+ * Agora as situações são ABAS, todas resolvidas no banco, e "vencidas" tem
+ * aba própria — que é o que separa o que ainda vale do que já expirou.
+ */
+
+
+
+export function FiltrosGarantias({
+  filtros,
+  onChange,
+  fusoHorario,
+  totalEncontrado,
+}: {
   filtros: FiltrosGarantiaInput;
   onChange: (filtros: FiltrosGarantiaInput) => void;
-};
-
-const opcoesStatus: Array<{ valor: "TODAS" | StatusGarantia; label: string }> = [
-  { valor: "TODAS", label: "Todas" },
-  { valor: "ATIVA", label: "Ativas" },
-  { valor: "PERTO_DO_VENCIMENTO", label: "Perto do vencimento" },
-  { valor: "VENCIDA", label: "Vencidas" },
-  { valor: "RETORNO_EM_ANDAMENTO", label: "Retorno em andamento" },
-  { valor: "RETORNO_FINALIZADO", label: "Retorno finalizado" },
-  { valor: "SEM_COBERTURA", label: "Sem cobertura" },
-  { valor: "CANCELADA", label: "Canceladas" },
-];
-
-const opcoesRetorno: Array<{ valor: "TODAS" | "COM_RETORNO" | "SEM_RETORNO"; label: string }> = [
-  { valor: "TODAS", label: "Todas" },
-  { valor: "COM_RETORNO", label: "Com retorno" },
-  { valor: "SEM_RETORNO", label: "Sem retorno" },
-];
-
-export function FiltrosGarantias({ filtros, onChange }: FiltrosGarantiasProps) {
-  const statusAtual = useMemo(() => filtros.status ?? "TODAS", [filtros.status]);
-  const retornoAtual = useMemo(() => filtros.retorno ?? "TODAS", [filtros.retorno]);
+  fusoHorario?: string;
+  /** Quantas linhas o filtro atual encontrou, para a tela dizer o tamanho do recorte. */
+  totalEncontrado: number | null;
+}) {
+  const situacaoAtual = filtros.situacao ?? "VIGENTES";
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-6 gap-kx-4 rounded-kx-painel border border-kx-painel-borda bg-kx-cartao p-kx-4">
-      <div className="lg:col-span-2 space-y-2">
-        <Label htmlFor="busca-garantias">Buscar por cliente, OS, telefone, aparelho ou IMEI</Label>
-        <Input
-          id="busca-garantias"
-          value={filtros.busca ?? ""}
-          onChange={(evento) => onChange({ ...filtros, busca: evento.target.value, pagina: 1 })}
-          placeholder="Ex: Maria, OS-2026-123, iPhone, IMEI..."
+    <div className="flex flex-col gap-3 rounded-kx-painel border border-kx-painel-borda bg-kx-cartao p-kx-4">
+      <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="Situação da garantia">
+        {ABAS_DE_GARANTIA.map((aba) => {
+          const selecionada = situacaoAtual === aba.valor;
+
+          return (
+            <button
+              key={aba.valor}
+              type="button"
+              role="tab"
+              aria-selected={selecionada}
+              title={aba.ajuda}
+              onClick={() => onChange({ ...filtros, situacao: aba.valor, pagina: 1 })}
+              className={
+                selecionada
+                  ? "rounded-kx-pilula bg-kx-primaria px-3.5 py-1.5 text-sm font-semibold text-primary-foreground"
+                  : "rounded-kx-pilula border border-kx-painel-borda px-3.5 py-1.5 text-sm font-medium text-kx-texto-2 hover:text-kx-texto"
+              }
+            >
+              {aba.rotulo}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+        <div className="relative flex-1">
+          <Search
+            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-kx-legenda"
+            aria-hidden
+          />
+          <Input
+            id="busca-garantias"
+            value={filtros.busca ?? ""}
+            onChange={(evento) => onChange({ ...filtros, busca: evento.target.value, pagina: 1 })}
+            placeholder="Cliente, nº da OS, telefone, aparelho ou IMEI"
+            aria-label="Buscar garantias"
+            className="pl-9"
+          />
+        </div>
+
+        {/* O mesmo filtro de período de Finalizadas e Entregues, e das outras
+            seis telas: presets, dois calendários e intervalo — no lugar dos
+            dois campos de data soltos. */}
+        <FiltroPeriodoPagina
+          campos={[{ valor: "garantia-iniciada-em", rotulo: "Garantia iniciada em" }]}
+          fusoHorario={fusoHorario}
         />
       </div>
 
-      <div className="space-y-2">
-        <Label>Status da garantia</Label>
-        <Select
-          value={statusAtual}
-          onValueChange={(valor) => onChange({ ...filtros, status: valor as "TODAS" | StatusGarantia, pagina: 1 })}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Status da garantia" />
-          </SelectTrigger>
-          <SelectContent>
-            {opcoesStatus.map((opcao) => (
-              <SelectItem key={opcao.valor} value={opcao.valor}>
-                {opcao.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="space-y-2">
-        <Label>Retorno</Label>
-        <Select
-          value={retornoAtual}
-          onValueChange={(valor) =>
-            onChange({
-              ...filtros,
-              retorno: valor as "TODAS" | "COM_RETORNO" | "SEM_RETORNO",
-              pagina: 1,
-            })
-          }
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Com ou sem retorno" />
-          </SelectTrigger>
-          <SelectContent>
-            {opcoesRetorno.map((opcao) => (
-              <SelectItem key={opcao.valor} value={opcao.valor}>
-                {opcao.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="periodo-inicio">Período inicial</Label>
-        <Input
-          id="periodo-inicio"
-          type="date"
-          value={filtros.dataInicio ?? ""}
-          onChange={(evento) => onChange({ ...filtros, dataInicio: evento.target.value, pagina: 1 })}
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="periodo-fim">Período final</Label>
-        <Input
-          id="periodo-fim"
-          type="date"
-          value={filtros.dataFim ?? ""}
-          onChange={(evento) => onChange({ ...filtros, dataFim: evento.target.value, pagina: 1 })}
-        />
-      </div>
+      <p className="text-xs text-kx-legenda">
+        {totalEncontrado === null
+          ? "Carregando..."
+          : totalEncontrado === 1
+            ? "1 garantia encontrada"
+            : `${totalEncontrado} garantias encontradas`}
+        {" · "}
+        {ajudaDaSituacao(situacaoAtual)}
+      </p>
     </div>
   );
 }

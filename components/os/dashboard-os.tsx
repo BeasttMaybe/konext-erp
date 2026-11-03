@@ -14,6 +14,10 @@ import { ModalReabrirOS, type ConfirmacaoReaberturaPayload } from "@/components/
 import type { PendenciaFinalizacao } from "@/lib/dominio/os/regras-finalizacao";
 import { ModalNovaOS } from "@/components/os/modal-nova-os";
 import { ModalFinalizarOS, type ConfirmacaoFinalizacaoPayload } from "@/components/os/modal-finalizar-os";
+import {
+  ModalTermoGerado,
+  type TermoGeradoNaFinalizacao,
+} from "@/components/os/modal-termo-gerado";
 import { ModalEntregarSemServico } from "@/components/os/modal-entregar-sem-servico";
 import {
   ModalFinalizarRetornoGarantia,
@@ -95,6 +99,7 @@ export function DashboardOS({
   const [modoVisualizacao, setModoVisualizacao] = useState<"KANBAN" | "LISTA_FINALIZADAS" | "GARANTIA">(modoInicial);
   const [mostrarExcluidas, setMostrarExcluidas] = useState(mostrarExcluidasInicial);
   const [osParaFinalizar, setOsParaFinalizar] = useState<OrdemServico | null>(null);
+  const [termoGerado, setTermoGerado] = useState<TermoGeradoNaFinalizacao | null>(null);
   const [osFinalizandoId, setOsFinalizandoId] = useState<string | null>(null);
   const [requerGarantiaFinalizacao, setRequerGarantiaFinalizacao] = useState(false);
   const [pendenciasFinalizacao, setPendenciasFinalizacao] = useState<PendenciaFinalizacao[]>([]);
@@ -334,7 +339,14 @@ export function DashboardOS({
 
       setModoVisualizacao("LISTA_FINALIZADAS");
       if (resultado.garantiaGerada) {
-        toast.success(`OS ${osParaFinalizar.numeroOS} finalizada com garantia gerada.`);
+        // O termo acabou de nascer e o cliente está no balcão: oferecer a
+        // impressão aqui evita a viagem até a aba Garantias para procurar a
+        // linha e clicar em imprimir.
+        setTermoGerado({
+          osId: osParaFinalizar.id,
+          numeroOS: osParaFinalizar.numeroOS,
+          prazoGarantiaDias: payload?.prazoGarantiaDias ?? null,
+        });
       } else {
         toast.success(`OS ${osParaFinalizar.numeroOS} finalizada com sucesso.`);
       }
@@ -767,6 +779,7 @@ export function DashboardOS({
             <TabsContent value="GARANTIA" className="mt-0">
               <h2 className="text-lg sm:text-xl font-bold text-kx-texto mb-6">Garantias</h2>
               <PaginaGarantiasOS
+                fusoHorario={fusoHorario}
                 dashboardInicial={dashboardGarantiasInicial}
                 linhasIniciais={linhasGarantiasIniciais}
                 erroInicial={erroGarantiasInicial}
@@ -775,6 +788,8 @@ export function DashboardOS({
           </div>
         </Card>
       </Tabs>
+
+      <ModalTermoGerado termo={termoGerado} aoFechar={() => setTermoGerado(null)} />
 
       {/* Modal Nova OS */}
       <ModalNovaOS

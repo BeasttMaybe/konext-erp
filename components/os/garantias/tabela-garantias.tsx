@@ -2,13 +2,50 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ShieldOff } from "lucide-react";
+import { MoreHorizontal, ShieldOff } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { PilulaStatus, type PropsPilulaStatus } from "@/components/ui/pilula-status";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TabelaVazia } from "@/components/ui/table";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TabelaVazia,
+} from "@/components/ui/table";
 import type { LinhaGarantiaOS, StatusGarantia } from "@/app/actions/garantias";
+import {
+  descricaoDeVencimento,
+  urgenciaDoVencimento,
+} from "@/lib/dominio/os/garantias";
 import { ModalRegistrarRetorno } from "@/components/os/garantias/modal-registrar-retorno";
 import { HistoricoConsertosCliente } from "@/components/os/garantias/historico-consertos-cliente";
+
+/**
+ * Tabela das garantias.
+ *
+ * Tinha DEZENOVE colunas e `min-w-[1600px]`. Numa tela de notebook isso quer
+ * dizer que tudo exige rolagem lateral — inclusive a coluna de ações, que
+ * ficava na ponta direita: para registrar um retorno era preciso rolar a
+ * tabela inteira para o lado. Era a parte mais pesada do "fica muito difícil
+ * localizar dados".
+ *
+ * Ficaram sete colunas, as que se percorre com o olho procurando uma garantia:
+ * número da OS, cliente, aparelho, quando acaba, situação, retornos e ações. As
+ * outras doze não sumiram — foram para o painel de detalhe, que abre na linha.
+ * A diferença é que agora é preciso PEDIR por elas, em vez de atravessá-las
+ * para chegar ao que se procura.
+ */
 
 type TabelaGarantiasProps = {
   linhas: LinhaGarantiaOS[];
@@ -43,119 +80,212 @@ const statusVariante: Record<StatusGarantia, NonNullable<PropsPilulaStatus["vari
   CANCELADA: "neutro",
 };
 
-function descricaoDias(diasRestantes: number): string {
-  if (diasRestantes === 0) return "Vence hoje";
-  if (diasRestantes > 0) return `Vence em ${diasRestantes} dia(s)`;
-  return `Vencida há ${Math.abs(diasRestantes)} dia(s)`;
+const COLUNAS = 7;
+
+/** A cor segue a urgência do domínio; a tela não repete os limites de dias. */
+function classeDoVencimento(diasRestantes: number): string {
+  const urgencia = urgenciaDoVencimento(diasRestantes);
+  if (urgencia === "VENCIDA") return "text-xs font-semibold text-kx-erro-texto";
+  if (urgencia === "PERTO") return "text-xs font-semibold text-kx-alerta-texto";
+  return "text-xs text-kx-legenda";
 }
 
 export function TabelaGarantias({ linhas, onAtualizar }: TabelaGarantiasProps) {
   const [termoSelecionado, setTermoSelecionado] = useState<string | null>(null);
   const [osHistorico, setOsHistorico] = useState<string | null>(null);
+  const [detalhe, setDetalhe] = useState<LinhaGarantiaOS | null>(null);
 
-  const linhasOrdenadas = useMemo(() => {
-    return [...linhas].sort((a, b) => new Date(a.dataFimGarantia).getTime() - new Date(b.dataFimGarantia).getTime());
-  }, [linhas]);
-
-  const COLUNAS = 19;
+  const linhasOrdenadas = useMemo(
+    () =>
+      [...linhas].sort(
+        (a, b) => new Date(a.dataFimGarantia).getTime() - new Date(b.dataFimGarantia).getTime()
+      ),
+    [linhas]
+  );
 
   return (
     <div className="space-y-4">
       <div className="overflow-hidden rounded-kx-painel border border-kx-painel-borda bg-kx-cartao">
-        <Table className="min-w-[1600px]">
-          <TableHeader className="sticky top-0 z-kx-sticky bg-kx-cartao">
-            <TableRow className="hover:bg-transparent">
-              <TableHead>Nº OS</TableHead>
-              <TableHead>Cliente</TableHead>
-              <TableHead>Telefone</TableHead>
-              <TableHead>Equipamento</TableHead>
-              <TableHead>Marca/Modelo</TableHead>
-              <TableHead>IMEI/Série</TableHead>
-              <TableHead>Serviço realizado</TableHead>
-              <TableHead>Peças/Serviços</TableHead>
-              <TableHead className="text-right">Valor cobrado</TableHead>
-              <TableHead>Finalização</TableHead>
-              <TableHead>Prazo</TableHead>
-              <TableHead>Data final</TableHead>
-              <TableHead>Dias restantes</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Retornos</TableHead>
-              <TableHead>Último retorno</TableHead>
-              <TableHead>OS de retorno</TableHead>
-              <TableHead>Motivo do retorno</TableHead>
-              <TableHead className="text-right">Ações</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody zebra>
-            {linhasOrdenadas.length === 0 ? (
-              <TabelaVazia
-                colSpan={COLUNAS}
-                titulo="Nenhuma garantia encontrada"
-                icone={<ShieldOff className="h-8 w-8" aria-hidden="true" />}
-              />
-            ) : (
-              linhasOrdenadas.map((linha) => (
-                <TableRow key={linha.termoGarantiaId}>
-                  <TableCell className="font-semibold">{linha.numeroOS}</TableCell>
-                  <TableCell>{linha.clienteNome}</TableCell>
-                  <TableCell>{linha.clienteTelefone ?? "-"}</TableCell>
-                  <TableCell>{linha.equipamento}</TableCell>
-                  <TableCell>{linha.marcaModelo ?? "-"}</TableCell>
-                  <TableCell>{linha.imeiOuSerial ?? "-"}</TableCell>
-                  <TableCell className="max-w-[240px] truncate" title={linha.servicosExecutados.join("; ")}>
-                    {linha.servicosExecutados.join(", ") || "-"}
-                  </TableCell>
-                  <TableCell className="max-w-[220px] truncate" title={linha.pecasOuServicos.join("; ")}>
-                    {linha.pecasOuServicos.join(", ") || "-"}
-                  </TableCell>
-                  <TableCell numerico>{formatarMoeda(linha.valorCobrado)}</TableCell>
-                  <TableCell>{formatarData(linha.dataFinalizacao)}</TableCell>
-                  <TableCell>{linha.prazoGarantiaDias} dias</TableCell>
-                  <TableCell>{formatarData(linha.dataFimGarantia)}</TableCell>
-                  <TableCell>{descricaoDias(linha.diasRestantes)}</TableCell>
-                  <TableCell>
-                    <PilulaStatus variante={statusVariante[linha.statusGarantia]}>
-                      {statusLabel[linha.statusGarantia]}
-                    </PilulaStatus>
-                  </TableCell>
-                  <TableCell numerico>{linha.quantidadeRetornos}</TableCell>
-                  <TableCell>{linha.ultimoRetornoEm ? formatarData(linha.ultimoRetornoEm) : "-"}</TableCell>
-                  <TableCell>
-                    {linha.osRetornoId && linha.numeroOSRetorno ? (
-                      <Button size="sm" variant="ghost" asChild>
-                        <Link href={`/os/${linha.osRetornoId}`}>{linha.numeroOSRetorno}</Link>
-                      </Button>
-                    ) : (
-                      "-"
-                    )}
-                  </TableCell>
-                  <TableCell className="max-w-[220px] truncate" title={linha.ultimoMotivoRetorno ?? ""}>
-                    {linha.ultimoMotivoRetorno ?? "-"}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
+        <div className="overflow-x-auto">
+          <Table className="min-w-[900px]">
+            <TableHeader className="sticky top-0 z-kx-sticky bg-kx-cartao">
+              <TableRow className="hover:bg-transparent">
+                <TableHead>Nº OS</TableHead>
+                <TableHead>Cliente</TableHead>
+                <TableHead>Aparelho</TableHead>
+                <TableHead>Garantia até</TableHead>
+                <TableHead>Situação</TableHead>
+                <TableHead className="text-right">Retornos</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody zebra>
+              {linhasOrdenadas.length === 0 ? (
+                <TabelaVazia
+                  colSpan={COLUNAS}
+                  titulo="Nenhuma garantia encontrada"
+                  icone={<ShieldOff className="h-8 w-8" aria-hidden="true" />}
+                />
+              ) : (
+                linhasOrdenadas.map((linha) => (
+                  <TableRow key={linha.termoGarantiaId}>
+                    <TableCell className="font-semibold">
+                      <Link href={`/os/${linha.osId}`} className="hover:underline">
+                        {linha.numeroOS}
+                      </Link>
+                    </TableCell>
+
+                    <TableCell>
+                      <div className="min-w-0">
+                        <p className="truncate font-medium text-kx-texto">{linha.clienteNome}</p>
+                        {linha.clienteTelefone && (
+                          <p className="truncate text-xs tabular-nums text-kx-legenda">
+                            {linha.clienteTelefone}
+                          </p>
+                        )}
+                      </div>
+                    </TableCell>
+
+                    <TableCell>
+                      <div className="min-w-0 max-w-[220px]">
+                        <p className="truncate text-kx-texto">{linha.equipamento}</p>
+                        {linha.marcaModelo && (
+                          <p className="truncate text-xs text-kx-legenda">{linha.marcaModelo}</p>
+                        )}
+                      </div>
+                    </TableCell>
+
+                    <TableCell>
+                      <div>
+                        <p className="tabular-nums text-kx-texto">
+                          {formatarData(linha.dataFimGarantia)}
+                        </p>
+                        <p className={classeDoVencimento(linha.diasRestantes)}>
+                          {descricaoDeVencimento(linha.diasRestantes)}
+                        </p>
+                      </div>
+                    </TableCell>
+
+                    <TableCell>
+                      <PilulaStatus variante={statusVariante[linha.statusGarantia]}>
+                        {statusLabel[linha.statusGarantia]}
+                      </PilulaStatus>
+                    </TableCell>
+
+                    <TableCell numerico>{linha.quantidadeRetornos}</TableCell>
+
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        {/* As duas ações do dia a dia ficam à vista; o resto
+                            entra no menu. Antes eram quatro botões lado a lado
+                            na ponta de uma tabela de 1600px, fora da tela. */}
+                        <Button size="sm" variant="outline" asChild>
+                          <a
+                            href={`/os/${linha.osId}/garantia`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            Imprimir termo
+                          </a>
+                        </Button>
+
+                        <Button size="sm" onClick={() => setTermoSelecionado(linha.termoGarantiaId)}>
+                          Registrar retorno
+                        </Button>
+
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon-sm" aria-label="Mais ações">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-52">
+                            <DropdownMenuItem onSelect={() => setDetalhe(linha)}>
+                              Ver todos os dados
+                            </DropdownMenuItem>
+                            <DropdownMenuItem asChild>
+                              <Link href={`/os/${linha.osId}`}>Abrir a OS</Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onSelect={() => setOsHistorico(linha.osId)}>
+                              Histórico do cliente
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+
+      <Sheet open={detalhe !== null} onOpenChange={(aberto) => !aberto && setDetalhe(null)}>
+        <SheetContent className="flex w-full flex-col gap-0 sm:max-w-lg">
+          <SheetHeader>
+            <SheetTitle>
+              {detalhe ? `${detalhe.numeroOS} · ${detalhe.clienteNome}` : "Garantia"}
+            </SheetTitle>
+          </SheetHeader>
+
+          {detalhe && (
+            <div className="flex-1 space-y-5 overflow-y-auto px-4 pb-6">
+              <Bloco titulo="Aparelho">
+                <Campo rotulo="Equipamento" valor={detalhe.equipamento} />
+                <Campo rotulo="Marca / modelo" valor={detalhe.marcaModelo} />
+                <Campo rotulo="IMEI / série" valor={detalhe.imeiOuSerial} />
+              </Bloco>
+
+              <Bloco titulo="Cliente">
+                <Campo rotulo="Nome" valor={detalhe.clienteNome} />
+                <Campo rotulo="Telefone" valor={detalhe.clienteTelefone} />
+                <Campo rotulo="Documento" valor={detalhe.clienteDocumento} />
+              </Bloco>
+
+              <Bloco titulo="Serviço">
+                <Campo
+                  rotulo="Serviço realizado"
+                  valor={detalhe.servicosExecutados.join(", ") || null}
+                />
+                <Campo
+                  rotulo="Peças / serviços"
+                  valor={detalhe.pecasOuServicos.join(", ") || null}
+                />
+                <Campo rotulo="Valor cobrado" valor={formatarMoeda(detalhe.valorCobrado)} />
+              </Bloco>
+
+              <Bloco titulo="Garantia">
+                <Campo rotulo="Finalizada em" valor={formatarData(detalhe.dataFinalizacao)} />
+                <Campo rotulo="Prazo" valor={`${detalhe.prazoGarantiaDias} dias`} />
+                <Campo rotulo="Vale até" valor={formatarData(detalhe.dataFimGarantia)} />
+                <Campo rotulo="Situação" valor={statusLabel[detalhe.statusGarantia]} />
+              </Bloco>
+
+              {detalhe.quantidadeRetornos > 0 && (
+                <Bloco titulo="Retornos">
+                  <Campo rotulo="Quantidade" valor={String(detalhe.quantidadeRetornos)} />
+                  <Campo
+                    rotulo="Último retorno"
+                    valor={detalhe.ultimoRetornoEm ? formatarData(detalhe.ultimoRetornoEm) : null}
+                  />
+                  <Campo rotulo="Motivo" valor={detalhe.ultimoMotivoRetorno} />
+                  {detalhe.osRetornoId && detalhe.numeroOSRetorno && (
+                    <div className="pt-1">
                       <Button size="sm" variant="outline" asChild>
-                        <Link href={`/os/${linha.osId}`}>Ver OS</Link>
-                      </Button>
-                      <Button size="sm" variant="outline" asChild>
-                        <a href={`/os/${linha.osId}/garantia`} target="_blank" rel="noopener noreferrer">
-                          Imprimir termo
-                        </a>
-                      </Button>
-                      <Button size="sm" onClick={() => setTermoSelecionado(linha.termoGarantiaId)}>
-                        Registrar retorno
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={() => setOsHistorico(linha.osId)}>
-                        Ver histórico
+                        <Link href={`/os/${detalhe.osRetornoId}`}>
+                          Abrir {detalhe.numeroOSRetorno}
+                        </Link>
                       </Button>
                     </div>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+                  )}
+                </Bloco>
+              )}
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
 
       {osHistorico && <HistoricoConsertosCliente osId={osHistorico} />}
 
@@ -168,6 +298,27 @@ export function TabelaGarantias({ linhas, onAtualizar }: TabelaGarantiasProps) {
           onAtualizar();
         }}
       />
+    </div>
+  );
+}
+
+function Bloco({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+  return (
+    <section>
+      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-kx-legenda">
+        {titulo}
+      </h3>
+      <dl className="space-y-2">{children}</dl>
+    </section>
+  );
+}
+
+/** Campo vazio mostra "—", e não "Não informado" repetido em doze linhas. */
+function Campo({ rotulo, valor }: { rotulo: string; valor: string | null }) {
+  return (
+    <div className="grid grid-cols-[minmax(0,8rem)_1fr] gap-3">
+      <dt className="text-xs text-kx-legenda">{rotulo}</dt>
+      <dd className="text-sm text-kx-texto">{valor?.trim() ? valor : "—"}</dd>
     </div>
   );
 }
