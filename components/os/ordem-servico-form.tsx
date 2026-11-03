@@ -9,6 +9,10 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { AssistenteNovaOS } from "@/components/os/nova-os/assistente-nova-os";
 import { buscarClientesOS, criarOrdemServico } from "@/app/actions/os";
+import {
+  ProvedorFotosPendentes,
+  useFotosPendentes,
+} from "@/components/os/nova-os/fotos-da-entrada";
 import { validarFormatoImei } from "@/lib/dominio/os/validacao-imei";
 
 const newServiceOrderSchema = z.object({
@@ -156,6 +160,8 @@ export function OrdemServicoForm({ initialData = null }: OrdemServicoFormProps) 
     };
   }, [form, initialData?.clientName]);
 
+  const fotosPendentes = useFotosPendentes();
+
   const handleSubmit = async (values: NewServiceOrderData) => {
     try {
       setIsSaving(true);
@@ -167,7 +173,27 @@ export function OrdemServicoForm({ initialData = null }: OrdemServicoFormProps) 
 
       const createdServiceOrder = await criarOrdemServico(payload);
 
-      toast.success("Ordem de serviço criada com sucesso.");
+      // As fotos sobem DEPOIS da OS existir, porque antes disso não há id a que
+      // ligá-las. Falha aqui não desfaz a OS: ela já está criada, e perder o
+      // cadastro por causa de uma foto seria muito pior que subir a foto
+      // depois, na tela da OS.
+      const { enviadas, falhas } = await fotosPendentes.enviarPara(createdServiceOrder.id);
+
+      if (falhas > 0) {
+        toast.error(
+          falhas === 1
+            ? "A OS foi criada, mas 1 foto não subiu. Você pode adicioná-la na tela da OS."
+            : `A OS foi criada, mas ${falhas} fotos não subiram. Você pode adicioná-las na tela da OS.`
+        );
+      } else {
+        toast.success(
+          enviadas > 0
+            ? `Ordem de serviço criada com ${enviadas === 1 ? "1 foto" : `${enviadas} fotos`}.`
+            : "Ordem de serviço criada com sucesso."
+        );
+      }
+
+      fotosPendentes.limpar();
       router.push(`/os/${createdServiceOrder.id}`);
       router.refresh();
     } catch (error) {
@@ -186,6 +212,7 @@ export function OrdemServicoForm({ initialData = null }: OrdemServicoFormProps) 
     <div className="flex h-full w-full items-start justify-center overflow-y-auto bg-kx-fundo p-6">
       <div className="flex w-full max-w-[980px] flex-col gap-4 rounded-[26px] border border-kx-painel-borda bg-kx-painel p-6">
         <FormProvider {...form}>
+          <ProvedorFotosPendentes valor={fotosPendentes}>
           <form onSubmit={form.handleSubmit(handleSubmit)}>
             <AssistenteNovaOS
               onCancelar={handleCancel}
@@ -201,6 +228,7 @@ export function OrdemServicoForm({ initialData = null }: OrdemServicoFormProps) 
               }
             />
           </form>
+          </ProvedorFotosPendentes>
         </FormProvider>
       </div>
     </div>

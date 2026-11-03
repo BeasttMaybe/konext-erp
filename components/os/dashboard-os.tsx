@@ -173,9 +173,11 @@ export function DashboardOS({
 
   const handleSalvarNovaOS = async (dados: DadosNovaOS) => {
     try {
-      await criarOrdemServico(dados);
+      const criada = await criarOrdemServico(dados);
       toast.success("Ordem de servico criada com sucesso.");
       router.refresh();
+      // O id volta pro modal: e com ele que as fotos tiradas no cadastro sobem.
+      return criada.id;
     } catch (error) {
       const mensagem =
         error instanceof Error ? error.message : "Nao foi possivel criar a ordem de servico.";
