@@ -14,6 +14,13 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./", import.meta.url)),
+      // `server-only` nao e um pacote instalado: o bundler do Next resolve o
+      // nome sozinho e transforma o import num erro de build quando um
+      // componente de cliente puxa o modulo. Fora do Next ele simplesmente
+      // nao existe, e qualquer teste que toque num modulo marcado assim
+      // quebraria na importacao. O arquivo vazio preserva a marcacao no
+      // codigo (que e onde ela trabalha) sem exigir a dependencia aqui.
+      "server-only": fileURLToPath(new URL("./verificacao/server-only-vazio.ts", import.meta.url)),
     },
   },
   test: {

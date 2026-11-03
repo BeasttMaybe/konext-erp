@@ -1392,8 +1392,23 @@ model TokenFotoOS {
   ordemServicoId String
   ordemServico   OrdemServico @relation(fields: [ordemServicoId], references: [id], onDelete: Cascade)
 
+  /**
+   * SHA-256 do segredo do link, em hexadecimal.
+   *
+   * O segredo tem 32 bytes sorteados, vai pro link UMA vez e nunca é
+   * gravado — mesmo desenho de senha e de sessão. Quem tem o link entra, e
+   * um valor que dá acesso não pode ser o mesmo que o sistema usa pra se
+   * referir à linha (o `id`), que aparece em log, em consulta e em
+   * relatório. Perdeu o link, gera outro: não há como reconstruir.
+   */
+  tokenHash String @unique
+
   expiraEm   DateTime  @db.Timestamptz(3)
   revogadoEm DateTime? @db.Timestamptz(3)
+
+  /// Última vez que o link foi aberto. Responde "mandei e não chegou foto —
+  /// será que ele abriu?" sem precisar cruzar com a galeria.
+  ultimoUsoEm DateTime? @db.Timestamptz(3)
 
   criadoPorId String?
   criadoPor   Usuario? @relation("TokenFotoOSCriadoPor", fields: [criadoPorId], references: [id])
