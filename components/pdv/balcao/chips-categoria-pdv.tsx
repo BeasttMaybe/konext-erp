@@ -1,19 +1,12 @@
 "use client";
 
 /**
- * Categorias vem de verdade do schema (Produto.categoria, CategoriaProduto) —
- * não são visuais-only como os chips de tipo de aparelho da Fase 3-2B. Rótulo
- * pt-BR duplicado de components/estoque/modal-novo-produto.tsx de propósito
- * (não exportado de lá hoje; um Record de 5 entradas não justifica acoplar
- * os dois módulos só para compartilhar rótulo).
+ * Categorias vêm do cadastro (`CategoriaProduto`), já com o nome que o dono
+ * escreveu — então não há mais rótulo a traduzir aqui. Havia um `Record` de
+ * cinco entradas mapeando ACESSORIO → "Acessório", duplicado do modal de
+ * produto; com as categorias cadastráveis, qualquer mapa fixo ficaria errado na
+ * primeira categoria nova.
  */
-const ROTULO_CATEGORIA: Record<string, string> = {
-  ACESSORIO: "Acessório",
-  PECA_REPARO: "Peça de reparo",
-  EQUIPAMENTO_REDE: "Equipamento de rede",
-  SERVICO: "Serviço",
-  OUTROS: "Outros",
-};
 
 interface PropsChipsCategoriaPdv {
   categorias: string[];
@@ -52,7 +45,7 @@ export function ChipsCategoriaPdv({ categorias, categoriaAtiva, onEscolher }: Pr
                 : "h-[34px] rounded-kx-pilula border border-kx-campo-borda bg-transparent px-3.5 text-[13px] font-bold text-kx-texto-2 hover:bg-kx-superficie"
             }
           >
-            {ROTULO_CATEGORIA[categoria] ?? categoria}
+            {categoria}
           </button>
         );
       })}

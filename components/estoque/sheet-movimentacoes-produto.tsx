@@ -1,24 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowDownRight, ArrowUpRight, SlidersHorizontal } from "lucide-react";
 
 import {
   listarMovimentacoesProduto,
   type LinhaMovimentacaoProduto,
 } from "@/app/actions/estoque";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import {
+  EsqueletoMovimentacoes,
+  ListaMovimentacoes,
+} from "@/components/estoque/lista-movimentacoes";
 
-const ROTULO_ORIGEM: Record<string, string> = {
-  VENDA_PDV: "Venda no balcão",
-  PEDIDO_VENDA: "Pedido de venda",
-  ESTORNO_VENDA: "Estorno de venda",
-  CADASTRO: "Cadastro do produto",
-  AJUSTE_MANUAL: "Ajuste manual",
-  COMPRA_XML: "Nota de compra",
-  INVENTARIO: "Inventário",
-  HISTORICO_RECONSTRUIDO: "Histórico reconstruído",
-};
 
 /**
  * Movimentações de um produto — o que o dono pediu como "movimentações
@@ -87,11 +80,7 @@ export function SheetMovimentacoesProduto({
 
         <div className="mt-4 flex-1 overflow-y-auto px-4 pb-6">
           {carregando && (
-            <ul className="flex flex-col gap-2" aria-hidden>
-              {Array.from({ length: 6 }).map((_, indice) => (
-                <li key={indice} className="h-16 animate-pulse rounded-kx-botao bg-kx-superficie" />
-              ))}
-            </ul>
+            <EsqueletoMovimentacoes />
           )}
 
           {!carregando && linhas !== null && linhas.length === 0 && (
@@ -101,63 +90,10 @@ export function SheetMovimentacoesProduto({
           )}
 
           {!carregando && linhas !== null && linhas.length > 0 && (
-            <ul className="flex flex-col gap-2">
-              {linhas.map((linha) => (
-                <li
-                  key={linha.id}
-                  className="rounded-kx-botao border border-kx-painel-borda bg-kx-cartao px-3 py-2.5"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex min-w-0 items-start gap-2">
-                      <IconeTipo tipo={linha.tipo} />
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-kx-texto">
-                          {ROTULO_ORIGEM[linha.origem] ?? linha.origem}
-                        </p>
-                        <p className="text-xs text-kx-legenda">
-                          {new Date(linha.criadoEm).toLocaleString("pt-BR")}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="text-right">
-                      <p
-                        className={`text-sm font-bold tabular-nums ${
-                          linha.tipo === "SAIDA" ? "text-kx-erro-texto" : "text-kx-sucesso-texto"
-                        }`}
-                      >
-                        {linha.tipo === "SAIDA" ? "−" : "+"}
-                        {linha.quantidade}
-                      </p>
-                      {linha.saldoPosterior !== null && (
-                        <p className="text-xs text-kx-legenda tabular-nums">
-                          saldo: {linha.saldoPosterior}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  {linha.observacao && (
-                    <p className="mt-1.5 text-xs text-kx-texto-2">{linha.observacao}</p>
-                  )}
-                </li>
-              ))}
-            </ul>
+            <ListaMovimentacoes linhas={linhas} />
           )}
         </div>
       </SheetContent>
     </Sheet>
   );
-}
-
-function IconeTipo({ tipo }: { tipo: string }) {
-  if (tipo === "SAIDA") {
-    return <ArrowDownRight className="mt-0.5 h-4 w-4 shrink-0 text-kx-erro-icone" aria-hidden />;
-  }
-
-  if (tipo === "ENTRADA") {
-    return <ArrowUpRight className="mt-0.5 h-4 w-4 shrink-0 text-kx-sucesso-icone" aria-hidden />;
-  }
-
-  return <SlidersHorizontal className="mt-0.5 h-4 w-4 shrink-0 text-kx-alerta-icone" aria-hidden />;
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, Suspense } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { MoreHorizontal, Package, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
@@ -33,17 +34,14 @@ import {
 } from "@/components/ui/table";
 import { Card } from "@/components/ui/card";
 import {
-  atualizarProduto,
-  criarProduto,
-  excluirProduto,
+  desativarProduto,
   listarProdutosPaginado,
   obterIndicadoresEstoque,
   type IndicadoresEstoque,
   type SituacaoEstoque,
 } from "@/app/actions/estoque";
-import { ModalNovoProduto } from "@/components/estoque/modal-novo-produto";
 import { PaginationControls } from "@/components/ui/pagination-controls";
-import { categoriasProduto, type FormProduto } from "@/lib/validations/estoque";
+import { listarCategoriasAtivas } from "@/app/actions/categorias-produto";
 import { useTemPermissao } from "@/contextos/contexto-permissoes";
 import {
   AlertDialog,
@@ -100,29 +98,23 @@ function SkeletonEstoque() {
   );
 }
 
-type CategoriaProduto = (typeof categoriasProduto)[number];
-
 interface ProdutoTabela {
   id: string;
   nome: string;
   codigoBarras: string | null;
   imagemUrl: string | null;
   descricao: string | null;
-  categoria: CategoriaProduto;
+  sku: string | null;
+  unidade: string;
+  categoriaId: string;
+  /** Nome da categoria cadastrada — não há mais mapa fixo de rótulos. */
+  categoria: string;
   /** null quando o usuário logado não tem a permissão estoque.ver_custos. */
   custo: number | null;
   precoVenda: number;
   quantidadeEstoque: number;
   estoqueMinimo: number;
 }
-
-const mapaCategoriaRotulo: Record<CategoriaProduto, string> = {
-  ACESSORIO: "Acessorio",
-  PECA_REPARO: "Peca de Reparo",
-  EQUIPAMENTO_REDE: "Equipamento de Rede",
-  SERVICO: "Servico",
-  OUTROS: "Outros",
-};
 
 const formatarMoeda = (valor: number) =>
   new Intl.NumberFormat("pt-BR", {
@@ -145,10 +137,9 @@ function ConteudoEstoque() {
   const [totalProdutos, setTotalProdutos] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [busca, setBusca] = useState("");
-  const [categoriaSelecionada, setCategoriaSelecionada] = useState<"TODAS" | CategoriaProduto>("TODAS");
-  const [modalNovoProdutoAberto, setModalNovoProdutoAberto] = useState(false);
-  const [produtoEditando, setProdutoEditando] = useState<ProdutoTabela | null>(null);
-  const [produtoParaExcluir, setProdutoParaExcluir] = useState<ProdutoTabela | null>(null);
+  const [categoriaSelecionada, setCategoriaSelecionada] = useState<string>("TODAS");
+  const [categorias, setCategorias] = useState<Array<{ id: string; nome: string }>>([]);
+  const [produtoParaDesativar, setProdutoParaDesativar] = useState<ProdutoTabela | null>(null);
   const [carregando, setCarregando] = useState(false);
   const [situacao, setSituacao] = useState<SituacaoEstoque>("TODAS");
   const [aba, setAba] = useState<"produtos" | "relatorios">("produtos");
@@ -174,7 +165,7 @@ function ConteudoEstoque() {
   };
 
   const aoAlterarCategoria = (valor: string) => {
-    setCategoriaSelecionada(valor as "TODAS" | CategoriaProduto);
+    setCategoriaSelecionada(valor);
     irParaPagina(1);
   };
 
@@ -204,7 +195,10 @@ function ConteudoEstoque() {
             codigoBarras: produto.codigoBarras,
             imagemUrl: produto.imagemUrl,
             descricao: produto.descricao,
-            categoria: produto.categoria as CategoriaProduto,
+            sku: produto.sku,
+            unidade: produto.unidade,
+            categoriaId: produto.categoriaId,
+            categoria: produto.categoria,
             custo: produto.custo,
             precoVenda: produto.precoVenda,
             quantidadeEstoque: produto.quantidadeEstoque,
@@ -225,6 +219,25 @@ function ConteudoEstoque() {
       ativo = false;
     };
   }, [currentPage, busca, categoriaSelecionada, situacao, contadorRecarga]);
+
+  // As categorias são cadastro: carregam uma vez e recarregam depois de uma
+  // mutação, porque uma categoria nova pode ter nascido na página do produto.
+  useEffect(() => {
+    let ativo = true;
+
+    void listarCategoriasAtivas()
+      .then((lista) => {
+        if (ativo) setCategorias(lista);
+      })
+      .catch(() => {
+        // O filtro por categoria é conveniência: sem ele a lista continua
+        // inteira, e um toast aqui só empilharia erro.
+      });
+
+    return () => {
+      ativo = false;
+    };
+  }, [contadorRecarga]);
 
   // Os indicadores não dependem de página nem de filtro: são do estoque
   // inteiro. Recarregam só depois de uma mutação, que é quando podem mudar.
@@ -248,55 +261,19 @@ function ConteudoEstoque() {
   // A filtragem é feita no servidor — exibe a lista recebida diretamente
   const produtosFiltrados = produtos;
 
-  const aoSalvarProduto = async (dados: FormProduto) => {
-    const resultado = produtoEditando
-      ? await atualizarProduto(produtoEditando.id, dados)
-      : await criarProduto(dados);
+  const aoConfirmarDesativacao = async () => {
+    if (!produtoParaDesativar) return;
 
-    if (!resultado.sucesso) {
-      toast.error(resultado.mensagem);
-      return resultado;
-    }
-
-    toast.success(
-      produtoEditando ? "Produto atualizado com sucesso!" : "Produto cadastrado com sucesso!"
-    );
-
-    setProdutoEditando(null);
-    // Rebusca a lista do servidor para refletir o valor atualizado de precoVariavel
-    setContadorRecarga((n) => n + 1);
-
-    return resultado;
-  };
-
-  const aoAbrirNovoProduto = () => {
-    setProdutoEditando(null);
-    setModalNovoProdutoAberto(true);
-  };
-
-  const aoEditarProduto = (produto: ProdutoTabela) => {
-    setProdutoEditando(produto);
-    setModalNovoProdutoAberto(true);
-  };
-
-  const aoConfirmarExclusao = async () => {
-    if (!produtoParaExcluir) return;
-
-    const resultado = await excluirProduto(produtoParaExcluir.id);
+    const resultado = await desativarProduto(produtoParaDesativar.id);
 
     if (!resultado.sucesso) {
       toast.error(resultado.mensagem);
       return;
     }
 
-    toast.success("Produto excluido com sucesso!");
-    setProdutoParaExcluir(null);
+    toast.success(resultado.mensagem);
+    setProdutoParaDesativar(null);
     setContadorRecarga((n) => n + 1);
-  };
-
-  const aoFecharModalProduto = () => {
-    setModalNovoProdutoAberto(false);
-    setProdutoEditando(null);
   };
 
   return (
@@ -371,19 +348,21 @@ function ConteudoEstoque() {
                     <SelectValue placeholder="Filtrar categoria" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="TODAS">Todas as Categorias</SelectItem>
-                    {categoriasProduto.map((categoria) => (
-                      <SelectItem key={categoria} value={categoria}>
-                        {mapaCategoriaRotulo[categoria]}
+                    <SelectItem value="TODAS">Todas as categorias</SelectItem>
+                    {categorias.map((categoria) => (
+                      <SelectItem key={categoria.id} value={categoria.id}>
+                        {categoria.nome}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
 
                 {podeEditarEstoque ? (
-                  <Button onClick={aoAbrirNovoProduto}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Novo Produto
+                  <Button asChild>
+                    <Link href="/estoque/produtos/novo">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Novo produto
+                    </Link>
                   </Button>
                 ) : null}
               </div>
@@ -422,8 +401,20 @@ function ConteudoEstoque() {
                               </div>
                             )}
                           </TableCell>
-                          <TableCell className="font-medium text-foreground">{produto.nome}</TableCell>
-                          <TableCell>{mapaCategoriaRotulo[produto.categoria]}</TableCell>
+                          <TableCell className="font-medium text-foreground">
+                            <Link
+                              href={`/estoque/produtos/${produto.id}`}
+                              className="hover:underline"
+                            >
+                              {produto.nome}
+                            </Link>
+                            {produto.sku && (
+                              <span className="ml-2 text-xs tabular-nums text-muted-foreground">
+                                {produto.sku}
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell>{produto.categoria}</TableCell>
                           <TableCell>{produto.custo === null ? "—" : formatarMoeda(produto.custo)}</TableCell>
                           <TableCell>{formatarMoeda(produto.precoVenda)}</TableCell>
                           <TableCell>
@@ -441,8 +432,10 @@ function ConteudoEstoque() {
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
                                   {podeEditarEstoque ? (
-                                    <DropdownMenuItem onClick={() => aoEditarProduto(produto)}>
-                                      Editar
+                                    <DropdownMenuItem asChild>
+                                      <Link href={`/estoque/produtos/${produto.id}`}>
+                                        Abrir produto
+                                      </Link>
                                     </DropdownMenuItem>
                                   ) : null}
                                   <DropdownMenuItem
@@ -453,9 +446,9 @@ function ConteudoEstoque() {
                                   {podeExcluirEstoque ? (
                                     <DropdownMenuItem
                                       className="text-destructive"
-                                      onClick={() => setProdutoParaExcluir(produto)}
+                                      onClick={() => setProdutoParaDesativar(produto)}
                                     >
-                                      Excluir
+                                      Desativar
                                     </DropdownMenuItem>
                                   ) : null}
                                 </DropdownMenuContent>
@@ -502,26 +495,6 @@ function ConteudoEstoque() {
           </div>
       </div>
 
-      <ModalNovoProduto
-        aberto={modalNovoProdutoAberto}
-        aoFechar={aoFecharModalProduto}
-        produtoInicial={
-          produtoEditando
-            ? {
-                ...produtoEditando,
-                codigoBarras: produtoEditando.codigoBarras ?? undefined,
-                imagemUrl: produtoEditando.imagemUrl ?? undefined,
-                descricao: produtoEditando.descricao ?? undefined,
-                // custo só chega null quando falta estoque.ver_custos — e essa
-                // permissão sempre acompanha estoque.editar na matriz atual,
-                // então editar sem enxergar o custo não é um caminho real hoje.
-                custo: produtoEditando.custo ?? 0,
-              }
-            : null
-        }
-        aoSalvar={aoSalvarProduto}
-      />
-
       <SheetMovimentacoesProduto
         produtoId={produtoEmMovimentacao?.id ?? null}
         produtoNome={produtoEmMovimentacao?.nome ?? null}
@@ -530,21 +503,26 @@ function ConteudoEstoque() {
       />
 
       <AlertDialog
-        open={Boolean(produtoParaExcluir)}
+        open={Boolean(produtoParaDesativar)}
         onOpenChange={(aberto) => {
-          if (!aberto) setProdutoParaExcluir(null);
+          if (!aberto) setProdutoParaDesativar(null);
         }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Tem certeza que deseja excluir este produto?</AlertDialogTitle>
+            <AlertDialogTitle>Desativar {produtoParaDesativar?.nome}?</AlertDialogTitle>
+            {/* Antes aqui estava "não pode ser desfeita", e era pior que isso:
+                a ação apagava o produto DE VERDADE, levando o livro de
+                movimentações dele junto (onDelete: Cascade). Agora desativa, e
+                dá pra reativar na página do produto. */}
             <AlertDialogDescription>
-              Esta acao nao pode ser desfeita e removera o produto do estoque.
+              O produto sai da lista e do PDV. Saldo, histórico e vendas continuam — nada é
+              apagado, e dá para reativar depois.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={aoConfirmarExclusao}>Excluir Produto</AlertDialogAction>
+            <AlertDialogAction onClick={aoConfirmarDesativacao}>Desativar</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

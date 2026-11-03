@@ -50,6 +50,16 @@ export const ACOES_AUDITORIA = {
   RESPONDER_PROPOSTA: "RESPONDER_PROPOSTA",
   ENVIAR_PROPOSTA: "ENVIAR_PROPOSTA",
   AGENDAR_CONTATO_PROPOSTA: "AGENDAR_CONTATO_PROPOSTA",
+  // Categorias de produto: mesmo cadastro controlado das marcas de peca. Quem
+  // renomeia uma categoria mexe no rotulo de todo o historico que aponta pra
+  // ela, entao a acao e propria e nao reusa ATUALIZAR.
+  // Produto: alteracao de custo e de preco e alteracao de DINHEIRO, e nenhuma
+  // das duas actions antigas (criarProduto/atualizarProduto) registrava nada.
+  ATUALIZAR_PRODUTO: "ATUALIZAR_PRODUTO",
+  REATIVAR_PRODUTO: "REATIVAR_PRODUTO",
+  RENOMEAR_CATEGORIA_PRODUTO: "RENOMEAR_CATEGORIA_PRODUTO",
+  DESATIVAR_CATEGORIA_PRODUTO: "DESATIVAR_CATEGORIA_PRODUTO",
+  REATIVAR_CATEGORIA_PRODUTO: "REATIVAR_CATEGORIA_PRODUTO",
   RENOMEAR_MARCA_PECA: "RENOMEAR_MARCA_PECA",
   DESATIVAR_MARCA_PECA: "DESATIVAR_MARCA_PECA",
   REATIVAR_MARCA_PECA: "REATIVAR_MARCA_PECA",
@@ -76,6 +86,8 @@ export const ENTIDADES_AUDITORIA = {
   // Fase 4 — cadastro de marcas de peca.
   MARCA_PECA: "MARCA_PECA",
   PROPOSTA: "PROPOSTA",
+  CATEGORIA_PRODUTO: "CATEGORIA_PRODUTO",
+  PRODUTO: "PRODUTO",
 } as const;
 
 export type AcaoAuditoria = (typeof ACOES_AUDITORIA)[keyof typeof ACOES_AUDITORIA];
