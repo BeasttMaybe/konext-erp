@@ -44,6 +44,12 @@ export const ACOES_AUDITORIA = {
   // Fase 2A-3 — estorno de venda. O cancelamento nao registrava NADA: nem
   // log, nem rastro da conta a receber, que era apagada.
   ESTORNAR_VENDA: "ESTORNAR_VENDA",
+  // Propostas comerciais. APROVADA/REJEITADA eram inalcancaveis: nenhuma acao
+  // do sistema escrevia esses dois valores do enum. Quem registrou o "sim" do
+  // cliente, e quando, e o que sustenta a taxa de conversao da tela.
+  RESPONDER_PROPOSTA: "RESPONDER_PROPOSTA",
+  ENVIAR_PROPOSTA: "ENVIAR_PROPOSTA",
+  AGENDAR_CONTATO_PROPOSTA: "AGENDAR_CONTATO_PROPOSTA",
   RENOMEAR_MARCA_PECA: "RENOMEAR_MARCA_PECA",
   DESATIVAR_MARCA_PECA: "DESATIVAR_MARCA_PECA",
   REATIVAR_MARCA_PECA: "REATIVAR_MARCA_PECA",
@@ -69,6 +75,7 @@ export const ENTIDADES_AUDITORIA = {
   EMPRESA: "EMPRESA",
   // Fase 4 — cadastro de marcas de peca.
   MARCA_PECA: "MARCA_PECA",
+  PROPOSTA: "PROPOSTA",
 } as const;
 
 export type AcaoAuditoria = (typeof ACOES_AUDITORIA)[keyof typeof ACOES_AUDITORIA];

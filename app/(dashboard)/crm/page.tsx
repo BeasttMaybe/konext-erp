@@ -3,7 +3,6 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  ArrowLeft,
   Building2,
   ChevronRight,
   Eye,
@@ -253,10 +252,6 @@ function ContactsPageContent() {
       mounted = false;
     };
   }, [currentPage, searchTerm, categoryFilter, viewMode, reloadToken]);
-
-  const currentViewLabel = viewMode === "CLIENTES" ? "Clientes" : "Fornecedores";
-  const currentViewIcon = viewMode === "CLIENTES" ? Users : Building2;
-  const ViewIcon = currentViewIcon;
 
   const totalBusiness = summary.empresas;
 
@@ -521,25 +516,24 @@ function ContactsPageContent() {
 
   return (
     <div className="w-full flex flex-col bg-transparent">
-      <div className="border-b border-kx-painel-borda/70 bg-kx-painel/75 px-6 py-6 backdrop-blur-sm/70/50 lg:px-8">
+      {/* `backdrop-blur-sm/70/50` estava aqui: não é classe válida do Tailwind
+          (modificador de opacidade empilhado), então o blur simplesmente não
+          era aplicado. As outras telas usam `backdrop-blur-sm`. */}
+      <div className="border-b border-kx-painel-borda/70 bg-kx-painel/75 px-6 py-6 backdrop-blur-sm lg:px-8">
         <div className="max-w-7xl mx-auto w-full flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">CRM | Contatos & Fornecedores</h1>
+            <h1 className="text-3xl font-bold text-foreground">Clientes e fornecedores</h1>
             <p className="text-muted-foreground mt-2 text-sm">
-              Área dedicada para gerenciar a base de relacionamentos sem interferir no hub principal.
+              Quem compra e quem fornece, num cadastro só.
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => router.push("/crm") }>
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Voltar ao Hub
-            </Button>
-            <Button onClick={openNewContact}>
-              <Plus className="h-4 w-4 mr-2" />
-              Novo Contato
-            </Button>
-          </div>
+          {/* Saiu o "Voltar ao Hub": o hub do CRM foi removido, e o botão
+              navegava pra /crm — esta própria página. */}
+          <Button onClick={openNewContact}>
+            <Plus className="h-4 w-4 mr-2" />
+            Novo Contato
+          </Button>
         </div>
       </div>
 
@@ -576,15 +570,9 @@ function ContactsPageContent() {
                 </div>
               </Card>
 
-              <Card className="p-5 border-border bg-card">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Modo Atual</p>
-                    <p className="text-3xl font-bold text-foreground mt-2">{currentViewLabel}</p>
-                  </div>
-                  <ViewIcon className="h-5 w-5 text-muted-foreground" />
-                </div>
-              </Card>
+              {/* Havia um quarto cartão aqui, "Modo Atual", cujo "número" era a
+                  palavra Clientes ou Fornecedores — ou seja, repetia qual botão
+                  a pessoa acabou de clicar, do tamanho de um indicador. */}
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
