@@ -2,6 +2,7 @@
 
 import {
   Building2,
+  CloudUpload,
   FileText,
   Wrench,
   ShieldCheck,
@@ -19,6 +20,7 @@ const iconesPorSecao: Record<SecaoConfiguracoesId, LucideIcon> = {
   "marcas-peca": Tags,
   garantias: ShieldCheck,
   "pdv-caixa": ShoppingCart,
+  armazenamento: CloudUpload,
   usuarios: UserCog,
 };
 
