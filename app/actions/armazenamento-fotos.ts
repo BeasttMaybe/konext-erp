@@ -5,8 +5,10 @@ import { exigirPermissao } from "@/lib/auth/permissoes";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 import {
+  conferirFormatoDasCredenciais,
   diagnosticarArmazenamento,
   lerConfiguracaoArmazenamento,
+  type ProblemaDeFormato,
   type ResultadoDiagnostico,
 } from "@/lib/fotos/armazenamento";
 
@@ -21,6 +23,12 @@ export type SituacaoArmazenamento = {
    */
   bucket: string | null;
   accountId: string | null;
+  /**
+   * Valores com formato impossível — tamanho ou alfabeto errados. Detectado
+   * sem falar com a Cloudflare, e exibido antes de o dono clicar em testar.
+   * Nunca inclui o valor de nada: só tamanho e formato.
+   */
+  problemasDeFormato: ProblemaDeFormato[];
 };
 
 export async function obterSituacaoArmazenamento(): Promise<SituacaoArmazenamento> {
@@ -30,7 +38,13 @@ export async function obterSituacaoArmazenamento(): Promise<SituacaoArmazenament
   const resultado = lerConfiguracaoArmazenamento();
 
   if (!resultado.ok) {
-    return { configurado: false, faltando: resultado.faltando, bucket: null, accountId: null };
+    return {
+      configurado: false,
+      faltando: resultado.faltando,
+      bucket: null,
+      accountId: null,
+      problemasDeFormato: [],
+    };
   }
 
   return {
@@ -38,6 +52,7 @@ export async function obterSituacaoArmazenamento(): Promise<SituacaoArmazenament
     faltando: [],
     bucket: resultado.configuracao.bucket,
     accountId: resultado.configuracao.accountId,
+    problemasDeFormato: conferirFormatoDasCredenciais(),
   };
 }
 

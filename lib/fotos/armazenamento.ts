@@ -62,6 +62,106 @@ export function armazenamentoEstaConfigurado(): boolean {
   return lerConfiguracaoArmazenamento().ok;
 }
 
+// ── Formato das credenciais ───────────────────────────────────────────────────
+
+/**
+ * O R2 tem formato fixo para três dos quatro valores, e conferir isso aqui
+ * evita uma viagem ao servidor da Cloudflare para descobrir um erro de
+ * copiar e colar.
+ *
+ * Existe porque aconteceu: o `R2_ACCESS_KEY_ID` foi preenchido com 53
+ * caracteres e o SDK recusou com `Credential access key has length 53, should
+ * be 32` — uma mensagem correta, em inglês, e sem dizer onde estava o valor
+ * certo. A página que a Cloudflare mostra ao criar um token do R2 tem TRÊS
+ * valores (Token value, Access Key ID e Secret Access Key), e o de cima não é
+ * o que o S3 usa.
+ */
+export type ProblemaDeFormato = {
+  variavel: string;
+  /** O que há de errado, em português, sem jamais citar o valor. */
+  problema: string;
+};
+
+const HEXADECIMAL = /^[0-9a-f]+$/i;
+
+function conferirHex(
+  variavel: string,
+  valor: string,
+  tamanhoEsperado: number,
+  ondeEncontrar: string
+): ProblemaDeFormato | null {
+  if (valor.length !== tamanhoEsperado) {
+    return {
+      variavel,
+      problema: `tem ${valor.length} caracteres e precisa ter exatamente ${tamanhoEsperado}. ${ondeEncontrar}`,
+    };
+  }
+
+  if (!HEXADECIMAL.test(valor)) {
+    return {
+      variavel,
+      problema: `tem o tamanho certo mas contém caracteres que não existem nesse campo — ele só usa números e as letras de A a F. ${ondeEncontrar}`,
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Confere o formato do que está configurado. Lista vazia significa que o
+ * formato está plausível — não que a credencial seja válida, o que só o
+ * diagnóstico responde.
+ *
+ * Nunca devolve, registra ou exibe o VALOR de nada: só tamanho e formato.
+ */
+export function conferirFormatoDasCredenciais(): ProblemaDeFormato[] {
+  const resultado = lerConfiguracaoArmazenamento();
+  if (!resultado.ok) return [];
+
+  const { accountId, accessKeyId, secretAccessKey, bucket } = resultado.configuracao;
+  const problemas: Array<ProblemaDeFormato | null> = [];
+
+  problemas.push(
+    conferirHex(
+      "R2_ACCOUNT_ID",
+      accountId,
+      32,
+      "É o Account ID da conta Cloudflare, que aparece na barra lateral da página do R2."
+    )
+  );
+
+  problemas.push(
+    conferirHex(
+      "R2_ACCESS_KEY_ID",
+      accessKeyId,
+      32,
+      'Na página do token do R2 é o campo "Access Key ID" — não o "Token value", que fica acima e é maior.'
+    )
+  );
+
+  problemas.push(
+    conferirHex(
+      "R2_SECRET_ACCESS_KEY",
+      secretAccessKey,
+      64,
+      'Na página do token do R2 é o campo "Secret Access Key". Ele aparece uma única vez; se não tiver mais, gere um token novo.'
+    )
+  );
+
+  // O bucket é nome livre, mas o R2 não aceita maiúscula — e um nome digitado
+  // com maiúscula falharia depois com "NoSuchBucket", que manda procurar no
+  // lugar errado.
+  if (bucket !== bucket.toLowerCase()) {
+    problemas.push({
+      variavel: "R2_BUCKET",
+      problema:
+        "tem letra maiúscula, e nome de bucket do R2 é sempre minúsculo. Copie exatamente como aparece na lista do R2.",
+    });
+  }
+
+  return problemas.filter((problema): problema is ProblemaDeFormato => problema !== null);
+}
+
 let clienteEmCache: { chave: string; cliente: S3Client } | null = null;
 
 /**
@@ -186,6 +286,15 @@ export function traduzirErroDeArmazenamento(erro: unknown): string {
   const mensagem = erro instanceof Error ? erro.message : String(erro);
   const texto = `${nome} ${mensagem}`;
 
+  // O SDK confere o TAMANHO da chave antes de sair pela rede, então este erro
+  // chega sem nenhuma conversa com a Cloudflare. Aconteceu de verdade, com uma
+  // chave de 53 caracteres: é o "Token value" da página do token sendo
+  // confundido com o "Access Key ID", que fica logo abaixo dele.
+  const tamanhoErrado = /Credential access key has length (\d+), should be (\d+)/i.exec(texto);
+  if (tamanhoErrado) {
+    return `O R2_ACCESS_KEY_ID tem ${tamanhoErrado[1]} caracteres e precisa ter exatamente ${tamanhoErrado[2]}. Na página do token do R2, é o campo "Access Key ID" — não o "Token value", que fica acima e é maior.`;
+  }
+
   if (/ENOTFOUND|EAI_AGAIN|getaddrinfo|Could not resolve/i.test(texto)) {
     return "Não foi possível alcançar o endereço do R2. O R2_ACCOUNT_ID provavelmente está errado — ele é o Account ID da conta Cloudflare, não o nome do bucket.";
   }
@@ -239,6 +348,22 @@ export async function diagnosticarArmazenamento(): Promise<ResultadoDiagnostico>
       apagou: false,
       etapaQueFalhou: "CONFIGURACAO",
       erro: `Faltam variáveis de ambiente no Vercel: ${configuracao.faltando.join(", ")}.`,
+    };
+  }
+
+  // Formato antes da rede: um valor com o tamanho errado seria recusado pelo
+  // próprio SDK, e a mensagem dele ("Credential access key has length 53")
+  // aparece como falha ao GRAVAR, o que faz procurar permissão de escrita
+  // quando o problema é um campo copiado errado.
+  const problemas = conferirFormatoDasCredenciais();
+
+  if (problemas.length > 0) {
+    return {
+      gravou: false,
+      leu: false,
+      apagou: false,
+      etapaQueFalhou: "CONFIGURACAO",
+      erro: problemas.map((item) => `${item.variavel} ${item.problema}`).join(" "),
     };
   }
 

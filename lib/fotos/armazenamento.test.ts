@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   armazenamentoEstaConfigurado,
+  conferirFormatoDasCredenciais,
   lerConfiguracaoArmazenamento,
   traduzirErroDeArmazenamento,
 } from "./armazenamento";
@@ -119,5 +120,98 @@ describe("fotos/armazenamento — tradução de erro", () => {
 
   it("aceita o que não é Error", () => {
     expect(traduzirErroDeArmazenamento("texto solto")).toContain("texto solto");
+  });
+});
+
+describe("fotos/armazenamento — formato das credenciais", () => {
+  function definirValidas() {
+    process.env.R2_ACCOUNT_ID = "a".repeat(32);
+    process.env.R2_ACCESS_KEY_ID = "0123456789abcdef0123456789abcdef";
+    process.env.R2_SECRET_ACCESS_KEY = "f".repeat(64);
+    process.env.R2_BUCKET = "konext-os-fotos";
+  }
+
+  it("credenciais no formato certo não geram problema", () => {
+    definirValidas();
+
+    expect(conferirFormatoDasCredenciais()).toEqual([]);
+  });
+
+  /**
+   * O caso real: o campo "Token value" da página do token do R2 foi colado no
+   * lugar do "Access Key ID". O SDK recusa com "Credential access key has
+   * length 53, should be 32" — correto, em inglês, e sem dizer onde está o
+   * valor certo.
+   */
+  it("aponta o Access Key ID com tamanho errado, e onde achar o certo", () => {
+    definirValidas();
+    process.env.R2_ACCESS_KEY_ID = "x".repeat(53);
+
+    const [problema] = conferirFormatoDasCredenciais();
+
+    expect(problema.variavel).toBe("R2_ACCESS_KEY_ID");
+    expect(problema.problema).toContain("53 caracteres");
+    expect(problema.problema).toContain("32");
+    expect(problema.problema).toContain("Token value");
+  });
+
+  it("nunca devolve o valor de nada, só tamanho e formato", () => {
+    // O painel exibe isto na tela: se o valor vazasse aqui, uma credencial
+    // apareceria em Configurações.
+    const segredo = "9".repeat(70);
+    definirValidas();
+    process.env.R2_SECRET_ACCESS_KEY = segredo;
+
+    const texto = JSON.stringify(conferirFormatoDasCredenciais());
+
+    expect(texto).not.toContain(segredo);
+    expect(texto).toContain("R2_SECRET_ACCESS_KEY");
+  });
+
+  it("pega o tamanho certo com alfabeto errado", () => {
+    definirValidas();
+    // 32 caracteres, mas com "z" — que não existe em hexadecimal.
+    process.env.R2_ACCESS_KEY_ID = `z${"a".repeat(31)}`;
+
+    const [problema] = conferirFormatoDasCredenciais();
+
+    expect(problema.variavel).toBe("R2_ACCESS_KEY_ID");
+    expect(problema.problema).toContain("A a F");
+  });
+
+  it("pega bucket com maiúscula", () => {
+    // Falharia depois com NoSuchBucket, que manda procurar no lugar errado.
+    definirValidas();
+    process.env.R2_BUCKET = "Konext-OS-Fotos";
+
+    const [problema] = conferirFormatoDasCredenciais();
+
+    expect(problema.variavel).toBe("R2_BUCKET");
+    expect(problema.problema).toContain("minúsculo");
+  });
+
+  it("lista todos os problemas de uma vez, não só o primeiro", () => {
+    // Quem copiou um campo errado costuma ter copiado os dois.
+    definirValidas();
+    process.env.R2_ACCESS_KEY_ID = "curto";
+    process.env.R2_SECRET_ACCESS_KEY = "tambem-curto";
+
+    const variaveis = conferirFormatoDasCredenciais().map((item) => item.variavel);
+
+    expect(variaveis).toEqual(["R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY"]);
+  });
+
+  it("sem configuração não opina sobre formato", () => {
+    expect(conferirFormatoDasCredenciais()).toEqual([]);
+  });
+
+  it("o erro de tamanho do SDK vira português, com os dois números", () => {
+    const traduzido = traduzirErroDeArmazenamento(
+      new Error("Credential access key has length 53, should be 32")
+    );
+
+    expect(traduzido).toContain("53");
+    expect(traduzido).toContain("32");
+    expect(traduzido).toContain("Access Key ID");
   });
 });
