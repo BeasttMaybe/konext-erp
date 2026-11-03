@@ -24,6 +24,8 @@ model Usuario {
   caixaSessionsAbertas CaixaSession[] @relation("CaixaSessionAbertaPor")
   contasReceberCriadas ContaReceber[] @relation("ContaReceberCriadaPor")
   despesasCriadas Despesa[] @relation("DespesaCriadaPor")
+  fotosOSEnviadas FotoOS[] @relation("FotoOSEnviadaPor")
+  tokensFotoOSCriados TokenFotoOS[] @relation("TokenFotoOSCriadoPor")
   criadoEm      DateTime    @default(now()) @db.Timestamptz(3)
   atualizadoEm  DateTime    @updatedAt @db.Timestamptz(3)
 }
@@ -351,6 +353,8 @@ model OrdemServico {
   termoGarantia TermoGarantiaOS?
   retornosGarantiaRegistros RetornoGarantiaOS[] @relation("RetornoGarantiaOsOrigem")
   tecnicos   TecnicoOS[]
+  fotos      FotoOS[]
+  tokensDeFoto TokenFotoOS[]
 
   criadoEm     DateTime @default(now()) @db.Timestamptz(3)
   atualizadoEm DateTime @updatedAt @db.Timestamptz(3)
@@ -1309,4 +1313,77 @@ enum TipoHistoricoMeta {
   PAUSA
   CANCELAMENTO
   OBSERVACAO
+}
+
+/// Momento do fluxo em que a foto foi tirada.
+///
+/// Entrada e saída não são a mesma prova: a de entrada protege a loja do "vocês
+/// quebraram minha tela", a de saída registra como o aparelho foi devolvido.
+/// Guardar as duas no mesmo balaio apagaria exatamente a distinção que faz a
+/// foto valer alguma coisa numa discussão com o cliente.
+enum MomentoFotoOS {
+  ENTRADA
+  DURANTE
+  SAIDA
+}
+
+/// Foto de um aparelho, guardada no Cloudflare R2.
+///
+/// O arquivo NÃO fica no banco: aqui só mora o caminho dele no bucket. Imagem
+/// em coluna de banco encarece backup, deixa a consulta lenta e não traz
+/// vantagem nenhuma.
+model FotoOS {
+  id             String       @id @default(uuid())
+  ordemServicoId String
+  ordemServico   OrdemServico @relation(fields: [ordemServicoId], references: [id], onDelete: Cascade)
+
+  /// Caminho do objeto no bucket. É a ÚNICA ligação entre a linha e o arquivo:
+  /// perder isto é perder a foto, mesmo com o arquivo intacto lá.
+  ///
+  /// O `onDelete: Cascade` acima apaga a linha junto com a OS, mas não apaga o
+  /// objeto no R2 — exclusão de OS neste sistema é lógica (`excluidaEm`), então
+  /// na prática isso não dispara; quem apaga foto de verdade é a action, que
+  /// remove o objeto primeiro e a linha depois.
+  chaveArmazenamento String @unique
+
+  momento   MomentoFotoOS @default(ENTRADA)
+  descricao String?
+
+  tipoConteudo String
+  tamanhoBytes Int
+  /// Dimensões, quando o navegador conseguiu medir. Servem pra tela reservar o
+  /// espaço antes de a imagem carregar, sem pular o layout.
+  largura Int?
+  altura  Int?
+
+  enviadaPorId String?
+  enviadaPor   Usuario? @relation("FotoOSEnviadaPor", fields: [enviadaPorId], references: [id])
+  /// Veio pelo link do celular, sem login — por isso `enviadaPorId` pode ser nulo.
+  enviadaPeloCelular Boolean @default(false)
+
+  criadoEm DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([ordemServicoId, momento])
+}
+
+/// Link temporário para mandar foto pelo celular sem login.
+///
+/// É uma linha no banco, e não um token assinado, por dois motivos: dá pra
+/// revogar antes do prazo, e o uso fica rastreável. O próprio id é o segredo
+/// do link, então ele nunca aparece em lugar público.
+model TokenFotoOS {
+  id             String       @id @default(uuid())
+  ordemServicoId String
+  ordemServico   OrdemServico @relation(fields: [ordemServicoId], references: [id], onDelete: Cascade)
+
+  expiraEm   DateTime  @db.Timestamptz(3)
+  revogadoEm DateTime? @db.Timestamptz(3)
+
+  criadoPorId String?
+  criadoPor   Usuario? @relation("TokenFotoOSCriadoPor", fields: [criadoPorId], references: [id])
+
+  criadoEm DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([ordemServicoId])
+  @@index([expiraEm])
 }

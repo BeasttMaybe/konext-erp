@@ -63,6 +63,10 @@ export const ACOES_AUDITORIA = {
   // Diagnostico do armazenamento de fotos (R2). Registrado porque saber quando
   // passou pela ultima vez responde "quebrou agora ou nunca funcionou?".
   TESTAR_ARMAZENAMENTO: "TESTAR_ARMAZENAMENTO",
+  // Fotos do aparelho na OS. Registrado porque a foto e prova numa discussao
+  // com cliente: quem adicionou e quem removeu importa tanto quanto a imagem.
+  ADICIONAR_FOTO_OS: "ADICIONAR_FOTO_OS",
+  REMOVER_FOTO_OS: "REMOVER_FOTO_OS",
   RENOMEAR_MARCA_PECA: "RENOMEAR_MARCA_PECA",
   DESATIVAR_MARCA_PECA: "DESATIVAR_MARCA_PECA",
   REATIVAR_MARCA_PECA: "REATIVAR_MARCA_PECA",
