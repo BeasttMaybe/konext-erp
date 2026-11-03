@@ -16,7 +16,7 @@ const TODAS_AS_ORIGENS: OrigemMovimentacao[] = [
   "ESTORNO_VENDA",
   "CADASTRO",
   "AJUSTE_MANUAL",
-  "COMPRA_XML",
+  "COMPRA_NOTA",
   "INVENTARIO",
   "HISTORICO_RECONSTRUIDO",
 ];
@@ -35,7 +35,7 @@ describe("lib/dominio/estoque/movimentacao — tipo por origem", () => {
   });
 
   it("compra e cadastro entram; ajuste e inventário podem ir pros dois lados", () => {
-    expect(tipoDaOrigem("COMPRA_XML")).toBe("ENTRADA");
+    expect(tipoDaOrigem("COMPRA_NOTA")).toBe("ENTRADA");
     expect(tipoDaOrigem("CADASTRO")).toBe("ENTRADA");
     expect(tipoDaOrigem("AJUSTE_MANUAL")).toBe("AJUSTE");
     expect(tipoDaOrigem("INVENTARIO")).toBe("AJUSTE");

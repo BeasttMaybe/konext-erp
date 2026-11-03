@@ -70,6 +70,11 @@ export const ACOES_AUDITORIA = {
   RENOMEAR_MARCA_PECA: "RENOMEAR_MARCA_PECA",
   DESATIVAR_MARCA_PECA: "DESATIVAR_MARCA_PECA",
   REATIVAR_MARCA_PECA: "REATIVAR_MARCA_PECA",
+  // Entrada de nota de compra. Acao propria, e nao CRIAR, porque uma nota
+  // lancada nao cria um registro: ela mexe no SALDO e no CUSTO de varios
+  // produtos de uma vez, que e a coisa mais consequente que alguem faz no
+  // estoque sem estar vendendo nada.
+  LANCAR_NOTA_DE_COMPRA: "LANCAR_NOTA_DE_COMPRA",
 } as const;
 
 export const ENTIDADES_AUDITORIA = {
@@ -95,6 +100,7 @@ export const ENTIDADES_AUDITORIA = {
   PROPOSTA: "PROPOSTA",
   CATEGORIA_PRODUTO: "CATEGORIA_PRODUTO",
   PRODUTO: "PRODUTO",
+  NOTA_DE_COMPRA: "NOTA_DE_COMPRA",
 } as const;
 
 export type AcaoAuditoria = (typeof ACOES_AUDITORIA)[keyof typeof ACOES_AUDITORIA];

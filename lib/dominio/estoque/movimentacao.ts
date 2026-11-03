@@ -26,7 +26,7 @@ export type OrigemMovimentacao =
   | "ESTORNO_VENDA"
   | "CADASTRO"
   | "AJUSTE_MANUAL"
-  | "COMPRA_XML"
+  | "COMPRA_NOTA"
   | "INVENTARIO"
   | "HISTORICO_RECONSTRUIDO";
 
@@ -36,7 +36,7 @@ const TIPO_POR_ORIGEM: Readonly<Record<OrigemMovimentacao, TipoMovimentacao>> = 
   PEDIDO_VENDA: "SAIDA",
   ESTORNO_VENDA: "ENTRADA",
   CADASTRO: "ENTRADA",
-  COMPRA_XML: "ENTRADA",
+  COMPRA_NOTA: "ENTRADA",
   // Ajuste e inventário podem subir ou descer o saldo; quem chama informa.
   AJUSTE_MANUAL: "AJUSTE",
   INVENTARIO: "AJUSTE",

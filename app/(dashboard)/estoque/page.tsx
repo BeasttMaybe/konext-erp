@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { MoreHorizontal, Package, Plus, Search } from "lucide-react";
+import { FileUp, MoreHorizontal, Package, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 import { IndicadoresEstoque as CartoesIndicadores } from "@/components/estoque/indicadores-estoque";
 import { RelatoriosEstoque } from "@/components/estoque/relatorios-estoque";
@@ -358,12 +358,24 @@ function ConteudoEstoque() {
                 </Select>
 
                 {podeEditarEstoque ? (
-                  <Button asChild>
-                    <Link href="/estoque/produtos/novo">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Novo produto
-                    </Link>
-                  </Button>
+                  <>
+                    {/* Entrar nota vem ANTES de "novo produto" porque é o
+                        caminho que cadastra dezenas de produtos de uma vez,
+                        com o custo certo. Cadastrar um a um é a exceção. */}
+                    <Button asChild variant="outline">
+                      <Link href="/estoque/notas/nova">
+                        <FileUp className="h-4 w-4 mr-2" />
+                        Entrada de nota
+                      </Link>
+                    </Button>
+
+                    <Button asChild>
+                      <Link href="/estoque/produtos/novo">
+                        <Plus className="h-4 w-4 mr-2" />
+                        Novo produto
+                      </Link>
+                    </Button>
+                  </>
                 ) : null}
               </div>
 
