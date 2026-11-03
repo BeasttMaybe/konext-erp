@@ -317,7 +317,7 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
           </div>
 
           <div className="flex flex-col gap-kx-4">
-            <SecaoFotosOS />
+            <SecaoFotosOS ordemServicoId={idOs} />
             <SecaoTecnicosOS osId={idOs} numeroOs={numeroOsExibicao} tecnicos={tecnicosNormalizados} podeEditar={podeEditarOS} />
             <SecaoItensOS
               osId={idOs}
