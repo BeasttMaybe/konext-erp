@@ -4,7 +4,11 @@ import { Search } from "lucide-react";
 
 import { FiltroPeriodoPagina } from "@/components/ui/filtro-periodo-pagina";
 import { Input } from "@/components/ui/input";
-import type { FiltrosGarantiaInput, SituacaoGarantia } from "@/app/actions/garantias";
+import type { FiltrosGarantiaInput } from "@/app/actions/garantias";
+import {
+  ABAS_DE_GARANTIA,
+  ajudaDaSituacao,
+} from "@/lib/dominio/os/garantias";
 
 /**
  * Filtros das Garantias.
@@ -23,34 +27,7 @@ import type { FiltrosGarantiaInput, SituacaoGarantia } from "@/app/actions/garan
  * aba própria — que é o que separa o que ainda vale do que já expirou.
  */
 
-const ABAS: ReadonlyArray<{ valor: SituacaoGarantia; rotulo: string; ajuda: string }> = [
-  {
-    valor: "VIGENTES",
-    rotulo: "Vigentes",
-    ajuda: "A garantia ainda está valendo.",
-  },
-  {
-    valor: "VENCENDO",
-    rotulo: "Vencendo",
-    ajuda: "Acaba nos próximos 7 dias.",
-  },
-  {
-    valor: "VENCIDAS",
-    rotulo: "Vencidas",
-    ajuda: "O prazo já passou — a loja não deve mais cobertura.",
-  },
-  {
-    valor: "COM_RETORNO",
-    rotulo: "Com retorno",
-    ajuda: "O aparelho voltou pelo menos uma vez.",
-  },
-  {
-    valor: "CANCELADAS",
-    rotulo: "Canceladas",
-    ajuda: "Termo cancelado, ou OS excluída.",
-  },
-  { valor: "TODAS", rotulo: "Todas", ajuda: "Sem recorte." },
-];
+
 
 export function FiltrosGarantias({
   filtros,
@@ -69,7 +46,7 @@ export function FiltrosGarantias({
   return (
     <div className="flex flex-col gap-3 rounded-kx-painel border border-kx-painel-borda bg-kx-cartao p-kx-4">
       <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="Situação da garantia">
-        {ABAS.map((aba) => {
+        {ABAS_DE_GARANTIA.map((aba) => {
           const selecionada = situacaoAtual === aba.valor;
 
           return (
@@ -124,7 +101,7 @@ export function FiltrosGarantias({
             ? "1 garantia encontrada"
             : `${totalEncontrado} garantias encontradas`}
         {" · "}
-        {ABAS.find((aba) => aba.valor === situacaoAtual)?.ajuda}
+        {ajudaDaSituacao(situacaoAtual)}
       </p>
     </div>
   );

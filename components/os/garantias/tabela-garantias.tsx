@@ -24,6 +24,10 @@ import {
   TabelaVazia,
 } from "@/components/ui/table";
 import type { LinhaGarantiaOS, StatusGarantia } from "@/app/actions/garantias";
+import {
+  descricaoDeVencimento,
+  urgenciaDoVencimento,
+} from "@/lib/dominio/os/garantias";
 import { ModalRegistrarRetorno } from "@/components/os/garantias/modal-registrar-retorno";
 import { HistoricoConsertosCliente } from "@/components/os/garantias/historico-consertos-cliente";
 
@@ -76,15 +80,15 @@ const statusVariante: Record<StatusGarantia, NonNullable<PropsPilulaStatus["vari
   CANCELADA: "neutro",
 };
 
-function descricaoDias(diasRestantes: number): string {
-  if (diasRestantes === 0) return "Vence hoje";
-  if (diasRestantes === 1) return "Vence amanhã";
-  if (diasRestantes > 0) return `Faltam ${diasRestantes} dias`;
-  if (diasRestantes === -1) return "Venceu ontem";
-  return `Venceu há ${Math.abs(diasRestantes)} dias`;
-}
-
 const COLUNAS = 7;
+
+/** A cor segue a urgência do domínio; a tela não repete os limites de dias. */
+function classeDoVencimento(diasRestantes: number): string {
+  const urgencia = urgenciaDoVencimento(diasRestantes);
+  if (urgencia === "VENCIDA") return "text-xs font-semibold text-kx-erro-texto";
+  if (urgencia === "PERTO") return "text-xs font-semibold text-kx-alerta-texto";
+  return "text-xs text-kx-legenda";
+}
 
 export function TabelaGarantias({ linhas, onAtualizar }: TabelaGarantiasProps) {
   const [termoSelecionado, setTermoSelecionado] = useState<string | null>(null);
@@ -156,16 +160,8 @@ export function TabelaGarantias({ linhas, onAtualizar }: TabelaGarantiasProps) {
                         <p className="tabular-nums text-kx-texto">
                           {formatarData(linha.dataFimGarantia)}
                         </p>
-                        <p
-                          className={`text-xs ${
-                            linha.diasRestantes < 0
-                              ? "font-semibold text-kx-erro-texto"
-                              : linha.diasRestantes <= 7
-                                ? "font-semibold text-kx-alerta-texto"
-                                : "text-kx-legenda"
-                          }`}
-                        >
-                          {descricaoDias(linha.diasRestantes)}
+                        <p className={classeDoVencimento(linha.diasRestantes)}>
+                          {descricaoDeVencimento(linha.diasRestantes)}
                         </p>
                       </div>
                     </TableCell>

@@ -6,6 +6,10 @@ import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { ErroPermissao, exigirPermissao } from "@/lib/auth/permissoes";
 import { escopoOrdemServico } from "@/lib/auth/escopos";
 import {
+  DIAS_PARA_VENCIMENTO_PROXIMO,
+  type SituacaoGarantia,
+} from "@/lib/dominio/os/garantias";
+import {
   descreverAutoria,
   normalizarIdUsuarioOperacional,
 } from "@/lib/tenant/usuario-operacional";
@@ -90,26 +94,7 @@ export type FinalizarRetornoGarantiaInput = {
   observacoesTecnicas?: string;
 };
 
-/**
- * Abas de triagem da tela de Garantias.
- *
- * São recortes por DATA e por cancelamento, não pelo `statusGarantia` da
- * linha — e isso é de propósito. A máquina de status coloca "teve retorno"
- * ACIMA do vencimento, então uma garantia vencida que já teve retorno nunca
- * aparece como VENCIDA. Para quem pergunta "o que já expirou?", a resposta é
- * sobre a data; o status continua na pílula de cada linha, com a nuance toda.
- *
- * Todos são expressáveis em SQL, o que importa: a versão anterior filtrava
- * status DEPOIS da paginação, em memória, então o filtro alcançava só as 20
- * linhas da página aberta e o total continuava sendo o de tudo.
- */
-export type SituacaoGarantia =
-  | "VIGENTES"
-  | "VENCENDO"
-  | "VENCIDAS"
-  | "COM_RETORNO"
-  | "CANCELADAS"
-  | "TODAS";
+export type { SituacaoGarantia } from "@/lib/dominio/os/garantias";
 
 export type FiltrosGarantiaInput = {
   busca?: string;
@@ -120,9 +105,6 @@ export type FiltrosGarantiaInput = {
   pagina?: number;
   tamanhoPagina?: number;
 };
-
-/** Dias antes do fim em que a garantia entra em "vencendo". */
-export const DIAS_PARA_VENCIMENTO_PROXIMO = 7;
 
 export type LinhaGarantiaOS = {
   termoGarantiaId: string;
