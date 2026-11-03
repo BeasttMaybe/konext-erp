@@ -47,6 +47,8 @@
     "tenant:verificar-arquitetura-final": "npm run prisma:central:generate && node scripts/verificar-arquitetura-final.mjs"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1161.0",
+    "@aws-sdk/s3-request-presigner": "^3.1161.0",
     "@date-fns/tz": "^1.5.0",
     "@hello-pangea/dnd": "^18.0.1",
     "@hookform/resolvers": "^5.4.0",

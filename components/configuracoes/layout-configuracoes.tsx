@@ -19,6 +19,7 @@ import { MenuConfiguracoes } from "./menu-configuracoes";
 import { PainelDocumentos } from "./painel-documentos";
 import { PainelEmpresa } from "./painel-empresa";
 import { PainelGarantias } from "./painel-garantias";
+import { PainelArmazenamento } from "./painel-armazenamento";
 import { PainelMarcasPeca } from "./painel-marcas-peca";
 import type { MarcaPecaListada } from "@/app/actions/marcas-peca";
 import { PainelOs } from "./painel-os";
@@ -53,6 +54,10 @@ export function LayoutConfiguracoes({ defaultValues, marcasPeca }: PropsLayoutCo
       SECOES_CONFIGURACOES.filter((secao) => {
         if (secao.id === "usuarios") return podeVerUsuariosCargos;
         if (secao.id === "marcas-peca") return marcasPeca !== null;
+        // Armazenamento usa a mesma permissao de marcas de peca
+        // (configuracoes.sistema); `marcasPeca !== null` ja e esse sinal, e a
+        // propria action recusa quem nao tem.
+        if (secao.id === "armazenamento") return marcasPeca !== null;
         return true;
       }),
     [podeVerUsuariosCargos, marcasPeca]
@@ -212,6 +217,10 @@ export function LayoutConfiguracoes({ defaultValues, marcasPeca }: PropsLayoutCo
         // Cadastro proprio, com as suas acoes: nao participa do formulario de
         // Configuracoes nem da barra de salvar (ver secaoComPersistenciaAtiva).
         return marcasPeca ? <PainelMarcasPeca marcas={marcasPeca} /> : null;
+      case "armazenamento":
+        // Cadastro/diagnostico proprio: nao participa do formulario de
+        // Configuracoes nem da barra de salvar.
+        return marcasPeca !== null ? <PainelArmazenamento /> : null;
       case "usuarios":
         return podeVerUsuariosCargos ? <SecaoUsuariosCargos /> : null;
       default:

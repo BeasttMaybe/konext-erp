@@ -5,6 +5,7 @@ export type SecaoConfiguracoesId =
   | "marcas-peca"
   | "garantias"
   | "pdv-caixa"
+  | "armazenamento"
   | "usuarios";
 
 export type ItemSecaoConfiguracoes = {
@@ -43,6 +44,11 @@ export const SECOES_CONFIGURACOES: ItemSecaoConfiguracoes[] = [
     id: "pdv-caixa",
     rotulo: "PDV e Caixa",
     descricao: "Centralize preferências de vendas, pagamentos e caixa.",
+  },
+  {
+    id: "armazenamento",
+    rotulo: "Armazenamento de fotos",
+    descricao: "Onde as fotos dos aparelhos ficam guardadas, e um teste da conexão.",
   },
   {
     id: "usuarios",
