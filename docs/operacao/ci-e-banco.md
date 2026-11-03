@@ -21,16 +21,46 @@ verdade e os comandos de banco rodam neles.
 
 Dispara em todo push de qualquer branch, em todo pull request, e manualmente.
 
-Dois jobs em paralelo, de propósito — uma falha de lint não esconde o resultado dos
+Três jobs em paralelo, de propósito — uma falha de lint não esconde o resultado dos
 tipos, dos testes e do build:
 
 | Job | O que roda |
 |---|---|
 | `validar` | `npm ci` (que gera os dois clientes Prisma no postinstall) → `prisma validate` nos dois schemas → `tsc --noEmit` → `npm test` → `npm run build` |
 | `lint` | `npm run lint` |
+| `migrations` | sobe um Postgres descartável → aplica as migrations commitadas → `prisma migrate diff` tem que sair vazio nos dois schemas → `npm run verificar:consultas` |
 
-Nenhuma etapa escreve no banco: `generate`, `tsc` e os testes não conectam, e o
-build só precisa da connection string presente.
+Nenhuma etapa escreve num banco real: `generate`, `tsc` e os testes não conectam; o
+build só precisa da connection string presente; e o job `migrations` usa um
+Postgres que nasce e morre dentro do runner.
+
+### Por que o job `migrations` também roda SQL
+
+O projeto tem SQL cru em várias actions (`$queryRaw`), e **nada o valida**:
+`tsc` não olha dentro da string de template, e teste de unidade não abre conexão.
+Erro de sintaxe, nome de coluna errado ou cast impossível só aparecem quando o
+banco recebe a consulta — ou seja, quando alguém abre a tela e ela não carrega.
+
+O shadow database deste job já tem o schema real aplicado, então é o lugar certo
+pra rodar essas consultas de verdade. É o que `npm run verificar:consultas` faz
+(arquivos `verificacao/**/*.spec.ts`, fora do `npm test` por isso mesmo).
+
+No caso da lista de propostas a verificação vai além de "o SQL roda": a ordem de
+urgência existe duas vezes — em SQL (`lib/propostas/consulta.ts`, porque a tela é
+paginada e ordenar em memória ordenaria só a página carregada) e em TypeScript
+(`lib/dominio/propostas/situacao.ts`, que é quem rotula cada linha). O teste
+insere as propostas, pede a ordem ao Postgres, calcula a mesma ordem em
+TypeScript e compara nome por nome. É o que impede as duas de divergirem em
+silêncio.
+
+Pra rodar na mão, contra um Postgres descartável qualquer:
+
+```
+SOMBRA_DATABASE_URL=postgresql://... npm run verificar:consultas
+```
+
+Nunca aponte essa variável pra um banco real: o teste faz `TRUNCATE` nas tabelas
+que usa.
 
 **Enquanto os secrets não existirem**, as duas strings caem num placeholder
 (`postgresql://ci:ci@127.0.0.1:5432/ci`). Tipos, testes e lint continuam válidos

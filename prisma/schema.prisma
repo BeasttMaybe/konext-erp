@@ -260,6 +260,15 @@ model PropostaComercial {
   descontoTotal       Decimal                 @db.Decimal(12, 2)
   valorTotal          Decimal                 @db.Decimal(12, 2)
   status              StatusPropostaComercial @default(RASCUNHO)
+  /// Quando o cliente respondeu (aprovou ou recusou). Antes disso, `null`.
+  /// Separado de `atualizadoEm` porque esse muda a cada edição de texto, e a
+  /// data da resposta é o que mede quanto tempo o cliente leva pra decidir.
+  respondidaEm        DateTime?               @db.Timestamptz(3)
+  /// O que o cliente disse ao recusar (ou ao aprovar, se houver o que anotar).
+  /// Orçamento recusado por preço e por prazo pedem reações diferentes, e sem
+  /// isso toda recusa fica igual no histórico.
+  motivoResposta      String?
+  enviadaEm           DateTime?               @db.Timestamptz(3)
   criadoEm            DateTime                @default(now()) @db.Timestamptz(3)
   atualizadoEm        DateTime                @updatedAt @db.Timestamptz(3)
 
@@ -267,6 +276,9 @@ model PropostaComercial {
 
   @@index([status])
   @@index([dataEmissao])
+  // A lista ordena e filtra por validade (vencendo/vencida), e o filtro de
+  // "em aberto" sempre vem junto com o status.
+  @@index([status, validade])
 }
 
 model PropostaItem {

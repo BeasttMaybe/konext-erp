@@ -143,6 +143,19 @@ jobs:
           && echo "sem divergência" \
           || { echo "::error::As migrations do central não reproduzem prisma/central/schema.prisma. SQL faltante:"; cat /tmp/diff-central.sql; exit 1; }
 
+      # O SQL cru do projeto só é validado quando um banco recebe a consulta:
+      # erro de sintaxe, nome de coluna errado ou cast impossível não aparecem
+      # em `tsc` nem em teste de unidade — aparecem quando alguém abre a tela.
+      # Aqui o shadow database já tem o schema real aplicado, então as consultas
+      # rodam de verdade. No caso da lista de propostas, a verificação também
+      # confere que a ordem que o Postgres produz é a mesma que
+      # `lib/dominio/propostas/situacao.ts` calcula em TypeScript — as duas
+      # implementações da regra não podem divergir em silêncio.
+      - name: SQL cru roda contra o schema real
+        env:
+          SOMBRA_DATABASE_URL: postgresql://postgres:sombra@127.0.0.1:5432/tenant_sombra
+        run: npm run verificar:consultas
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
