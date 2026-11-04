@@ -159,11 +159,59 @@ const ROTULOS_DE_TOTAL = {
   totalGeral: /\btotal\s+geral\b|\btotal\s+(?:da\s+)?nota\b|\bvalor\s+total\b|\btotal\s+a\s+pagar\b|^total$/i,
 } as const;
 
+type RotuloDeTotal = keyof typeof ROTULOS_DE_TOTAL;
+
 type PapelDaLinha =
   | { tipo: "ITEM"; item: Omit<ItemLidoDaNota, "ordem" | "descricao"> & { descricao: string } }
-  | { tipo: "TOTAL"; rotulo: keyof typeof ROTULOS_DE_TOTAL; valorCentavos: number }
+  | { tipo: "TOTAL"; valores: Array<{ rotulo: RotuloDeTotal; centavos: number }> }
   | { tipo: "CABECALHO_DE_GRUPO"; texto: string }
   | { tipo: "IGNORAR" };
+
+/** Dinheiro em pt-BR dentro de um texto maior, com a posição de cada achado. */
+const MOEDA_NO_TEXTO = /R?\$?\s*(\d{1,3}(?:\.\d{3})+|\d+),(\d{2})\b/g;
+
+/**
+ * Lê uma linha de fechamento como uma sequência de RÓTULO → VALOR.
+ *
+ * Antes isto era "achou a palavra frete na linha? então o último valor da
+ * linha é o frete" — e errava de dois jeitos que só aparecem fora da nota
+ * que serviu de modelo:
+ *
+ * 1. Um emissor que escreve tudo numa linha só ("MERCADORIAS R$ 258,00
+ *    DESCONTO R$ 8,00 FRETE R$ 20,00 VALOR TOTAL R$ 270,00") fazia o frete
+ *    virar R$ 270,00 — o último valor, não o que vem depois da palavra.
+ * 2. Um emissor que escreve "Subtotal: R$ 333,00" como um pedaço de texto só
+ *    não era reconhecido de jeito nenhum, porque o valor precisava estar
+ *    isolado numa célula. A nota entrava com frete zero.
+ *
+ * Agora cada valor é associado ao rótulo que aparece ANTES dele no texto, o
+ * que é como se lê a linha.
+ */
+function lerValoresDeFechamento(texto: string): Array<{ rotulo: RotuloDeTotal; centavos: number }> {
+  const achados: Array<{ rotulo: RotuloDeTotal; centavos: number }> = [];
+
+  MOEDA_NO_TEXTO.lastIndex = 0;
+  let fim = 0;
+  let encontrado: RegExpExecArray | null;
+
+  while ((encontrado = MOEDA_NO_TEXTO.exec(texto)) !== null) {
+    // O trecho entre o valor anterior e este é onde mora o rótulo dele.
+    const trecho = texto.slice(fim, encontrado.index);
+    fim = encontrado.index + encontrado[0].length;
+
+    const centavos = lerValorMonetario(`${encontrado[1]},${encontrado[2]}`);
+    if (centavos === null) continue;
+
+    for (const [rotulo, padrao] of Object.entries(ROTULOS_DE_TOTAL)) {
+      if (padrao.test(trecho)) {
+        achados.push({ rotulo: rotulo as RotuloDeTotal, centavos });
+        break;
+      }
+    }
+  }
+
+  return achados;
+}
 
 function classificarLinha(linha: LinhaPdf): PapelDaLinha {
   const palavras = juntarSimboloDeMoeda(linha.palavras);
@@ -179,18 +227,8 @@ function classificarLinha(linha: LinhaPdf): PapelDaLinha {
 
   // Fechamento primeiro: "SUBTOTAL MERCADORIA R$ 501,00" tem dinheiro e texto
   // e passaria por item se a quantidade fosse inferida de forma mais frouxa.
-  if (monetarios.length > 0) {
-    for (const [rotulo, padrao] of Object.entries(ROTULOS_DE_TOTAL)) {
-      if (padrao.test(texto)) {
-        return {
-          tipo: "TOTAL",
-          rotulo: rotulo as keyof typeof ROTULOS_DE_TOTAL,
-          // O valor de uma linha de fechamento é o último da direita.
-          valorCentavos: monetarios[monetarios.length - 1].centavos,
-        };
-      }
-    }
-  }
+  const fechamento = lerValoresDeFechamento(texto);
+  if (fechamento.length > 0) return { tipo: "TOTAL", valores: fechamento };
 
   if (monetarios.length === 0) {
     // Texto sozinho no corpo da tabela: é o cabeçalho da seção ("CASE DE
@@ -199,22 +237,30 @@ function classificarLinha(linha: LinhaPdf): PapelDaLinha {
   }
 
   const primeiroMonetario = monetarios[0].indice;
-  const quantidade = lerQuantidade(palavras[0]?.texto ?? "");
 
-  // Sem quantidade à esquerda não é linha de item: é rodapé, observação ou
-  // um fechamento que a lista de rótulos não conhece. Vira linha ignorada e
-  // aparece como aviso em vez de sumir.
-  if (quantidade === null || primeiroMonetario < 1) return { tipo: "IGNORAR" };
+  // A quantidade não é obrigatoriamente o PRIMEIRO campo da linha.
+  //
+  // Metade dos emissores põe um código de produto antes dela ("A-1001 | 10 |
+  // SUPORTE VEICULAR"), e exigir a quantidade na posição zero fazia a nota
+  // inteira ser lida como zero itens — a linha não casava com nada e virava
+  // aviso.
+  //
+  // Então todo campo numérico à esquerda do dinheiro é CANDIDATO a
+  // quantidade, e quem desempata é a conta: vence o candidato cujo
+  // `quantidade × unitário` reproduz o total da linha. É o mesmo princípio
+  // que o módulo inteiro segue — a inferência é o palpite, a conta é a prova
+  // — só que aplicado antes, para escolher entre palpites em vez de apenas
+  // julgar um.
+  const candidatos: Array<{ indice: number; quantidade: number }> = [];
+  for (let indice = 0; indice < primeiroMonetario; indice += 1) {
+    const quantidade = lerQuantidade(palavras[indice]?.texto ?? "");
+    if (quantidade !== null) candidatos.push({ indice, quantidade });
+  }
 
-  const descricao = palavras
-    .slice(1, primeiroMonetario)
-    .map((palavra) => palavra.texto.trim())
-    .filter((parte) => parte !== "")
-    .join(" ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  if (descricao === "") return { tipo: "IGNORAR" };
+  // Sem nenhum número à esquerda não é linha de item: é rodapé, observação
+  // ou um fechamento que a lista de rótulos não conhece. Vira linha ignorada
+  // e aparece como aviso em vez de sumir.
+  if (candidatos.length === 0 || primeiroMonetario < 1) return { tipo: "IGNORAR" };
 
   // Dois ou mais valores: o último é o total da linha, o anterior é o
   // unitário. Com um valor só não dá pra saber qual dos dois é, então
@@ -224,19 +270,45 @@ function classificarLinha(linha: LinhaPdf): PapelDaLinha {
   const penultimo = monetarios.length >= 2 ? monetarios[monetarios.length - 2].centavos : null;
 
   const valorUnitarioCentavos = penultimo ?? ultimo;
+
+  const escolhido =
+    penultimo === null
+      ? candidatos[0]
+      : (candidatos.find(
+          (candidato) =>
+            Math.abs(Math.round(valorUnitarioCentavos * candidato.quantidade) - ultimo) <=
+            Math.max(1, Math.ceil(candidato.quantidade / 2))
+        ) ?? candidatos[0]);
+
   const valorTotalCentavos =
-    penultimo !== null ? ultimo : Math.round(valorUnitarioCentavos * quantidade);
+    penultimo !== null ? ultimo : Math.round(valorUnitarioCentavos * escolhido.quantidade);
+
+  // Tudo à esquerda da quantidade é código do fornecedor; o que fica entre
+  // ela e o dinheiro é a descrição.
+  const juntar = (de: number, ate: number) =>
+    palavras
+      .slice(de, ate)
+      .map((palavra) => palavra.texto.trim())
+      .filter((parte) => parte !== "")
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const descricao = juntar(escolhido.indice + 1, primeiroMonetario);
+  const codigoFornecedor = juntar(0, escolhido.indice);
+
+  if (descricao === "") return { tipo: "IGNORAR" };
 
   return {
     tipo: "ITEM",
     item: {
       descricao,
       grupo: null,
-      codigoFornecedor: null,
+      codigoFornecedor: codigoFornecedor === "" ? null : codigoFornecedor,
       ean: null,
       ncm: null,
       unidade: null,
-      quantidade,
+      quantidade: escolhido.quantidade,
       valorUnitarioCentavos,
       valorTotalCentavos,
     },
@@ -279,13 +351,38 @@ function acharDataDeEmissao(linhas: LinhaPdf[]): string | null {
  * palpite, o nome chega editável na tela: errar aqui não contamina nada
  * além do rótulo, e o acerto é mais barato de corrigir do que de adivinhar.
  */
-function acharEmitente(linhas: LinhaPdf[]): string | null {
-  for (const linha of linhas.slice(0, 3)) {
-    const texto = textoDaLinha(linha)
-      .replace(
-        /\s*[-–]\s*(or[çc]amento|pedido|nota|proposta|romaneio|pr[ée][- ]?venda).*$/i,
-        ""
-      )
+/**
+ * Onde o nome do fornecedor acaba e os dados do documento começam.
+ *
+ * Quase todo timbre junta as duas coisas numa linha só: "EA CENTRAL -
+ * ORÇAMENTO", "MEGA PARTS IMPORT — Orçamento 445/26 — 30/10/2026", "NORTE
+ * CELL COMERCIO — CNPJ 55.444.333/0001-22 — NOTA 12345". O nome é sempre o
+ * que vem antes do primeiro desses marcadores.
+ */
+const INICIO_DOS_DADOS_DO_DOCUMENTO =
+  /\s*[-–—|]?\s*\b(or[çc]amento|pedido|nota\s*fiscal|nota|proposta|romaneio|pr[ée][- ]?venda|cnpj|cpf|data|emiss[ãa]o)\b/i;
+
+function acharEmitente(
+  classificadas: Array<{ linha: LinhaPdf; papel: PapelDaLinha }>
+): string | null {
+  for (const { linha, papel } of classificadas.slice(0, 4)) {
+    // Linha que já é item, fechamento ou cabeçalho de tabela não é timbre.
+    //
+    // Sem esta conferência, um documento cujo timbre traz a data colada tinha
+    // a primeira linha descartada inteira e o nome do fornecedor virava a
+    // linha seguinte — que costuma ser o cabeçalho da tabela ("Cód Qt Produto
+    // Unitário Total") ou o primeiro item. Um nome errado que parece
+    // plausível é pior que nenhum: ninguém confere o que parece certo.
+    if (papel.tipo !== "CABECALHO_DE_GRUPO" && papel.tipo !== "IGNORAR") continue;
+    if (ehLinhaDeCabecalho(linha)) continue;
+
+    const bruto = textoDaLinha(linha);
+
+    // Corta no primeiro marcador de dado do documento em vez de descartar a
+    // linha: o nome está ali, na frente dele.
+    const corte = INICIO_DOS_DADOS_DO_DOCUMENTO.exec(bruto);
+    const texto = (corte ? bruto.slice(0, corte.index) : bruto)
+      .replace(/[\s\-–—|]+$/, "")
       .trim();
 
     if (texto.length >= 3 && !PADRAO_DE_DATA.test(texto)) return texto;
@@ -305,13 +402,31 @@ function acharCnpj(linhas: LinhaPdf[]): string | null {
   return null;
 }
 
+/** Um cabeçalho de grupo não carrega data nem CNPJ — isso é timbre. */
+function podeSerCabecalhoDeGrupo(texto: string): boolean {
+  if (PADRAO_DE_DATA.test(texto)) return false;
+  if (PADRAO_DE_CNPJ.test(texto)) return false;
+  if (/\b(or[çc]amento|pedido|nota fiscal|cnpj|raz[ãa]o social)\b/i.test(texto)) return false;
+
+  return true;
+}
+
 /**
  * Monta a nota a partir das palavras da página.
  *
  * O corpo começa depois da linha de cabeçalho da tabela. Quando não há
- * cabeçalho reconhecível, começa uma linha ANTES do primeiro item — porque o
- * cabeçalho de grupo do primeiro bloco ("CASE DE IPHONE") fica exatamente
- * ali, e começar no próprio item perderia o nome de todo o primeiro grupo.
+ * cabeçalho reconhecível, começa NO primeiro item.
+ *
+ * Esse "no primeiro item" já foi "uma linha antes", pra capturar o cabeçalho
+ * de grupo do primeiro bloco ("CASE DE IPHONE"), que fica exatamente ali. O
+ * preço era alto demais: num documento sem cabeçalho de tabela, a linha
+ * anterior ao primeiro item é o TIMBRE, e todo produto saía com o nome do
+ * fornecedor e a data colados na frente — "MEGA PARTS IMPORT — Orçamento
+ * 445/26 — 30/10/2026 TELA INCELL IPHONE 11".
+ *
+ * Perder o nome do primeiro grupo num documento sem cabeçalho é um erro
+ * menor, e visível na tela de conferência; contaminar todos os nomes é um
+ * erro que se propaga pro cadastro do produto.
  */
 export function lerNotaDePalavras(palavras: PalavraPdf[]): NotaLida {
   const linhas = agruparEmLinhas(palavras);
@@ -321,11 +436,7 @@ export function lerNotaDePalavras(palavras: PalavraPdf[]): NotaLida {
   const primeiroItem = classificadas.findIndex((entrada) => entrada.papel.tipo === "ITEM");
 
   const inicioDoCorpo =
-    indiceDoCabecalho >= 0
-      ? indiceDoCabecalho + 1
-      : primeiroItem > 0
-        ? primeiroItem - 1
-        : Math.max(primeiroItem, 0);
+    indiceDoCabecalho >= 0 ? indiceDoCabecalho + 1 : Math.max(primeiroItem, 0);
 
   const itens: ItemLidoDaNota[] = [];
   const linhasIgnoradas: string[] = [];
@@ -339,7 +450,8 @@ export function lerNotaDePalavras(palavras: PalavraPdf[]): NotaLida {
   for (const { linha, papel } of classificadas.slice(inicioDoCorpo)) {
     switch (papel.tipo) {
       case "CABECALHO_DE_GRUPO":
-        grupoAtual = papel.texto;
+        // Linha de texto com data ou CNPJ é timbre, não nome de seção.
+        grupoAtual = podeSerCabecalhoDeGrupo(papel.texto) ? papel.texto : null;
         break;
 
       case "ITEM": {
@@ -356,10 +468,12 @@ export function lerNotaDePalavras(palavras: PalavraPdf[]): NotaLida {
         // virar nome de grupo de item nenhum.
         grupoAtual = null;
 
-        if (papel.rotulo === "frete") valorFreteCentavos = papel.valorCentavos;
-        if (papel.rotulo === "desconto") valorDescontoCentavos = papel.valorCentavos;
-        if (papel.rotulo === "produtos") valorProdutosCentavos = papel.valorCentavos;
-        if (papel.rotulo === "totalGeral") valorTotalCentavos = papel.valorCentavos;
+        for (const { rotulo, centavos } of papel.valores) {
+          if (rotulo === "frete") valorFreteCentavos = centavos;
+          if (rotulo === "desconto") valorDescontoCentavos = centavos;
+          if (rotulo === "produtos") valorProdutosCentavos = centavos;
+          if (rotulo === "totalGeral") valorTotalCentavos = centavos;
+        }
         break;
 
       case "IGNORAR": {
@@ -377,7 +491,7 @@ export function lerNotaDePalavras(palavras: PalavraPdf[]): NotaLida {
     chaveAcesso: null,
     numero: null,
     serie: null,
-    emitenteNome: acharEmitente(linhas),
+    emitenteNome: acharEmitente(classificadas),
     emitenteCnpj: acharCnpj(linhas),
     emitidaEm: acharDataDeEmissao(linhas),
     itens,
