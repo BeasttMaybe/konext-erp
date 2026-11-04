@@ -1394,7 +1394,7 @@ export async function processarVenda(
     revalidatePath("/financeiro");
     revalidatePath("/financeiro/receber");
     revalidatePath("/financeiro/fluxo");
-    revalidatePath("/vendas/historico");
+    revalidatePath("/vendas");
 
     return {
       vendaId: venda.id,
@@ -1856,7 +1856,7 @@ export async function processarVendaComOSNoPDV(
     revalidatePath("/financeiro/receber");
     revalidatePath("/financeiro/fluxo");
     revalidatePath("/vendas");
-    revalidatePath("/vendas/historico");
+    revalidatePath("/vendas");
     revalidatePath("/");
 
     return resultado;
