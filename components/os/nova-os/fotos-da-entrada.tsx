@@ -1,7 +1,7 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { Camera, ImageOff, Loader2, Trash2 } from "lucide-react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { Camera, ImageOff, Loader2, Smartphone, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { enviarFotoDaOS } from "@/app/actions/fotos-os";
@@ -155,16 +155,33 @@ export function useFotosPendentes(): FotosPendentes {
   return { fotos, preparando, adicionar, remover, limpar, enviarPara };
 }
 
-const Contexto = createContext<FotosPendentes | null>(null);
+type ValorDoContexto = FotosPendentes & {
+  /**
+   * Salva a OS agora e abre o link de envio pelo celular.
+   *
+   * Ausente quando o assistente não tem como fazer isso — e aí o botão
+   * simplesmente não aparece, em vez de aparecer sem funcionar.
+   */
+  salvarEPedirLinkDoCelular?: () => void;
+};
+
+const Contexto = createContext<ValorDoContexto | null>(null);
 
 export function ProvedorFotosPendentes({
   valor,
+  salvarEPedirLinkDoCelular,
   children,
 }: {
   valor: FotosPendentes;
+  salvarEPedirLinkDoCelular?: () => void;
   children: React.ReactNode;
 }) {
-  return <Contexto.Provider value={valor}>{children}</Contexto.Provider>;
+  const contexto = useMemo(
+    () => ({ ...valor, salvarEPedirLinkDoCelular }),
+    [valor, salvarEPedirLinkDoCelular]
+  );
+
+  return <Contexto.Provider value={contexto}>{children}</Contexto.Provider>;
 }
 
 /**
@@ -190,11 +207,32 @@ export function PainelFotosDaEntrada() {
           Como o aparelho chegou — é o que responde “já veio assim” depois
         </span>
 
+        {/* O link do celular SALVA a OS antes de abrir, e o rótulo diz isso.
+            Não é escolha de estilo: durante o cadastro a OS ainda não existe,
+            e um link de fotos precisa de uma OS a que se ligar. A alternativa
+            seria guardar as fotos num rascunho e colá-las depois — o que, em
+            cadastro abandonado, deixaria arquivo no bucket para sempre.
+            Salvar primeiro não perde nada: era o que ia acontecer de todo
+            jeito, só que agora. */}
+        {pendentes.salvarEPedirLinkDoCelular && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="ml-auto"
+            disabled={pendentes.preparando}
+            onClick={pendentes.salvarEPedirLinkDoCelular}
+          >
+            <Smartphone className="h-4 w-4" />
+            Salvar e enviar pelo celular
+          </Button>
+        )}
+
         <Button
           type="button"
           size="sm"
           variant="outline"
-          className="ml-auto"
+          className={pendentes.salvarEPedirLinkDoCelular ? undefined : "ml-auto"}
           disabled={pendentes.preparando || cheia}
           onClick={() => entradaDeArquivo.current?.click()}
         >
