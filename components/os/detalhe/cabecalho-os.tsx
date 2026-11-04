@@ -19,6 +19,7 @@ import { AcaoEntregaOS } from "@/components/os/acao-entrega-os";
 import { AcaoExcluirOS } from "@/components/os/acao-excluir-os";
 import { BotaoGerarPedidoVenda } from "@/components/os/botao-gerar-pedido-venda";
 import { BotaoEnviarCliente } from "@/components/os/detalhe/botao-enviar-cliente";
+import { caminhoDeRastreio, useSlugDaLoja } from "@/contextos/contexto-loja";
 
 const VARIANTE_ETAPA: Record<EtapaOS, "orcamento" | "conserto" | "pronto" | "entregue"> = {
   ORCAMENTO: "orcamento",
@@ -71,8 +72,10 @@ export function CabecalhoOS({
   possuiPedidoVenda,
   podeExcluir,
 }: PropsCabecalhoOS) {
+  const slugDaLoja = useSlugDaLoja();
+
   const copiarLinkRastreio = () => {
-    const url = `${window.location.origin}/rastreio/${osId}`;
+    const url = `${window.location.origin}${caminhoDeRastreio(slugDaLoja, osId)}`;
     navigator.clipboard.writeText(url).then(() => {
       toast.success("Link copiado com sucesso!", {
         description: "Compartilhe com o cliente para ele acompanhar o reparo.",

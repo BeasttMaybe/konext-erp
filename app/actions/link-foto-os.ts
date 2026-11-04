@@ -5,7 +5,6 @@ import { revalidatePath } from "next/cache";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { exigirPermissao } from "@/lib/auth/permissoes";
 import { escopoOrdemServico } from "@/lib/auth/escopos";
-import { prismaCentral } from "@/lib/central/prisma-central";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 import { sortearSegredoDoLink } from "@/lib/fotos/token-de-envio";
@@ -107,13 +106,10 @@ export async function criarLinkDeFotos(ordemServicoId: string): Promise<Resultad
 
     if (!ordem) return { sucesso: false, erro: "Ordem de serviço não encontrada." };
 
-    const slug = await slugDoTenant(contexto.tenantId);
-    if (!slug) {
-      return {
-        sucesso: false,
-        erro: "Não consegui identificar a loja para montar o link. Fale com o suporte.",
-      };
-    }
+    // `tenantSlug` já vem resolvido no contexto da sessão — este trecho
+    // consultava o banco CENTRAL pra buscar um valor que já estava em mãos,
+    // somando uma ida ao banco em cada link gerado.
+    const slug = contexto.tenantSlug;
 
     const base = await urlBaseDaRequisicao();
     if (!base) {
@@ -227,12 +223,3 @@ export async function revogarLinkDeFotos(
   }
 }
 
-/** O slug da loja, que é a primeira metade do endereço do link. */
-async function slugDoTenant(tenantId: string): Promise<string | null> {
-  const tenant = await prismaCentral.tenant.findUnique({
-    where: { id: tenantId },
-    select: { slug: true },
-  });
-
-  return tenant?.slug ?? null;
-}

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  caminhoDeRastreio,
   lerLinkDaUrl,
   montarCaminhoDoLink,
   montarUrlDoLink,
@@ -79,5 +80,29 @@ describe("os/link-de-foto — o que nunca vira consulta", () => {
     expect(lerLinkDaUrl("konext", null)).toBeNull();
     expect(lerLinkDaUrl(undefined, undefined)).toBeNull();
     expect(lerLinkDaUrl(42, SEGREDO_VALIDO)).toBeNull();
+  });
+});
+
+describe("os/link-de-foto — caminho de rastreio do cliente", () => {
+  it("com a loja, usa a rota que funciona em qualquer banco", () => {
+    expect(caminhoDeRastreio("konext", "a1b2c3d4-e5f6-7890-abcd-ef1234567890")).toBe(
+      "/r/konext/a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+    );
+  });
+
+  it("sem a loja, cai na rota antiga em vez de gerar link quebrado", () => {
+    // Fora do provedor o slug é nulo. A rota antiga atende só o banco
+    // principal, mas um link que leva a algum lugar é melhor que `/r/null/…`.
+    expect(caminhoDeRastreio(null, "a1b2c3d4-e5f6")).toBe("/rastreio/a1b2c3d4-e5f6");
+  });
+
+  it("é sempre relativo, porque quem chama junta com a origem", () => {
+    // Os botões fazem `window.location.origin + caminho`. Um caminho
+    // absoluto aqui geraria "https://loja.app https://loja.app/r/...".
+    for (const slug of ["konext", null]) {
+      const caminho = caminhoDeRastreio(slug, "x".repeat(20));
+      expect(caminho.startsWith("/"), String(slug)).toBe(true);
+      expect(caminho).not.toContain("://");
+    }
   });
 });

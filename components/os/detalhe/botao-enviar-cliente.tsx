@@ -3,6 +3,7 @@
 import { Send } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { caminhoDeRastreio, useSlugDaLoja } from "@/contextos/contexto-loja";
 
 type PropsBotaoEnviarCliente = {
   osId: string;
@@ -19,8 +20,10 @@ type PropsBotaoEnviarCliente = {
  * nunca falha silenciosamente.
  */
 export function BotaoEnviarCliente({ osId, numeroOs, telefone, aceitaWhatsapp }: PropsBotaoEnviarCliente) {
+  const slugDaLoja = useSlugDaLoja();
+
   const enviar = () => {
-    const url = `${window.location.origin}/rastreio/${osId}`;
+    const url = `${window.location.origin}${caminhoDeRastreio(slugDaLoja, osId)}`;
 
     if (telefone && aceitaWhatsapp) {
       const digitos = telefone.replace(/\D/g, "");

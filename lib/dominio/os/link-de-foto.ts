@@ -71,3 +71,22 @@ export function lerLinkDaUrl(slug: unknown, segredo: unknown): LinkLido | null {
  */
 export const FRASE_DE_RECUSA =
   "Este link não vale mais. Peça um novo na tela da ordem de serviço.";
+
+/**
+ * O caminho público de rastreio de uma OS: `/r/<loja>/<os>`.
+ *
+ * Mesma ideia do link de foto, e por isso mora ao lado dele: o slug diz qual
+ * banco abrir numa rota que não tem sessão. A diferença é o que autoriza —
+ * aqui é o próprio id da OS, 122 bits sorteados, que já está impresso em
+ * comprovante e mandado por mensagem. Trocá-lo por um segredo novo
+ * invalidaria todo link que um cliente guardou, pra resolver um problema
+ * que ninguém tem.
+ *
+ * Curto de propósito: este endereço vai por WhatsApp.
+ *
+ * Sem o slug (fora do provedor da loja) cai na rota antiga, que atende só o
+ * banco principal. Um link que leva a algum lugar é melhor que `/r/null/…`.
+ */
+export function caminhoDeRastreio(slug: string | null, osId: string): string {
+  return slug ? `/r/${slug}/${osId}` : `/rastreio/${osId}`;
+}

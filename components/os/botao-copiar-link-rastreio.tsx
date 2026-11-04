@@ -3,6 +3,7 @@
 import { Copy } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { caminhoDeRastreio, useSlugDaLoja } from "@/contextos/contexto-loja";
 
 interface BotaoCopiarLinkRastreioProps {
   /** ID da OS — usado para montar a URL pública de rastreio. */
@@ -14,8 +15,10 @@ interface BotaoCopiarLinkRastreioProps {
  * e exibe uma notificação de confirmação via Sonner.
  */
 export function BotaoCopiarLinkRastreio({ osId }: BotaoCopiarLinkRastreioProps) {
+  const slugDaLoja = useSlugDaLoja();
+
   function copiarLink() {
-    const url = `${window.location.origin}/rastreio/${osId}`;
+    const url = `${window.location.origin}${caminhoDeRastreio(slugDaLoja, osId)}`;
     navigator.clipboard.writeText(url).then(() => {
       toast.success("Link copiado com sucesso!", {
         description: "Compartilhe com o cliente para ele acompanhar o reparo.",
