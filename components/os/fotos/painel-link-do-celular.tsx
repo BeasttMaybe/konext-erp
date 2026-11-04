@@ -117,7 +117,19 @@ export function PainelLinkDoCelular({
 
   return (
     <Dialog open={aberto} onOpenChange={(estado) => !estado && aoFechar()}>
-      <DialogContent className="sm:max-w-md">
+      {/* `[&>*]:min-w-0` não é enfeite: sem ele o painel vaza pela direita.
+
+          `DialogContent` é um GRID, e todo item de grid nasce com
+          `min-width: auto` — ou seja, se recusa a encolher abaixo da largura
+          do próprio conteúdo. O endereço do link é uma string de 90
+          caracteres sem espaço, com `white-space: nowrap` por causa do
+          `truncate`: a largura mínima dele é a largura inteira do texto, e o
+          bloco que o contém empurra o painel pra fora do `max-w-md`. O
+          `truncate` da `<code>` não resolve, porque quem se recusa a
+          encolher é o bloco acima dela.
+
+          Medido num Chromium: o conteúdo ia 285px além da borda do painel. */}
+      <DialogContent className="sm:max-w-md [&>*]:min-w-0">
         <DialogHeader>
           <div className="flex items-center gap-2">
             <Smartphone className="h-5 w-5 text-kx-texto-2" aria-hidden />

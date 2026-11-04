@@ -13,6 +13,7 @@ import { TabuleiroKanban } from "@/components/os/tabuleiro-kanban";
 import { ModalReabrirOS, type ConfirmacaoReaberturaPayload } from "@/components/os/modal-reabrir-os";
 import type { PendenciaFinalizacao } from "@/lib/dominio/os/regras-finalizacao";
 import { ModalNovaOS } from "@/components/os/modal-nova-os";
+import { PainelLinkDoCelular } from "@/components/os/fotos/painel-link-do-celular";
 import { ModalFinalizarOS, type ConfirmacaoFinalizacaoPayload } from "@/components/os/modal-finalizar-os";
 import {
   ModalTermoGerado,
@@ -100,6 +101,15 @@ export function DashboardOS({
   const [mostrarExcluidas, setMostrarExcluidas] = useState(mostrarExcluidasInicial);
   const [osParaFinalizar, setOsParaFinalizar] = useState<OrdemServico | null>(null);
   const [termoGerado, setTermoGerado] = useState<TermoGeradoNaFinalizacao | null>(null);
+
+  /**
+   * A OS recém-criada cujo QR code de envio de fotos está aberto.
+   *
+   * Mora AQUI e não dentro do assistente porque o assistente fecha no mesmo
+   * instante em que a OS nasce — um painel renderizado por dentro dele
+   * desmontaria junto, e o QR code sumiria antes de alguém apontar a câmera.
+   */
+  const [osParaLinkDeFotos, setOsParaLinkDeFotos] = useState<string | null>(null);
   const [osFinalizandoId, setOsFinalizandoId] = useState<string | null>(null);
   const [requerGarantiaFinalizacao, setRequerGarantiaFinalizacao] = useState(false);
   const [pendenciasFinalizacao, setPendenciasFinalizacao] = useState<PendenciaFinalizacao[]>([]);
@@ -797,7 +807,16 @@ export function DashboardOS({
         onAbrirMudar={setModalAberta}
         onSalvar={handleSalvarNovaOS}
         clienteIdInicial={clienteIdInicial ?? undefined}
+        aoPedirLinkDeFotos={setOsParaLinkDeFotos}
       />
+
+      {osParaLinkDeFotos && (
+        <PainelLinkDoCelular
+          ordemServicoId={osParaLinkDeFotos}
+          aberto
+          aoFechar={() => setOsParaLinkDeFotos(null)}
+        />
+      )}
 
       {finalizacaoEhRetornoGarantia ? (
         <ModalFinalizarRetornoGarantia

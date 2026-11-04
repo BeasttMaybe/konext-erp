@@ -75,6 +75,12 @@ interface ModalNovaOSProps {
   onSalvar?: (dados: DadosNovaOSPayload) => Promise<string | void>;
   /** Quando informado, o cliente é pré-selecionado automaticamente ao abrir o modal. */
   clienteIdInicial?: string;
+  /**
+   * Chamado com o id da OS recém-criada quando o salvamento veio do botão
+   * "Salvar e enviar pelo celular". Sem este callback o botão não aparece —
+   * o assistente não tem onde mostrar o QR code sozinho.
+   */
+  aoPedirLinkDeFotos?: (ordemServicoId: string) => void;
 }
 
 export function ModalNovaOS({
@@ -82,6 +88,7 @@ export function ModalNovaOS({
   onAbrirMudar,
   onSalvar,
   clienteIdInicial,
+  aoPedirLinkDeFotos,
 }: ModalNovaOSProps) {
   const [salvando, setSalvando] = useState(false);
 
@@ -112,7 +119,15 @@ export function ModalNovaOS({
 
   const fotosPendentes = useFotosPendentes();
 
-  const handleSalvar = async (dados: DadosNovaOS) => {
+  /**
+   * `abrirLinkDepois` entra como ARGUMENTO, e não como estado ou ref.
+   *
+   * Os dois botões que salvam querem coisas diferentes no fim, e a diferença
+   * é conhecida no instante do clique. Guardá-la fora da chamada criaria um
+   * valor que precisa ser zerado depois — e que, esquecido, faria o botão
+   * normal abrir o QR code na vez seguinte.
+   */
+  const handleSalvar = async (dados: DadosNovaOS, abrirLinkDepois = false) => {
     try {
       setSalvando(true);
       const payload: DadosNovaOSPayload = {
@@ -136,6 +151,12 @@ export function ModalNovaOS({
         } else if (enviadas > 0) {
           toast.success(enviadas === 1 ? "1 foto anexada à OS." : `${enviadas} fotos anexadas à OS.`);
         }
+      }
+
+      // O link do celular depende da OS ter nascido: se o salvamento falhou,
+      // `ordemServicoId` não veio e não há nada a que ligar um link.
+      if (abrirLinkDepois && typeof ordemServicoId === "string" && ordemServicoId) {
+        aoPedirLinkDeFotos?.(ordemServicoId);
       }
 
       fotosPendentes.limpar();
@@ -165,11 +186,30 @@ export function ModalNovaOS({
           Assistente de 3 passos para cadastrar uma nova ordem de serviço: cliente e aparelho, entrada e orçamento.
         </DialogDescription>
         <FormProvider {...formulario}>
-          <ProvedorFotosPendentes valor={fotosPendentes}>
-          <form onSubmit={formulario.handleSubmit(handleSalvar)} className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-6">
+          <ProvedorFotosPendentes
+            valor={fotosPendentes}
+            salvarEPedirLinkDoCelular={
+              aoPedirLinkDeFotos
+                ? () =>
+                    void formulario.handleSubmit(
+                      (dados) => handleSalvar(dados, true),
+                      // Este botão salva a partir do PASSO 2, e o que falta
+                      // pode estar no passo 1 — um IMEI com caractere
+                      // inválido, por exemplo. Sem este aviso, o clique não
+                      // faria nada: o erro ficaria marcado numa tela que a
+                      // pessoa não está vendo, e o botão pareceria quebrado.
+                      () =>
+                        toast.error(
+                          "Falta alguma coisa no cadastro. Confira os passos anteriores antes de salvar."
+                        )
+                    )()
+                : undefined
+            }
+          >
+          <form onSubmit={formulario.handleSubmit((dados) => handleSalvar(dados))} className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-6">
             <AssistenteNovaOS
               onCancelar={handleFechar}
-              onSalvarClick={formulario.handleSubmit(handleSalvar)}
+              onSalvarClick={formulario.handleSubmit((dados) => handleSalvar(dados))}
               salvando={salvando}
               clienteIdInicial={clienteIdInicial}
             />
