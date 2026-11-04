@@ -163,7 +163,7 @@ export async function createPedidoVenda(
       },
     });
 
-    revalidatePath("/vendas/historico");
+    revalidatePath("/vendas");
     revalidatePath("/");
 
     return {
@@ -325,7 +325,7 @@ export async function aprovarPedido(pedidoId: string): Promise<ApprovePedidoVend
       });
     });
 
-    revalidatePath("/vendas/historico");
+    revalidatePath("/vendas");
     revalidatePath("/financeiro");
     revalidatePath("/financeiro/receber");
     revalidatePath("/financeiro/fluxo");
@@ -376,7 +376,7 @@ export async function rejeitarPedido(pedidoId: string): Promise<ApprovePedidoVen
       });
     });
 
-    revalidatePath("/vendas/historico");
+    revalidatePath("/vendas");
     revalidatePath("/");
 
     return {
@@ -539,7 +539,7 @@ export async function cancelarPedido(pedidoId: string): Promise<ApprovePedidoVen
       motivoDoDestino = destino.motivo;
     });
 
-    revalidatePath("/vendas/historico");
+    revalidatePath("/vendas");
     revalidatePath("/financeiro");
     revalidatePath("/financeiro/receber");
     revalidatePath("/financeiro/fluxo");

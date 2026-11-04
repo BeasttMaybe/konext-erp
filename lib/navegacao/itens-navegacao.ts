@@ -44,16 +44,15 @@ export const ITENS_NAVEGACAO: readonly ItemNavegacao[] = [
     ],
   },
   { label: "PDV", path: "/pdv", iconKey: "PDV" },
-  {
-    label: "Vendas",
-    path: "/vendas",
-    iconKey: "Vendas",
-    filhos: [
-      { label: "Hub Central", path: "/vendas" },
-      { label: "Novo Pedido", path: "/vendas/pedidos/novo" },
-      { label: "Histórico", path: "/vendas/historico" },
-    ],
-  },
+  // Vendas não tem submenu porque virou UMA tela: a lista de vendas.
+  //
+  // Antes eram três filhos — "Hub Central", "Novo Pedido" e "Histórico" —
+  // apontando para um hub de oito cartões (cinco levavam a `#`), um
+  // formulário em branco e a lista de verdade, que era a única com conteúdo
+  // e a que ninguém alcançava. O hub foi apagado, a lista tomou o lugar
+  // dele em /vendas, e "novo pedido" é um botão na própria tela, que é onde
+  // alguém decide criar um.
+  { label: "Vendas", path: "/vendas", iconKey: "Vendas" },
   {
     label: "Estoque",
     path: "/estoque",

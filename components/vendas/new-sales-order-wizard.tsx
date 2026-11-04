@@ -582,7 +582,7 @@ export function NewSalesOrderWizard({
  return;
  }
 
- router.push("/vendas/historico");
+ router.push("/vendas");
  router.refresh();
  };
 

@@ -58,15 +58,15 @@ describe("BarraLateral — os filhos da seção aberta aparecem", () => {
     expect(propostas).toHaveAttribute("href", "/crm/propostas");
   });
 
-  it("em /vendas, o Histórico tem link", () => {
-    // Antes, a única forma de chegar no histórico de vendas era terminar o
-    // formulário de pedido novo e ser redirecionado pra lá.
+  it("Vendas leva direto à lista, sem submenu", () => {
+    // A lista de vendas era /vendas/historico e só se chegava nela
+    // terminando o formulário de pedido novo. Hoje ela É /vendas, e a seção
+    // não tem mais sub-itens: um submenu de um item só repete o pai.
     abrirEm("/vendas");
 
-    expect(screen.getByRole("link", { name: "Histórico" })).toHaveAttribute(
-      "href",
-      "/vendas/historico"
-    );
+    expect(screen.getByRole("link", { name: "Vendas" })).toHaveAttribute("href", "/vendas");
+    expect(screen.queryByRole("link", { name: "Hub Central" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Histórico" })).not.toBeInTheDocument();
   });
 
   it("em /financeiro, as quatro telas de dentro têm link", () => {
