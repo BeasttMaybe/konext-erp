@@ -55,6 +55,17 @@ export type LinhaPdf = {
  */
 const FOLGA_DA_LINHA_EM_PONTOS = 3;
 
+/**
+ * Folga horizontal, em pontos, pra uma linha de texto contar como
+ * continuação da descrição de cima.
+ *
+ * Quatro pontos: a segunda linha de uma descrição quebrada começa na MESMA
+ * coluna da primeira, com no máximo o deslocamento de renderização de um
+ * caractere. Um cabeçalho de seção começa em outro lugar — na nota da EA
+ * CENTRAL, 26 pontos adiante, porque é centralizado.
+ */
+const FOLGA_DA_COLUNA_EM_PONTOS = 4;
+
 /** Agrupa as palavras em linhas, de cima pra baixo. */
 export function agruparEmLinhas(
   palavras: PalavraPdf[],
@@ -100,6 +111,21 @@ export function textoDaLinha(linha: LinhaPdf): string {
  * dinheiro" e empurraria o total pra posição errada.
  */
 const PADRAO_MONETARIO = /^R?\$?\s*(\d{1,3}(?:\.\d{3})+|\d+),(\d{2})$/;
+
+/**
+ * Abreviações de unidade que aparecem em coluna própria.
+ *
+ * Lista curta e fechada de propósito: qualquer palavra de duas ou três
+ * letras entre a quantidade e a descrição passaria a sumir do nome do
+ * produto, e um produto chamado "PC GAMER" perderia o "PC".
+ */
+const ABREVIACOES_DE_UNIDADE = new Set([
+  "UN", "UND", "PC", "PCS", "CX", "PCT", "PAR", "KG", "G", "MT", "M", "LT", "L", "DZ", "RL", "JG",
+]);
+
+function ehAbreviacaoDeUnidade(texto: string): boolean {
+  return ABREVIACOES_DE_UNIDADE.has(texto.trim().toUpperCase());
+}
 
 /** Número solto, aceitando fracionário (nota de peso/medida). */
 const PADRAO_QUANTIDADE = /^(\d+(?:[.,]\d{1,4})?)$/;
@@ -155,16 +181,21 @@ function juntarSimboloDeMoeda(palavras: PalavraPdf[]): PalavraPdf[] {
 const ROTULOS_DE_TOTAL = {
   frete: /\bfrete\b|\bsedex\b|\bentrega\b|\btransporte\b/i,
   desconto: /\bdesconto\b|\babatimento\b/i,
-  produtos: /\bsubtotal\b|\btotal\s+(?:das\s+)?mercadoria|\btotal\s+(?:dos\s+)?produto|\bvalor\s+(?:dos\s+)?produto/i,
+  produtos: /\bsubtotal\b|\bmercadorias?\b|\btotal\s+(?:dos\s+)?produto|\bvalor\s+(?:dos\s+)?produto/i,
   totalGeral: /\btotal\s+geral\b|\btotal\s+(?:da\s+)?nota\b|\bvalor\s+total\b|\btotal\s+a\s+pagar\b|^total$/i,
 } as const;
 
 type RotuloDeTotal = keyof typeof ROTULOS_DE_TOTAL;
 
 type PapelDaLinha =
-  | { tipo: "ITEM"; item: Omit<ItemLidoDaNota, "ordem" | "descricao"> & { descricao: string } }
+  | {
+      tipo: "ITEM";
+      item: Omit<ItemLidoDaNota, "ordem" | "descricao"> & { descricao: string };
+      /** Onde a descrição começa, pra reconhecer a continuação dela embaixo. */
+      xDaDescricao: number;
+    }
   | { tipo: "TOTAL"; valores: Array<{ rotulo: RotuloDeTotal; centavos: number }> }
-  | { tipo: "CABECALHO_DE_GRUPO"; texto: string }
+  | { tipo: "CABECALHO_DE_GRUPO"; texto: string; x: number }
   | { tipo: "IGNORAR" };
 
 /** Dinheiro em pt-BR dentro de um texto maior, com a posição de cada achado. */
@@ -231,9 +262,12 @@ function classificarLinha(linha: LinhaPdf): PapelDaLinha {
   if (fechamento.length > 0) return { tipo: "TOTAL", valores: fechamento };
 
   if (monetarios.length === 0) {
-    // Texto sozinho no corpo da tabela: é o cabeçalho da seção ("CASE DE
-    // IPHONE"), que dá nome aos itens que vêm abaixo dele.
-    return { tipo: "CABECALHO_DE_GRUPO", texto };
+    // Texto sozinho no corpo da tabela: ou é o cabeçalho da seção ("CASE DE
+    // IPHONE"), ou é a CONTINUAÇÃO da descrição do item acima, que não coube
+    // numa linha. O X de onde o texto começa é o que separa os dois casos, e
+    // quem decide é `lerNotaDePalavras`, que sabe onde a descrição do último
+    // item começou.
+    return { tipo: "CABECALHO_DE_GRUPO", texto, x: palavras[0]?.x ?? 0 };
   }
 
   const primeiroMonetario = monetarios[0].indice;
@@ -294,20 +328,31 @@ function classificarLinha(linha: LinhaPdf): PapelDaLinha {
       .replace(/\s+/g, " ")
       .trim();
 
-  const descricao = juntar(escolhido.indice + 1, primeiroMonetario);
   const codigoFornecedor = juntar(0, escolhido.indice);
+
+  // A unidade costuma ter coluna própria, entre a quantidade e a descrição.
+  // Sem separá-la, o produto entra no cadastro chamado "KG FLUXO DE SOLDA" —
+  // e a unidade, que tem campo próprio, fica faltando.
+  const logoDepoisDaQuantidade = palavras[escolhido.indice + 1]?.texto.trim() ?? "";
+  const temColunaDeUnidade =
+    primeiroMonetario - escolhido.indice > 2 && ehAbreviacaoDeUnidade(logoDepoisDaQuantidade);
+
+  const inicioDaDescricao = escolhido.indice + (temColunaDeUnidade ? 2 : 1);
+  const descricao = juntar(inicioDaDescricao, primeiroMonetario);
+  const unidade = temColunaDeUnidade ? logoDepoisDaQuantidade.toUpperCase() : null;
 
   if (descricao === "") return { tipo: "IGNORAR" };
 
   return {
     tipo: "ITEM",
+    xDaDescricao: palavras[escolhido.indice + 1]?.x ?? 0,
     item: {
       descricao,
       grupo: null,
       codigoFornecedor: codigoFornecedor === "" ? null : codigoFornecedor,
       ean: null,
       ncm: null,
-      unidade: null,
+      unidade,
       quantidade: escolhido.quantidade,
       valorUnitarioCentavos,
       valorTotalCentavos,
@@ -360,7 +405,7 @@ function acharDataDeEmissao(linhas: LinhaPdf[]): string | null {
  * que vem antes do primeiro desses marcadores.
  */
 const INICIO_DOS_DADOS_DO_DOCUMENTO =
-  /\s*[-–—|]?\s*\b(or[çc]amento|pedido|nota\s*fiscal|nota|proposta|romaneio|pr[ée][- ]?venda|cnpj|cpf|data|emiss[ãa]o)\b/i;
+  /\s*[-–—|]?\s*(\b(or[çc]amento|pedido|nota\s*fiscal|nota|nf-?e?|proposta|romaneio|pr[ée][- ]?venda|cnpj|cpf|data|emiss[ãa]o)\b|\d{2}\/\d{2}\/\d{4})/i;
 
 function acharEmitente(
   classificadas: Array<{ linha: LinhaPdf; papel: PapelDaLinha }>
@@ -442,6 +487,8 @@ export function lerNotaDePalavras(palavras: PalavraPdf[]): NotaLida {
   const linhasIgnoradas: string[] = [];
 
   let grupoAtual: string | null = null;
+  /** Onde a descrição do último item lido começou, pra achar a continuação. */
+  let xDaDescricaoDoUltimoItem: number | null = null;
   let valorProdutosCentavos: number | null = null;
   let valorTotalCentavos: number | null = null;
   let valorFreteCentavos = 0;
@@ -449,10 +496,44 @@ export function lerNotaDePalavras(palavras: PalavraPdf[]): NotaLida {
 
   for (const { linha, papel } of classificadas.slice(inicioDoCorpo)) {
     switch (papel.tipo) {
-      case "CABECALHO_DE_GRUPO":
+      case "CABECALHO_DE_GRUPO": {
+        // Cabeçalho de tabela REPETIDO não é nome de seção.
+        //
+        // Numa nota de duas páginas, a segunda repete "Qtd | Descrição |
+        // Unitário | Total" — e isso virava o nome do grupo, colado na
+        // frente de todo produto da página 2.
+        if (ehLinhaDeCabecalho(linha)) break;
+
+        // CONTINUAÇÃO da descrição do item de cima, e não um grupo novo.
+        //
+        // Descrição longa quebra em duas linhas, e a segunda é só texto,
+        // alinhada na mesma coluna da primeira. Tratá-la como cabeçalho de
+        // grupo fazia duas coisas ao mesmo tempo: o item de cima perdia o
+        // fim do nome, e o de baixo ganhava esse fim na frente do seu —
+        // "VEDACAO ORIGINAL BATERIA XIAOMI POCO X5 PRO".
+        //
+        // É o pior defeito possível aqui, porque a ARITMÉTICA CONTINUA
+        // FECHANDO: quantidade e valores estão certos, só os nomes estão
+        // trocados. A tela de conferência não teria o que marcar.
+        //
+        // O X separa os dois casos: a continuação começa exatamente na
+        // coluna da descrição; o cabeçalho de grupo, não (na nota da EA
+        // CENTRAL ele é centralizado, a 26 pontos de distância).
+        const ultimo = itens.at(-1);
+
+        if (
+          ultimo &&
+          xDaDescricaoDoUltimoItem !== null &&
+          Math.abs(papel.x - xDaDescricaoDoUltimoItem) <= FOLGA_DA_COLUNA_EM_PONTOS
+        ) {
+          ultimo.descricao = `${ultimo.descricao} ${papel.texto}`.replace(/\s+/g, " ").trim();
+          break;
+        }
+
         // Linha de texto com data ou CNPJ é timbre, não nome de seção.
         grupoAtual = podeSerCabecalhoDeGrupo(papel.texto) ? papel.texto : null;
         break;
+      }
 
       case "ITEM": {
         const descricao = grupoAtual
@@ -460,6 +541,7 @@ export function lerNotaDePalavras(palavras: PalavraPdf[]): NotaLida {
           : papel.item.descricao;
 
         itens.push({ ...papel.item, descricao, grupo: grupoAtual, ordem: itens.length + 1 });
+        xDaDescricaoDoUltimoItem = papel.xDaDescricao;
         break;
       }
 
