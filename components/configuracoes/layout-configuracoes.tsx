@@ -21,7 +21,9 @@ import { PainelEmpresa } from "./painel-empresa";
 import { PainelGarantias } from "./painel-garantias";
 import { PainelArmazenamento } from "./painel-armazenamento";
 import { PainelMarcasPeca } from "./painel-marcas-peca";
+import { PainelCategoriasProduto } from "./painel-categorias-produto";
 import type { MarcaPecaListada } from "@/app/actions/marcas-peca";
+import type { CategoriaProdutoListada } from "@/app/actions/categorias-produto";
 import { PainelOs } from "./painel-os";
 import { PainelPdv } from "./painel-pdv";
 import { SecaoUsuariosCargos } from "./usuarios/secao-usuarios-cargos";
@@ -31,6 +33,7 @@ type PropsLayoutConfiguracoes = {
   defaultValues: DadosConfiguracoes;
   /** `null` quando o usuario nao tem configuracoes.sistema — a secao some. */
   marcasPeca: MarcaPecaListada[] | null;
+  categoriasProduto: CategoriaProdutoListada[] | null;
 };
 
 function montarEnderecoCompleto(dados: {
@@ -47,20 +50,25 @@ function montarEnderecoCompleto(dados: {
   return [parteRua, parteLocal, parteCep].filter(Boolean).join(" | ");
 }
 
-export function LayoutConfiguracoes({ defaultValues, marcasPeca }: PropsLayoutConfiguracoes) {
+export function LayoutConfiguracoes({
+  defaultValues,
+  marcasPeca,
+  categoriasProduto,
+}: PropsLayoutConfiguracoes) {
   const podeVerUsuariosCargos = useTemPermissao("configuracoes.usuarios");
   const secoesVisiveis = useMemo(
     () =>
       SECOES_CONFIGURACOES.filter((secao) => {
         if (secao.id === "usuarios") return podeVerUsuariosCargos;
         if (secao.id === "marcas-peca") return marcasPeca !== null;
+        if (secao.id === "categorias-produto") return categoriasProduto !== null;
         // Armazenamento usa a mesma permissao de marcas de peca
         // (configuracoes.sistema); `marcasPeca !== null` ja e esse sinal, e a
         // propria action recusa quem nao tem.
         if (secao.id === "armazenamento") return marcasPeca !== null;
         return true;
       }),
-    [podeVerUsuariosCargos, marcasPeca]
+    [podeVerUsuariosCargos, marcasPeca, categoriasProduto]
   );
 
   const [secaoAtiva, setSecaoAtiva] = useState<SecaoConfiguracoesId>("empresa");
@@ -213,6 +221,12 @@ export function LayoutConfiguracoes({ defaultValues, marcasPeca }: PropsLayoutCo
             configuracaoAtual={configuracaoAtual}
           />
         );
+      case "categorias-produto":
+        // Mesmo desenho do cadastro de marcas: ações próprias, fora do
+        // formulário de Configurações e da barra de salvar.
+        return categoriasProduto ? (
+          <PainelCategoriasProduto categorias={categoriasProduto} />
+        ) : null;
       case "marcas-peca":
         // Cadastro proprio, com as suas acoes: nao participa do formulario de
         // Configuracoes nem da barra de salvar (ver secaoComPersistenciaAtiva).
