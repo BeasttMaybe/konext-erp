@@ -3,6 +3,7 @@ export type SecaoConfiguracoesId =
   | "documentos"
   | "os"
   | "marcas-peca"
+  | "categorias-produto"
   | "garantias"
   | "pdv-caixa"
   | "armazenamento"
@@ -34,6 +35,11 @@ export const SECOES_CONFIGURACOES: ItemSecaoConfiguracoes[] = [
     id: "marcas-peca",
     rotulo: "Marcas de peça",
     descricao: "Cadastre as marcas que aparecem na hora de lançar a peça na OS.",
+  },
+  {
+    id: "categorias-produto",
+    rotulo: "Categorias de produto",
+    descricao: "Cadastre as categorias que agrupam o estoque e filtram o PDV.",
   },
   {
     id: "garantias",

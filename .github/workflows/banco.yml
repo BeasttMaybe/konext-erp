@@ -52,6 +52,17 @@ on:
         type: boolean
         required: false
         default: false
+      modo_verificacao:
+        # Só para verificar-datas e verificar-dinheiro. Os dois são scripts
+        # PAREADOS de verificação de migração: `antes` tira o retrato do banco
+        # como ele está, `depois` compara contra esse retrato. Sem o parâmetro
+        # os dois saem com erro de uso — era o que acontecia, porque o bloco
+        # de comandos abaixo nunca passava nenhum.
+        description: "Para verificar-datas/dinheiro: antes (antes da migration) ou depois"
+        type: choice
+        required: false
+        default: antes
+        options: [antes, depois]
 
 concurrency:
   # Nunca dois comandos de banco no mesmo ambiente ao mesmo tempo.
@@ -187,8 +198,8 @@ jobs:
               migrar-dry-run)       npm run db:migrar -- --dry-run $ALVO_TENANT ;;
               migrar-aplicar)       npm run db:migrar -- --aplicar $ALVO_TENANT ;;
               relatorio-os)         npm run db:relatorio-os ;;
-              verificar-datas)      npm run db:verificar-datas ;;
-              verificar-dinheiro)   npm run db:verificar-dinheiro ;;
+              verificar-datas)      npm run db:verificar-datas -- --${{ inputs.modo_verificacao || 'antes' }} ;;
+              verificar-dinheiro)   npm run db:verificar-dinheiro -- --${{ inputs.modo_verificacao || 'antes' }} ;;
               *) echo "comando desconhecido" >&2; return 1 ;;
             esac
           }

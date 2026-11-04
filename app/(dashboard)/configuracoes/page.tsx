@@ -1,5 +1,6 @@
 import { obterConfiguracoes } from "@/app/actions/configuracoes";
 import { listarMarcasPeca } from "@/app/actions/marcas-peca";
+import { listarCategoriasProduto } from "@/app/actions/categorias-produto";
 import { LayoutConfiguracoes } from "@/components/configuracoes/layout-configuracoes";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { temAlgumaPermissao, temPermissao } from "@/lib/auth/permissoes";
@@ -31,11 +32,21 @@ export default async function ConfiguracoesPage() {
   // `listarMarcasPeca` exige configuracoes.sistema, e esta pagina abre tambem
   // para quem so tem configuracoes.empresa ou .usuarios: buscar sem checar
   // derrubaria a pagina inteira pra esses usuarios.
-  const marcasPeca = temPermissao(contexto, "configuracoes.sistema") ? await listarMarcasPeca() : null;
+  const podeGerirCadastros = temPermissao(contexto, "configuracoes.sistema");
+  const marcasPeca = podeGerirCadastros ? await listarMarcasPeca() : null;
+
+  // `listarCategoriasProduto` pede `estoque.ver`, mas renomear e desativar
+  // pedem `configuracoes.sistema` — mostrar a lista a quem não pode mexer
+  // nela seria oferecer controles que falham no clique.
+  const categoriasProduto = podeGerirCadastros ? await listarCategoriasProduto() : null;
 
   return (
     <div className="flex w-full flex-col bg-kx-fundo p-5 lg:p-6">
-      <LayoutConfiguracoes defaultValues={configuracoes} marcasPeca={marcasPeca} />
+      <LayoutConfiguracoes
+        defaultValues={configuracoes}
+        marcasPeca={marcasPeca}
+        categoriasProduto={categoriasProduto}
+      />
     </div>
   );
 }

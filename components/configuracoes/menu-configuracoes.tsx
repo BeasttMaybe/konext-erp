@@ -4,6 +4,7 @@ import {
   Building2,
   CloudUpload,
   FileText,
+  Layers,
   Wrench,
   ShieldCheck,
   ShoppingCart,
@@ -18,6 +19,9 @@ const iconesPorSecao: Record<SecaoConfiguracoesId, LucideIcon> = {
   documentos: FileText,
   os: Wrench,
   "marcas-peca": Tags,
+  // `Layers` e não `Tags` de novo: as duas seções são cadastros parecidos e
+  // ficam vizinhas no menu — ícone repetido faria a pessoa clicar na errada.
+  "categorias-produto": Layers,
   garantias: ShieldCheck,
   "pdv-caixa": ShoppingCart,
   armazenamento: CloudUpload,
