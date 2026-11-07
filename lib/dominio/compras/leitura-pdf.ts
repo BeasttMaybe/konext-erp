@@ -296,26 +296,106 @@ function classificarLinha(linha: LinhaPdf): PapelDaLinha {
   // e aparece como aviso em vez de sumir.
   if (candidatos.length === 0 || primeiroMonetario < 1) return { tipo: "IGNORAR" };
 
-  // Dois ou mais valores: o último é o total da linha, o anterior é o
-  // unitário. Com um valor só não dá pra saber qual dos dois é, então
-  // assume-se unitário e o total declarado vira o calculado — a conferência
-  // não tem o que provar nessa linha, e a tela mostra que não tem.
-  const ultimo = monetarios[monetarios.length - 1].centavos;
-  const penultimo = monetarios.length >= 2 ? monetarios[monetarios.length - 2].centavos : null;
+  // Com um valor só não dá pra saber se ele é unitário ou total. Assume-se
+  // unitário, e o total passa a ser o calculado — a conferência não tem o que
+  // provar nessa linha, e a tela mostra que não tem.
+  if (monetarios.length === 1) {
+    const escolhido = candidatos[0];
+    const valorUnitarioCentavos = monetarios[0].centavos;
 
-  const valorUnitarioCentavos = penultimo ?? ultimo;
+    return montarItem({
+      palavras,
+      primeiroMonetario,
+      escolhido,
+      valorUnitarioCentavos,
+      valorTotalCentavos: Math.round(valorUnitarioCentavos * escolhido.quantidade),
+    });
+  }
 
-  const escolhido =
-    penultimo === null
-      ? candidatos[0]
-      : (candidatos.find(
-          (candidato) =>
-            Math.abs(Math.round(valorUnitarioCentavos * candidato.quantidade) - ultimo) <=
-            Math.max(1, Math.ceil(candidato.quantidade / 2))
-        ) ?? candidatos[0]);
+  // Com dois ou mais, QUAL coluna é o unitário e qual é o total não é
+  // decidido por posição, e sim pela conta.
+  //
+  // A convenção — último é o total, anterior é o unitário — vale na maioria
+  // das notas e erra em duas situações reais e comuns:
+  //
+  // - Coluna de DESCONTO entre o unitário e o total ("10,00 | 5,00 | 95,00"):
+  //   o desconto virava o preço de compra, e o produto entrava no cadastro
+  //   custando metade.
+  // - Colunas INVERTIDAS, com o total antes do unitário ("Valor total |
+  //   Vl. unitário"): os dois saíam trocados.
+  //
+  // Então todo par ordenado de valores é testado, junto com cada candidato a
+  // quantidade, e vence o que deixa `quantidade × unitário` mais perto do
+  // total. Empate fica com a convenção, que é a leitura mais provável quando
+  // a conta não desempata.
+  //
+  // Quando NENHUM par fecha (o caso do desconto, em que o total já vem
+  // abatido), o melhor palpite ainda é o escolhido: "10,00 × 10 = 100,00
+  // contra 95,00 declarados" é um erro de R$ 5,00 que a tela marca, enquanto
+  // "5,00 × 10" seria um erro de R$ 45,00 que ela marcaria igual — mas com o
+  // custo do produto pela metade.
+  let melhor: {
+    escolhido: { indice: number; quantidade: number };
+    valorUnitarioCentavos: number;
+    valorTotalCentavos: number;
+    erro: number;
+  } | null = null;
 
-  const valorTotalCentavos =
-    penultimo !== null ? ultimo : Math.round(valorUnitarioCentavos * escolhido.quantidade);
+  for (const candidato of candidatos) {
+    for (let u = 0; u < monetarios.length; u += 1) {
+      for (let t = 0; t < monetarios.length; t += 1) {
+        if (u === t) continue;
+
+        const unitario = monetarios[u].centavos;
+        const total = monetarios[t].centavos;
+        const erro = Math.abs(Math.round(unitario * candidato.quantidade) - total);
+
+        // Desempate pela convenção: total na última coluna, unitário na
+        // anterior. Sem isso, uma linha com dois valores iguais escolheria a
+        // leitura invertida por acaso de iteração.
+        const convencional = t === monetarios.length - 1 && u === monetarios.length - 2;
+        const melhorQueOAtual =
+          melhor === null ||
+          erro < melhor.erro ||
+          (erro === melhor.erro && convencional);
+
+        if (melhorQueOAtual) {
+          melhor = {
+            escolhido: candidato,
+            valorUnitarioCentavos: unitario,
+            valorTotalCentavos: total,
+            erro,
+          };
+        }
+      }
+    }
+  }
+
+  if (melhor === null) return { tipo: "IGNORAR" };
+
+  return montarItem({
+    palavras,
+    primeiroMonetario,
+    escolhido: melhor.escolhido,
+    valorUnitarioCentavos: melhor.valorUnitarioCentavos,
+    valorTotalCentavos: melhor.valorTotalCentavos,
+  });
+}
+
+/** Monta a linha de item depois que as colunas já foram decididas. */
+function montarItem({
+  palavras,
+  primeiroMonetario,
+  escolhido,
+  valorUnitarioCentavos,
+  valorTotalCentavos,
+}: {
+  palavras: PalavraPdf[];
+  primeiroMonetario: number;
+  escolhido: { indice: number; quantidade: number };
+  valorUnitarioCentavos: number;
+  valorTotalCentavos: number;
+}): PapelDaLinha {
 
   // Tudo à esquerda da quantidade é código do fornecedor; o que fica entre
   // ela e o dinheiro é a descrição.
