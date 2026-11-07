@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { Plus, MoreHorizontal, Pencil, Info, Trash2 } from "lucide-react";
+import { Plus, MoreHorizontal, Pencil, Info, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import type { ClienteBuscaCRM } from "@/app/actions/crm";
 import {
@@ -20,6 +20,13 @@ import { SeletorClienteCRM } from "@/components/financeiro/seletor-cliente-crm";
 import { BarraAcaoLote } from "@/components/financeiro/barra-acao-lote";
 import { PainelConfirmarLote } from "@/components/financeiro/painel-confirmar-lote";
 import { alternarSelecaoLinha, resumirSelecao, selecionarTodosFiltrados } from "@/lib/dominio/financeiro/selecao-lote";
+import { casaComBusca, prepararTermoDeBusca } from "@/lib/dominio/financeiro/busca-de-conta";
+import {
+  CATEGORIAS_DE_DESPESA,
+  categoriaDaDespesa,
+  rotuloDaCategoriaDeDespesa,
+  type CategoriaDeDespesa,
+} from "@/lib/dominio/financeiro/categoria-de-despesa";
 import { FUSO_HORARIO_PADRAO, hojeComoDataDeCalendario } from "@/lib/datas";
 import { useTemPermissao } from "@/contextos/contexto-permissoes";
 import { PilulaStatus } from "@/components/ui/pilula-status";
@@ -59,13 +66,24 @@ import {
 // ── Tipos e constantes ───────────────────────────────────────────────────────
 
 type StatusExibicao = "PENDENTE" | "ATRASADO" | "PAGO";
+
+/**
+ * As situações do filtro. "Pagas" é o que o dono chamou de "um contas pagas":
+ * a lista do que já saiu, incluindo as peças de OS, sem precisar de uma tela
+ * separada que mostraria os mesmos dados com outro nome.
+ */
+const SITUACOES_PAGAR: ReadonlyArray<{ valor: StatusExibicao | "TODAS"; rotulo: string }> = [
+  { valor: "TODAS", rotulo: "Todas" },
+  { valor: "PENDENTE", rotulo: "A vencer" },
+  { valor: "ATRASADO", rotulo: "Atrasadas" },
+  { valor: "PAGO", rotulo: "Pagas" },
+];
 type VistaPagar = "PERIODO" | "RECORRENCIAS";
 
 /** Mesmo texto fixo gravado por os-itens.ts (adicionarItemOS) em
  * Despesa.fornecedor — não existe campo de origem no schema (Fase 3-2D,
  * Parte 1/3): esta string é a única forma de distinguir custo de peça de OS
  * de uma despesa de loja de verdade. */
-const FORNECEDOR_PECA_OS = "Custo de peça (OS)";
 
 interface FormDespesa {
   fornecedor: string;
@@ -88,10 +106,6 @@ function pilulaDoStatus(status: StatusExibicao) {
   return <PilulaStatus variante="alerta">Pendente</PilulaStatus>;
 }
 
-function categoriaDaDespesa(fornecedor: string): { rotulo: string; ehPecaOS: boolean } {
-  if (fornecedor === FORNECEDOR_PECA_OS) return { rotulo: "Peça de OS", ehPecaOS: true };
-  return { rotulo: "Despesa da loja", ehPecaOS: false };
-}
 
 function rotuloTipoDespesa(tipo: TipoDespesa) {
   if (tipo === "UNICA") return "Única";
@@ -147,6 +161,9 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
   const [sheetAberto, setSheetAberto] = useState(false);
   const [despesaSelecionadaId, setDespesaSelecionadaId] = useState<string | null>(null);
   const [encerrandoDespesa, setEncerrandoDespesa] = useState(false);
+  const [busca, setBusca] = useState("");
+  const [situacaoAtiva, setSituacaoAtiva] = useState<StatusExibicao | "TODAS">("TODAS");
+  const [categoriaAtiva, setCategoriaAtiva] = useState<CategoriaDeDespesa | "TODAS">("TODAS");
 
   const [dialogPagarAberto, setDialogPagarAberto] = useState(false);
   const [dialogEditarAberto, setDialogEditarAberto] = useState(false);
@@ -185,16 +202,54 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
     };
   }, [parcelasDaDespesa]);
 
-  const totalDoPeriodo = useMemo(() => parcelas.reduce((acc, p) => acc + p.valor, 0), [parcelas]);
+  /**
+   * O que a tela mostra, depois de busca, situação e categoria.
+   *
+   * O filtro é no cliente, em cima do que o período já trouxe, de propósito:
+   * o período é a janela que limita o volume, e dentro dela filtrar sem ida
+   * ao servidor é instantâneo — digitar "vivo" vai estreitando a lista letra
+   * por letra. Se um dia o período de um ano ficar grande demais pra isso, o
+   * lugar de mudar é a action, não esta tela.
+   */
+  const parcelasVisiveis = useMemo(() => {
+    const palavras = prepararTermoDeBusca(busca);
+    const referencia = hoje;
 
+    return parcelas.filter((parcela) => {
+      if (situacaoAtiva !== "TODAS" && statusExibicaoParcela(parcela, referencia) !== situacaoAtiva) {
+        return false;
+      }
+
+      if (
+        categoriaAtiva !== "TODAS" &&
+        categoriaDaDespesa(parcela.despesa.fornecedor) !== categoriaAtiva
+      ) {
+        return false;
+      }
+
+      return casaComBusca(palavras, [
+        parcela.despesa.fornecedor,
+        parcela.despesa.descricao,
+        parcela.despesa.cliente?.nomeRazaoSocial,
+      ]);
+    });
+  }, [parcelas, busca, situacaoAtiva, categoriaAtiva, hoje]);
+
+  const totalDoPeriodo = useMemo(
+    () => parcelasVisiveis.reduce((acc, p) => acc + p.valor, 0),
+    [parcelasVisiveis]
+  );
+
+  // Selecionar segue o que está VISÍVEL: "selecionar todas" com um filtro
+  // aplicado não pode marcar linha que a pessoa não está vendo.
   const itensSelecionaveisPeriodo = useMemo(
-    () => parcelas.map((p) => ({ id: p.id, jaLiquidado: p.status === "PAGO" })),
-    [parcelas]
+    () => parcelasVisiveis.map((p) => ({ id: p.id, jaLiquidado: p.status === "PAGO" })),
+    [parcelasVisiveis]
   );
 
   const resumoLote = useMemo(
-    () => resumirSelecao(selecionados, parcelas.map((p) => ({ id: p.id, valor: p.valor }))),
-    [selecionados, parcelas]
+    () => resumirSelecao(selecionados, parcelasVisiveis.map((p) => ({ id: p.id, valor: p.valor }))),
+    [selecionados, parcelasVisiveis]
   );
 
   const todosFiltradosSelecionados =
@@ -491,6 +546,69 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
 
         {vista === "PERIODO" ? (
           <>
+            {/* Busca, situação e categoria.
+                A categoria é o filtro que o dono pediu: cada OS que consome
+                peça gera uma despesa, então numa loja com dezenas de OS por
+                mês elas são a maioria das linhas e o boleto da internet fica
+                enterrado. As duas coisas precisam estar no mesmo total, mas
+                quase nunca precisam ser olhadas juntas. */}
+            <div className="flex flex-col gap-2 border-b border-kx-painel-borda pb-3 lg:flex-row lg:items-center">
+              <div className="relative flex-1 lg:max-w-sm">
+                <Search
+                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-kx-legenda"
+                  aria-hidden
+                />
+                <Input
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)}
+                  placeholder="Buscar fornecedor ou descrição"
+                  className="h-9 pl-9"
+                  aria-label="Buscar conta por fornecedor ou descrição"
+                />
+              </div>
+
+              <Select
+                value={categoriaAtiva}
+                onValueChange={(valor) => setCategoriaAtiva(valor as CategoriaDeDespesa | "TODAS")}
+              >
+                <SelectTrigger className="h-9 lg:w-56" aria-label="Filtrar por categoria">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORIAS_DE_DESPESA.map((categoria) => (
+                    <SelectItem key={categoria.valor} value={categoria.valor}>
+                      {categoria.rotulo}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                {SITUACOES_PAGAR.map((situacao) => (
+                  <button
+                    key={situacao.valor}
+                    type="button"
+                    onClick={() => setSituacaoAtiva(situacao.valor)}
+                    aria-pressed={situacaoAtiva === situacao.valor}
+                    className={`h-9 shrink-0 rounded-kx-pilula border px-3 text-sm font-semibold transition-colors ${
+                      situacaoAtiva === situacao.valor
+                        ? "border-kx-primaria bg-kx-primaria text-primary-foreground"
+                        : "border-kx-painel-borda bg-kx-superficie text-kx-texto-2 hover:border-kx-destaque"
+                    }`}
+                  >
+                    {situacao.rotulo}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {(busca.trim() !== "" || categoriaAtiva !== "TODAS" || situacaoAtiva !== "TODAS") && (
+              <p className="text-xs text-kx-legenda">
+                Mostrando {parcelasVisiveis.length} de {parcelas.length} contas do período ·{" "}
+                {formatarMoeda(totalDoPeriodo)}
+              </p>
+            )}
+
             <div className="sticky top-0 z-kx-sticky flex flex-col gap-2 bg-kx-painel pt-1 pb-2">
               {podeBaixar && selecionados.size > 0 && (
                 <BarraAcaoLote
@@ -524,10 +642,14 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
             </div>
 
             <div className="flex flex-col gap-2">
-              {parcelas.length === 0 && (
-                <p className="py-10 text-center text-sm text-kx-legenda">Nenhuma parcela encontrada com os filtros selecionados.</p>
+              {parcelasVisiveis.length === 0 && (
+                <p className="py-10 text-center text-sm text-kx-legenda">
+                  {parcelas.length === 0
+                    ? "Nenhuma parcela no período selecionado."
+                    : "Nenhuma parcela com esses filtros. Limpe a busca ou troque a categoria."}
+                </p>
               )}
-              {parcelas.map((parcela) => {
+              {parcelasVisiveis.map((parcela) => {
                 const status = statusExibicaoParcela(parcela, hoje);
                 const categoria = categoriaDaDespesa(parcela.despesa.fornecedor);
                 return (
@@ -556,8 +678,11 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
                       <span className="truncate text-xs text-kx-legenda">{parcela.despesa.descricao}</span>
                     </button>
                     <span>
-                      <PilulaStatus variante={categoria.ehPecaOS ? "garantia" : "neutro"} className="w-fit">
-                        {categoria.rotulo}
+                      <PilulaStatus
+                        variante={categoria === "PECA_OS" ? "garantia" : "neutro"}
+                        className="w-fit"
+                      >
+                        {rotuloDaCategoriaDeDespesa(categoria)}
                       </PilulaStatus>
                     </span>
                     <span className="text-kx-texto-2">

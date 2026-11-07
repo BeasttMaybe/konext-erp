@@ -18,9 +18,12 @@ import {
   somarDiasEmDataDeCalendario,
 } from "@/lib/datas";
 import { deDecimal, paraMoeda, somar, subtrair } from "@/lib/dinheiro";
+import { categoriaDaDespesa } from "@/lib/dominio/financeiro/categoria-de-despesa";
 
 /** Nome que `os-itens.ts` grava em `Despesa.fornecedor` pra custo de peça vindo de uma OS — não existe campo de origem no schema, então é este texto exato que distingue "peça de OS" de despesa de loja de verdade (Fase 3-2D). */
-const FORNECEDOR_PECA_OS = "Custo de peça (OS)";
+// A classificação mora em lib/dominio/financeiro/categoria-de-despesa.ts:
+// a string estava copiada aqui e na tela, e no dia em que o rótulo mudasse
+// num lugar o indicador e o filtro passariam a discordar em silêncio.
 
 /**
  * `Venda.criadoEm`/`ParcelaDespesa.dataPagamento` são INSTANTE (não data de
@@ -279,7 +282,7 @@ export async function obterSaidasPorCategoria(): Promise<FatiaCategoria[]> {
   let lojaCentavos = 0;
   for (const parcela of pagas) {
     const valorCentavos = deDecimal(parcela.valorPago ?? parcela.valor ?? 0);
-    if (parcela.despesa?.fornecedor === FORNECEDOR_PECA_OS) {
+    if (categoriaDaDespesa(parcela.despesa?.fornecedor) === "PECA_OS") {
       pecaOsCentavos = somar(pecaOsCentavos, valorCentavos);
     } else {
       lojaCentavos = somar(lojaCentavos, valorCentavos);

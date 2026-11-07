@@ -17,6 +17,7 @@ import {
   somarMesesEmDataDeCalendario,
 } from "@/lib/datas";
 import { deDecimal, dividirEmParcelas, paraDecimal, paraMoeda, somar } from "@/lib/dinheiro";
+import type { OrigemDeReceita } from "@/lib/dominio/financeiro/origem-de-receita";
 
 /**
  * Antes, criarContaReceber/darBaixaConta/editarContaReceber/excluirContaReceber
@@ -41,6 +42,8 @@ export interface ContaReceberFinanceiro {
   dataFinalizacao: Date | null;
   clienteId: string | null;
   vendaId: string | null;
+  /** De onde a conta nasceu. Já existia na coluna; nunca tinha chegado à tela. */
+  origem: OrigemDeReceita;
   dataVencimento: Date;
   dataRecebimento: Date | null;
   status: "PENDENTE" | "PAGO" | "RECEBIDO" | "ATRASADO" | "RENEGOCIADO" | "ESTORNADO";
