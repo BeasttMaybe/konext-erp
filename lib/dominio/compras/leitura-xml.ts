@@ -72,6 +72,44 @@ function quantidade(valor: unknown): number | null {
   return Number.isFinite(numero) && numero > 0 ? numero : null;
 }
 
+/**
+ * Soma todo `vICMSST`, `vIPI` e `vFCPST` que existir dentro do bloco de
+ * imposto do item, em qualquer profundidade.
+ *
+ * A varredura é recursiva de propósito: o nó do ICMS tem nome VARIÁVEL
+ * conforme a tributação — ICMS00, ICMS10, ICMS60, ICMSSN201, ICMSST, e mais
+ * uma dúzia. Procurar por caminho fixo significaria escrever a lista inteira
+ * e errar a próxima que o layout inventar. O que importa é o nome do campo,
+ * não onde ele está pendurado.
+ *
+ * `vICMSSTRet` fica de fora: é ST já retido numa operação anterior, que o
+ * emitente informa mas não cobra de novo nesta nota.
+ */
+const CAMPOS_DE_IMPOSTO_QUE_CUSTAM = new Set(["vICMSST", "vIPI", "vFCPST"]);
+
+function somarImpostosDoItem(no: unknown): number {
+  const objetoAtual = objeto(no);
+  if (!objetoAtual) return 0;
+
+  let total = 0;
+
+  for (const [chave, valor] of Object.entries(objetoAtual)) {
+    if (CAMPOS_DE_IMPOSTO_QUE_CUSTAM.has(chave)) {
+      total += centavos(valor) ?? 0;
+      continue;
+    }
+
+    if (Array.isArray(valor)) {
+      for (const filho of valor) total += somarImpostosDoItem(filho);
+      continue;
+    }
+
+    total += somarImpostosDoItem(valor);
+  }
+
+  return total;
+}
+
 /** `det` vira objeto quando a nota tem um item só, e array a partir de dois. */
 function comoLista(valor: unknown): NoXml[] {
   if (Array.isArray(valor)) return valor.map(objeto).filter((no): no is NoXml => no !== null);
@@ -152,6 +190,9 @@ export function lerNotaDeXml(documento: NoXml): NotaXmlLida {
 
     itens.push({
       ordem: itens.length + 1,
+      // `indTot` ausente vale 1 pelo layout: o item compõe o total.
+      compoeTotal: (texto(prod.indTot) ?? "1") !== "0",
+      impostosCentavos: somarImpostosDoItem(det.imposto),
       descricao: texto(prod.xProd) ?? `Item ${itens.length + 1}`,
       // O XML nomeia o produto inteiro em `xProd`: não existe cabeçalho de
       // seção pra desgrudar, como acontece no PDF.
@@ -182,6 +223,15 @@ export function lerNotaDeXml(documento: NoXml): NotaXmlLida {
     valorProdutosCentavos: centavos(totais.vProd),
     valorFreteCentavos: centavos(totais.vFrete) ?? 0,
     valorDescontoCentavos: centavos(totais.vDesc) ?? 0,
+    // Os componentes que a fórmula do total exige e que o conferidor não
+    // conhecia: sem eles, toda nota com substituição tributária era
+    // reprovada sem ter nada de errado.
+    valorImpostosCentavos:
+      (centavos(totais.vST) ?? 0) +
+      (centavos(totais.vIPI) ?? 0) +
+      (centavos(totais.vFCPST) ?? 0) +
+      (centavos(totais.vII) ?? 0),
+    valorOutrosCentavos: (centavos(totais.vSeg) ?? 0) + (centavos(totais.vOutro) ?? 0),
     valorTotalCentavos: centavos(totais.vNF),
     linhasIgnoradas: [],
   };

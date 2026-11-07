@@ -72,6 +72,29 @@ export type ItemLidoDaNota = {
 
   quantidade: number;
 
+  /**
+   * Se o valor da linha entra no total da nota (`indTot` no XML).
+   *
+   * Item com `indTot = 0` CHEGA na loja mas não compõe o valor pago: é o
+   * brinde dentro do kit, o componente que já está no preço de outra linha.
+   * Sem distinguir, a soma das linhas nunca bate com o total declarado e a
+   * nota inteira chega marcada — um alarme falso que ensina a ignorar o
+   * alarme.
+   */
+  compoeTotal: boolean;
+
+  /**
+   * ICMS-ST, IPI e afins desta linha, em centavos.
+   *
+   * São dinheiro que a loja PAGOU e que não volta: numa empresa do Simples,
+   * a substituição tributária da compra é custo, não crédito. Ignorá-los
+   * subestima o custo do produto exatamente como ignorar o frete subestimava
+   * — e ICMS-ST é regra, não exceção, em acessório de celular.
+   *
+   * Vem do XML por item, onde é exato. No PDF não existe, e fica zero.
+   */
+  impostosCentavos: number;
+
   valorUnitarioCentavos: number;
 
   /**
@@ -107,6 +130,19 @@ export type NotaLida = {
   valorFreteCentavos: number;
 
   valorDescontoCentavos: number;
+
+  /**
+   * Impostos que somam ao total da nota: ICMS-ST, IPI, FCP-ST, II.
+   *
+   * O total de uma NF-e NÃO é `produtos + frete − desconto`. A fórmula do
+   * layout é `vProd − vDesc + vST + vFrete + vSeg + vOutro + vIPI + vII`, e
+   * conferir sem os impostos reprovava toda nota com substituição
+   * tributária — que, em acessório de celular, é toda nota.
+   */
+  valorImpostosCentavos: number;
+
+  /** Seguro e "outras despesas" do rodapé, que também somam ao total. */
+  valorOutrosCentavos: number;
 
   /** Total geral declarado. */
   valorTotalCentavos: number | null;
@@ -232,7 +268,10 @@ export function conferirNota(nota: NotaLida): ConferenciaDaNota {
 
   if (nota.itens.length === 0) problemas.push("SEM_ITENS");
 
-  const somaDosItensCentavos = somar(...nota.itens.map((item) => item.valorTotalCentavos));
+  // Só as linhas que COMPÕEM o total entram na soma: um brinde marcado com
+  // `indTot = 0` chegou na loja, mas não está no valor pago.
+  const itensQueSomam = nota.itens.filter((item) => item.compoeTotal);
+  const somaDosItensCentavos = somar(...itensQueSomam.map((item) => item.valorTotalCentavos));
 
   // A tolerância do somatório é a soma das tolerâncias das linhas: cada
   // linha pode carregar legitimamente o seu arredondamento, e uma nota de
@@ -251,8 +290,15 @@ export function conferirNota(nota: NotaLida): ConferenciaDaNota {
   }
 
   if (nota.valorTotalCentavos !== null) {
+    // A fórmula do layout da NF-e, inteira. Faltando os impostos, toda nota
+    // com ICMS-ST ou IPI era reprovada sem ter nada de errado.
     const esperado = subtrair(
-      somar(nota.valorProdutosCentavos ?? somaDosItensCentavos, nota.valorFreteCentavos),
+      somar(
+        nota.valorProdutosCentavos ?? somaDosItensCentavos,
+        nota.valorFreteCentavos,
+        nota.valorImpostosCentavos,
+        nota.valorOutrosCentavos
+      ),
       nota.valorDescontoCentavos
     );
 

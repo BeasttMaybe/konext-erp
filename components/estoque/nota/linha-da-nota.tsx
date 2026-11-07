@@ -67,6 +67,18 @@ export function LinhaDaNota({
   const totalNaoBate = item.problemas.includes("TOTAL_NAO_BATE");
   const pendente = destino.tipo === "PENDENTE";
 
+  const parcelasDoCusto = [
+    custo && custo.rateioDeFreteCentavos > 0
+      ? `+${formatarReais(custo.rateioDeFreteCentavos)} de frete`
+      : null,
+    custo && custo.impostosCentavos > 0
+      ? `+${formatarReais(custo.impostosCentavos)} de imposto`
+      : null,
+    custo && custo.rateioDeDescontoCentavos > 0
+      ? `−${formatarReais(custo.rateioDeDescontoCentavos)} de desconto`
+      : null,
+  ].filter((parcela): parcela is string => parcela !== null);
+
   return (
     <>
       <TableRow
@@ -118,9 +130,14 @@ export function LinhaDaNota({
             <span className="font-semibold text-kx-texto">
               {formatarReais(custo?.custoUnitarioCentavos ?? item.valorUnitarioCentavos)}
             </span>
-            {custo && custo.rateioDeFreteCentavos > 0 && (
+            {/* As parcelas que separam o preço impresso na linha do custo real.
+                O imposto aparece junto do frete porque é o mesmo tipo de
+                dinheiro: saiu do caixa, não volta, e sem ele a margem da loja
+                parece melhor do que é. Numa nota de acessório com ICMS-ST isso
+                é facilmente 20% do custo do item. */}
+            {parcelasDoCusto.length > 0 && (
               <p className="mt-0.5 text-xs text-kx-legenda">
-                +{formatarReais(custo.rateioDeFreteCentavos)} de frete
+                {parcelasDoCusto.join(" · ")}
               </p>
             )}
           </TableCell>

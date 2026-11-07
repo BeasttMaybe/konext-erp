@@ -429,6 +429,10 @@ function montarItem({
     item: {
       descricao,
       grupo: null,
+      // Um PDF de fornecedor não discrimina imposto por item, e toda linha
+      // dele compõe o total — não existe `indTot` em orçamento.
+      compoeTotal: true,
+      impostosCentavos: 0,
       codigoFornecedor: codigoFornecedor === "" ? null : codigoFornecedor,
       ean: null,
       ncm: null,
@@ -660,6 +664,8 @@ export function lerNotaDePalavras(palavras: PalavraPdf[]): NotaLida {
     valorProdutosCentavos,
     valorFreteCentavos,
     valorDescontoCentavos,
+    valorImpostosCentavos: 0,
+    valorOutrosCentavos: 0,
     valorTotalCentavos,
     linhasIgnoradas,
   };
