@@ -235,3 +235,36 @@ export function exigirDataDeCalendario(anoMesDiaIso: string, nomeDoCampo: string
 
   return data;
 }
+
+/**
+ * Soma meses a uma DATA DE CALENDÁRIO, em UTC, grudando no último dia do mês
+ * quando o dia original não existe no mês de destino.
+ *
+ * 31 de janeiro + 1 mês é 28 de fevereiro (29 em ano bissexto), não 3 de
+ * março. É o que todo banco faz com boleto e o que a pessoa espera de uma
+ * despesa fixa que vence "no dia 31".
+ *
+ * Existia em duas cópias divergentes, uma em cada action do financeiro, e as
+ * duas erradas de formas diferentes:
+ *
+ * - A de Contas a Pagar montava `new Date(ano, mês, dia, 12, 0, 0, 0)` — ou
+ *   seja, devolvia MEIO-DIA, não meia-noite, e via getters locais. Isso
+ *   recolocava no banco exatamente a hora que tirava a parcela do último dia
+ *   do filtro de período: a primeira parcela saía certa e as seguintes não.
+ * - A de Contas a Receber usava `setMonth`/`setDate` locais. Em servidor UTC
+ *   o resultado é certo por coincidência — o fuso do PROCESSO decidia a data,
+ *   e isso quebraria no dia em que o processo rodasse em outro fuso.
+ *
+ * Aqui a aritmética é toda em UTC, explícita, e não depende de onde o código
+ * roda.
+ */
+export function somarMesesEmDataDeCalendario(data: Date, meses: number): Date {
+  const ano = data.getUTCFullYear();
+  const mes = data.getUTCMonth();
+  const dia = data.getUTCDate();
+
+  // Dia 0 do mês SEGUINTE é o último dia do mês de destino.
+  const ultimoDiaDoMesDestino = new Date(Date.UTC(ano, mes + meses + 1, 0)).getUTCDate();
+
+  return new Date(Date.UTC(ano, mes + meses, Math.min(dia, ultimoDiaDoMesDestino)));
+}

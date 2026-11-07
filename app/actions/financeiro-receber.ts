@@ -14,6 +14,7 @@ import {
   FUSO_HORARIO_PADRAO,
   fimDoMes,
   inicioDoMes,
+  somarMesesEmDataDeCalendario,
 } from "@/lib/datas";
 import { deDecimal, dividirEmParcelas, paraDecimal, paraMoeda, somar } from "@/lib/dinheiro";
 
@@ -26,17 +27,6 @@ import { deDecimal, dividirEmParcelas, paraDecimal, paraMoeda, somar } from "@/l
  * a mensagem como dado (Fase 1B-UI, Parte 1).
  */
 export type ResultadoAcaoContaReceber = { sucesso: true } | { sucesso: false; mensagem: string };
-
-function adicionarMeses(dataBase: Date, meses: number) {
-  const data = new Date(dataBase);
-  const diaOriginal = data.getDate();
-
-  data.setMonth(data.getMonth() + meses, 1);
-  const ultimoDiaMes = new Date(data.getFullYear(), data.getMonth() + 1, 0).getDate();
-  data.setDate(Math.min(diaOriginal, ultimoDiaMes));
-
-  return data;
-}
 
 export interface ContaReceberFinanceiro {
   id: string;
@@ -175,7 +165,7 @@ async function criarContaReceberInterno(input: CriarContaReceberInput): Promise<
       descricao: input.descricao,
       valor: paraDecimal(valorParcelaCentavos),
       clienteId: input.clienteId || null,
-      dataVencimento: adicionarMeses(vencimentoDaPrimeira, indice),
+      dataVencimento: somarMesesEmDataDeCalendario(vencimentoDaPrimeira, indice),
       formaRecebimento: input.formaRecebimento,
       origem: "AVULSO" as const,
       status: "PENDENTE" as const,

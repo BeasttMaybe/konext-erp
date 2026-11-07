@@ -9,6 +9,7 @@ import type { ClienteBuscaCRM } from "@/app/actions/crm";
 import {
   criarDespesa,
   editarDespesa,
+  encerrarDespesaFixa,
   excluirDespesa,
   pagarParcela,
   pagarParcelasEmLote,
@@ -145,6 +146,7 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
 
   const [sheetAberto, setSheetAberto] = useState(false);
   const [despesaSelecionadaId, setDespesaSelecionadaId] = useState<string | null>(null);
+  const [encerrandoDespesa, setEncerrandoDespesa] = useState(false);
 
   const [dialogPagarAberto, setDialogPagarAberto] = useState(false);
   const [dialogEditarAberto, setDialogEditarAberto] = useState(false);
@@ -430,6 +432,29 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
     }
   }
 
+  async function alternarEncerramento(encerrar: boolean) {
+    if (!despesaSelecionadaId) return;
+
+    setEncerrandoDespesa(true);
+    try {
+      const resultado = await encerrarDespesaFixa(despesaSelecionadaId, encerrar);
+
+      if (!resultado.sucesso) {
+        toast.error(resultado.mensagem ?? "Não foi possível encerrar a despesa.");
+        return;
+      }
+
+      toast.success(
+        encerrar
+          ? "Despesa encerrada. O histórico do que já venceu continua aqui."
+          : "Despesa reativada. Os próximos meses voltam a ser gerados."
+      );
+      router.refresh();
+    } finally {
+      setEncerrandoDespesa(false);
+    }
+  }
+
   // ── Renderização ─────────────────────────────────────────────────────────
 
   return (
@@ -536,7 +561,9 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
                       </PilulaStatus>
                     </span>
                     <span className="text-kx-texto-2">
-                      {parcela.numeroParcela}/{parcela.despesa.qtdParcelas}
+                      {parcela.despesa.tipo === "FIXA_MENSAL"
+                        ? "mensal"
+                        : `${parcela.numeroParcela}/${parcela.despesa.qtdParcelas}`}
                     </span>
                     <span className="tabular-nums text-kx-texto-2">{format(new Date(parcela.dataVencimento), "dd/MM/yyyy")}</span>
                     <span className="text-right font-bold tabular-nums text-kx-texto">{formatarMoeda(parcela.valor)}</span>
@@ -679,6 +706,25 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
                         Excluir despesa
                       </Button>
                     )}
+                    {/* Encerrar é a saída que falta pra "despesa fixa que fica
+                        sempre" ser gerenciável: sem ela, um aluguel cadastrado
+                        por engano só poderia ser apagado inteiro, levando junto
+                        o registro do que já foi pago. */}
+                    {podeEditar && despesaSelecionada.tipo === "FIXA_MENSAL" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={encerrandoDespesa}
+                        onClick={() => alternarEncerramento(!despesaSelecionada.encerradaEm)}
+                      >
+                        {despesaSelecionada.encerradaEm ? "Reativar despesa" : "Encerrar despesa"}
+                      </Button>
+                    )}
+                    {despesaSelecionada.encerradaEm && (
+                      <span className="text-xs text-muted-foreground">
+                        Encerrada — não gera mais mês novo.
+                      </span>
+                    )}
                     {despesaTemParcelaPaga && podeEditar && (
                       <span className="text-xs text-muted-foreground">
                         Já há parcela paga: valor e vencimento não podem mais ser alterados.
@@ -693,7 +739,9 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
                     return (
                       <div key={parcela.id} className="flex items-center gap-3 rounded-md border border-border p-3 text-sm">
                         <span className="w-16 text-muted-foreground">
-                          {parcela.numeroParcela}/{despesaSelecionada.qtdParcelas}
+                          {despesaSelecionada.tipo === "FIXA_MENSAL"
+                            ? `mês ${parcela.numeroParcela}`
+                            : `${parcela.numeroParcela}/${despesaSelecionada.qtdParcelas}`}
                         </span>
                         <span className="w-24">{format(new Date(parcela.dataVencimento), "dd/MM/yyyy")}</span>
                         <span className="w-24 font-mono">{formatarMoeda(parcela.valor)}</span>
@@ -871,17 +919,37 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label>Quantidade de Parcelas</Label>
-              <Input
-                type="number"
-                step="1"
-                min="1"
-                value={formDespesa.qtdParcelas}
-                onChange={(e) => setFormDespesa((prev) => ({ ...prev, qtdParcelas: e.target.value }))}
-                placeholder="1"
-              />
-            </div>
+            {/* Quantidade de parcelas só existe em PARCELADA.
+                Em "Única" o campo nunca fez nada, e em "Fixa Mensal" ele
+                fazia MAL: era o campo que, com "1", fazia o aluguel existir
+                num mês e desaparecer no seguinte — despesa fixa não termina
+                por contagem de parcela. No lugar dele, a explicação do que
+                vai acontecer. */}
+            {formDespesa.tipo === "PARCELADA" && (
+              <div className="space-y-2">
+                <Label>Quantidade de Parcelas</Label>
+                <Input
+                  type="number"
+                  step="1"
+                  min="1"
+                  value={formDespesa.qtdParcelas}
+                  onChange={(e) =>
+                    setFormDespesa((prev) => ({ ...prev, qtdParcelas: e.target.value }))
+                  }
+                  placeholder="1"
+                />
+              </div>
+            )}
+
+            {formDespesa.tipo === "FIXA_MENSAL" && (
+              <div className="space-y-2">
+                <Label>Repetição</Label>
+                <p className="rounded-kx-painel border border-kx-painel-borda bg-kx-superficie px-3 py-2 text-sm text-kx-legenda">
+                  Repete todo mês, sem fim. Você encerra quando quiser, na
+                  própria despesa.
+                </p>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label>Primeiro Vencimento</Label>

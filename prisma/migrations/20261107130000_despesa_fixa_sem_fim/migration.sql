@@ -1,0 +1,23 @@
+-- Despesa fixa mensal deixa de terminar por contagem de parcela.
+--
+-- Reportado pelo dono: "quando colocado despesa fixa mensal, aparece parcela,
+-- e se deixar como 1 em parcela, a despesa fixa mensal so fica em um mes,
+-- sendo que deveria ficar sempre".
+--
+-- "Fixa mensal" estava implementada como parcelamento: o cadastro gerava
+-- `qtdParcelas` linhas de uma vez e acabava ali. Com 1, virava despesa unica.
+-- Com 12, uma despesa que desaparece em silencio no ano seguinte.
+--
+-- O desenho novo e horizonte rolante: a despesa segue viva ate ganhar
+-- `encerradaEm`, e as parcelas sao materializadas ate o fim do mes daqui a
+-- doze meses, empurradas pra frente a cada vez que a tela abre. Ver
+-- lib/dominio/financeiro/despesa-fixa.ts.
+--
+-- Esta coluna e o que torna "sempre" gerenciavel: sem ela, uma despesa fixa
+-- cadastrada por engano nunca poderia ser interrompida — so apagada, levando
+-- consigo o historico do que ja foi pago.
+--
+-- Nula em tudo que existe hoje, que e exatamente o certo: toda despesa fixa
+-- ja cadastrada continua ativa, e na primeira abertura da tela passa a ganhar
+-- os meses que faltavam.
+ALTER TABLE "Despesa" ADD COLUMN "encerradaEm" TIMESTAMPTZ(3);

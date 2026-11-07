@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { AlertTriangle, CalendarClock, CheckCircle2, Repeat } from "lucide-react";
 import {
+  garantirHorizonteDasDespesasFixas,
   listarParcelasPagarFiltradas,
   obterResumoPagar,
 } from "@/app/actions/financeiro-pagar";
@@ -53,6 +54,11 @@ export default async function FinanceiroPagarPage({ searchParams }: PageProps) {
     inicio: obterParam(params, "inicio"),
     fim: obterParam(params, "fim"),
   };
+
+  // Empurra o horizonte das despesas fixas ANTES de ler, senão a tela
+  // mostraria a lista de antes de empurrar e o mês novo só apareceria na
+  // próxima visita. Na maioria das vezes não faz nada — ver a função.
+  await garantirHorizonteDasDespesasFixas();
 
   const [parcelas, resumo] = await Promise.all([
     listarParcelasPagarFiltradas(filtros),

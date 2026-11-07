@@ -17,6 +17,7 @@ import {
   mesmoDia,
   somarDias,
   somarDiasEmDataDeCalendario,
+  somarMesesEmDataDeCalendario,
 } from "./datas";
 
 const FUSO_LOJA = "America/Sao_Paulo";
@@ -192,5 +193,56 @@ describe("exigirDataDeCalendario — o bug do último dia do filtro", () => {
         /data de vencimento/
       );
     }
+  });
+});
+
+describe("somarMesesEmDataDeCalendario", () => {
+  const em = (iso: string) => dataDeCalendario(iso)!;
+  const iso = (data: Date) => data.toISOString().slice(0, 10);
+
+  it("soma mês mantendo o dia", () => {
+    expect(iso(somarMesesEmDataDeCalendario(em("2026-01-15"), 1))).toBe("2026-02-15");
+    expect(iso(somarMesesEmDataDeCalendario(em("2026-01-15"), 11))).toBe("2026-12-15");
+  });
+
+  it("gruda no último dia do mês quando o dia não existe lá", () => {
+    // É o que o banco faz com boleto, e o que se espera de uma despesa fixa
+    // que vence "no dia 31".
+    expect(iso(somarMesesEmDataDeCalendario(em("2026-01-31"), 1))).toBe("2026-02-28");
+    expect(iso(somarMesesEmDataDeCalendario(em("2024-01-31"), 1))).toBe("2024-02-29");
+    expect(iso(somarMesesEmDataDeCalendario(em("2026-03-31"), 1))).toBe("2026-04-30");
+  });
+
+  it("vira o ano", () => {
+    expect(iso(somarMesesEmDataDeCalendario(em("2026-11-30"), 2))).toBe("2027-01-30");
+    expect(iso(somarMesesEmDataDeCalendario(em("2026-12-31"), 1))).toBe("2027-01-31");
+  });
+
+  it("devolve meia-noite UTC — a hora é o que quebrava o filtro", () => {
+    // A cópia antiga devolvia meio-dia, e aí a parcela 2 em diante ficava de
+    // fora do último dia de todo filtro de período.
+    for (const meses of [0, 1, 6, 12, 36]) {
+      const resultado = somarMesesEmDataDeCalendario(em("2026-11-30"), meses);
+      expect(resultado.toISOString(), `+${meses}`).toMatch(/T00:00:00\.000Z$/);
+    }
+  });
+
+  it("aceita meses negativos", () => {
+    expect(iso(somarMesesEmDataDeCalendario(em("2026-03-31"), -1))).toBe("2026-02-28");
+  });
+
+  it("não acumula desvio em doze meses seguidos", () => {
+    // Gerar parcela por parcela a partir da MESMA base, nunca da anterior:
+    // somar um mês doze vezes a partir de 31/01 pararia em 28/02 pra sempre.
+    const base = em("2026-01-31");
+    const doze = Array.from({ length: 12 }, (_, indice) =>
+      iso(somarMesesEmDataDeCalendario(base, indice))
+    );
+
+    expect(doze).toEqual([
+      "2026-01-31", "2026-02-28", "2026-03-31", "2026-04-30",
+      "2026-05-31", "2026-06-30", "2026-07-31", "2026-08-31",
+      "2026-09-30", "2026-10-31", "2026-11-30", "2026-12-31",
+    ]);
   });
 });

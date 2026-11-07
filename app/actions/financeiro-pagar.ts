@@ -12,12 +12,18 @@ import {
 } from "@/lib/auditoria";
 import { paraMensagemSegura } from "@/lib/erros";
 import {
+  HORIZONTE_DE_MESES_DA_DESPESA_FIXA,
+  parcelasFaltantesDaDespesaFixa,
+} from "@/lib/dominio/financeiro/despesa-fixa";
+import {
   comoDataDeCalendario,
   dataDeCalendario,
   exigirDataDeCalendario,
   FUSO_HORARIO_PADRAO,
   fimDoMes,
   inicioDoMes,
+  hojeComoDataDeCalendario,
+  somarMesesEmDataDeCalendario,
 } from "@/lib/datas";
 import { deDecimal, dividirEmParcelas, paraDecimal, paraMoeda, somar } from "@/lib/dinheiro";
 
@@ -74,6 +80,8 @@ export interface ParcelaDespesaComRelacao {
     valorTotal: number;
     tipo: TipoDespesa;
     qtdParcelas: number;
+    /** Preenchido = despesa fixa encerrada; para de gerar mês novo. Sempre nulo em UNICA/PARCELADA. */
+    encerradaEm: Date | null;
     criadoEm: Date;
     atualizadoEm: Date;
     cliente: {
@@ -93,6 +101,8 @@ type DelegateParcelaDespesa = {
   createMany: (args: unknown) => Promise<unknown>;
   findMany: (args: unknown) => Promise<ParcelaDespesaComRelacao[]>;
   update: (args: unknown) => Promise<unknown>;
+  /** Usado só por `encerrarDespesaFixa`, pra apagar os meses futuros que não serão mais cobrados. */
+  deleteMany?: (args: unknown) => Promise<unknown>;
 };
 
 type PrismaFinanceiroPagarAny = Record<string, unknown> & {
@@ -165,6 +175,26 @@ function paraAuditoria(valor: unknown): unknown {
   return valor;
 }
 
+/**
+ * Despesa com `findMany`. Mesmo padrão defensivo dos outros acessores deste
+ * arquivo (o cliente Prisma expõe o delegate em minúscula ou maiúscula
+ * conforme a versão) — ver `obterDelegateDespesaCompleto`.
+ */
+function obterDelegateDespesaLeitura(
+  tx: PrismaFinanceiroPagarAny,
+  root: PrismaFinanceiroPagarAny
+): { findMany?: (argumentos: unknown) => Promise<unknown> } {
+  for (const chave of ["despesa", "Despesa"] as const) {
+    const delegateTx = tx[chave] as { findMany?: (a: unknown) => Promise<unknown> } | undefined;
+    if (typeof delegateTx?.findMany === "function") return delegateTx;
+
+    const delegateRoot = root[chave] as { findMany?: (a: unknown) => Promise<unknown> } | undefined;
+    if (typeof delegateRoot?.findMany === "function") return delegateRoot;
+  }
+
+  throw new Error("Delegate Prisma de Despesa nao disponivel para findMany.");
+}
+
 function obterDelegateDespesaCreate(
   tx: PrismaFinanceiroPagarAny,
   root: PrismaFinanceiroPagarAny
@@ -214,23 +244,22 @@ function obterDelegateParcelaDespesa(
   );
 }
 
-function adicionarMeses(dataBase: Date, meses: number): Date {
-  return new Date(
-    dataBase.getFullYear(),
-    dataBase.getMonth() + meses,
-    dataBase.getDate(),
-    12,
-    0,
-    0,
-    0
-  );
-}
-
+/**
+ * Quantas parcelas a despesa tem.
+ *
+ * `FIXA_MENSAL` NÃO consulta o que a tela mandou, de propósito. Despesa fixa
+ * não termina por contagem de parcela — era isso o bug reportado: com "1" no
+ * campo, o aluguel existia num mês e desaparecia no seguinte. Quem decide
+ * quantas linhas existem é o horizonte rolante
+ * (`lib/dominio/financeiro/despesa-fixa.ts`), e o campo só guarda o tamanho
+ * do horizonte materializado na criação.
+ */
 function normalizarQtdParcelas(tipo: TipoDespesa, qtdParcelas?: number): number {
   if (tipo === "UNICA") return 1;
+  if (tipo === "FIXA_MENSAL") return HORIZONTE_DE_MESES_DA_DESPESA_FIXA + 1;
 
   if (typeof qtdParcelas !== "number" || Number.isNaN(qtdParcelas)) {
-    return tipo === "FIXA_MENSAL" ? 12 : 2;
+    return 2;
   }
 
   return Math.max(1, Math.trunc(qtdParcelas));
@@ -240,7 +269,8 @@ function gerarParcelas(
   tipo: TipoDespesa,
   valorTotal: number,
   qtdParcelas: number,
-  dataVencimentoBase: Date
+  dataVencimentoBase: Date,
+  fusoHorario: string
 ): Array<{ numeroParcela: number; valor: number; dataVencimento: Date; status: StatusParcelaDespesa }> {
   if (tipo === "UNICA") {
     return [
@@ -254,10 +284,19 @@ function gerarParcelas(
   }
 
   if (tipo === "FIXA_MENSAL") {
-    return Array.from({ length: qtdParcelas }, (_, indice) => ({
-      numeroParcela: indice + 1,
+    // O horizonte inicial sai da MESMA função que depois o empurra pra
+    // frente, pra que a primeira leva e todas as seguintes nasçam da mesma
+    // regra — sem uma segunda cópia da aritmética, que é por onde as duas
+    // versões divergiriam com o tempo.
+    return parcelasFaltantesDaDespesaFixa({
+      primeiroVencimento: dataVencimentoBase,
+      ultimoNumeroParcelaExistente: 0,
+      hoje: hojeComoDataDeCalendario(fusoHorario),
+      encerradaEm: null,
+    }).map((parcela) => ({
+      numeroParcela: parcela.numeroParcela,
       valor: valorTotal,
-      dataVencimento: adicionarMeses(dataVencimentoBase, indice),
+      dataVencimento: parcela.dataVencimento,
       status: "PENDENTE" as const,
     }));
   }
@@ -272,7 +311,7 @@ function gerarParcelas(
   return Array.from({ length: qtdParcelas }, (_, indice) => ({
     numeroParcela: indice + 1,
     valor: paraMoeda(valoresParcelasCentavos[indice]),
-    dataVencimento: adicionarMeses(dataVencimentoBase, indice),
+    dataVencimento: somarMesesEmDataDeCalendario(dataVencimentoBase, indice),
     status: "PENDENTE" as const,
   }));
 }
@@ -329,7 +368,13 @@ async function criarDespesaInterno(data: DadosCriarDespesa) {
       },
     });
 
-    const parcelas = gerarParcelas(data.tipo, data.valorTotal, qtdParcelas, dataVencimentoBase);
+    const parcelas = gerarParcelas(
+      data.tipo,
+      data.valorTotal,
+      qtdParcelas,
+      dataVencimentoBase,
+      contexto.fusoHorario ?? FUSO_HORARIO_PADRAO
+    );
 
     await parcelaDespesaDelegate.createMany({
       data: parcelas.map((parcela) => ({
@@ -1099,6 +1144,205 @@ export async function pagarParcelasEmLote(ids: string[]): Promise<ResultadoAcaoL
     revalidatePath("/");
 
     return { sucesso: true, quantidade: idsUnicos.length, total: paraMoeda(totalCentavos) };
+  } catch (erro) {
+    return { sucesso: false, mensagem: paraMensagemSegura(erro) };
+  }
+}
+
+/**
+ * Empurra o horizonte das despesas fixas pra frente.
+ *
+ * Chamada quando a tela de Contas a Pagar abre. Na maioria das vezes não faz
+ * nada — é o caso normal, e é por isso que dá pra chamar sem cerimônia: uma
+ * consulta de agregação por despesa fixa ativa, e silêncio.
+ *
+ * Por que materializar em vez de calcular a recorrência na hora da leitura: a
+ * parcela materializada é uma conta igual a qualquer outra no resto do
+ * sistema. Ela entra no filtro de período, soma nos indicadores, pode ser
+ * paga, editada e (quando existir) notificada, sem que nenhuma dessas telas
+ * precise saber que existe recorrência. Uma recorrência virtual obrigaria
+ * cada uma delas a aprender a regra, e a esquecer dela em algum lugar.
+ *
+ * Nunca lança: se empurrar o horizonte falhar, a tela ainda tem que abrir com
+ * o que já existe. Um erro aqui é problema de dado futuro, não motivo pra
+ * deixar o dono sem ver as contas de hoje.
+ */
+export async function garantirHorizonteDasDespesasFixas(): Promise<void> {
+  try {
+    const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "financeiro.ver");
+    const { prisma } = contexto;
+
+    const txAny = prisma as unknown as PrismaFinanceiroPagarAny;
+    const despesaDelegate = obterDelegateDespesaLeitura(txAny, txAny);
+    const parcelaDelegate = obterDelegateParcelaDespesa(txAny, txAny);
+
+    type ParcelaResumida = { numeroParcela: number; dataVencimento: Date };
+    type DespesaFixaLida = {
+      id: string;
+      valorTotal: unknown;
+      encerradaEm: Date | null;
+      parcelas: ParcelaResumida[];
+    };
+
+    const fixas = (await despesaDelegate.findMany?.({
+      where: { tipo: "FIXA_MENSAL", encerradaEm: null, ...escopoDespesa(contexto) },
+      select: {
+        id: true,
+        valorTotal: true,
+        encerradaEm: true,
+        parcelas: {
+          select: { numeroParcela: true, dataVencimento: true },
+          orderBy: { numeroParcela: "asc" },
+        },
+      },
+    })) as DespesaFixaLida[] | undefined;
+
+    if (!Array.isArray(fixas) || fixas.length === 0) return;
+
+    const hoje = hojeComoDataDeCalendario(contexto.fusoHorario ?? FUSO_HORARIO_PADRAO);
+    const aCriar: Array<{
+      despesaId: string;
+      numeroParcela: number;
+      valor: unknown;
+      dataVencimento: Date;
+      status: StatusParcelaDespesa;
+    }> = [];
+
+    for (const despesa of fixas) {
+      const parcelas = Array.isArray(despesa.parcelas) ? despesa.parcelas : [];
+      const primeira = parcelas[0];
+
+      // Despesa fixa sem nenhuma parcela não tem de onde derivar o dia do
+      // vencimento. Não inventa um: fica como está, visível e intocada.
+      if (!primeira) continue;
+
+      const faltantes = parcelasFaltantesDaDespesaFixa({
+        primeiroVencimento: primeira.dataVencimento,
+        ultimoNumeroParcelaExistente: parcelas.reduce(
+          (maior, parcela) => Math.max(maior, parcela.numeroParcela),
+          0
+        ),
+        hoje,
+        encerradaEm: despesa.encerradaEm ?? null,
+      });
+
+      for (const parcela of faltantes) {
+        aCriar.push({
+          despesaId: despesa.id,
+          numeroParcela: parcela.numeroParcela,
+          // O valor da parcela nova é o valor corrente da despesa: se o
+          // aluguel subiu e o dono editou a despesa, o mês que ainda não
+          // existia nasce no valor novo. Os meses já materializados não são
+          // reescritos — histórico não se reescreve por reajuste.
+          valor: despesa.valorTotal,
+          dataVencimento: parcela.dataVencimento,
+          status: "PENDENTE",
+        });
+      }
+    }
+
+    if (aCriar.length === 0) return;
+
+    await parcelaDelegate.createMany?.({ data: aCriar, skipDuplicates: true });
+
+    revalidatePath("/financeiro/pagar");
+  } catch (erro) {
+    console.error("Erro ao empurrar o horizonte das despesas fixas:", erro);
+  }
+}
+
+/**
+ * Encerra (ou reativa) uma despesa fixa mensal.
+ *
+ * Encerrar NÃO apaga nada: as parcelas que já venceram continuam no histórico,
+ * pagas ou não, porque elas aconteceram. O que para é a geração de meses
+ * novos — e as parcelas futuras ainda pendentes somem, porque essas não vão
+ * mais ser cobradas.
+ *
+ * Esta é a saída que faltava pra "despesa fixa que fica sempre" ser
+ * gerenciável: sem ela, um aluguel cadastrado por engano só poderia ser
+ * apagado inteiro, levando junto o registro do que já foi pago.
+ */
+export async function encerrarDespesaFixa(
+  despesaId: string,
+  encerrar: boolean
+): Promise<ResultadoAcaoDespesa> {
+  try {
+    const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "financeiro.editar");
+    const { prisma } = contexto;
+
+    if (!despesaId.trim()) {
+      return { sucesso: false, mensagem: "Despesa nao informada." };
+    }
+
+    const txAny = prisma as unknown as PrismaFinanceiroPagarAny;
+    const despesaDelegate = obterDelegateDespesaCompleto(txAny, txAny);
+
+    const despesa = await despesaDelegate.findUnique?.({
+      where: { id: despesaId },
+      select: { id: true, tipo: true, descricao: true, encerradaEm: true },
+    });
+
+    if (!despesa) {
+      return { sucesso: false, mensagem: "Despesa nao encontrada." };
+    }
+
+    if (despesa.tipo !== "FIXA_MENSAL") {
+      return {
+        sucesso: false,
+        mensagem: "Só despesa fixa mensal pode ser encerrada — as outras terminam sozinhas.",
+      };
+    }
+
+    const hoje = hojeComoDataDeCalendario(contexto.fusoHorario ?? FUSO_HORARIO_PADRAO);
+
+    await prisma.$transaction(async (tx: unknown) => {
+      const txInterna = tx as PrismaFinanceiroPagarAny;
+      const despesaNaTx = obterDelegateDespesaCompleto(txInterna, txAny);
+      const parcelaNaTx = obterDelegateParcelaDespesa(txInterna, txAny);
+
+      await despesaNaTx.update?.({
+        where: { id: despesaId },
+        data: { encerradaEm: encerrar ? hoje : null },
+      });
+
+      if (encerrar) {
+        // Só as PENDENTES e só as do futuro. Parcela paga é fato consumado, e
+        // parcela vencida e não paga é dívida que não deixa de existir porque
+        // o contrato acabou.
+        await parcelaNaTx.deleteMany?.({
+          where: {
+            despesaId,
+            status: "PENDENTE",
+            dataVencimento: { gt: hoje },
+          },
+        });
+      }
+
+      await registrarLogAuditoria(
+        tx,
+        contextoAuditoriaDoUsuario(
+          contexto.usuarioOperacional,
+          "app/actions/financeiro-pagar.ts:encerrarDespesaFixa"
+        ),
+        {
+          acao: ACOES_AUDITORIA.ENCERRAR_DESPESA_FIXA,
+          entidade: ENTIDADES_AUDITORIA.CONTA_PAGAR,
+          entidadeId: despesaId,
+          dadosDepois: {
+            descricao: despesa.descricao,
+            encerradaEm: encerrar ? hoje.toISOString() : null,
+          },
+        }
+      );
+    });
+
+    revalidatePath("/financeiro/pagar");
+    revalidatePath("/financeiro");
+
+    return { sucesso: true };
   } catch (erro) {
     return { sucesso: false, mensagem: paraMensagemSegura(erro) };
   }

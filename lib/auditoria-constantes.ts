@@ -81,6 +81,8 @@ export const ACOES_AUDITORIA = {
   // forma de responder "de onde veio essa foto?" depois.
   CRIAR_LINK_FOTO_OS: "CRIAR_LINK_FOTO_OS",
   REVOGAR_LINK_FOTO_OS: "REVOGAR_LINK_FOTO_OS",
+  /** Despesa fixa mensal encerrada (ou reativada) pelo dono — ver `encerrarDespesaFixa`. */
+  ENCERRAR_DESPESA_FIXA: "ENCERRAR_DESPESA_FIXA",
 } as const;
 
 export const ENTIDADES_AUDITORIA = {
