@@ -17,6 +17,8 @@ function item(ordem: number, quantidade: number, totalCentavos: number): ItemLid
     ncm: null,
     unidade: null,
     quantidade,
+    compoeTotal: true,
+    impostosCentavos: 0,
     valorUnitarioCentavos: Math.round(totalCentavos / quantidade),
     valorTotalCentavos: totalCentavos,
   };

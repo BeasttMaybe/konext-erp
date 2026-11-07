@@ -7,7 +7,7 @@ import { exigirPermissao } from "@/lib/auth/permissoes";
 import { mensagemDeErroConhecido } from "@/lib/erros";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
-import { deDecimal, multiplicarPorQuantidade, paraDecimal, somar } from "@/lib/dinheiro";
+import { deDecimal, multiplicarPorQuantidade, paraDecimal, somar, subtrair } from "@/lib/dinheiro";
 import { dataDeCalendario } from "@/lib/datas";
 import { registrarMovimentacaoEstoque } from "@/lib/estoque-movimentacao";
 import { prefixoDaCategoria, proximoSku } from "@/lib/dominio/estoque/sku";
@@ -247,8 +247,29 @@ export type DecisaoDoItem =
     };
 
 export type LancamentoDeNota = {
-  /** Os itens exatamente como foram lidos — a fonte dos valores. */
-  itens: Array<Pick<ItemLidoDaNota, "ordem" | "descricao" | "codigoFornecedor" | "ean" | "ncm" | "unidade" | "quantidade" | "valorUnitarioCentavos" | "valorTotalCentavos">>;
+  /**
+   * Os itens exatamente como foram lidos — a fonte dos valores.
+   *
+   * `compoeTotal` e `impostosCentavos` fazem parte da lista porque o custo é
+   * recalculado aqui: sem eles o ICMS-ST da nota ficava fora do custo do
+   * produto e o total da nota não fechava com o que o fornecedor cobrou.
+   */
+  itens: Array<
+    Pick<
+      ItemLidoDaNota,
+      | "ordem"
+      | "descricao"
+      | "codigoFornecedor"
+      | "ean"
+      | "ncm"
+      | "unidade"
+      | "quantidade"
+      | "compoeTotal"
+      | "impostosCentavos"
+      | "valorUnitarioCentavos"
+      | "valorTotalCentavos"
+    >
+  >;
   decisoes: DecisaoDoItem[];
 
   origem: "XML" | "PDF";
@@ -340,13 +361,24 @@ export async function lancarNota(entrada: LancamentoDeNota): Promise<ResultadoLa
     // frete foi pago pela carga toda, e tirar uma linha da conta jogaria a
     // fatia dela por cima das outras, inflando o custo delas.
     const custos = calcularCustos({
-      itens: entrada.itens as ItemLidoDaNota[],
+      itens: entrada.itens,
       freteCentavos: entrada.freteCentavos,
       descontoCentavos: entrada.descontoCentavos,
       criterio: entrada.criterioRateio,
     });
 
     const custoPorOrdem = new Map(custos.map((custo) => [custo.ordem, custo]));
+
+    const valorDosProdutosCentavos = somar(
+      ...entrada.itens.filter((item) => item.compoeTotal).map((item) => item.valorTotalCentavos)
+    );
+
+    const impostosDaNotaCentavos = somar(...entrada.itens.map((item) => item.impostosCentavos));
+
+    const totalDaNotaCentavos = subtrair(
+      somar(valorDosProdutosCentavos, entrada.freteCentavos, impostosDaNotaCentavos),
+      entrada.descontoCentavos
+    );
 
     let criados = 0;
     let atualizados = 0;
@@ -361,17 +393,15 @@ export async function lancarNota(entrada: LancamentoDeNota): Promise<ResultadoLa
           emitenteNome,
           emitenteCnpj: entrada.emitenteCnpj,
           emitidaEm: entrada.emitidaEm ? dataDeCalendario(entrada.emitidaEm) : null,
-          valorProdutos: paraDecimal(
-            somar(...entrada.itens.map((item) => item.valorTotalCentavos))
-          ),
+          // Só os itens que compõem o total entram no valor dos produtos:
+          // brinde vem na nota com `indTot=0`, chega na prateleira mas não
+          // está no que o fornecedor cobrou.
+          valorProdutos: paraDecimal(valorDosProdutosCentavos),
           valorFrete: paraDecimal(entrada.freteCentavos),
           valorDesconto: paraDecimal(entrada.descontoCentavos),
-          valorTotal: paraDecimal(
-            somar(
-              ...entrada.itens.map((item) => item.valorTotalCentavos),
-              entrada.freteCentavos
-            ) - entrada.descontoCentavos
-          ),
+          // O imposto por item entra no total porque entrou no custo: é a
+          // mesma conta que a conferência da tela mostrou e aprovou.
+          valorTotal: paraDecimal(totalDaNotaCentavos),
           criterioRateio: entrada.criterioRateio,
           arquivoNome: entrada.arquivoNome,
           observacao: entrada.observacao,

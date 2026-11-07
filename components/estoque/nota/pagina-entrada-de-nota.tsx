@@ -24,7 +24,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useTemPermissao } from "@/contextos/contexto-permissoes";
-import { aplicarPercentual, formatarReais, somar } from "@/lib/dinheiro";
+import { aplicarPercentual, formatarReais, somar, subtrair } from "@/lib/dinheiro";
 import { unidadeDoCadastro } from "@/lib/dominio/compras/unidade";
 import {
   CRITERIOS_DE_RATEIO,
@@ -201,8 +201,17 @@ export function PaginaEntradaDeNota({
       }).length
     : 0;
 
+  // A mesma conta do servidor, campo por campo: produtos que compõem o total,
+  // mais frete, mais o imposto por item, menos desconto. Se a tela mostrasse
+  // um número e o banco gravasse outro, a conferência não conferiria nada.
+  const produtosDaNota = nota
+    ? somar(...nota.itens.filter((item) => item.compoeTotal).map((item) => item.valorTotalCentavos))
+    : 0;
+
+  const impostosDaNota = nota ? somar(...nota.itens.map((item) => item.impostosCentavos)) : 0;
+
   const totalDaNota = nota
-    ? somar(...nota.itens.map((item) => item.valorTotalCentavos), freteCentavos) - descontoCentavos
+    ? subtrair(somar(produtosDaNota, freteCentavos, impostosDaNota), descontoCentavos)
     : 0;
 
   function lancar() {
@@ -218,6 +227,8 @@ export function PaginaEntradaDeNota({
           ncm: item.ncm,
           unidade: item.unidade,
           quantidade: item.quantidade,
+          compoeTotal: item.compoeTotal,
+          impostosCentavos: item.impostosCentavos,
           valorUnitarioCentavos: item.valorUnitarioCentavos,
           valorTotalCentavos: item.valorTotalCentavos,
         })),
@@ -537,7 +548,7 @@ export function PaginaEntradaDeNota({
           <div>
             <dt className="text-xs text-kx-legenda">Mercadoria</dt>
             <dd className="font-semibold tabular-nums text-kx-texto">
-              {formatarReais(somar(...nota.itens.map((item) => item.valorTotalCentavos)))}
+              {formatarReais(produtosDaNota)}
             </dd>
           </div>
           <div>
@@ -546,6 +557,26 @@ export function PaginaEntradaDeNota({
               {formatarReais(freteCentavos)}
             </dd>
           </div>
+          {/* As parcelas só aparecem quando existem: numa nota sem ST nem
+              desconto, mostrar dois zeros é ruído em cima da conta que
+              importa. Quando existem, aparecem, porque aí a soma só fecha
+              com elas na tela. */}
+          {impostosDaNota > 0 && (
+            <div>
+              <dt className="text-xs text-kx-legenda">Imposto</dt>
+              <dd className="font-semibold tabular-nums text-kx-texto">
+                {formatarReais(impostosDaNota)}
+              </dd>
+            </div>
+          )}
+          {descontoCentavos > 0 && (
+            <div>
+              <dt className="text-xs text-kx-legenda">Desconto</dt>
+              <dd className="font-semibold tabular-nums text-kx-texto">
+                −{formatarReais(descontoCentavos)}
+              </dd>
+            </div>
+          )}
           <div>
             <dt className="text-xs text-kx-legenda">Total da nota</dt>
             <dd className="font-semibold tabular-nums text-kx-texto">

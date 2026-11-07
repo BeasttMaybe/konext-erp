@@ -17,6 +17,20 @@ import { multiplicarPorQuantidade, ratearProporcionalmente, somar, subtrair } fr
 import type { ItemLidoDaNota } from "./nota";
 
 /**
+ * O que o cálculo de custo precisa saber de um item — e só isso.
+ *
+ * O tipo é estreito de propósito. Quem chama vinha passando o item completo
+ * com um `as ItemLidoDaNota[]` por cima, e o cast calou exatamente o erro que
+ * apontaria o campo faltando: o `impostosCentavos` não chegava aqui e o custo
+ * saía sem imposto, sem nada quebrar. Pedir pouco é o que deixa o
+ * compilador cobrar.
+ */
+export type ItemParaCusto = Pick<
+  ItemLidoDaNota,
+  "ordem" | "quantidade" | "valorTotalCentavos" | "impostosCentavos"
+>;
+
+/**
  * Por qual critério o frete se divide entre os itens.
  *
  * Não existe resposta certa, existe resposta adequada à carga. Transportadora
@@ -120,7 +134,13 @@ export type CustoDoItem = {
   valorDaLinhaCentavos: number;
   rateioDeFreteCentavos: number;
   rateioDeDescontoCentavos: number;
-  /** Linha + frete − desconto. */
+  /**
+   * ICMS-ST, IPI e afins desta linha, lidos do XML.
+   *
+   * Não é rateio: vêm discriminados por item na nota, onde são exatos.
+   */
+  impostosCentavos: number;
+  /** Linha + frete + impostos − desconto. */
   custoTotalCentavos: number;
   /** O que vai pro campo `custo` do produto. */
   custoUnitarioCentavos: number;
@@ -141,7 +161,7 @@ export function calcularCustos({
   descontoCentavos,
   criterio,
 }: {
-  itens: ItemLidoDaNota[];
+  itens: ItemParaCusto[];
   freteCentavos: number;
   descontoCentavos: number;
   criterio: CriterioDeRateio;
@@ -159,8 +179,11 @@ export function calcularCustos({
     const rateioDeFreteCentavos = fretes[indice];
     const rateioDeDescontoCentavos = descontos[indice];
 
+    // Os impostos do item entram no custo porque são dinheiro que a loja
+    // pagou e que não volta: numa empresa do Simples, a substituição
+    // tributária da compra é custo, não crédito.
     const custoTotalCentavos = subtrair(
-      somar(item.valorTotalCentavos, rateioDeFreteCentavos),
+      somar(item.valorTotalCentavos, rateioDeFreteCentavos, item.impostosCentavos),
       rateioDeDescontoCentavos
     );
 
@@ -178,6 +201,7 @@ export function calcularCustos({
       valorDaLinhaCentavos: item.valorTotalCentavos,
       rateioDeFreteCentavos,
       rateioDeDescontoCentavos,
+      impostosCentavos: item.impostosCentavos,
       custoTotalCentavos,
       custoUnitarioCentavos,
     };
