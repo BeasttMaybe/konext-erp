@@ -8,17 +8,19 @@ import { LAYOUT_COM_CODIGO_DO_FORNECEDOR } from "./amostras/c-com-codigo";
 import { LAYOUT_DUAS_PAGINAS } from "./amostras/d-duas-paginas";
 import { LAYOUT_DESCRICAO_EM_DUAS_LINHAS } from "./amostras/e-descricao-quebrada";
 import { LAYOUT_SEM_CIFRAO_COM_UNIDADE } from "./amostras/f-sem-cifrao-fracionado";
+import { LAYOUT_COM_DESCONTO_POR_ITEM } from "./amostras/g-desconto-por-item";
+import { LAYOUT_TOTAL_ANTES_DO_UNITARIO } from "./amostras/h-total-antes-do-unitario";
 import { lerNotaDePalavras, type PalavraPdf } from "./leitura-pdf";
 import { conferirNota } from "./nota";
 
 /**
- * Sete fornecedores, sete layouts.
+ * Oito fornecedores, oito layouts.
  *
  * O orçamento da EA CENTRAL (em `leitura-pdf.test.ts`) é a nota real que
  * originou o parser, e passar nela não prova quase nada: todo parser passa
- * no documento que serviu de modelo. Estes seis foram desenhados PARA
- * QUEBRÁ-LO, cada um mexendo numa suposição diferente — e os seis
- * quebraram, de sete jeitos distintos, na primeira vez que rodaram.
+ * no documento que serviu de modelo. Estes sete foram desenhados PARA
+ * QUEBRÁ-LO, cada um mexendo numa suposição diferente — e os sete
+ * quebraram, de nove jeitos distintos, na primeira vez que rodaram.
  *
  * O que cada um pegou está no comentário da própria amostra. O que todos
  * provam junto é a única coisa que importa aqui: a leitura de um PDF só pode
@@ -106,6 +108,17 @@ const CASOS: Caso[] = [
     freteCentavos: 1_800,
     descontoCentavos: 0,
     totalCentavos: 32_000,
+  },
+  {
+    nome: "colunas de dinheiro invertidas: total antes do unitário",
+    palavras: LAYOUT_TOTAL_ANTES_DO_UNITARIO,
+    emitente: "SUPRI MOBILE LTDA",
+    emitidaEm: "2026-11-03",
+    itens: 2,
+    produtosCentavos: null,
+    freteCentavos: 0,
+    descontoCentavos: 0,
+    totalCentavos: 9_900,
   },
 ];
 
@@ -250,5 +263,40 @@ describe("cabeçalho de tabela repetido", () => {
       "COLA B7000 50ML",
       "ESTACAO DE SOLDA DIGITAL",
     ]);
+  });
+});
+
+describe("colunas de dinheiro são escolhidas pela conta, não pela posição", () => {
+  it("colunas invertidas saem na ordem certa", () => {
+    // "Valor total" antes de "Vl. unitário": pela posição, um cabo de
+    // R$ 9,00 entraria no estoque custando R$ 54,00.
+    const nota = lerNotaDePalavras(LAYOUT_TOTAL_ANTES_DO_UNITARIO);
+
+    expect(nota.itens[0]).toMatchObject({
+      quantidade: 6,
+      valorUnitarioCentavos: 900,
+      valorTotalCentavos: 5_400,
+    });
+    expect(conferirNota(nota).fecha).toBe(true);
+  });
+
+  it("coluna de desconto não vira o preço de compra", () => {
+    // "10,00 | 5,00 | 95,00": pela posição, o desconto virava o custo e o
+    // produto entrava cadastrado pela metade.
+    const nota = lerNotaDePalavras(LAYOUT_COM_DESCONTO_POR_ITEM);
+
+    expect(nota.itens[0].valorUnitarioCentavos).toBe(1_000);
+    expect(nota.itens[1].valorUnitarioCentavos).toBe(750);
+  });
+
+  it("e a linha com desconto é MARCADA, porque a conta não fecha mesmo", () => {
+    // O limite honesto do parser: desconto por item não é campo que a
+    // leitura modele. Ler o preço certo e avisar é melhor que inventar um
+    // preço que fecha.
+    const conferencia = conferirNota(lerNotaDePalavras(LAYOUT_COM_DESCONTO_POR_ITEM));
+
+    expect(conferencia.itens[0].problemas).toContain("TOTAL_NAO_BATE");
+    expect(conferencia.itens[1].problemas).toEqual([]);
+    expect(conferencia.fecha).toBe(false);
   });
 });
