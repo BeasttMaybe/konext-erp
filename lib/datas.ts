@@ -208,3 +208,30 @@ export function dataDeCalendario(anoMesDiaIso: string): Date | null {
 
   return dataRealCorresponde ? data : null;
 }
+
+/**
+ * O mesmo que `dataDeCalendario`, mas recusa a entrada inválida em vez de
+ * devolver `null` — para uso em server action, onde a data vem de formulário
+ * e o certo é parar com mensagem legível, não gravar lixo.
+ *
+ * Esta é a ÚNICA porta por onde uma data digitada deve entrar no banco. O
+ * motivo é um bug que existiu em sete telas: cada uma montava a data no
+ * navegador com `new Date(`${texto}T12:00:00`)`, que é meia-noite (ou meio-dia)
+ * do fuso de QUEM DIGITOU. Em São Paulo isso gravava 15:00 UTC, e aí o filtro
+ * de período — que compara com meia-noite UTC, como manda a convenção —
+ * deixava de fora justamente o último dia do intervalo: filtrar "1 a 30" não
+ * mostrava os boletos do dia 30.
+ *
+ * Nenhum dado de calendário pode depender do fuso do navegador de quem
+ * cadastrou: o vencimento do dia 30 é dia 30 em qualquer lugar do mundo. Por
+ * isso a tela manda TEXTO e a conversão acontece aqui.
+ */
+export function exigirDataDeCalendario(anoMesDiaIso: string, nomeDoCampo: string): Date {
+  const data = dataDeCalendario(anoMesDiaIso);
+
+  if (!data) {
+    throw new Error(`Informe ${nomeDoCampo} em formato de data válido (dia, mês e ano).`);
+  }
+
+  return data;
+}

@@ -277,7 +277,10 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
         valorTotal: valorTotalNumero,
         tipo: formDespesa.tipo,
         qtdParcelas: qtdParcelasNumero,
-        dataVencimento: new Date(`${formDespesa.dataVencimento}T12:00:00`),
+        // Vai como TEXTO: quem converte é o servidor, com `dataDeCalendario`.
+        // Montar a data aqui ancorava no fuso do navegador e gravava 15:00 UTC,
+        // o que tirava o último dia do intervalo de todo filtro de período.
+        dataVencimento: formDespesa.dataVencimento,
       });
       if (!resultado.sucesso) {
         toast.error(resultado.mensagem);
@@ -387,7 +390,7 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
           : {
               ...(Number.isFinite(valorNumero) && valorNumero > 0 ? { valorTotal: valorNumero } : {}),
               ...(formEditar.dataVencimento
-                ? { dataVencimento: new Date(`${formEditar.dataVencimento}T00:00:00`) }
+                ? { dataVencimento: formEditar.dataVencimento }
                 : {}),
             }),
       });

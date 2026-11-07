@@ -284,7 +284,9 @@ export function ConteudoReceber({ contas }: ConteudoReceberProps) {
     try {
       setSalvandoEdicao(true);
       const resultado = await editarContaReceber(contaEditando.id, {
-        dataVencimento: new Date(`${formEdicao.dataVencimento}T12:00:00`),
+        // Texto: quem converte é o servidor. Montar aqui ancorava no fuso
+        // do navegador — ver `exigirDataDeCalendario`.
+        dataVencimento: formEdicao.dataVencimento,
         valor: valorNumero,
       });
       if (!resultado.sucesso) {
@@ -355,8 +357,8 @@ export function ConteudoReceber({ contas }: ConteudoReceberProps) {
         valorTotal: valorTotalNumero,
         clienteId: clienteSelecionado.id,
         qtdParcelas: qtdParcelasNumero,
-        dataInicio: new Date(`${formNovaConta.dataInicio}T12:00:00`),
-        dataVencimentoPrimeiraParcela: new Date(`${formNovaConta.dataVencimentoPrimeiraParcela}T12:00:00`),
+        dataInicio: formNovaConta.dataInicio,
+        dataVencimentoPrimeiraParcela: formNovaConta.dataVencimentoPrimeiraParcela,
         formaRecebimento: formNovaConta.formaRecebimento,
         observacaoLancamento: formNovaConta.observacaoLancamento,
       });

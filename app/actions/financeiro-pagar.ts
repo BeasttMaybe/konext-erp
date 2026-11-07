@@ -11,7 +11,14 @@ import {
   registrarLogsAuditoriaEmLote,
 } from "@/lib/auditoria";
 import { paraMensagemSegura } from "@/lib/erros";
-import { comoDataDeCalendario, dataDeCalendario, FUSO_HORARIO_PADRAO, fimDoMes, inicioDoMes } from "@/lib/datas";
+import {
+  comoDataDeCalendario,
+  dataDeCalendario,
+  exigirDataDeCalendario,
+  FUSO_HORARIO_PADRAO,
+  fimDoMes,
+  inicioDoMes,
+} from "@/lib/datas";
 import { deDecimal, dividirEmParcelas, paraDecimal, paraMoeda, somar } from "@/lib/dinheiro";
 
 /** Ver o comentario equivalente em financeiro-receber.ts (Fase 1B-UI, Parte 1). */
@@ -27,7 +34,13 @@ export interface DadosCriarDespesa {
   valorTotal: number;
   tipo: TipoDespesa;
   qtdParcelas?: number;
-  dataVencimento: Date;
+  /**
+   * "aaaa-mm-dd", como sai do `<input type="date">`.
+   *
+   * É TEXTO de propósito. Era `Date` montado no navegador, e o navegador
+   * ancorava no fuso de quem digitou — ver `exigirDataDeCalendario`.
+   */
+  dataVencimento: string;
 }
 
 /**
@@ -296,11 +309,7 @@ async function criarDespesaInterno(data: DadosCriarDespesa) {
   }
 
   const qtdParcelas = normalizarQtdParcelas(data.tipo, data.qtdParcelas);
-  const dataVencimentoBase = new Date(data.dataVencimento);
-
-  if (Number.isNaN(dataVencimentoBase.getTime())) {
-    throw new Error("Informe uma data de vencimento valida.");
-  }
+  const dataVencimentoBase = exigirDataDeCalendario(data.dataVencimento, "a data de vencimento");
 
   return prisma.$transaction(async (tx) => {
     const txAny = tx as unknown as PrismaFinanceiroPagarAny;
@@ -376,7 +385,8 @@ export type DadosEditarDespesa = {
   clienteId?: string;
   /** Só aceito enquanto nenhuma parcela estiver paga — ver a regra abaixo. */
   valorTotal?: number;
-  dataVencimento?: Date;
+  /** "aaaa-mm-dd" — texto, pelo mesmo motivo de `DadosNovaDespesa`. */
+  dataVencimento?: string;
 };
 
 /**
@@ -444,7 +454,14 @@ export async function editarDespesa(
 
       const temParcelaPaga = despesa.parcelas.some((parcela) => parcela.status === "PAGO");
       const querMudarValor = typeof data.valorTotal === "number";
-      const querMudarVencimento = data.dataVencimento instanceof Date;
+      // `instanceof Date` enquanto o campo era um Date montado no navegador;
+      // agora o campo é texto e a presença dele é o que diz se houve pedido
+      // de mudança. Texto vazio é "não informou", não "limpar a data".
+      const vencimentoPedido =
+        typeof data.dataVencimento === "string" && data.dataVencimento.trim() !== ""
+          ? data.dataVencimento
+          : null;
+      const querMudarVencimento = vencimentoPedido !== null;
 
       if (temParcelaPaga && (querMudarValor || querMudarVencimento)) {
         throw new Error(
@@ -484,7 +501,7 @@ export async function editarDespesa(
         }
       }
 
-      if (querMudarVencimento) {
+      if (vencimentoPedido !== null) {
         // So a primeira parcela recebe a data informada; as demais mantem o
         // espacamento que ja tinham, porque remontar o calendario inteiro a
         // partir de uma edicao seria surpresa, nao correcao.
@@ -492,7 +509,9 @@ export async function editarDespesa(
         if (primeira) {
           await delegateParcela.update?.({
             where: { id: primeira.id },
-            data: { dataVencimento: data.dataVencimento as Date },
+            data: {
+              dataVencimento: exigirDataDeCalendario(vencimentoPedido, "a data de vencimento"),
+            },
           });
         }
       }

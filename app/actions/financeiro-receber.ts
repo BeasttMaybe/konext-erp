@@ -7,7 +7,14 @@ import { escopoContaReceber } from "@/lib/auth/escopos";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 import { paraMensagemSegura } from "@/lib/erros";
-import { comoDataDeCalendario, dataDeCalendario, FUSO_HORARIO_PADRAO, fimDoMes, inicioDoMes } from "@/lib/datas";
+import {
+  comoDataDeCalendario,
+  dataDeCalendario,
+  exigirDataDeCalendario,
+  FUSO_HORARIO_PADRAO,
+  fimDoMes,
+  inicioDoMes,
+} from "@/lib/datas";
 import { deDecimal, dividirEmParcelas, paraDecimal, paraMoeda, somar } from "@/lib/dinheiro";
 
 /**
@@ -117,8 +124,15 @@ export interface CriarContaReceberInput {
   valorTotal: number;
   clienteId?: string;
   qtdParcelas: number;
-  dataInicio: Date;
-  dataVencimentoPrimeiraParcela: Date;
+  /**
+   * "aaaa-mm-dd", como sai do `<input type="date">`.
+   *
+   * Texto, não `Date`: a tela montava a data no fuso do navegador e gravava
+   * 15:00 UTC — ver `exigirDataDeCalendario`.
+   */
+  dataInicio: string;
+  /** "aaaa-mm-dd", pelo mesmo motivo de `dataInicio`. */
+  dataVencimentoPrimeiraParcela: string;
   formaRecebimento: ContaReceberFinanceiro["formaRecebimento"];
   observacaoLancamento?: string;
 }
@@ -147,6 +161,11 @@ async function criarContaReceberInterno(input: CriarContaReceberInput): Promise<
     throw new Error("Valor total invalido para criar conta a receber.");
   }
 
+  const vencimentoDaPrimeira = exigirDataDeCalendario(
+    input.dataVencimentoPrimeiraParcela,
+    "a data de vencimento da primeira parcela"
+  );
+
   const parcelasCentavos = dividirEmParcelas(valorTotalCentavos, qtdParcelas);
   const parcelamentoId = qtdParcelas > 1 ? crypto.randomUUID() : null;
   const observacaoLancamento = input.observacaoLancamento?.trim() || null;
@@ -156,7 +175,7 @@ async function criarContaReceberInterno(input: CriarContaReceberInput): Promise<
       descricao: input.descricao,
       valor: paraDecimal(valorParcelaCentavos),
       clienteId: input.clienteId || null,
-      dataVencimento: adicionarMeses(input.dataVencimentoPrimeiraParcela, indice),
+      dataVencimento: adicionarMeses(vencimentoDaPrimeira, indice),
       formaRecebimento: input.formaRecebimento,
       origem: "AVULSO" as const,
       status: "PENDENTE" as const,
@@ -164,7 +183,7 @@ async function criarContaReceberInterno(input: CriarContaReceberInput): Promise<
       parcelamentoId,
       numeroParcela: indice + 1,
       totalParcelas: qtdParcelas,
-      dataInicio: input.dataInicio,
+      dataInicio: exigirDataDeCalendario(input.dataInicio, "a data de início"),
       dataFinalizacao: null,
       criadoPorId: usuario.id || null,
     };
@@ -401,7 +420,8 @@ export async function darBaixaContasEmLote(
 // ── Editar Conta a Receber ────────────────────────────────────────────────────
 
 export interface EditarContaReceberInput {
-  dataVencimento: Date;
+  /** "aaaa-mm-dd", pelo mesmo motivo dos outros campos de data desta action. */
+  dataVencimento: string;
   valor: number;
 }
 
@@ -439,7 +459,7 @@ async function editarContaReceberInterno(id: string, input: EditarContaReceberIn
   await prisma.contaReceber.update({
     where: { id },
     data: {
-      dataVencimento: input.dataVencimento,
+      dataVencimento: exigirDataDeCalendario(input.dataVencimento, "a data de vencimento"),
       valor: paraDecimal(deDecimal(input.valor)),
     },
   });
