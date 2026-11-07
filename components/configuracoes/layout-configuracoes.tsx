@@ -19,6 +19,7 @@ import { MenuConfiguracoes } from "./menu-configuracoes";
 import { PainelDocumentos } from "./painel-documentos";
 import { PainelEmpresa } from "./painel-empresa";
 import { PainelGarantias } from "./painel-garantias";
+import { PainelAvisos } from "@/components/configuracoes/painel-avisos";
 import { PainelArmazenamento } from "./painel-armazenamento";
 import { PainelMarcasPeca } from "./painel-marcas-peca";
 import { PainelCategoriasProduto } from "./painel-categorias-produto";
@@ -66,6 +67,11 @@ export function LayoutConfiguracoes({
         // (configuracoes.sistema); `marcasPeca !== null` ja e esse sinal, e a
         // propria action recusa quem nao tem.
         if (secao.id === "armazenamento") return marcasPeca !== null;
+        // Avisos segue a mesma regra de armazenamento, pelo mesmo motivo:
+        // mesma permissao (configuracoes.sistema), e a action recusa quem
+        // nao tem. Mostrar a secao a quem nao pode salvar e oferecer um
+        // botao que vai dar erro.
+        if (secao.id === "avisos") return marcasPeca !== null;
         return true;
       }),
     [podeVerUsuariosCargos, marcasPeca, categoriasProduto]
@@ -235,6 +241,10 @@ export function LayoutConfiguracoes({
         // Cadastro/diagnostico proprio: nao participa do formulario de
         // Configuracoes nem da barra de salvar.
         return marcasPeca !== null ? <PainelArmazenamento /> : null;
+      case "avisos":
+        // Painel proprio, com as suas acoes: nao participa do formulario de
+        // Configuracoes nem da barra de salvar.
+        return marcasPeca !== null ? <PainelAvisos /> : null;
       case "usuarios":
         return podeVerUsuariosCargos ? <SecaoUsuariosCargos /> : null;
       default:

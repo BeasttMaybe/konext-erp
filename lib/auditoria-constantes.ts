@@ -83,6 +83,8 @@ export const ACOES_AUDITORIA = {
   REVOGAR_LINK_FOTO_OS: "REVOGAR_LINK_FOTO_OS",
   /** Despesa fixa mensal encerrada (ou reativada) pelo dono — ver `encerrarDespesaFixa`. */
   ENCERRAR_DESPESA_FIXA: "ENCERRAR_DESPESA_FIXA",
+  /** Destino dos avisos de vencimento no Telegram alterado. */
+  ATUALIZAR_AVISOS_TELEGRAM: "ATUALIZAR_AVISOS_TELEGRAM",
 } as const;
 
 export const ENTIDADES_AUDITORIA = {
