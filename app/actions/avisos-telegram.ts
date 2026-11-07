@@ -107,7 +107,10 @@ export async function salvarConfiguracaoDeAvisos(entrada: {
 
     const chatId = entrada.chatId.trim();
 
-    await contexto.prisma.$transaction(async (tx: unknown) => {
+    // `tx` sem anotação de propósito: o tipo certo é `Prisma.TransactionClient`,
+    // que só existe no cliente Prisma gerado. Anotar como `unknown` aqui
+    // quebrou o build — `registrarLogAuditoria` exige o cliente de verdade.
+    await contexto.prisma.$transaction(async (tx) => {
       await delegateDeConfiguracao(tx).update({
         where: { id: configuracao.id },
         data: {

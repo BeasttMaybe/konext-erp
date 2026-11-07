@@ -1298,8 +1298,8 @@ export async function encerrarDespesaFixa(
 
     const hoje = hojeComoDataDeCalendario(contexto.fusoHorario ?? FUSO_HORARIO_PADRAO);
 
-    await prisma.$transaction(async (tx: unknown) => {
-      const txInterna = tx as PrismaFinanceiroPagarAny;
+    await prisma.$transaction(async (tx) => {
+      const txInterna = tx as unknown as PrismaFinanceiroPagarAny;
       const despesaNaTx = obterDelegateDespesaCompleto(txInterna, txAny);
       const parcelaNaTx = obterDelegateParcelaDespesa(txInterna, txAny);
 
