@@ -208,3 +208,63 @@ export function dataDeCalendario(anoMesDiaIso: string): Date | null {
 
   return dataRealCorresponde ? data : null;
 }
+
+/**
+ * O mesmo que `dataDeCalendario`, mas recusa a entrada inválida em vez de
+ * devolver `null` — para uso em server action, onde a data vem de formulário
+ * e o certo é parar com mensagem legível, não gravar lixo.
+ *
+ * Esta é a ÚNICA porta por onde uma data digitada deve entrar no banco. O
+ * motivo é um bug que existiu em sete telas: cada uma montava a data no
+ * navegador com `new Date(`${texto}T12:00:00`)`, que é meia-noite (ou meio-dia)
+ * do fuso de QUEM DIGITOU. Em São Paulo isso gravava 15:00 UTC, e aí o filtro
+ * de período — que compara com meia-noite UTC, como manda a convenção —
+ * deixava de fora justamente o último dia do intervalo: filtrar "1 a 30" não
+ * mostrava os boletos do dia 30.
+ *
+ * Nenhum dado de calendário pode depender do fuso do navegador de quem
+ * cadastrou: o vencimento do dia 30 é dia 30 em qualquer lugar do mundo. Por
+ * isso a tela manda TEXTO e a conversão acontece aqui.
+ */
+export function exigirDataDeCalendario(anoMesDiaIso: string, nomeDoCampo: string): Date {
+  const data = dataDeCalendario(anoMesDiaIso);
+
+  if (!data) {
+    throw new Error(`Informe ${nomeDoCampo} em formato de data válido (dia, mês e ano).`);
+  }
+
+  return data;
+}
+
+/**
+ * Soma meses a uma DATA DE CALENDÁRIO, em UTC, grudando no último dia do mês
+ * quando o dia original não existe no mês de destino.
+ *
+ * 31 de janeiro + 1 mês é 28 de fevereiro (29 em ano bissexto), não 3 de
+ * março. É o que todo banco faz com boleto e o que a pessoa espera de uma
+ * despesa fixa que vence "no dia 31".
+ *
+ * Existia em duas cópias divergentes, uma em cada action do financeiro, e as
+ * duas erradas de formas diferentes:
+ *
+ * - A de Contas a Pagar montava `new Date(ano, mês, dia, 12, 0, 0, 0)` — ou
+ *   seja, devolvia MEIO-DIA, não meia-noite, e via getters locais. Isso
+ *   recolocava no banco exatamente a hora que tirava a parcela do último dia
+ *   do filtro de período: a primeira parcela saía certa e as seguintes não.
+ * - A de Contas a Receber usava `setMonth`/`setDate` locais. Em servidor UTC
+ *   o resultado é certo por coincidência — o fuso do PROCESSO decidia a data,
+ *   e isso quebraria no dia em que o processo rodasse em outro fuso.
+ *
+ * Aqui a aritmética é toda em UTC, explícita, e não depende de onde o código
+ * roda.
+ */
+export function somarMesesEmDataDeCalendario(data: Date, meses: number): Date {
+  const ano = data.getUTCFullYear();
+  const mes = data.getUTCMonth();
+  const dia = data.getUTCDate();
+
+  // Dia 0 do mês SEGUINTE é o último dia do mês de destino.
+  const ultimoDiaDoMesDestino = new Date(Date.UTC(ano, mes + meses + 1, 0)).getUTCDate();
+
+  return new Date(Date.UTC(ano, mes + meses, Math.min(dia, ultimoDiaDoMesDestino)));
+}

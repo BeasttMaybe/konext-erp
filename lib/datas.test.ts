@@ -6,6 +6,7 @@ import {
   dataDeCalendario,
   diferencaEmDiasDeCalendario,
   diferencaEntreDatasDeCalendario,
+  exigirDataDeCalendario,
   fimDaSemana,
   fimDoDia,
   fimDoMes,
@@ -16,6 +17,7 @@ import {
   mesmoDia,
   somarDias,
   somarDiasEmDataDeCalendario,
+  somarMesesEmDataDeCalendario,
 } from "./datas";
 
 const FUSO_LOJA = "America/Sao_Paulo";
@@ -129,5 +131,118 @@ describe("lib/datas — fronteiras no fuso da loja", () => {
     const inicioDoAno = new Date("2026-01-01T03:00:00.000Z"); // 01/01 00:00 -03:00
     const finalDoAno = new Date("2026-01-10T14:00:00.000Z"); // 10/01 11:00 -03:00
     expect(diferencaEmDiasDeCalendario(inicioDoAno, finalDoAno, FUSO_LOJA)).toBe(9);
+  });
+});
+
+describe("exigirDataDeCalendario — o bug do último dia do filtro", () => {
+  /**
+   * Sete telas montavam a data no navegador com
+   * `new Date(`${texto}T12:00:00`)`. Sem sufixo de fuso, o JavaScript
+   * interpreta isso no fuso de QUEM DIGITOU: em São Paulo, meio-dia local é
+   * 15:00 UTC. O banco guardava 15:00 do dia 30.
+   *
+   * O filtro de período compara com meia-noite UTC, como manda a convenção
+   * deste módulo. Então `<= 2026-11-30T00:00:00Z` deixava de fora o boleto
+   * do próprio dia 30 — e só aparecia filtrando até o dia 1 do mês seguinte,
+   * que foi o contorno que o dono da loja descobriu sozinho e reportou.
+   *
+   * Provado contra Postgres real antes de corrigir.
+   */
+  const FIM_DO_FILTRO = dataDeCalendario("2026-11-30")!;
+
+  it("a data gravada entra no filtro do próprio dia", () => {
+    const gravada = exigirDataDeCalendario("2026-11-30", "o vencimento");
+
+    expect(gravada.getTime()).toBeLessThanOrEqual(FIM_DO_FILTRO.getTime());
+    expect(gravada.toISOString()).toBe("2026-11-30T00:00:00.000Z");
+  });
+
+  it("o jeito antigo cairia fora do filtro — é o bug, documentado", () => {
+    // Não é como o código faz: é como ELE FAZIA. O teste existe pra que a
+    // volta do padrão antigo apareça como falha, e não como "sumiu um boleto".
+    const comoEraEmSaoPaulo = new Date("2026-11-30T15:00:00.000Z");
+
+    expect(comoEraEmSaoPaulo.getTime()).toBeGreaterThan(FIM_DO_FILTRO.getTime());
+  });
+
+  it("não depende do fuso de quem digitou", () => {
+    // O vencimento do dia 30 é dia 30 em Tóquio, em Lisboa e em Rio Branco.
+    expect(exigirDataDeCalendario("2026-11-30", "x").toISOString()).toBe(
+      "2026-11-30T00:00:00.000Z"
+    );
+  });
+
+  it("o último dia de qualquer mês entra no filtro daquele mês", () => {
+    for (const [ultimoDia, mes] of [
+      ["2026-01-31", "janeiro"],
+      ["2026-02-28", "fevereiro"],
+      ["2024-02-29", "fevereiro bissexto"],
+      ["2026-04-30", "abril"],
+      ["2026-12-31", "dezembro"],
+    ] as const) {
+      const gravada = exigirDataDeCalendario(ultimoDia, "o vencimento");
+      const fimDoFiltro = dataDeCalendario(ultimoDia)!;
+
+      expect(gravada.getTime(), mes).toBeLessThanOrEqual(fimDoFiltro.getTime());
+    }
+  });
+
+  it("recusa texto que não é data, com mensagem que nomeia o campo", () => {
+    for (const ruim of ["", "30/11/2026", "2026-13-01", "2026-02-30", "ontem"]) {
+      expect(() => exigirDataDeCalendario(ruim, "a data de vencimento"), ruim).toThrow(
+        /data de vencimento/
+      );
+    }
+  });
+});
+
+describe("somarMesesEmDataDeCalendario", () => {
+  const em = (iso: string) => dataDeCalendario(iso)!;
+  const iso = (data: Date) => data.toISOString().slice(0, 10);
+
+  it("soma mês mantendo o dia", () => {
+    expect(iso(somarMesesEmDataDeCalendario(em("2026-01-15"), 1))).toBe("2026-02-15");
+    expect(iso(somarMesesEmDataDeCalendario(em("2026-01-15"), 11))).toBe("2026-12-15");
+  });
+
+  it("gruda no último dia do mês quando o dia não existe lá", () => {
+    // É o que o banco faz com boleto, e o que se espera de uma despesa fixa
+    // que vence "no dia 31".
+    expect(iso(somarMesesEmDataDeCalendario(em("2026-01-31"), 1))).toBe("2026-02-28");
+    expect(iso(somarMesesEmDataDeCalendario(em("2024-01-31"), 1))).toBe("2024-02-29");
+    expect(iso(somarMesesEmDataDeCalendario(em("2026-03-31"), 1))).toBe("2026-04-30");
+  });
+
+  it("vira o ano", () => {
+    expect(iso(somarMesesEmDataDeCalendario(em("2026-11-30"), 2))).toBe("2027-01-30");
+    expect(iso(somarMesesEmDataDeCalendario(em("2026-12-31"), 1))).toBe("2027-01-31");
+  });
+
+  it("devolve meia-noite UTC — a hora é o que quebrava o filtro", () => {
+    // A cópia antiga devolvia meio-dia, e aí a parcela 2 em diante ficava de
+    // fora do último dia de todo filtro de período.
+    for (const meses of [0, 1, 6, 12, 36]) {
+      const resultado = somarMesesEmDataDeCalendario(em("2026-11-30"), meses);
+      expect(resultado.toISOString(), `+${meses}`).toMatch(/T00:00:00\.000Z$/);
+    }
+  });
+
+  it("aceita meses negativos", () => {
+    expect(iso(somarMesesEmDataDeCalendario(em("2026-03-31"), -1))).toBe("2026-02-28");
+  });
+
+  it("não acumula desvio em doze meses seguidos", () => {
+    // Gerar parcela por parcela a partir da MESMA base, nunca da anterior:
+    // somar um mês doze vezes a partir de 31/01 pararia em 28/02 pra sempre.
+    const base = em("2026-01-31");
+    const doze = Array.from({ length: 12 }, (_, indice) =>
+      iso(somarMesesEmDataDeCalendario(base, indice))
+    );
+
+    expect(doze).toEqual([
+      "2026-01-31", "2026-02-28", "2026-03-31", "2026-04-30",
+      "2026-05-31", "2026-06-30", "2026-07-31", "2026-08-31",
+      "2026-09-30", "2026-10-31", "2026-11-30", "2026-12-31",
+    ]);
   });
 });

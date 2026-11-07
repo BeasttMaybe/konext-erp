@@ -7,6 +7,7 @@ export type SecaoConfiguracoesId =
   | "garantias"
   | "pdv-caixa"
   | "armazenamento"
+  | "avisos"
   | "usuarios";
 
 export type ItemSecaoConfiguracoes = {
@@ -55,6 +56,11 @@ export const SECOES_CONFIGURACOES: ItemSecaoConfiguracoes[] = [
     id: "armazenamento",
     rotulo: "Armazenamento de fotos",
     descricao: "Onde as fotos dos aparelhos ficam guardadas, e um teste da conexão.",
+  },
+  {
+    id: "avisos",
+    rotulo: "Avisos de vencimento",
+    descricao: "Aviso de conta a pagar e a receber, no sistema e no Telegram.",
   },
   {
     id: "usuarios",

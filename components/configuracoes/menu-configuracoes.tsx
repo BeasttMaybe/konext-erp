@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  BellRing,
   Building2,
   CloudUpload,
   FileText,
@@ -25,6 +26,7 @@ const iconesPorSecao: Record<SecaoConfiguracoesId, LucideIcon> = {
   garantias: ShieldCheck,
   "pdv-caixa": ShoppingCart,
   armazenamento: CloudUpload,
+  avisos: BellRing,
   usuarios: UserCog,
 };
 

@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { MoreHorizontal, Plus, Pencil, Info, Trash2 } from "lucide-react";
+import { MoreHorizontal, Plus, Pencil, Info, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import type { ClienteBuscaCRM } from "@/app/actions/crm";
 import {
@@ -18,6 +18,12 @@ import { SeletorClienteCRM } from "@/components/financeiro/seletor-cliente-crm";
 import { BarraAcaoLote } from "@/components/financeiro/barra-acao-lote";
 import { PainelConfirmarLote } from "@/components/financeiro/painel-confirmar-lote";
 import { alternarSelecaoLinha, resumirSelecao, selecionarTodosFiltrados } from "@/lib/dominio/financeiro/selecao-lote";
+import { casaComBusca, prepararTermoDeBusca } from "@/lib/dominio/financeiro/busca-de-conta";
+import {
+  ORIGENS_DE_RECEITA,
+  rotuloDaOrigemDeReceita,
+  type OrigemDeReceita,
+} from "@/lib/dominio/financeiro/origem-de-receita";
 import { FUSO_HORARIO_PADRAO, hojeComoDataDeCalendario } from "@/lib/datas";
 import { useTemPermissao } from "@/contextos/contexto-permissoes";
 import { PilulaStatus } from "@/components/ui/pilula-status";
@@ -178,6 +184,8 @@ export function ConteudoReceber({ contas }: ConteudoReceberProps) {
 
   // Seleção em lote (Fase 3-2D, Parte 5)
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
+  const [busca, setBusca] = useState("");
+  const [origemAtiva, setOrigemAtiva] = useState<OrigemDeReceita | "TODAS">("TODAS");
   const [painelLoteAberto, setPainelLoteAberto] = useState(false);
   const [processandoLote, setProcessandoLote] = useState(false);
 
@@ -187,11 +195,30 @@ export function ConteudoReceber({ contas }: ConteudoReceberProps) {
   );
 
   const contasFiltradas = useMemo(() => {
-    if (pilulaAtiva === "TODOS") return contasComStatus;
-    if (pilulaAtiva === "ABERTO") return contasComStatus.filter((c) => c.status !== "RECEBIDO");
-    if (pilulaAtiva === "ATRASADOS") return contasComStatus.filter((c) => c.status === "ATRASADO");
-    return contasComStatus.filter((c) => c.status === "RECEBIDO");
-  }, [contasComStatus, pilulaAtiva]);
+    const porPilula =
+      pilulaAtiva === "TODOS"
+        ? contasComStatus
+        : pilulaAtiva === "ABERTO"
+          ? contasComStatus.filter((c) => c.status !== "RECEBIDO")
+          : pilulaAtiva === "ATRASADOS"
+            ? contasComStatus.filter((c) => c.status === "ATRASADO")
+            : contasComStatus.filter((c) => c.status === "RECEBIDO");
+
+    // Busca e origem em cima da pílula: o dono pediu pra poder tirar da
+    // frente o fluxo de OS, que numa loja com dezenas de ordens por mês é a
+    // maioria das linhas e enterra o resto.
+    const palavras = prepararTermoDeBusca(busca);
+
+    return porPilula.filter(({ conta }) => {
+      if (origemAtiva !== "TODAS" && conta.origem !== origemAtiva) return false;
+
+      return casaComBusca(palavras, [
+        conta.descricao,
+        conta.cliente?.nomeRazaoSocial,
+        rotuloDaOrigemDeReceita(conta.origem),
+      ]);
+    });
+  }, [contasComStatus, pilulaAtiva, busca, origemAtiva]);
 
   const contaSelecionada = contas.find((c) => c.id === contaSelecionadaId) ?? null;
 
@@ -284,7 +311,9 @@ export function ConteudoReceber({ contas }: ConteudoReceberProps) {
     try {
       setSalvandoEdicao(true);
       const resultado = await editarContaReceber(contaEditando.id, {
-        dataVencimento: new Date(`${formEdicao.dataVencimento}T12:00:00`),
+        // Texto: quem converte é o servidor. Montar aqui ancorava no fuso
+        // do navegador — ver `exigirDataDeCalendario`.
+        dataVencimento: formEdicao.dataVencimento,
         valor: valorNumero,
       });
       if (!resultado.sucesso) {
@@ -355,8 +384,8 @@ export function ConteudoReceber({ contas }: ConteudoReceberProps) {
         valorTotal: valorTotalNumero,
         clienteId: clienteSelecionado.id,
         qtdParcelas: qtdParcelasNumero,
-        dataInicio: new Date(`${formNovaConta.dataInicio}T12:00:00`),
-        dataVencimentoPrimeiraParcela: new Date(`${formNovaConta.dataVencimentoPrimeiraParcela}T12:00:00`),
+        dataInicio: formNovaConta.dataInicio,
+        dataVencimentoPrimeiraParcela: formNovaConta.dataVencimentoPrimeiraParcela,
         formaRecebimento: formNovaConta.formaRecebimento,
         observacaoLancamento: formNovaConta.observacaoLancamento,
       });
@@ -406,6 +435,44 @@ export function ConteudoReceber({ contas }: ConteudoReceberProps) {
                 <Plus className="mr-1.5 h-4 w-4" />
                 Nova Conta
               </Button>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-2 border-b border-kx-painel-borda pb-3 lg:flex-row lg:items-center">
+            <div className="relative flex-1 lg:max-w-sm">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-kx-legenda"
+                aria-hidden
+              />
+              <Input
+                value={busca}
+                onChange={(e) => setBusca(e.target.value)}
+                placeholder="Buscar cliente ou descrição"
+                className="h-9 pl-9"
+                aria-label="Buscar conta por cliente ou descrição"
+              />
+            </div>
+
+            <Select
+              value={origemAtiva}
+              onValueChange={(valor) => setOrigemAtiva(valor as OrigemDeReceita | "TODAS")}
+            >
+              <SelectTrigger className="h-9 lg:w-56" aria-label="Filtrar por origem">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ORIGENS_DE_RECEITA.map((origem) => (
+                  <SelectItem key={origem.valor} value={origem.valor}>
+                    {origem.rotulo}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {(busca.trim() !== "" || origemAtiva !== "TODAS") && (
+              <span className="text-xs text-kx-legenda lg:ml-auto">
+                {contasFiltradas.length} de {contas.length} contas
+              </span>
             )}
           </div>
 

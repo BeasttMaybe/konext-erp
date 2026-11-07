@@ -152,8 +152,58 @@ model Configuracao {
    * requisicao em lib/tenant/exigir-contexto-tenant.ts.
    */
   fusoHorario                String   @default("America/Sao_Paulo")
+
+  /**
+   * Para onde vao os avisos de vencimento no Telegram.
+   *
+   * O token do bot e segredo de ambiente (TELEGRAM_BOT_TOKEN) e e UM so, da
+   * Konext. O DESTINO e por loja: cada dono conversa com o mesmo bot e recebe
+   * so os avisos dele. O chat id nao e segredo — e um identificador, como um
+   * numero de telefone numa agenda —, por isso mora aqui e e colado pelo
+   * proprio dono na tela de Configuracoes.
+   *
+   * Nulo ou vazio = loja sem aviso no Telegram. O aviso dentro do sistema
+   * (o sininho) continua funcionando de qualquer forma.
+   */
+  telegramChatId            String?
+  /** Desliga o aviso no Telegram sem apagar o chat id configurado. */
+  avisarVencimentoNoTelegram Boolean @default(true)
+
   criadoEm                  DateTime @default(now()) @db.Timestamptz(3)
   atualizadoEm              DateTime @updatedAt @db.Timestamptz(3)
+}
+
+/**
+ * Qual aviso de vencimento ja saiu.
+ *
+ * Existe por uma razao so: nao avisar duas vezes. Cron roda duas vezes —
+ * redeploy, retry da plataforma, alguem abrindo a URL — e o unique abaixo e o
+ * que garante que o aviso de hoje sai uma vez, no banco, nao na memoria de
+ * quem executa.
+ *
+ * A chave e (tipo, conta, dias): a mesma conta e avisada quatro vezes, uma
+ * por marco (3, 2, 1 e 0 dias), e cada marco uma unica vez. `contaId` nao e
+ * chave estrangeira de proposito — ele aponta pra ParcelaDespesa OU pra
+ * ContaReceber conforme o `tipo`, e as duas tabelas tem ids independentes.
+ */
+model AvisoDeVencimentoEnviado {
+  id String @id @default(uuid())
+
+  /// "PAGAR" (ParcelaDespesa) ou "RECEBER" (ContaReceber).
+  tipo              TipoDeContaAvisada
+  contaId           String
+  /// 3, 2, 1 ou 0 — qual dos quatro marcos este registro representa.
+  diasDeAntecedencia Int
+
+  enviadoEm DateTime @default(now()) @db.Timestamptz(3)
+
+  @@unique([tipo, contaId, diasDeAntecedencia])
+  @@index([enviadoEm])
+}
+
+enum TipoDeContaAvisada {
+  PAGAR
+  RECEBER
 }
 
 // ==========================================
@@ -657,7 +707,17 @@ model Despesa {
   descricao    String
   valorTotal   Decimal     @db.Decimal(12, 2)
   tipo         TipoDespesa
+  /// Quantas parcelas o parcelamento tem. Em `FIXA_MENSAL` NAO significa
+  /// nada: despesa fixa nao termina por contagem de parcela — ela segue ate
+  /// ganhar `encerradaEm`. O campo continua existindo porque PARCELADA
+  /// depende dele, e em FIXA_MENSAL guarda apenas o tamanho do horizonte
+  /// materializado na criacao. Ver lib/dominio/financeiro/despesa-fixa.ts.
   qtdParcelas  Int
+
+  /// Preenchido = o dono encerrou esta despesa fixa; nenhuma parcela nova e
+  /// gerada a partir daqui, e as que ja venceram continuam onde estao.
+  /// Sempre nulo em UNICA e PARCELADA, que terminam sozinhas.
+  encerradaEm DateTime? @db.Timestamptz(3)
 
   clienteId String?
   cliente   Cliente? @relation(fields: [clienteId], references: [id])
