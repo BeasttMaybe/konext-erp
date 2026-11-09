@@ -142,8 +142,10 @@ export function DialogoVincularOS({ aoFechar, aoEscolher }: Props) {
             <button
               key={ordem.id}
               type="button"
+              disabled={!ordem.podeFaturar}
+              title={ordem.motivoBloqueio ?? undefined}
               onClick={() => aoEscolher(ordem.id)}
-              className="flex w-full items-center gap-3 rounded-kx-cartao border border-kx-painel-borda bg-kx-superficie px-3 py-2.5 text-left transition-colors hover:border-kx-primaria"
+              className="flex w-full items-center gap-3 rounded-kx-cartao border border-kx-painel-borda bg-kx-superficie px-3 py-2.5 text-left transition-colors hover:border-kx-primaria disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-kx-painel-borda"
             >
               <span className="shrink-0 rounded-kx-pilula border border-kx-painel-borda px-2 py-0.5 text-xs font-bold tabular-nums text-kx-texto-2">
                 #{ordem.numeroOs}
@@ -155,8 +157,15 @@ export function DialogoVincularOS({ aoFechar, aoEscolher }: Props) {
                 </span>
                 <span className="block truncate text-xs text-kx-legenda">
                   {ordem.equipamento ?? "Sem aparelho"}
-                  {ordem.quantidadeItens === 0 && " · sem itens"}
                 </span>
+                {/* O motivo fica à vista, não só no title: quem está no
+                    balcão não passa o mouse para descobrir por que um item
+                    da lista não responde. */}
+                {ordem.motivoBloqueio && (
+                  <span className="block truncate text-xs text-kx-alerta">
+                    {ordem.motivoBloqueio}
+                  </span>
+                )}
               </span>
 
               <span className="shrink-0 text-sm font-bold tabular-nums text-kx-texto">

@@ -40,6 +40,16 @@ export type OrdemProntaParaPDV = {
   valorTotal: number;
   quantidadeItens: number;
   /**
+   * Pode ser faturada agora? Falso vem com `motivoBloqueio`.
+   *
+   * A lista mostrava todas as OS prontas e deixava o clique descobrir o
+   * resto. Escolher uma sem peça levava a um erro do React — porque a
+   * recusa vinha como exceção do servidor, e o Next troca o texto por um
+   * código. Agora a lista já diz, e o item nem fica clicável.
+   */
+  podeFaturar: boolean;
+  motivoBloqueio: string | null;
+  /**
    * Última alteração da OS.
    *
    * Não existe campo "ficou pronta em" no modelo, então esta é a melhor
@@ -68,6 +78,15 @@ export async function listarOrdensProntasParaPDV(): Promise<OrdemProntaParaPDV[]
   }>).ordemServico;
 
   if (!delegate?.findMany) return [];
+
+  // A exigência de item é configurável. Ler a configuração aqui é o que
+  // permite a lista dar a MESMA resposta que o carregamento daria — sem
+  // repetir a regra, que continua valendo no servidor na hora de carregar.
+  const configuracao = await contexto.prisma.configuracao
+    .findFirst({ orderBy: { criadoEm: "asc" }, select: { exigirItemParaEnviarPDV: true } })
+    .catch(() => null);
+
+  const exigeItem = configuracao?.exigirItemParaEnviarPDV !== false;
 
   const ordens = await delegate.findMany({
     where: { status: "PRONTO" },
@@ -104,6 +123,11 @@ export async function listarOrdensProntasParaPDV(): Promise<OrdemProntaParaPDV[]
         somar(...ordem.itens.map((item) => deDecimal((item.valorCobrado ?? 0) as never)))
       ),
       quantidadeItens: ordem.itens.length,
+      podeFaturar: !exigeItem || ordem.itens.length > 0,
+      motivoBloqueio:
+        exigeItem && ordem.itens.length === 0
+          ? "Cadastre uma peça ou serviço na OS antes de faturar."
+          : null,
       atualizadaEm: ordem.atualizadoEm?.toISOString() ?? null,
     }));
 }

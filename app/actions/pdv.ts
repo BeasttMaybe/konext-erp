@@ -1580,6 +1580,39 @@ export async function obterPedidoOSParaPDV(osId: string): Promise<PedidoOSPDV> {
   };
 }
 
+export type ResultadoPedidoOSParaPDV =
+  | { sucesso: true; pedido: PedidoOSPDV }
+  | { sucesso: false; mensagem: string };
+
+/**
+ * O mesmo que `obterPedidoOSParaPDV`, mas devolvendo o motivo em vez de
+ * lançá-lo.
+ *
+ * Existe por causa de um erro que o dono viu na tela: ao escolher uma OS sem
+ * peça, aparecia "Minified React error #441". Esse erro é o Next dizendo que
+ * ESCONDEU a mensagem — em produção, o texto de um erro lançado no servidor
+ * é trocado por um código, para não vazar detalhe interno.
+ *
+ * Quer dizer: o servidor sabia exatamente o que dizer ("cadastre pelo menos
+ * uma peça ou serviço na OS") e essa frase não chegava a ninguém. A pessoa
+ * recebia um código do React para um problema de cadastro.
+ *
+ * Mensagem que o usuário precisa ler não pode viajar como exceção. Ela viaja
+ * como DADO — que é o padrão que o resto deste projeto já usa com
+ * `paraMensagemSegura`.
+ */
+export async function carregarPedidoOSParaPDV(osId: string): Promise<ResultadoPedidoOSParaPDV> {
+  try {
+    return { sucesso: true, pedido: await obterPedidoOSParaPDV(osId) };
+  } catch (erro) {
+    return {
+      sucesso: false,
+      mensagem:
+        erro instanceof Error ? erro.message : "Não foi possível carregar a OS no PDV.",
+    };
+  }
+}
+
 export async function processarVendaOSNoPDV(osId: string, pagamentos: PagamentoPdvInput[]) {
   return processarVendaComOSNoPDV(osId, [], pagamentos);
 }
