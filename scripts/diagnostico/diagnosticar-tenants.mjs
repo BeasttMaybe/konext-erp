@@ -902,6 +902,34 @@ function montarMarkdown(relatorio) {
 
 // ------------------------------------------------------------------- coleta
 
+/**
+ * O punhado de achados que decide uma acao destrutiva, na saida padrao.
+ *
+ * Curto de proposito: o workflow ecoa as ultimas 120 linhas do log, entao o
+ * que for longo demais empurra o resto para fora.
+ */
+function imprimirDestaques(relatorio) {
+  const suspeitos = relatorio.camposComTipoErrado;
+
+  if (suspeitos?.ok && suspeitos.linhas.length > 0) {
+    console.log(`[destaque] ${relatorio.rotulo}: e-mail no campo de IMEI (${suspeitos.linhas.length}):`);
+    for (const linha of suspeitos.linhas) {
+      console.log(`[destaque]   OS #${linha.numeroOs ?? "?"}  imei="${linha.valor}"  id=${linha.id}`);
+    }
+  } else if (suspeitos?.ok) {
+    console.log(`[destaque] ${relatorio.rotulo}: nenhum e-mail no campo de IMEI.`);
+  }
+
+  const contagens = relatorio.contagemLinhas;
+  if (contagens?.ok) {
+    const naoVazias = contagens.linhas.filter((linha) => (linha.total ?? 0) > 0);
+    console.log(`[destaque] ${relatorio.rotulo}: tabelas com linhas (${naoVazias.length}):`);
+    console.log(
+      `[destaque]   ${naoVazias.map((linha) => `${linha.tabela}=${linha.total}`).join("  ")}`
+    );
+  }
+}
+
 async function diagnosticarBanco({
   rotulo,
   papel,
@@ -960,6 +988,15 @@ async function diagnosticarBanco({
     );
 
     console.log(`[diagnostico]   OK -> docs/diagnostico/${slugArquivo}.{json,md}`);
+
+    // DESTAQUES NA SAIDA PADRAO
+    //
+    // Os arquivos .md/.json sobem como artefato do workflow, e o artefato vai
+    // para um blob externo que o ambiente onde o Claude trabalha nao alcanca
+    // (mesma razao explicada em .github/workflows/banco.yml). O que chega la
+    // e o LOG. Entao o punhado de achados que decide uma acao destrutiva --
+    // "o que exatamente eu vou apagar?" -- e impresso aqui, nao so gravado.
+    imprimirDestaques(relatorio);
 
     return { ok: true, slug: slugArquivo };
   } finally {

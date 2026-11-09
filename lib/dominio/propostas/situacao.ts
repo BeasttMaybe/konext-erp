@@ -206,3 +206,32 @@ export function calcularTaxaDeConversao(parametros: {
   if (respondidas <= 0) return null;
   return (parametros.aprovadas / respondidas) * 100;
 }
+
+/**
+ * A proposta ainda pode ser editada?
+ *
+ * Só enquanto o cliente não respondeu. Depois de APROVADA ou REJEITADA, o
+ * documento virou registro: o cliente decidiu sobre aqueles itens, aqueles
+ * preços e aquela validade, e reescrever isso apaga o que ele de fato
+ * respondeu — o histórico passaria a mostrar uma aprovação de uma proposta
+ * que nunca existiu.
+ *
+ * Quem precisa mudar valores depois da resposta tem o caminho certo:
+ * `clonarProposta`, que cria uma NOVA proposta a partir da antiga e deixa as
+ * duas no histórico.
+ *
+ * RASCUNHO e ENVIADA podem: enviada ainda está em aberto, e corrigir um preço
+ * errado antes de o cliente responder é exatamente o que o dono pediu.
+ */
+export function podeEditar(status: StatusProposta): boolean {
+  return status === "RASCUNHO" || status === "ENVIADA";
+}
+
+/** O motivo, para a tela e para a action darem a MESMA explicação. */
+export function motivoDeNaoPoderEditar(status: StatusProposta): string | null {
+  if (podeEditar(status)) return null;
+
+  return status === "APROVADA"
+    ? "Esta proposta já foi aprovada pelo cliente e não pode ser alterada. Use “Duplicar” para criar uma nova a partir dela."
+    : "Esta proposta já foi recusada pelo cliente e não pode ser alterada. Use “Duplicar” para criar uma nova a partir dela.";
+}
