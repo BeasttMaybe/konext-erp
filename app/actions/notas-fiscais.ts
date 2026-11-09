@@ -169,3 +169,18 @@ export async function listarNotasFiscais(
     return { sucesso: false, erro: "Nao foi possivel carregar as notas fiscais." };
   }
 }
+
+/**
+ * Quantas notas existem no total, IGNORANDO o filtro de período.
+ *
+ * Existe para a tela poder dizer "79 no total, mostrando as 4 de novembro".
+ * Sem isso, quem acabou de sincronizar vê quatro notas numa tela que filtra
+ * pelo mês e conclui que a importação falhou — foi exatamente o que
+ * aconteceu quando a busca só olhava 90 dias.
+ */
+export async function contarNotasFiscais(): Promise<number> {
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "financeiro.ver");
+
+  return contexto.prisma.notaFiscal.count();
+}

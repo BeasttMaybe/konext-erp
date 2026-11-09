@@ -44,14 +44,36 @@ import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
  * sem valor lido mostra travessão, nunca R$ 0,00.
  */
 
-/** Quantas notas têm o detalhe buscado por execução. 20 × ~400ms ≈ 8s. */
-const TETO_DE_DETALHES_POR_EXECUCAO = 20;
+/**
+ * Quanto tempo a fase de detalhes pode gastar.
+ *
+ * Orçamento de relógio, não contagem fixa de notas: o limite real é o tempo
+ * da função, e ele muda com o plano da hospedagem. Oito segundos cabem até
+ * no menor deles, e a execução para sozinha quando o tempo acaba — a
+ * seguinte continua de onde parou, porque o que decide quem falta é o banco
+ * (`valorTotal` nulo), não um contador em memória.
+ */
+const ORCAMENTO_DE_DETALHES_EM_MS = 8_000;
 
-/** Quanto tempo para trás a sincronização olha. */
-const DIAS_DA_JANELA = 90;
+/** Teto duro, para o caso de a rede estar muito rápida. */
+const TETO_DE_DETALHES_POR_EXECUCAO = 40;
 
-/** Páginas da listagem por execução. Cada uma traz até 100 notas. */
-const TETO_DE_PAGINAS = 5;
+/**
+ * Até quantos anos para trás buscar.
+ *
+ * A primeira versão olhava 90 dias, e foi assim que 79 notas do dono viraram
+ * 19 aqui: as outras 60 eram mais antigas que a janela e nunca foram
+ * procuradas. Nada no sistema dizia isso — a tela mostrava 19 notas com a
+ * mesma cara de quem mostra todas.
+ *
+ * O histórico é varrido em janelas de um ano, do mais recente para o mais
+ * antigo. Cinco anos cobre a vida de qualquer loja que vá adotar este
+ * sistema, e a varredura é barata: uma requisição por ano, por execução.
+ */
+const ANOS_DE_HISTORICO = 5;
+
+/** Páginas por janela de um ano. Cada uma traz até 100 notas. */
+const TETO_DE_PAGINAS_POR_ANO = 10;
 
 export type ResumoDaSincronizacao = {
   sucesso: boolean;
@@ -237,37 +259,51 @@ export async function sincronizarNotasDoBling(): Promise<ResumoDaSincronizacao> 
     const accessToken = await obterAccessTokenValido(prisma);
 
     const hoje = hojeComoDataDeCalendario(contexto.fusoHorario ?? FUSO_HORARIO_PADRAO);
-    const desde = somarDiasEmDataDeCalendario(hoje, -DIAS_DA_JANELA);
     const comoData = (data: Date) => data.toISOString().slice(0, 10);
 
-    // ── Fase barata: a listagem ────────────────────────────────────────────
+    // ── Fase barata: a listagem, ano a ano para trás ───────────────────────
+    //
+    // A varredura é sempre do histórico inteiro, não só do que mudou. Isso é
+    // de propósito: nota muda de situação DEPOIS de emitida (uma cancelada em
+    // janeiro continua cancelada e precisa chegar assim aqui), e `blingId`
+    // único faz cada leitura atualizar em vez de duplicar. O custo é uma
+    // requisição por ano.
     let lidas = 0;
     let novas = 0;
 
-    for (let pagina = 1; pagina <= TETO_DE_PAGINAS; pagina += 1) {
-      if (pagina > 1) await esperarPelaVazao();
+    for (let ano = 0; ano < ANOS_DE_HISTORICO; ano += 1) {
+      const fimDaJanela = somarDiasEmDataDeCalendario(hoje, -365 * ano);
+      const inicioDaJanela = somarDiasEmDataDeCalendario(hoje, -365 * (ano + 1) + 1);
 
-      const resposta = await chamarBling({
-        accessToken,
-        caminho: "/nfe",
-        parametros: {
-          tipo: TIPO_SAIDA_NO_BLING,
-          dataEmissaoInicial: `${comoData(desde)} 00:00:00`,
-          dataEmissaoFinal: `${comoData(hoje)} 23:59:59`,
-          limite: 100,
-          pagina,
-        },
-      });
+      for (let pagina = 1; pagina <= TETO_DE_PAGINAS_POR_ANO; pagina += 1) {
+        await esperarPelaVazao();
 
-      const daPagina = lerPaginaDeNotas(resposta);
-      if (daPagina.length === 0) break;
+        const resposta = await chamarBling({
+          accessToken,
+          caminho: "/nfe",
+          parametros: {
+            tipo: TIPO_SAIDA_NO_BLING,
+            dataEmissaoInicial: `${comoData(inicioDaJanela)} 00:00:00`,
+            dataEmissaoFinal: `${comoData(fimDaJanela)} 23:59:59`,
+            limite: 100,
+            pagina,
+          },
+        });
 
-      const resultado = await gravarCabecalhos(notaFiscal, daPagina);
-      lidas += daPagina.length;
-      novas += resultado.novas;
+        const daPagina = lerPaginaDeNotas(resposta);
+        if (daPagina.length === 0) break;
 
-      // Página incompleta é a última: não existe próxima para buscar.
-      if (daPagina.length < 100) break;
+        const resultado = await gravarCabecalhos(notaFiscal, daPagina);
+        lidas += daPagina.length;
+        novas += resultado.novas;
+
+        // Página incompleta é a última: não existe próxima para buscar.
+        if (daPagina.length < 100) break;
+      }
+
+      // Repare que um ano VAZIO não interrompe o laço de fora: uma loja pode
+      // ter parado de emitir por um período e voltado. Parar no primeiro ano
+      // sem notas deixaria todo o histórico anterior invisível para sempre.
     }
 
     // ── Fase cara: o detalhe, só de quem ainda não tem valor ───────────────
@@ -290,8 +326,14 @@ export async function sincronizarNotasDoBling(): Promise<ResumoDaSincronizacao> 
     let vinculadas = 0;
     let contasCriadas = 0;
 
+    const comecouEm = Date.now();
+
     for (const nota of semValor) {
       if (!nota.blingId) continue;
+
+      // Para quando o tempo acaba, não quando a lista acaba. A próxima
+      // execução recomeça pelas que ainda estão sem valor.
+      if (Date.now() - comecouEm > ORCAMENTO_DE_DETALHES_EM_MS) break;
 
       await esperarPelaVazao();
 
@@ -360,9 +402,10 @@ export async function sincronizarNotasDoBling(): Promise<ResumoDaSincronizacao> 
       }
     }
 
-    const faltamDetalhes = await notaFiscal.count({
-      where: { blingId: { not: null }, valorTotal: null },
-    });
+    const [faltamDetalhes, totalNoKonext] = await Promise.all([
+      notaFiscal.count({ where: { blingId: { not: null }, valorTotal: null } }),
+      notaFiscal.count({ where: { blingId: { not: null } } }),
+    ]);
 
     await registrarSincronizacao({ prisma, erro: null });
 
@@ -371,10 +414,13 @@ export async function sincronizarNotasDoBling(): Promise<ResumoDaSincronizacao> 
 
     return {
       sucesso: true,
+      // A mensagem diz quantas EXISTEM aqui, não quantas foram lidas agora:
+      // é o número que o dono compara com o Bling. Dizer só "lidas" escondeu
+      // que 60 notas nunca tinham sido procuradas.
       mensagem:
         faltamDetalhes > 0
-          ? `${lidas} notas lidas. Faltam ${faltamDetalhes} valores — sincronize de novo para continuar.`
-          : `${lidas} notas lidas, tudo em dia.`,
+          ? `${totalNoKonext} notas no Konext (${novas} novas agora). Faltam ${faltamDetalhes} valores — clique de novo para continuar.`
+          : `${totalNoKonext} notas no Konext, tudo em dia (${novas} novas agora).`,
       notasLidas: lidas,
       notasNovas: novas,
       detalhesBuscados,
