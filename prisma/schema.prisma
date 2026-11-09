@@ -735,6 +735,15 @@ enum FormaPagamento {
   BOLETO
   CREDIARIO
   EMPENHO_PUBLICO
+  /// A forma ainda nao e conhecida.
+  ///
+  /// Existe por causa da conta que nasce de uma parcela de nota do Bling: a
+  /// nota traz um id de forma de pagamento do Bling, que nao corresponde a
+  /// nenhum valor deste enum. Gravar um chute — "PIX", como outros pontos
+  /// deste sistema fazem quando nao sabem — poria forma de pagamento falsa
+  /// num registro financeiro, e ela apareceria no grafico de entradas por
+  /// forma como se fosse fato.
+  NAO_INFORMADO
 }
 
 enum OrigemReceita {

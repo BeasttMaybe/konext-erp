@@ -49,6 +49,7 @@ const paymentMethodLabelMap: Record<string, string> = {
  BOLETO: "Boleto",
  CREDIARIO: "Crediário",
  EMPENHO_PUBLICO: "Empenho Público",
+ NAO_INFORMADO: "Não informado",
 };
 
 const formatPaymentMethod = (paymentMethod: string | null | undefined) => {

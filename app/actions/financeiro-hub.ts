@@ -18,6 +18,7 @@ import {
   somarDiasEmDataDeCalendario,
 } from "@/lib/datas";
 import { deDecimal, paraMoeda, somar, subtrair } from "@/lib/dinheiro";
+import { calcularAbertoDoMes } from "@/lib/dominio/financeiro/aberto-do-mes";
 import { categoriaDaDespesa } from "@/lib/dominio/financeiro/categoria-de-despesa";
 
 /** Nome que `os-itens.ts` grava em `Despesa.fornecedor` pra custo de peça vindo de uma OS — não existe campo de origem no schema, então é este texto exato que distingue "peça de OS" de despesa de loja de verdade (Fase 3-2D). */
@@ -99,20 +100,81 @@ export interface AbertoComAtraso {
   atrasado: number;
 }
 
+/**
+ * Os cartoes "A receber" e "A pagar" da visao geral.
+ *
+ * Eles somavam `todoPeriodo: true` — ou seja, TODA parcela em aberto que
+ * existe no banco — debaixo de um titulo que diz "Visao geral do mes".
+ * Pergunta e resposta nao eram a mesma, e o dono reportou o sintoma: "esta
+ * escrito que tenho 60k em contas a pagar o que nao e verdade".
+ *
+ * Sempre esteve errado, mas passava despercebido enquanto as parcelas
+ * futuras se esgotavam com o tempo. Quando a despesa fixa mensal virou
+ * recorrencia de verdade, com doze meses sempre materializados a frente, o
+ * estoque de parcelas futuras deixou de acabar — e um ano inteiro de
+ * aluguel, internet e contador passou a aparecer como divida do mes.
+ *
+ * A pergunta certa e "quanto ainda devo que vence ate o fim deste mes?".
+ * Inclui o atrasado de meses anteriores, porque atraso e divida de agora; e
+ * exclui o que vence depois, porque isso e compromisso futuro. A regra esta
+ * em lib/dominio/financeiro/aberto-do-mes.ts, com testes nas bordas de data
+ * que decidem se o painel conta um mes ou treze.
+ */
+async function abertoAteOFimDoMes(
+  parcelas: Array<{ dataVencimento: Date; valor: unknown; liquidada: boolean }>,
+  fusoHorario: string
+): Promise<AbertoComAtraso> {
+  const hoje = comoDataDeCalendario(new Date(), fusoHorario);
+  const ultimoDia = comoDataDeCalendario(fimDoMes(new Date(), fusoHorario), fusoHorario);
+
+  const { totalCentavos, atrasadoCentavos } = calcularAbertoDoMes({
+    parcelas: parcelas.map((parcela) => ({
+      dataVencimento: parcela.dataVencimento,
+      valorCentavos: deDecimal(parcela.valor as never),
+      estaLiquidada: parcela.liquidada,
+    })),
+    hoje,
+    fimDoMes: ultimoDia,
+  });
+
+  return { total: paraMoeda(totalCentavos), atrasado: paraMoeda(atrasadoCentavos) };
+}
+
 export async function obterReceberEmAberto(): Promise<AbertoComAtraso> {
-  const resumo = await obterResumoReceber({ todoPeriodo: true });
-  return {
-    total: paraMoeda(somar(deDecimal(resumo.totalPendente), deDecimal(resumo.totalAtrasado))),
-    atrasado: resumo.totalAtrasado,
-  };
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "financeiro.ver");
+
+  const contas = await contexto.prisma.contaReceber.findMany({
+    where: { estornadaEm: null },
+    select: { dataVencimento: true, valor: true, status: true },
+  });
+
+  return abertoAteOFimDoMes(
+    contas.map((conta) => ({
+      dataVencimento: conta.dataVencimento,
+      valor: conta.valor,
+      liquidada: conta.status === "RECEBIDO" || conta.status === "PAGO" || conta.status === "ESTORNADO",
+    })),
+    contexto.fusoHorario ?? FUSO_HORARIO_PADRAO
+  );
 }
 
 export async function obterPagarEmAberto(): Promise<AbertoComAtraso> {
-  const resumo = await obterResumoPagar({ todoPeriodo: true });
-  return {
-    total: paraMoeda(somar(deDecimal(resumo.totalPendente), deDecimal(resumo.totalAtrasado))),
-    atrasado: resumo.totalAtrasado,
-  };
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "financeiro.ver");
+
+  const parcelas = await contexto.prisma.parcelaDespesa.findMany({
+    select: { dataVencimento: true, valor: true, status: true },
+  });
+
+  return abertoAteOFimDoMes(
+    parcelas.map((parcela) => ({
+      dataVencimento: parcela.dataVencimento,
+      valor: parcela.valor,
+      liquidada: parcela.status === "PAGO",
+    })),
+    contexto.fusoHorario ?? FUSO_HORARIO_PADRAO
+  );
 }
 
 /**
@@ -322,6 +384,7 @@ export async function obterEntradasPorForma(): Promise<FatiaCategoria[]> {
     CREDIARIO: "Crediário",
     TED: "TED",
     EMPENHO_PUBLICO: "Empenho público",
+    NAO_INFORMADO: "Não informado",
   };
 
   const porRotulo = new Map<string, number>();

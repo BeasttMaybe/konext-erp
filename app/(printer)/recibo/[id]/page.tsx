@@ -65,6 +65,7 @@ const formatarFormaPagamento = (formaPagamento: string) => {
     BOLETO: "Boleto",
     CREDIARIO: "Crediário",
     EMPENHO_PUBLICO: "Empenho Público",
+    NAO_INFORMADO: "Não informado",
   };
 
   return mapa[formaPagamento] ?? formaPagamento;

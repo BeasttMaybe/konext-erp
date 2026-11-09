@@ -82,6 +82,7 @@ const MAPA_FORMA_PAGAMENTO: Record<ContaReceberFinanceiro["formaRecebimento"], s
   DINHEIRO: "Dinheiro",
   CREDIARIO: "Crediário",
   EMPENHO_PUBLICO: "Empenho Público",
+  NAO_INFORMADO: "Não informado",
 };
 
 const PILULAS: { chave: PilulaFiltro; rotulo: string }[] = [

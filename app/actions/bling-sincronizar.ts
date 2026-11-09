@@ -63,6 +63,14 @@ export type ResumoDaSincronizacao = {
   contasCriadas: number;
   /** Quantas ainda esperam o valor. A próxima execução continua de onde parou. */
   faltamDetalhes: number;
+  /**
+   * O erro cru, quando houve. Só a tela do dono mostra, e só quando falha.
+   *
+   * Sem isto, uma falha de validação do Prisma vira "tente novamente em
+   * instantes" — uma frase que manda tentar para sempre e não ajuda ninguém
+   * a consertar.
+   */
+  detalhe?: string;
 };
 
 type DelegateGenerico = {
@@ -336,6 +344,12 @@ export async function sincronizarNotasDoBling(): Promise<ResumoDaSincronizacao> 
             dataVencimento: parcela.vencimento,
             origem: "BLING",
             status: "PENDENTE",
+            // Obrigatória e sem default. A nota do Bling traz um id de forma
+            // de pagamento que não corresponde a nenhum valor deste enum, e
+            // gravar um chute poria dado falso no gráfico de entradas por
+            // forma. Era a ausência deste campo que fazia a sincronização
+            // falhar — com a mensagem genérica escondendo o motivo.
+            formaRecebimento: "NAO_INFORMADO",
             blingParcelaRef: referencia,
             numeroParcela: indice + 1,
             totalParcelas: detalhe.parcelas.length,
@@ -371,13 +385,26 @@ export async function sincronizarNotasDoBling(): Promise<ResumoDaSincronizacao> 
   } catch (erro) {
     const mensagem = erro instanceof ErroDoBling ? erro.message : paraMensagemSegura(erro);
 
+    // O DETALHE CRU vai para `ultimoErro`, que só a tela do dono mostra.
+    //
+    // A mascara de `paraMensagemSegura` existe para não vazar interno para o
+    // cliente, e está certa. Mas ela transformou um erro de validação do
+    // Prisma — campo obrigatório faltando — em "Não foi possível concluir a
+    // operação. Tente novamente em instantes.", que mandava o dono tentar de
+    // novo para sempre, e não dizia nada a quem fosse consertar.
+    //
+    // Guardar o texto real num campo que só o dono vê não vaza nada e é a
+    // diferença entre diagnosticar em um minuto ou em uma hora.
+    const detalhe = erro instanceof Error ? `${erro.name}: ${erro.message}` : String(erro);
+    console.error("[bling] falha na sincronizacao:", erro);
+
     try {
       const contexto = await exigirContextoTenant();
-      await registrarSincronizacao({ prisma: contexto.prisma, erro: mensagem });
+      await registrarSincronizacao({ prisma: contexto.prisma, erro: detalhe });
     } catch {
       // Se nem o contexto abre, não há onde registrar — a mensagem volta na tela.
     }
 
-    return { sucesso: false, mensagem, ...vazio };
+    return { sucesso: false, mensagem, detalhe, ...vazio };
   }
 }
