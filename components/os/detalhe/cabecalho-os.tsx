@@ -113,10 +113,11 @@ export function CabecalhoOS({
           telefone={clienteTelefone}
           aceitaWhatsapp={clienteAceitaWhatsapp}
         />
-        {podeGerarPedidoVenda && <BotaoGerarPedidoVenda osId={osId} />}
+        {podeGerarPedidoVenda && <BotaoGerarPedidoVenda osId={osId} numeroOs={numeroOs} />}
         {podeEnviarAoPdv && !possuiItens && (
           <BotaoGerarPedidoVenda
             osId={osId}
+            numeroOs={numeroOs}
             desabilitado
             mensagemBloqueio="Cadastre uma peça ou serviço antes de enviar a OS ao PDV."
           />
