@@ -27,6 +27,12 @@ export const ITENS_NAVEGACAO: readonly ItemNavegacao[] = [
       { label: "Kanban", path: "/os?modo=kanban" },
       { label: "Finalizadas", path: "/os?modo=lista" },
       { label: "Garantias", path: "/os?modo=garantia" },
+      // A tela existia e funcionava desde que as marcas de peça entraram —
+      // custo lançado na OS contra o valor cobrado, agrupado por tipo e
+      // marca, que é o relatório de lucro de peça que o dono pediu. O que
+      // faltava era a porta: nenhum link no sistema levava até ela, e sem
+      // link uma tela pronta vale o mesmo que uma tela que não existe.
+      { label: "Relatório de peças", path: "/os/relatorio-pecas" },
     ],
   },
   {
