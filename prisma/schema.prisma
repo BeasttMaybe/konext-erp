@@ -279,7 +279,6 @@ model Cliente {
   pedidosVenda  PedidoVenda[]
   notasFiscais  NotaFiscal[]
   contas        Conta[]
-  oportunidades Oportunidade[]
 
   criadoEm     DateTime @default(now()) @db.Timestamptz(3)
   atualizadoEm DateTime @updatedAt @db.Timestamptz(3)
@@ -299,35 +298,6 @@ enum CategoriaCliente {
   CLIENTE_FINAL
   EMPRESA
   ORGAO_PUBLICO
-}
-
-// ==========================================
-// MÓDULO: CRM (Funil de Vendas)
-// ==========================================
-model Oportunidade {
-  id             String        @id @default(uuid())
-  titulo         String
-  valor          Decimal       @default(0) @db.Decimal(12, 2)
-  estagio        EstagioFunil  @default(PROSPECCAO)
-  dataFechamento DateTime?
-
-  clienteId String
-  cliente   Cliente @relation(fields: [clienteId], references: [id])
-
-  criadoEm     DateTime @default(now()) @db.Timestamptz(3)
-  atualizadoEm DateTime @updatedAt @db.Timestamptz(3)
-
-  @@index([clienteId])
-  @@index([estagio])
-}
-
-enum EstagioFunil {
-  PROSPECCAO
-  DIAGNOSTICO
-  PROPOSTA
-  NEGOCIACAO
-  GANHO
-  PERDIDO
 }
 
 enum StatusPropostaComercial {
