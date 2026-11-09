@@ -41,6 +41,8 @@ type PropsCabecalhoOS = {
   statusEhEntregue: boolean;
   ehRetornoGarantia: boolean;
   possuiItens: boolean;
+  /** Termo já emitido — libera a reimpressão no menu de impressão. */
+  possuiTermoGarantia: boolean;
   prazoGarantiaPadraoDias: number;
   prazoMinimoGarantiaDias: number;
   prazoMaximoGarantiaDias: number;
@@ -64,6 +66,7 @@ export function CabecalhoOS({
   statusEhEntregue,
   ehRetornoGarantia,
   possuiItens,
+  possuiTermoGarantia,
   prazoGarantiaPadraoDias,
   prazoMinimoGarantiaDias,
   prazoMaximoGarantiaDias,
@@ -106,7 +109,11 @@ export function CabecalhoOS({
       </div>
 
       <div className="ml-auto flex flex-wrap items-center gap-2.5">
-        <MenuImprimirOS osId={osId} modeloPadrao={modeloImpressaoPadrao} />
+        <MenuImprimirOS
+          osId={osId}
+          modeloPadrao={modeloImpressaoPadrao}
+          possuiTermoGarantia={possuiTermoGarantia}
+        />
         <BotaoEnviarCliente
           osId={osId}
           numeroOs={numeroOs}

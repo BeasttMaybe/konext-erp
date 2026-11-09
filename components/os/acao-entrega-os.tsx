@@ -63,12 +63,23 @@ export function AcaoEntregaOS({
         return;
       }
 
-      toast.success(
-        resultado.garantiaGerada
-          ? `OS ${numeroOs} finalizada com garantia gerada.`
-          : `OS ${numeroOs} finalizada com sucesso.`
-      );
       setDialogoAberto(null);
+
+      // Com garantia gerada, o termo abre e imprime SOZINHO.
+      //
+      // A garantia passa a valer na entrega, então o momento de imprimir é
+      // exatamente este — com o cliente ainda no balcão, esperando o
+      // aparelho. Antes, a finalização só mostrava um aviso dizendo que a
+      // garantia tinha sido gerada e deixava a impressão para quem lembrasse
+      // de procurar o termo depois. Quem não lembrasse entregava o aparelho
+      // sem o papel.
+      if (resultado.garantiaGerada) {
+        toast.success(`OS ${numeroOs} finalizada. Abrindo o termo de garantia…`);
+        router.push(`/os/${osId}/garantia?auto=1`);
+        return;
+      }
+
+      toast.success(`OS ${numeroOs} finalizada com sucesso.`);
       router.refresh();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Não foi possível finalizar a ordem de serviço.");

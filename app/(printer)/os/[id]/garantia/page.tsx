@@ -2,16 +2,27 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { obterContextoGarantiaOS, obterTermoGarantiaOS } from "@/app/actions/garantias";
 import { AcaoGarantiaOS } from "@/components/os/garantias/acao-garantia-os";
+import { AutoImprimir } from "@/components/os/impressao/auto-imprimir";
 import { BotaoImprimirGarantia } from "@/components/os/garantias/botao-imprimir-garantia";
 import { TermoGarantiaDocumento } from "@/components/os/garantias/termo-garantia-documento";
 import { Button } from "@/components/ui/button";
 
 type PropsPaginaGarantia = {
   params: Promise<{ id: string }>;
+  /**
+   * `?auto=1` manda imprimir sozinho ao abrir.
+   *
+   * Mesma convenção da impressão da OS (`/os/[id]/imprimir?auto=1`), e é o
+   * que faz a garantia sair logo depois de finalizar a OS: o termo passa a
+   * valer na entrega, então o momento de imprimir é exatamente aquele — com
+   * o cliente ainda no balcão, esperando o aparelho.
+   */
+  searchParams?: Promise<{ auto?: string }>;
 };
 
-export default async function PaginaGarantiaOS({ params }: PropsPaginaGarantia) {
+export default async function PaginaGarantiaOS({ params, searchParams }: PropsPaginaGarantia) {
   const { id } = await params;
+  const autoImprimir = (await searchParams)?.auto === "1";
   const [termo, contexto] = await Promise.all([
     obterTermoGarantiaOS(id),
     obterContextoGarantiaOS(id),
@@ -101,6 +112,8 @@ export default async function PaginaGarantiaOS({ params }: PropsPaginaGarantia) 
       `}</style>
 
       <div className="garantia-tela-wrapper min-h-screen bg-kx-papel py-3 px-4 print:py-0 print:px-0">
+        <AutoImprimir ativar={autoImprimir} />
+
         <div className="print-hidden w-[210mm] max-w-full mx-auto mb-2 flex justify-end">
           <BotaoImprimirGarantia />
         </div>

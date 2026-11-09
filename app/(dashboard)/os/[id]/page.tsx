@@ -274,6 +274,7 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
           statusEhEntregue={statusAtual === "ENTREGUE"}
           ehRetornoGarantia={ehRetornoGarantia}
           possuiItens={possuiItens}
+          possuiTermoGarantia={possuiTermoGarantia}
           prazoGarantiaPadraoDias={config.prazoGarantiaPadraoDias}
           prazoMinimoGarantiaDias={config.prazoMinimoGarantiaDias}
           prazoMaximoGarantiaDias={config.prazoMaximoGarantiaDias}
