@@ -50,6 +50,10 @@ export const ACOES_AUDITORIA = {
   RESPONDER_PROPOSTA: "RESPONDER_PROPOSTA",
   ENVIAR_PROPOSTA: "ENVIAR_PROPOSTA",
   AGENDAR_CONTATO_PROPOSTA: "AGENDAR_CONTATO_PROPOSTA",
+  // Editar proposta mexe em DINHEIRO de um documento que o cliente talvez ja
+  // tenha visto: a acao e propria, e o log guarda o total antes e depois,
+  // porque "o valor mudou" e a pergunta que alguem vai fazer depois.
+  ATUALIZAR_PROPOSTA: "ATUALIZAR_PROPOSTA",
   // Categorias de produto: mesmo cadastro controlado das marcas de peca. Quem
   // renomeia uma categoria mexe no rotulo de todo o historico que aponta pra
   // ela, entao a acao e propria e nao reusa ATUALIZAR.

@@ -272,6 +272,31 @@ async function coletarOrdensSuspeitas(cliente) {
 
 // ------------------------------------------- 6. reconstrucao pela auditoria
 
+/**
+ * Conteudo gravado num campo que nao e do tipo dele.
+ *
+ * Nasceu de um caso real: tres OS de producao com um ENDERECO DE E-MAIL no
+ * campo de IMEI. A OS nao tem campo de e-mail, entao alguem digitou onde deu.
+ * Nada no banco impede -- `imei` e texto livre --, e nenhuma tela reclama.
+ *
+ * Este recorte e SO RELATORIO. Apagar e decisao de quem olha, e por isso o
+ * relatorio mostra o valor: para apagar um dado e preciso ver o dado.
+ */
+async function coletarCamposComTipoErrado(cliente) {
+  return consultarTolerante(
+    cliente,
+    `SELECT os.id,
+            os."numeroOs",
+            os.imei AS valor,
+            os."atualizadoEm"
+       FROM "OrdemServico" os
+      WHERE os.imei IS NOT NULL
+        AND os.imei ~ '[[:alnum:]._%%+-]+@[[:alnum:].-]+\\.[[:alpha:]]{2,}'
+      ORDER BY os."atualizadoEm" DESC
+      LIMIT ${LIMITE_LINHAS_SUSPEITAS}`
+  );
+}
+
 async function coletarReconstrucaoAuditoria(cliente) {
   const divergencias = await consultarTolerante(
     cliente,
@@ -711,6 +736,27 @@ function montarMarkdown(relatorio) {
     )
   );
 
+  partes.push(
+    formatarBloco(
+      "5b. Campos com conteudo de outro tipo",
+      [
+        "_E-mail gravado no campo de IMEI. O valor aparece aqui de proposito:",
+        "para decidir apagar um dado e preciso ver o dado._",
+        "",
+        formatarResultado(relatorio.camposComTipoErrado, (linhas) =>
+          linhas.length === 0
+            ? "Nenhuma linha."
+            : `${linhas.length} linha(s).\n\n${tabelaMarkdown(linhas, [
+                "numeroOs",
+                "valor",
+                "id",
+                "atualizadoEm",
+              ])}`
+        ),
+      ].join("\n")
+    )
+  );
+
   const auditoria = relatorio.auditoria ?? {};
 
   partes.push(
@@ -856,6 +902,34 @@ function montarMarkdown(relatorio) {
 
 // ------------------------------------------------------------------- coleta
 
+/**
+ * O punhado de achados que decide uma acao destrutiva, na saida padrao.
+ *
+ * Curto de proposito: o workflow ecoa as ultimas 120 linhas do log, entao o
+ * que for longo demais empurra o resto para fora.
+ */
+function imprimirDestaques(relatorio) {
+  const suspeitos = relatorio.camposComTipoErrado;
+
+  if (suspeitos?.ok && suspeitos.linhas.length > 0) {
+    console.log(`[destaque] ${relatorio.rotulo}: e-mail no campo de IMEI (${suspeitos.linhas.length}):`);
+    for (const linha of suspeitos.linhas) {
+      console.log(`[destaque]   OS #${linha.numeroOs ?? "?"}  imei="${linha.valor}"  id=${linha.id}`);
+    }
+  } else if (suspeitos?.ok) {
+    console.log(`[destaque] ${relatorio.rotulo}: nenhum e-mail no campo de IMEI.`);
+  }
+
+  const contagens = relatorio.contagemLinhas;
+  if (contagens?.ok) {
+    const naoVazias = contagens.linhas.filter((linha) => (linha.total ?? 0) > 0);
+    console.log(`[destaque] ${relatorio.rotulo}: tabelas com linhas (${naoVazias.length}):`);
+    console.log(
+      `[destaque]   ${naoVazias.map((linha) => `${linha.tabela}=${linha.total}`).join("  ")}`
+    );
+  }
+}
+
 async function diagnosticarBanco({
   rotulo,
   papel,
@@ -885,6 +959,7 @@ async function diagnosticarBanco({
       schema: await coletarRealidadeSchema(cliente),
       censoOrdensServico: await coletarCensoOrdensServico(cliente),
       ordensSuspeitas: await coletarOrdensSuspeitas(cliente),
+      camposComTipoErrado: await coletarCamposComTipoErrado(cliente),
       auditoria: await coletarReconstrucaoAuditoria(cliente),
       usuarios: await coletarMapeamentoUsuarios(cliente, usuariosCentraisDaEmpresa ?? []),
       configuracao: await coletarConfiguracao(cliente),
@@ -913,6 +988,15 @@ async function diagnosticarBanco({
     );
 
     console.log(`[diagnostico]   OK -> docs/diagnostico/${slugArquivo}.{json,md}`);
+
+    // DESTAQUES NA SAIDA PADRAO
+    //
+    // Os arquivos .md/.json sobem como artefato do workflow, e o artefato vai
+    // para um blob externo que o ambiente onde o Claude trabalha nao alcanca
+    // (mesma razao explicada em .github/workflows/banco.yml). O que chega la
+    // e o LOG. Entao o punhado de achados que decide uma acao destrutiva --
+    // "o que exatamente eu vou apagar?" -- e impresso aqui, nao so gravado.
+    imprimirDestaques(relatorio);
 
     return { ok: true, slug: slugArquivo };
   } finally {
