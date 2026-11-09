@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { exigirPermissao, temPermissao } from "@/lib/auth/permissoes";
+import { paraMensagemSegura } from "@/lib/erros";
 import { registrarMovimentacaoEstoque } from "@/lib/estoque-movimentacao";
 import {
   mensagemIndicaRuntimeLegadoConfiguracao,
@@ -1605,11 +1606,17 @@ export async function carregarPedidoOSParaPDV(osId: string): Promise<ResultadoPe
   try {
     return { sucesso: true, pedido: await obterPedidoOSParaPDV(osId) };
   } catch (erro) {
-    return {
-      sucesso: false,
-      mensagem:
-        erro instanceof Error ? erro.message : "Não foi possível carregar a OS no PDV.",
-    };
+    // `paraMensagemSegura`, e não `erro.message`, por duas razões — e a
+    // primeira é a que importa:
+    //
+    // 1. Ela chama `unstable_rethrow`. Redirect e notFound do Next viajam
+    //    COMO EXCEÇÃO; um `catch` que os engole transforma "sua sessão
+    //    expirou, vá para o login" numa frase escrita no meio do PDV, e a
+    //    pessoa fica presa numa tela que não funciona mais.
+    // 2. Ela deixa passar a mensagem de regra de negócio (que é o ponto
+    //    disto tudo) e troca erro interno do Prisma por texto genérico,
+    //    registrando o original no log do servidor.
+    return { sucesso: false, mensagem: paraMensagemSegura(erro) };
   }
 }
 
