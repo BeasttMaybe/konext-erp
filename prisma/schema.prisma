@@ -804,17 +804,45 @@ enum StatusParcelaDespesa {
 // ==========================================
 // MÓDULO: NOTAS FISCAIS
 // ==========================================
+/// Nota fiscal de SAIDA.
+///
+/// Pode ter sido lancada a mao (como era antes) ou ter vindo do Bling, onde
+/// o dono emite. A presenca de `blingId` e o que distingue as duas: linha com
+/// blingId e espelho de algo que existe la, e a sincronizacao pode atualiza-la;
+/// linha sem blingId e do dono e a sincronizacao nunca toca nela.
 model NotaFiscal {
   id          String           @id @default(uuid())
   numero      String
+  serie       String?
   chaveAcesso String?
-  valorTotal  Decimal          @db.Decimal(12, 2)
+  /// NULO = ainda nao lido. A listagem do Bling NAO traz o valor; ele vem no
+  /// detalhe, uma requisicao por nota. Gravar zero enquanto nao se sabe seria
+  /// mentir no campo onde mentir e mais caro — o total da tela somaria errado
+  /// e ninguem desconfiaria de um zero.
+  valorTotal  Decimal?         @db.Decimal(12, 2)
   status      StatusNotaFiscal @default(PENDENTE)
+
+  /// Id da nota no Bling, como TEXTO. Unico: e por ele que a sincronizacao
+  /// reconhece a nota e atualiza em vez de duplicar.
+  blingId     String?          @unique
+  /// Codigo cru de situacao do Bling (1 a 11). `status` agrupa os onze em
+  /// tres; este campo guarda a precisao, pra tela poder dizer "Rejeitada".
+  situacaoBling Int?
+  dataEmissao DateTime?        @db.Timestamptz(3)
+
+  /// Nome e documento como vieram do Bling. Guardados crus porque o contato
+  /// do Bling pode nao existir no cadastro de clientes da Konext — e uma nota
+  /// sem nome na tela e pior que uma nota com o nome que o Bling conhece.
+  clienteNome      String?
+  clienteDocumento String?
 
   clienteId String?
   cliente   Cliente? @relation(fields: [clienteId], references: [id])
 
-  criadoEm DateTime @default(now()) @db.Timestamptz(3)
+  criadoEm     DateTime @default(now()) @db.Timestamptz(3)
+  atualizadoEm DateTime @updatedAt @db.Timestamptz(3)
+
+  @@index([dataEmissao])
 }
 
 enum StatusNotaFiscal {
