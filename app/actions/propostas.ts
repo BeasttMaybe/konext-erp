@@ -6,13 +6,20 @@ import { z } from "zod";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { exigirPermissao } from "@/lib/auth/permissoes";
 import { propostaFormSchema, type PropostaFormValues } from "@/lib/validations/propostas";
-import { aplicarPercentual, deDecimal, multiplicarPorQuantidade, paraDecimal, paraMoeda, somar, subtrair } from "@/lib/dinheiro";
+import { deDecimal, paraDecimal, paraMoeda, somar } from "@/lib/dinheiro";
+import {
+  calcularProposta,
+  montarResumoDePagamento,
+  normalizarItensDaProposta,
+} from "@/lib/dominio/propostas/calculo";
 import { agoraNaLoja, comoDataDeCalendario, dataDeCalendario, hojeComoDataDeCalendario, somarDiasEmDataDeCalendario } from "@/lib/datas";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 import {
   calcularSituacao,
   calcularTaxaDeConversao,
+  motivoDeNaoPoderEditar,
+  podeEditar,
   podeMarcarComoEnviada,
   podeRegistrarResposta,
   type StatusProposta,
@@ -131,14 +138,7 @@ export async function createProposta(
 
     const validated = propostaFormSchema.parse(data);
 
-    const normalizedItems = validated.itens
-      .map((item) => ({
-        descricao: item.descricao.trim(),
-        quantidade: item.quantidade,
-        precoUnitario: item.precoUnitario,
-        descontoPercentual: item.descontoPercentual,
-      }))
-      .filter((item) => item.descricao !== "");
+    const normalizedItems = normalizarItensDaProposta(validated.itens);
 
     if (normalizedItems.length === 0) {
       return {
@@ -147,27 +147,21 @@ export async function createProposta(
       };
     }
 
-    // Centavo-exato (Fase 2A-2): preço unitário/desconto vêm do formulário em
-    // reais/percentual, mas toda soma/multiplicação/desconto passa por
-    // lib/dinheiro.ts — nunca ponto flutuante direto (o subtotal bruto/total
-    // gravado tinha que bater, item a item, com a soma dos subtotais de cada
-    // linha, e ponto flutuante puro não garante isso).
-    const itensComCentavos = normalizedItems.map((item) => {
-      const precoUnitarioCentavos = deDecimal(item.precoUnitario);
-      const linhaBrutaCentavos = multiplicarPorQuantidade(precoUnitarioCentavos, item.quantidade);
-      const linhaDescontoCentavos = aplicarPercentual(linhaBrutaCentavos, item.descontoPercentual);
-      const linhaSubtotalCentavos = Math.max(0, subtrair(linhaBrutaCentavos, linhaDescontoCentavos));
+    // A conta mora em lib/dominio/propostas/calculo.ts — a MESMA que
+    // `atualizarProposta` usa. Duas cópias discordariam um dia, e o dia em
+    // que o total de uma proposta editada não bate com o da mesma proposta
+    // criada é o dia em que o cliente recebe dois preços pelo mesmo serviço.
+    const {
+      itens: itensComCentavos,
+      subtotalBrutoCentavos,
+      descontoTotalCentavos,
+      valorTotalCentavos,
+    } = calcularProposta(normalizedItems);
 
-      return { ...item, precoUnitarioCentavos, linhaBrutaCentavos, linhaDescontoCentavos, linhaSubtotalCentavos };
-    });
-
-    const subtotalBrutoCentavos = somar(...itensComCentavos.map((item) => item.linhaBrutaCentavos));
-    const descontoTotalCentavos = somar(...itensComCentavos.map((item) => item.linhaDescontoCentavos));
-    const valorTotalCentavos = Math.max(0, subtrair(subtotalBrutoCentavos, descontoTotalCentavos));
-
-    const paymentSummary = [validated.condicoesPagamento, validated.detalhesPagamento]
-      .filter((value): value is string => Boolean(value && value.trim().length > 0))
-      .join(" | ");
+    const paymentSummary = montarResumoDePagamento(
+      validated.condicoesPagamento,
+      validated.detalhesPagamento
+    );
 
     const created = await prisma.propostaComercial.create({
       data: {
@@ -179,7 +173,7 @@ export async function createProposta(
         equipamento: validated.equipamento,
         defeito: validated.defeito,
         introducao: validated.introducao,
-        condicoesPagamento: paymentSummary || null,
+        condicoesPagamento: paymentSummary,
         termosGarantia: validated.termosGarantia,
         observacoesInternas: validated.observacoesInternas,
         subtotalBruto: paraDecimal(subtotalBrutoCentavos),
@@ -239,6 +233,152 @@ export async function createProposta(
       success: false,
       message: "Não foi possível guardar a proposta.",
     };
+  }
+}
+
+// ── Edição ────────────────────────────────────────────────────────────────────
+//
+// Não existia. A proposta só podia ser CRIADA: um preço errado, uma data
+// trocada ou um item esquecido obrigavam a duplicar e refazer, deixando a
+// errada no histórico para sempre. Era a reclamação do dono: "hoje elas não
+// podem ser editadas depois que são criadas".
+//
+// O que esta action NÃO faz, de propósito:
+//
+//  - não reimplementa a conta (vem de `lib/dominio/propostas/calculo.ts`, a
+//    mesma de `createProposta`);
+//  - não decide sozinha quem pode ser editada (vem de `podeEditar`, a mesma
+//    regra que a tela usa para mostrar ou esconder o botão);
+//  - não muda `status`, `enviadaEm`, `respondidaEm` nem `motivoResposta`.
+//    Esses contam a HISTÓRIA da proposta, e editar o texto de um documento
+//    não é a mesma coisa que reescrever o que aconteceu com ele.
+
+type ResultadoAtualizacao =
+  | { sucesso: true; mensagem: string }
+  | { sucesso: false; erro: string };
+
+export async function atualizarProposta(entrada: {
+  propostaId: string;
+  dados: PropostaFormValues;
+  /**
+   * `atualizadoEm` como a tela viu quando abriu o formulário.
+   *
+   * Trava otimista: se a proposta mudou no meio do caminho — outra aba, outro
+   * usuário —, a gravação é recusada em vez de sobrescrever em silêncio.
+   * Numa proposta, sobrescrever em silêncio significa apagar o desconto que a
+   * outra pessoa acabou de dar, sem ninguém ficar sabendo.
+   */
+  atualizadoEmEsperado?: string | null;
+}): Promise<ResultadoAtualizacao> {
+  try {
+    const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "propostas.editar");
+    const prisma = contexto.prisma;
+
+    const validado = propostaFormSchema.parse(entrada.dados);
+    const itens = normalizarItensDaProposta(validado.itens);
+
+    if (itens.length === 0) {
+      return { sucesso: false, erro: "Adicione ao menos um item com descrição para salvar a proposta." };
+    }
+
+    const atual = await prisma.propostaComercial.findUnique({
+      where: { id: entrada.propostaId },
+      select: { id: true, status: true, atualizadoEm: true, valorTotal: true },
+    });
+
+    if (!atual) {
+      return { sucesso: false, erro: "Proposta não encontrada." };
+    }
+
+    const impedimento = motivoDeNaoPoderEditar(atual.status as StatusProposta);
+    if (impedimento) {
+      return { sucesso: false, erro: impedimento };
+    }
+
+    if (
+      entrada.atualizadoEmEsperado &&
+      atual.atualizadoEm.toISOString() !== entrada.atualizadoEmEsperado
+    ) {
+      return {
+        sucesso: false,
+        erro: "Esta proposta foi alterada em outro lugar enquanto você editava. Recarregue a página para ver a versão atual.",
+      };
+    }
+
+    const calculada = calcularProposta(itens);
+
+    await prisma.$transaction(async (transaction) => {
+      // Documento é substituído por inteiro: os itens antigos saem e os novos
+      // entram. Tentar casar item a item exigiria um id estável por linha que
+      // o formulário não tem — e casar errado trocaria o preço de uma linha
+      // pela de outra.
+      await transaction.propostaItem.deleteMany({ where: { propostaId: atual.id } });
+
+      await transaction.propostaComercial.update({
+        where: { id: atual.id },
+        data: {
+          cliente: validado.cliente.trim(),
+          aosCuidados: validado.aosCuidados,
+          dataEmissao: toDateOnly(validado.dataEmissao),
+          validade: toDateOnly(validado.validade),
+          proximoContato: validado.proximoContato ? toDateOnly(validado.proximoContato) : null,
+          equipamento: validado.equipamento,
+          defeito: validado.defeito,
+          introducao: validado.introducao,
+          condicoesPagamento: montarResumoDePagamento(
+            validado.condicoesPagamento,
+            validado.detalhesPagamento
+          ),
+          termosGarantia: validado.termosGarantia,
+          observacoesInternas: validado.observacoesInternas,
+          subtotalBruto: paraDecimal(calculada.subtotalBrutoCentavos),
+          descontoTotal: paraDecimal(calculada.descontoTotalCentavos),
+          valorTotal: paraDecimal(calculada.valorTotalCentavos),
+          itens: {
+            create: calculada.itens.map((item) => ({
+              descricao: item.descricao,
+              quantidade: item.quantidade,
+              precoUnitario: paraDecimal(item.precoUnitarioCentavos),
+              descontoPercentual: item.descontoPercentual,
+              subtotal: paraDecimal(item.linhaSubtotalCentavos),
+            })),
+          },
+        },
+      });
+
+      await registrarLogAuditoria(
+        transaction,
+        contextoAuditoriaDoUsuario(
+          contexto.usuarioOperacional,
+          "app/actions/propostas.ts:atualizarProposta"
+        ),
+        {
+          acao: ACOES_AUDITORIA.ATUALIZAR_PROPOSTA,
+          entidade: ENTIDADES_AUDITORIA.PROPOSTA,
+          entidadeId: atual.id,
+          // O total antes e depois, porque "quanto era antes?" é a pergunta
+          // que alguém faz quando um valor muda.
+          dadosAntes: { valorTotal: paraMoeda(deDecimal(atual.valorTotal)) },
+          dadosDepois: {
+            valorTotal: paraMoeda(calculada.valorTotalCentavos),
+            quantidadeItens: calculada.itens.length,
+          },
+        }
+      );
+    });
+
+    revalidatePath("/crm/propostas");
+    revalidatePath(`/crm/propostas/${atual.id}`);
+
+    return { sucesso: true, mensagem: "Proposta atualizada." };
+  } catch (erro) {
+    if (erro instanceof z.ZodError) {
+      return { sucesso: false, erro: erro.issues[0]?.message ?? "Dados inválidos para salvar a proposta." };
+    }
+
+    console.error("Erro ao atualizar proposta:", erro);
+    return { sucesso: false, erro: "Não foi possível salvar as alterações da proposta." };
   }
 }
 

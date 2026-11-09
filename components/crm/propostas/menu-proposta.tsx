@@ -10,6 +10,7 @@ import {
   Copy,
   Eye,
   MoreHorizontal,
+  Pencil,
   Printer,
   Send,
   ShoppingCart,
@@ -43,7 +44,15 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { podeMarcarComoEnviada, podeRegistrarResposta, type StatusProposta } from "@/lib/dominio/propostas/situacao";
+// `podeEditar` do domínio chega com outro nome de propósito: neste arquivo
+// `podeEditar` já é a PERMISSÃO do usuário. Duas coisas diferentes com o
+// mesmo nome no mesmo arquivo é como se escreve um bug que ninguém vê.
+import {
+  podeEditar as propostaPodeSerEditada,
+  podeMarcarComoEnviada,
+  podeRegistrarResposta,
+  type StatusProposta,
+} from "@/lib/dominio/propostas/situacao";
 
 /**
  * Menu de ações de uma proposta.
@@ -140,6 +149,15 @@ export function MenuProposta({
           </DropdownMenuTrigger>
 
           <DropdownMenuContent align="end" className="w-60">
+            {podeEditar && propostaPodeSerEditada(status) && (
+              <DropdownMenuItem asChild className="cursor-pointer gap-2">
+                <Link href={`/crm/propostas/${propostaId}/editar`}>
+                  <Pencil className="h-4 w-4" />
+                  Editar proposta
+                </Link>
+              </DropdownMenuItem>
+            )}
+
             {podeEditar && podeMarcarComoEnviada(status) && (
               <DropdownMenuItem
                 className="cursor-pointer gap-2"
