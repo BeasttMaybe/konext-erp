@@ -384,6 +384,7 @@ export async function obterEntradasPorForma(): Promise<FatiaCategoria[]> {
     CREDIARIO: "Crediário",
     TED: "TED",
     EMPENHO_PUBLICO: "Empenho público",
+    NAO_INFORMADO: "Não informado",
   };
 
   const porRotulo = new Map<string, number>();

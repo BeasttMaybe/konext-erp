@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import type { FormaPagamento } from "@prisma/client";
 import { CheckCircle2, Eye, Loader2, XCircle } from "lucide-react";
 import { aprovarPedido, cancelarPedido, rejeitarPedido } from "@/app/actions/vendas";
 import { useTemPermissao } from "@/contextos/contexto-permissoes";
@@ -26,18 +27,15 @@ import {
 type OrderStatus = "PENDENTE" | "APROVADO" | "REJEITADO" | "CANCELADO";
 type OrderOrigin = "PDV" | "VENDAS";
 
-type PaymentMethod =
- | "PIX"
- | "TED"
- | "DINHEIRO"
- | "CARTAO_CREDITO"
- | "CARTAO_CREDITO_AVISTA"
- | "CARTAO_CREDITO_PARCELADO"
- | "CARTAO_DEBITO"
- | "BOLETO"
- | "CREDIARIO"
- | "EMPENHO_PUBLICO"
- | null;
+/**
+ * O enum do Prisma, não uma cópia escrita à mão.
+ *
+ * Eram os dez valores digitados aqui, e a cópia ficou para trás quando o
+ * banco ganhou `NAO_INFORMADO` — quebrando o build numa tela de vendas que
+ * não tinha nada a ver com a mudança. Apontar para o enum faz o próximo
+ * valor novo chegar sozinho.
+ */
+type PaymentMethod = FormaPagamento | null;
 
 interface OrderItemSummary {
  id: string;
@@ -102,6 +100,7 @@ const paymentMethodLabelMap: Record<Exclude<PaymentMethod, null>, string> = {
  BOLETO: "Boleto",
  CREDIARIO: "Crediário",
  EMPENHO_PUBLICO: "Empenho Público",
+ NAO_INFORMADO: "Não informado",
 };
 
 const formatCurrency = (value: number) =>

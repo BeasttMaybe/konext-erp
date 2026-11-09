@@ -17,6 +17,7 @@ import {
   somarMesesEmDataDeCalendario,
 } from "@/lib/datas";
 import { deDecimal, dividirEmParcelas, paraDecimal, paraMoeda, somar } from "@/lib/dinheiro";
+import type { FormaPagamento } from "@prisma/client";
 import type { OrigemDeReceita } from "@/lib/dominio/financeiro/origem-de-receita";
 
 /**
@@ -47,17 +48,15 @@ export interface ContaReceberFinanceiro {
   dataVencimento: Date;
   dataRecebimento: Date | null;
   status: "PENDENTE" | "PAGO" | "RECEBIDO" | "ATRASADO" | "RENEGOCIADO" | "ESTORNADO";
-  formaRecebimento:
-    | "PIX"
-    | "TED"
-    | "BOLETO"
-    | "CARTAO_CREDITO"
-    | "CARTAO_CREDITO_AVISTA"
-    | "CARTAO_CREDITO_PARCELADO"
-    | "CARTAO_DEBITO"
-    | "DINHEIRO"
-    | "CREDIARIO"
-    | "EMPENHO_PUBLICO";
+  /**
+   * O enum do Prisma, não uma cópia escrita à mão.
+   *
+   * Era uma união literal com os dez valores digitados aqui, e ela ficou para
+   * trás no dia em que o banco ganhou `NAO_INFORMADO` — quebrando o build num
+   * arquivo que não tinha nada a ver com a mudança. Apontar para o enum faz o
+   * próximo valor novo chegar sozinho.
+   */
+  formaRecebimento: FormaPagamento;
   cliente: {
     nomeRazaoSocial: string;
   } | null;
