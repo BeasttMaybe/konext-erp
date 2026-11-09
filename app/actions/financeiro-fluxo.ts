@@ -303,6 +303,7 @@ export async function obterServicoXProduto(referencia: Date = new Date()): Promi
       LEFT JOIN "OrdemServico" os ON os.id = cr."ordemServicoId"
       WHERE cr."estornadaEm" IS NULL
         AND cr.status::text = 'RECEBIDO'
+        AND cr."blingParcelaRef" IS NULL
         AND cr."vendaId" IS NULL
         AND COALESCE(cr."dataRecebimento", cr."criadoEm") >= ${inicio}
         AND COALESCE(cr."dataRecebimento", cr."criadoEm") <= ${fim}
