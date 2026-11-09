@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   lerDataDoBling,
+  lerDetalheDaNota,
   lerNotaDeSaidaDoBling,
   lerPaginaDeNotas,
   rotuloDaSituacaoDoBling,
@@ -200,5 +201,157 @@ describe("a página inteira", () => {
 
   it("página vazia é página vazia", () => {
     expect(lerPaginaDeNotas({ data: [] })).toEqual([]);
+  });
+});
+
+/**
+ * O DETALHE real, de `/nfe/27294877798`, copiado de uma chamada de verdade.
+ * É daqui que saem o valor (que a listagem não traz) e as parcelas.
+ */
+const DETALHE_REAL = {
+  data: {
+    ...NOTA_REAL_DO_BLING,
+    dataOperacao: "2026-11-03 15:11:00",
+    serie: 1,
+    valorNota: 250,
+    valorFrete: 0,
+    xml: "https://www.bling.com.br/relatorios/nfe.xml.php?chaveAcesso=35261156902602000199550010000000791948777982&s&signature=c576006ccd",
+    linkDanfe: "https://www.bling.com.br/doc.view.php?id=1e5c75ef&accessKey=MTc5NDQx",
+    linkPDF: "https://www.bling.com.br/doc.view.php?PDF=true&id=1e5c75ef",
+    numeroPedidoLoja: "",
+    itens: [
+      { codigo: "", descricao: "FRONTAL", unidade: "UN", quantidade: 1, valor: 250, valorTotal: 250 },
+    ],
+    parcelas: [
+      { data: "2026-12-01", valor: 250, observacoes: "", formaPagamento: { id: 8939358 } },
+    ],
+  },
+};
+
+describe("detalhe da nota — o que a listagem não dá", () => {
+  const detalhe = lerDetalheDaNota(DETALHE_REAL)!;
+
+  it("traz o valor da nota", () => {
+    // A listagem não tem campo de valor nenhum: é por isso que o detalhe
+    // precisa ser buscado, uma requisição por nota.
+    expect(detalhe.valorNotaReais).toBe(250);
+  });
+
+  it("traz a parcela com a data de vencimento", () => {
+    // É daqui que sai a conta a receber, sem precisar bater na API de contas.
+    expect(detalhe.parcelas).toEqual([
+      { vencimento: new Date("2026-12-01T00:00:00.000Z"), valorReais: 250 },
+    ]);
+  });
+
+  it("prefere a série da chave de acesso à do campo", () => {
+    // No campo vem o número 1; na chave vem "001", que é o que o contador lê.
+    expect(detalhe.serie).toBe("001");
+  });
+
+  it("cai no campo `serie` quando não há chave", () => {
+    const semChave = { data: { ...DETALHE_REAL.data, chaveAcesso: "" } };
+
+    expect(lerDetalheDaNota(semChave)?.serie).toBe("1");
+  });
+
+  it("guarda os links do XML e da DANFE", () => {
+    expect(detalhe.linkXml).toContain("nfe.xml.php");
+    expect(detalhe.linkDanfe).toContain("doc.view.php");
+  });
+
+  it("junta a descrição dos itens para a tela", () => {
+    expect(detalhe.descricaoDosItens).toBe("FRONTAL");
+  });
+});
+
+describe("detalhe — links que não devem virar botão", () => {
+  it("recusa link que não é do Bling", () => {
+    // Estes links são guardados e viram botão clicável. O campo ser do Bling
+    // hoje não é razão para a tela abrir qualquer endereço amanhã.
+    for (const hostil of [
+      "https://bling.com.br.exemplo.net/x",
+      "http://www.bling.com.br/x",
+      "javascript:alert(1)",
+      "https://evil.test/nfe.xml",
+      "nao-e-url",
+    ]) {
+      const nota = { data: { ...DETALHE_REAL.data, xml: hostil } };
+      expect(lerDetalheDaNota(nota)?.linkXml, hostil).toBeNull();
+    }
+  });
+
+  it("aceita o domínio do Bling com e sem www", () => {
+    for (const bom of ["https://bling.com.br/x", "https://www.bling.com.br/x"]) {
+      const nota = { data: { ...DETALHE_REAL.data, xml: bom } };
+      expect(lerDetalheDaNota(nota)?.linkXml, bom).toBe(bom);
+    }
+  });
+});
+
+describe("detalhe — parcelas incompletas", () => {
+  it("parcela sem data ou sem valor é descartada", () => {
+    // Ela não teria quando vencer nem quanto cobrar, e uma conta assim na
+    // tela é pior que conta nenhuma.
+    const nota = {
+      data: {
+        ...DETALHE_REAL.data,
+        parcelas: [
+          { data: "2026-12-01", valor: 250 },
+          { data: "0000-00-00", valor: 100 },
+          { data: "2026-12-15" },
+          { valor: 50 },
+          "lixo",
+        ],
+      },
+    };
+
+    expect(lerDetalheDaNota(nota)?.parcelas).toHaveLength(1);
+  });
+
+  it("nota sem parcelas não estoura", () => {
+    for (const parcelas of [[], null, undefined, "x"]) {
+      const nota = { data: { ...DETALHE_REAL.data, parcelas } };
+      expect(lerDetalheDaNota(nota)?.parcelas, JSON.stringify(parcelas)).toEqual([]);
+    }
+  });
+
+  it("várias parcelas viram várias contas", () => {
+    const nota = {
+      data: {
+        ...DETALHE_REAL.data,
+        parcelas: [
+          { data: "2026-12-01", valor: 125 },
+          { data: "2027-01-01", valor: 125 },
+        ],
+      },
+    };
+
+    expect(lerDetalheDaNota(nota)?.parcelas.map((p) => p.valorReais)).toEqual([125, 125]);
+  });
+});
+
+describe("detalhe — bordas", () => {
+  it("aceita o detalhe com e sem envelope `data`", () => {
+    expect(lerDetalheDaNota(DETALHE_REAL.data)?.blingId).toBe("27294877798");
+    expect(lerDetalheDaNota(DETALHE_REAL)?.blingId).toBe("27294877798");
+  });
+
+  it("sem id, não há detalhe", () => {
+    expect(lerDetalheDaNota({ data: { valorNota: 250 } })).toBeNull();
+    expect(lerDetalheDaNota(null)).toBeNull();
+  });
+
+  it("valor ausente vira nulo, nunca zero", () => {
+    // Zero somaria errado no total da tela sem ninguém desconfiar.
+    const nota = { data: { ...DETALHE_REAL.data, valorNota: undefined } };
+
+    expect(lerDetalheDaNota(nota)?.valorNotaReais).toBeNull();
+  });
+
+  it("valor com centavos sobrevive", () => {
+    const nota = { data: { ...DETALHE_REAL.data, valorNota: 1234.56 } };
+
+    expect(lerDetalheDaNota(nota)?.valorNotaReais).toBe(1234.56);
   });
 });

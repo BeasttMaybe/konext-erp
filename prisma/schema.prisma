@@ -691,6 +691,11 @@ model ContaReceber {
   status           StatusPagamento @default(PENDENTE)
   formaPagamento   FormaPagamento?
   formaRecebimento FormaPagamento
+  /// Nota do Bling que originou esta conta, quando a conta nasceu de uma
+  /// parcela de nota. Unico por parcela e o que torna a sincronizacao
+  /// idempotente: reler a mesma nota nao cria a conta de novo.
+  blingParcelaRef String? @unique
+
   origem           OrigemReceita
 
   notaFiscalEmitida Boolean @default(false)
@@ -738,6 +743,10 @@ enum OrigemReceita {
   CONTRATO_RECORRENTE
   LICITACAO
   AVULSO
+  /// Parcela de nota emitida no Bling que NAO corresponde a nenhuma venda
+  /// deste sistema. Nota que corresponde nao vira conta: ela e vinculada a
+  /// venda que ja existe, senao o total a receber contaria duas vezes.
+  BLING
 }
 
 // ==========================================
@@ -839,10 +848,32 @@ model NotaFiscal {
   clienteId String?
   cliente   Cliente? @relation(fields: [clienteId], references: [id])
 
+  /// A venda deste sistema que esta nota documenta, quando foi possivel
+  /// reconhece-la. Nulo nao e defeito: o Bling nao manda referencia nenhuma
+  /// ao Konext, entao o reconhecimento e por semelhanca (mesmo documento,
+  /// mesmo valor, data proxima) e recusa o ambiguo de proposito. Ver
+  /// lib/dominio/bling/casamento-de-venda.ts.
+  pedidoId String?
+  pedido   PedidoVenda? @relation(fields: [pedidoId], references: [id])
+
+  /// Por que nao foi vinculada, para a tela explicar em vez de so omitir.
+  motivoSemVinculo String?
+
+  /// Endereco do XML e da DANFE no Bling. Sao o que permite baixar a nota
+  /// sem sair do Konext. Guardados so quando apontam para o dominio do
+  /// Bling — ver `linkDoBling`.
+  linkXml   String?
+  linkDanfe String?
+
+  /// O que foi vendido, como o Bling descreve. Para a lista dizer algo alem
+  /// de um numero.
+  descricaoItens String?
+
   criadoEm     DateTime @default(now()) @db.Timestamptz(3)
   atualizadoEm DateTime @updatedAt @db.Timestamptz(3)
 
   @@index([dataEmissao])
+  @@index([pedidoId])
 }
 
 enum StatusNotaFiscal {
@@ -1093,6 +1124,9 @@ enum OrigemPedido {
 
 model PedidoVenda {
   id String @id @default(uuid())
+
+  /// Notas emitidas no Bling reconhecidas como este pedido.
+  notasFiscais NotaFiscal[]
 
   numeroPedido Int @unique @default(autoincrement())
   status       StatusPedido @default(PENDENTE)
