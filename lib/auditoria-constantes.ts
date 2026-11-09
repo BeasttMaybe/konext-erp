@@ -85,6 +85,10 @@ export const ACOES_AUDITORIA = {
   ENCERRAR_DESPESA_FIXA: "ENCERRAR_DESPESA_FIXA",
   /** Destino dos avisos de vencimento no Telegram alterado. */
   ATUALIZAR_AVISOS_TELEGRAM: "ATUALIZAR_AVISOS_TELEGRAM",
+  /** Conta do Bling conectada pelo dono (fluxo OAuth concluido). */
+  CONECTAR_BLING: "CONECTAR_BLING",
+  /** Conta do Bling desconectada: os tokens sao apagados, as notas ficam. */
+  DESCONECTAR_BLING: "DESCONECTAR_BLING",
 } as const;
 
 export const ENTIDADES_AUDITORIA = {

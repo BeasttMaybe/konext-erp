@@ -19,6 +19,7 @@ import { MenuConfiguracoes } from "./menu-configuracoes";
 import { PainelDocumentos } from "./painel-documentos";
 import { PainelEmpresa } from "./painel-empresa";
 import { PainelGarantias } from "./painel-garantias";
+import { PainelBling } from "@/components/configuracoes/painel-bling";
 import { PainelAvisos } from "@/components/configuracoes/painel-avisos";
 import { PainelArmazenamento } from "./painel-armazenamento";
 import { PainelMarcasPeca } from "./painel-marcas-peca";
@@ -72,6 +73,7 @@ export function LayoutConfiguracoes({
         // nao tem. Mostrar a secao a quem nao pode salvar e oferecer um
         // botao que vai dar erro.
         if (secao.id === "avisos") return marcasPeca !== null;
+        if (secao.id === "bling") return marcasPeca !== null;
         return true;
       }),
     [podeVerUsuariosCargos, marcasPeca, categoriasProduto]
@@ -245,6 +247,8 @@ export function LayoutConfiguracoes({
         // Painel proprio, com as suas acoes: nao participa do formulario de
         // Configuracoes nem da barra de salvar.
         return marcasPeca !== null ? <PainelAvisos /> : null;
+      case "bling":
+        return marcasPeca !== null ? <PainelBling /> : null;
       case "usuarios":
         return podeVerUsuariosCargos ? <SecaoUsuariosCargos /> : null;
       default:
