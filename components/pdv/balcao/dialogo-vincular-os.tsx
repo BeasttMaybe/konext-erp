@@ -143,34 +143,44 @@ export function DialogoVincularOS({ aoFechar, aoEscolher }: Props) {
               key={ordem.id}
               type="button"
               disabled={!ordem.podeFaturar}
-              title={ordem.motivoBloqueio ?? undefined}
               onClick={() => aoEscolher(ordem.id)}
-              className="flex w-full items-center gap-3 rounded-kx-cartao border border-kx-painel-borda bg-kx-superficie px-3 py-2.5 text-left transition-colors hover:border-kx-primaria disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-kx-painel-borda"
+              className="flex w-full flex-col gap-1 rounded-kx-cartao border border-kx-painel-borda bg-kx-superficie px-3 py-2.5 text-left transition-colors hover:border-kx-primaria disabled:cursor-not-allowed disabled:hover:border-kx-painel-borda"
             >
-              <span className="shrink-0 rounded-kx-pilula border border-kx-painel-borda px-2 py-0.5 text-xs font-bold tabular-nums text-kx-texto-2">
-                #{ordem.numeroOs}
-              </span>
+              {/* A opacidade apaga SÓ a identificação da OS — é o que diz
+                  "não dá para clicar". O motivo fica fora dela, porque
+                  escrever o motivo e então apagá-lo é não escrever: a 60%
+                  ele cai a 2,3:1 de contraste no tema claro, num texto de
+                  12px. */}
+              <span
+                className={`flex w-full items-center gap-3 ${
+                  ordem.podeFaturar ? "" : "opacity-60"
+                }`}
+              >
+                <span className="shrink-0 rounded-kx-pilula border border-kx-painel-borda px-2 py-0.5 text-xs font-bold tabular-nums text-kx-texto-2">
+                  #{ordem.numeroOs}
+                </span>
 
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-semibold text-kx-texto">
-                  {ordem.clienteNome}
-                </span>
-                <span className="block truncate text-xs text-kx-legenda">
-                  {ordem.equipamento ?? "Sem aparelho"}
-                </span>
-                {/* O motivo fica à vista, não só no title: quem está no
-                    balcão não passa o mouse para descobrir por que um item
-                    da lista não responde. */}
-                {ordem.motivoBloqueio && (
-                  <span className="block truncate text-xs text-kx-alerta-texto">
-                    {ordem.motivoBloqueio}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold text-kx-texto">
+                    {ordem.clienteNome}
                   </span>
-                )}
+                  <span className="block truncate text-xs text-kx-legenda">
+                    {ordem.equipamento ?? "Sem aparelho"}
+                  </span>
+                </span>
+
+                <span className="shrink-0 text-sm font-bold tabular-nums text-kx-texto">
+                  {formatarReais(deDecimal(ordem.valorTotal))}
+                </span>
               </span>
 
-              <span className="shrink-0 text-sm font-bold tabular-nums text-kx-texto">
-                {formatarReais(deDecimal(ordem.valorTotal))}
-              </span>
+              {/* À vista, não num `title`: quem está no balcão não passa o
+                  mouse para descobrir por que um item da lista não responde. */}
+              {ordem.motivoBloqueio && (
+                <span className="block text-xs font-medium text-kx-alerta-texto">
+                  {ordem.motivoBloqueio}
+                </span>
+              )}
             </button>
           ))}
         </div>
