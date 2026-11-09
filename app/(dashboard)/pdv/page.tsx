@@ -34,6 +34,7 @@ import {
   DialogTitle,
 } from"@/components/ui/dialog";
 import { BarraEtapasPdv } from"@/components/pdv/balcao/barra-etapas-pdv";
+import { DialogoVincularOS } from"@/components/pdv/balcao/dialogo-vincular-os";
 import { ResumoVendaPdv } from"@/components/pdv/balcao/resumo-venda-pdv";
 import { EtapaProdutoPdv } from"@/components/pdv/balcao/etapa-produto-pdv";
 import { EtapaClientePdv } from"@/components/pdv/balcao/etapa-cliente-pdv";
@@ -99,8 +100,6 @@ const formatarFormaPagamento = (formaPagamento: string): string => {
   return mapa[formaPagamento] ?? formaPagamento;
 };
 
-const MENSAGEM_VINCULAR_OS =
-  'Para vincular uma OS, abra a OS e use"Enviar para o PDV" por lá.';
 
 /**
  * Página do módulo PDV (Ponto de Venda) — fluxo de balcão em 3 etapas
@@ -133,6 +132,7 @@ function PDVPageConteudo() {
   const [tentativaVendaId, setTentativaVendaId] = useState(0);
   const [confirmarCancelamentoVendaAberto, setConfirmarCancelamentoVendaAberto] = useState(false);
   const [descontoPainelAberto, setDescontoPainelAberto] = useState(false);
+  const [vincularOsAberto, setVincularOsAberto] = useState(false);
 
   const [busca, setBusca] = useState("");
   const [produtosCatalogo, setProdutosCatalogo] = useState<ProdutoPDV[]>([]);
@@ -554,8 +554,11 @@ function PDVPageConteudo() {
     setBuscaCliente(cliente.nomeRazaoSocial);
   };
 
+  // Abre a lista de OS prontas. Antes isto só mostrava um aviso mandando o
+  // operador sair do PDV, achar a OS e voltar — com o cliente esperando no
+  // balcão. O vínculo em si já existia via `/pdv?osId=…`; faltava a porta.
   const aoVincularOS = useCallback(() => {
-    toast.info(MENSAGEM_VINCULAR_OS);
+    setVincularOsAberto(true);
   }, []);
 
   const tentarConfirmarVenda = useCallback(() => {
@@ -644,7 +647,7 @@ function PDVPageConteudo() {
       if (evento.key ==="F4") {
         evento.preventDefault();
         setEtapaAtual("produto");
-        toast.info(MENSAGEM_VINCULAR_OS);
+        setVincularOsAberto(true);
       }
       if (evento.key ==="F6") {
         evento.preventDefault();
@@ -1111,6 +1114,20 @@ function PDVPageConteudo() {
           </div>
         </SheetContent>
       </Sheet>
+
+      {vincularOsAberto && (
+      <DialogoVincularOS
+        aoFechar={() => setVincularOsAberto(false)}
+        aoEscolher={(osId) => {
+          setVincularOsAberto(false);
+          // Mesma porta que o botão "Enviar para o PDV" da tela da OS usa.
+          // Reaproveitar a rota em vez de chamar a action aqui mantém um
+          // caminho só de carregar OS no balcão — e é esse caminho que já
+          // limpa o carrinho, escolhe o cliente e trata a OS já faturada.
+          router.push(`/pdv?osId=${encodeURIComponent(osId)}`);
+        }}
+      />
+      )}
     </div>
   );
 }
