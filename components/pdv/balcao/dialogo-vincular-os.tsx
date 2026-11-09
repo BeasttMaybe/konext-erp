@@ -162,7 +162,7 @@ export function DialogoVincularOS({ aoFechar, aoEscolher }: Props) {
                     balcão não passa o mouse para descobrir por que um item
                     da lista não responde. */}
                 {ordem.motivoBloqueio && (
-                  <span className="block truncate text-xs text-kx-alerta">
+                  <span className="block truncate text-xs text-kx-alerta-texto">
                     {ordem.motivoBloqueio}
                   </span>
                 )}
