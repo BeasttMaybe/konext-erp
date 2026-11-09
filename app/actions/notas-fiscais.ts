@@ -5,10 +5,20 @@ import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { exigirPermissao } from "@/lib/auth/permissoes";
 import { mensagemDeErroConhecido } from "@/lib/erros";
 import type { StatusNotaFiscal } from "@prisma/client";
+import { dataDeCalendario } from "@/lib/datas";
 
-export type ResultadoAcaoNotaFiscal =
-  | { sucesso: true; mensagem: string }
-  | { sucesso: false; erro: string };
+/**
+ * Esta tela e SO CONSULTA.
+ *
+ * O cadastro manual de nota fiscal saiu: o dono nao cria nota aqui — ele
+ * emite no Bling, que e onde esta o motor fiscal e a contabilidade. Um
+ * formulario de "nova nota fiscal" num sistema que nao emite nota so permitia
+ * criar um registro que nao corresponde a documento nenhum, e ocupava metade
+ * da tela que deveria mostrar as notas de verdade.
+ *
+ * Se um dia for preciso lancar algo a mao, volta — mas volta como excecao
+ * declarada, nao como a acao principal de uma tela de consulta.
+ */
 
 export type NotaFiscalLista = {
   id: string;
@@ -44,40 +54,14 @@ export type NotaFiscalLista = {
 export type FiltroNotaFiscal = {
   busca?: string;
   status?: StatusNotaFiscal | "TODAS";
-};
-
-export type CriarNotaFiscalInput = {
-  numero: string;
-  chaveAcesso?: string;
-  valorTotal: number;
-  status?: StatusNotaFiscal;
-  clienteId?: string | null;
-};
-
-export type AtualizarNotaFiscalInput = CriarNotaFiscalInput & { id: string };
-
-export type AtualizarStatusNotaFiscalInput = {
-  id: string;
-  status: StatusNotaFiscal;
+  /** "aaaa-mm-dd". A janela é pela EMISSÃO, que é a data que importa. */
+  inicio?: string;
+  fim?: string;
 };
 
 function normalizarTexto(valor: unknown): string {
   if (typeof valor !== "string") return "";
   return valor.trim();
-}
-
-function validarNotaFiscal(input: CriarNotaFiscalInput): string | null {
-  const numero = normalizarTexto(input.numero);
-
-  if (!numero) {
-    return "Numero da nota fiscal e obrigatorio.";
-  }
-
-  if (!Number.isFinite(input.valorTotal) || input.valorTotal < 0) {
-    return "Valor total invalido.";
-  }
-
-  return null;
 }
 
 export async function listarNotasFiscais(
@@ -88,10 +72,7 @@ export async function listarNotasFiscais(
     exigirPermissao(contexto, "financeiro.ver");
     const prisma = contexto.prisma;
 
-    const where: {
-      status?: StatusNotaFiscal;
-      OR?: Array<{ numero?: { contains: string; mode: "insensitive" }; chaveAcesso?: { contains: string; mode: "insensitive" } }>;
-    } = {};
+    const where: Record<string, unknown> = {};
 
     if (filtros.status && filtros.status !== "TODAS") {
       where.status = filtros.status;
@@ -99,10 +80,24 @@ export async function listarNotasFiscais(
 
     const busca = normalizarTexto(filtros.busca);
     if (busca) {
+      // O NOME DO CLIENTE entrou na busca. Era só número e chave, e nenhuma
+      // das duas é como alguém procura uma nota: ninguém lembra 44 dígitos,
+      // e o número só serve se você já souber qual é. Quem procura, procura
+      // pelo cliente.
       where.OR = [
         { numero: { contains: busca, mode: "insensitive" } },
         { chaveAcesso: { contains: busca, mode: "insensitive" } },
+        { clienteNome: { contains: busca, mode: "insensitive" } },
+        { cliente: { nomeRazaoSocial: { contains: busca, mode: "insensitive" } } },
+        { descricaoItens: { contains: busca, mode: "insensitive" } },
       ];
+    }
+
+    const inicio = dataDeCalendario(filtros.inicio ?? "");
+    const fim = dataDeCalendario(filtros.fim ?? "");
+
+    if (inicio && fim) {
+      where.dataEmissao = { gte: inicio, lte: fim };
     }
 
     const notas = await prisma.notaFiscal.findMany({
@@ -172,121 +167,5 @@ export async function listarNotasFiscais(
   } catch (erro) {
     console.error("Erro ao listar notas fiscais:", erro);
     return { sucesso: false, erro: "Nao foi possivel carregar as notas fiscais." };
-  }
-}
-
-export async function listarClientesParaNotaFiscal(): Promise<Array<{ id: string; nome: string }>> {
-  const contexto = await exigirContextoTenant();
-  exigirPermissao(contexto, "financeiro.ver");
-  const prisma = contexto.prisma;
-
-  const clientes = await prisma.cliente.findMany({
-    orderBy: { nomeRazaoSocial: "asc" },
-    select: {
-      id: true,
-      nomeRazaoSocial: true,
-    },
-  });
-
-  return clientes.map((cliente) => ({
-    id: cliente.id,
-    nome: cliente.nomeRazaoSocial,
-  }));
-}
-
-export async function criarNotaFiscal(input: CriarNotaFiscalInput): Promise<ResultadoAcaoNotaFiscal> {
-  try {
-    const contexto = await exigirContextoTenant();
-    exigirPermissao(contexto, "financeiro.lancar");
-    const prisma = contexto.prisma;
-
-    const erroValidacao = validarNotaFiscal(input);
-    if (erroValidacao) {
-      return { sucesso: false, erro: erroValidacao };
-    }
-
-    await prisma.notaFiscal.create({
-      data: {
-        numero: normalizarTexto(input.numero),
-        chaveAcesso: normalizarTexto(input.chaveAcesso) || null,
-        valorTotal: Number(input.valorTotal),
-        status: input.status ?? "PENDENTE",
-        clienteId: input.clienteId ?? null,
-      },
-    });
-
-    revalidatePath("/financeiro/notas-fiscais");
-
-    return { sucesso: true, mensagem: "Nota fiscal criada com sucesso." };
-  } catch (erro) {
-    const mensagemConhecida = mensagemDeErroConhecido(erro);
-    if (mensagemConhecida !== null) {
-      return { sucesso: false, erro: mensagemConhecida };
-    }
-    console.error("Erro ao criar nota fiscal:", erro);
-    return { sucesso: false, erro: "Nao foi possivel criar a nota fiscal." };
-  }
-}
-
-export async function atualizarNotaFiscal(input: AtualizarNotaFiscalInput): Promise<ResultadoAcaoNotaFiscal> {
-  try {
-    const contexto = await exigirContextoTenant();
-    exigirPermissao(contexto, "financeiro.editar");
-    const prisma = contexto.prisma;
-
-    const erroValidacao = validarNotaFiscal(input);
-    if (erroValidacao) {
-      return { sucesso: false, erro: erroValidacao };
-    }
-
-    await prisma.notaFiscal.update({
-      where: { id: input.id },
-      data: {
-        numero: normalizarTexto(input.numero),
-        chaveAcesso: normalizarTexto(input.chaveAcesso) || null,
-        valorTotal: Number(input.valorTotal),
-        status: input.status ?? "PENDENTE",
-        clienteId: input.clienteId ?? null,
-      },
-    });
-
-    revalidatePath("/financeiro/notas-fiscais");
-
-    return { sucesso: true, mensagem: "Nota fiscal atualizada com sucesso." };
-  } catch (erro) {
-    const mensagemConhecida = mensagemDeErroConhecido(erro);
-    if (mensagemConhecida !== null) {
-      return { sucesso: false, erro: mensagemConhecida };
-    }
-    console.error("Erro ao atualizar nota fiscal:", erro);
-    return { sucesso: false, erro: "Nao foi possivel atualizar a nota fiscal." };
-  }
-}
-
-export async function atualizarStatusNotaFiscal(
-  input: AtualizarStatusNotaFiscalInput
-): Promise<ResultadoAcaoNotaFiscal> {
-  try {
-    const contexto = await exigirContextoTenant();
-    exigirPermissao(contexto, "financeiro.editar");
-    const prisma = contexto.prisma;
-
-    await prisma.notaFiscal.update({
-      where: { id: input.id },
-      data: {
-        status: input.status,
-      },
-    });
-
-    revalidatePath("/financeiro/notas-fiscais");
-
-    return { sucesso: true, mensagem: "Status da nota fiscal atualizado." };
-  } catch (erro) {
-    const mensagemConhecida = mensagemDeErroConhecido(erro);
-    if (mensagemConhecida !== null) {
-      return { sucesso: false, erro: mensagemConhecida };
-    }
-    console.error("Erro ao atualizar status da nota fiscal:", erro);
-    return { sucesso: false, erro: "Nao foi possivel atualizar o status da nota fiscal." };
   }
 }
