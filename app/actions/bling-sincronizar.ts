@@ -13,6 +13,10 @@ import {
   type VendaCandidata,
 } from "@/lib/dominio/bling/casamento-de-venda";
 import {
+  lerPaginaDeContas,
+  referenciaDaConta,
+} from "@/lib/dominio/bling/conta-a-receber";
+import {
   lerDetalheDaNota,
   lerPaginaDeNotas,
   TIPO_SAIDA_NO_BLING,
@@ -114,6 +118,39 @@ function delegado(prisma: unknown, nome: string, alternativo: string): DelegateG
   return encontrado;
 }
 
+type PrismaComRaw = {
+  $queryRaw: <T>(consulta: TemplateStringsArray, ...valores: unknown[]) => Promise<T>;
+};
+
+/**
+ * Acha o cliente pelo documento, comparando SÓ OS DÍGITOS dos dois lados.
+ *
+ * O Bling manda o documento limpo ("07945562000157"); o cadastro da Konext
+ * grava de formas diferentes conforme o caminho — alguns pontos salvam só
+ * dígitos, outros salvam o que a pessoa digitou, com ponto e barra. Comparar
+ * texto cru faria o vínculo nunca acontecer para quem foi cadastrado à mão,
+ * e o sintoma seria "o Bling não acha meus clientes", sem pista nenhuma.
+ *
+ * `regexp_replace` no banco resolve os dois lados de uma vez. É SQL direto
+ * porque o Prisma não compara coluna normalizada, e normalizar em memória
+ * exigiria carregar o cadastro inteiro a cada conta.
+ */
+async function acharClientePorDocumento(
+  prisma: PrismaComRaw,
+  documento: string | null
+): Promise<{ id: string } | null> {
+  const digitos = (documento ?? "").replace(/\D/g, "");
+  if (digitos.length !== 11 && digitos.length !== 14) return null;
+
+  const encontrados = await prisma.$queryRaw<Array<{ id: string }>>`
+    SELECT id FROM "Cliente"
+     WHERE regexp_replace(documento, '[^0-9]', '', 'g') = ${digitos}
+     LIMIT 1
+  `;
+
+  return encontrados[0] ?? null;
+}
+
 type NotaGravada = {
   id: string;
   blingId: string | null;
@@ -175,12 +212,12 @@ async function gravarCabecalhos(
  * decisão inteira com a regra testada.
  */
 async function tentarVincular({
-  pedidoVenda,
+  prisma,
   notaFiscal,
   nota,
   valorCentavos,
 }: {
-  pedidoVenda: DelegateGenerico;
+  prisma: PrismaComRaw;
   notaFiscal: DelegateGenerico;
   nota: NotaGravada;
   valorCentavos: number;
@@ -195,26 +232,24 @@ async function tentarVincular({
     return false;
   }
 
-  const brutas = (await pedidoVenda.findMany({
-    where: { cliente: { documento: { contains: documento.slice(0, 11) } } },
-    select: {
-      id: true,
-      total: true,
-      dataCriacao: true,
-      cliente: { select: { documento: true } },
-    },
-    take: 50,
-  })) as Array<{
-    id: string;
-    total: unknown;
-    dataCriacao: Date;
-    cliente: { documento: string | null } | null;
-  }>;
+  // Comparação por DÍGITOS, no banco. A versão anterior filtrava por
+  // `contains: documento.slice(0, 11)` — um recorte arbitrário (os 11
+  // primeiros dígitos de um CNPJ de 14 não significam nada) que, além disso,
+  // nunca casaria um documento gravado com ponto e barra.
+  const brutas = await prisma.$queryRaw<
+    Array<{ id: string; total: string; dataCriacao: Date; documento: string }>
+  >`
+    SELECT pv.id, pv.total::text AS total, pv."dataCriacao", c.documento
+      FROM "PedidoVenda" pv
+      JOIN "Cliente" c ON c.id = pv."clienteId"
+     WHERE regexp_replace(c.documento, '[^0-9]', '', 'g') = ${documento}
+     LIMIT 50
+  `;
 
   const candidatas: VendaCandidata[] = brutas.map((bruta) => ({
     id: bruta.id,
-    clienteDocumento: bruta.cliente?.documento ?? null,
-    valorCentavos: deDecimal(String(bruta.total)),
+    clienteDocumento: bruta.documento,
+    valorCentavos: deDecimal(bruta.total),
     data: bruta.dataCriacao,
   }));
 
@@ -237,6 +272,94 @@ async function tentarVincular({
   return resultado.casou;
 }
 
+/**
+ * Traz as contas a receber do Bling, com a situação que elas têm LÁ.
+ *
+ * Esta fase substitui a criação de contas a partir das parcelas da nota. A
+ * diferença é o campo `situacao`: a parcela da nota é plano de pagamento e
+ * não tem estado; a conta tem, e é por isso que ela é a fonte certa.
+ *
+ * Quando o CPF/CNPJ da conta bate com alguém do cadastro, a conta é
+ * VINCULADA a esse cliente — assim ela aparece com nome de cliente nas telas
+ * que já sabem mostrar cliente, em vez de depender do texto da descrição.
+ */
+async function importarContasAReceber({
+  accessToken,
+  contaReceber,
+  prisma,
+  hoje,
+  comoData,
+}: {
+  accessToken: string;
+  contaReceber: DelegateGenerico;
+  prisma: PrismaComRaw;
+  hoje: Date;
+  comoData: (data: Date) => string;
+}): Promise<number> {
+  let criadas = 0;
+
+  for (let ano = 0; ano < ANOS_DE_HISTORICO; ano += 1) {
+    const fimDaJanela = somarDiasEmDataDeCalendario(hoje, -365 * ano);
+    const inicioDaJanela = somarDiasEmDataDeCalendario(hoje, -365 * (ano + 1) + 1);
+
+    for (let pagina = 1; pagina <= TETO_DE_PAGINAS_POR_ANO; pagina += 1) {
+      await esperarPelaVazao();
+
+      const resposta = await chamarBling({
+        accessToken,
+        caminho: "/contas/receber",
+        parametros: {
+          dataInicial: comoData(inicioDaJanela),
+          dataFinal: comoData(fimDaJanela),
+          limite: 100,
+          pagina,
+        },
+      });
+
+      const daPagina = lerPaginaDeContas(resposta);
+      if (daPagina.length === 0) break;
+
+      for (const conta of daPagina) {
+        const referencia = referenciaDaConta(conta.blingId);
+
+        const existente = (await contaReceber.findFirst?.({
+          where: { blingParcelaRef: referencia },
+          select: { id: true },
+        })) as { id: string } | null;
+
+        // Busca o cliente pelo documento. Sem documento não procura: nome
+        // não identifica ninguém com segurança, e vincular a conta ao
+        // cliente errado é pior que deixá-la sem cliente.
+        const clienteLocal = await acharClientePorDocumento(prisma, conta.clienteDocumento);
+
+        const dados = {
+          descricao: conta.descricao,
+          valor: paraDecimal(deDecimal(conta.valorReais)),
+          dataVencimento: conta.vencimento,
+          status: conta.status,
+          origem: "BLING" as const,
+          formaRecebimento: "NAO_INFORMADO" as const,
+          clienteId: clienteLocal?.id ?? null,
+        };
+
+        if (existente) {
+          // Atualizar importa tanto quanto criar: uma conta baixada no Bling
+          // depois da última sincronização precisa deixar de aparecer como
+          // devida aqui.
+          await contaReceber.update({ where: { id: existente.id }, data: dados });
+        } else {
+          await contaReceber.create({ data: { ...dados, blingParcelaRef: referencia } });
+          criadas += 1;
+        }
+      }
+
+      if (daPagina.length < 100) break;
+    }
+  }
+
+  return criadas;
+}
+
 export async function sincronizarNotasDoBling(): Promise<ResumoDaSincronizacao> {
   const vazio = {
     notasLidas: 0,
@@ -254,7 +377,6 @@ export async function sincronizarNotasDoBling(): Promise<ResumoDaSincronizacao> 
     const { prisma } = contexto;
     const notaFiscal = delegado(prisma, "notaFiscal", "NotaFiscal");
     const contaReceber = delegado(prisma, "contaReceber", "ContaReceber");
-    const pedidoVenda = delegado(prisma, "pedidoVenda", "PedidoVenda");
 
     const accessToken = await obterAccessTokenValido(prisma);
 
@@ -357,50 +479,33 @@ export async function sincronizarNotasDoBling(): Promise<ResumoDaSincronizacao> 
         },
       });
 
-      const casou = await tentarVincular({ pedidoVenda, notaFiscal, nota, valorCentavos });
+      const casou = await tentarVincular({
+        prisma: prisma as unknown as PrismaComRaw,
+        notaFiscal,
+        nota,
+        valorCentavos,
+      });
       if (casou) vinculadas += 1;
 
-      // A conta a receber nasce SÓ quando a nota não corresponde a uma venda
-      // daqui. Criar nos dois casos faria o total a receber contar a mesma
-      // venda duas vezes — e um total que só cresce é o defeito que ninguém
-      // desconfia.
-      if (casou) continue;
-
-      for (const [indice, parcela] of detalhe.parcelas.entries()) {
-        const referencia = `${nota.blingId}:${indice}`;
-
-        const jaExiste = await contaReceber.count({ where: { blingParcelaRef: referencia } });
-        if (jaExiste > 0) continue;
-
-        await contaReceber.create({
-          data: {
-            // "(Bling)" no nome foi pedido pelo dono: é o que deixa claro, na
-            // lista, de onde a conta veio, sem precisar abrir nada.
-            // "(Bling)" no nome foi pedido pelo dono: deixa claro na lista
-            // de onde a conta veio, sem precisar abrir nada. O número da
-            // nota vem junto porque é por ele que se acha a nota no Bling.
-            descricao: `(Bling) NF ${nota.numero}${
-              detalhe.descricaoDosItens ? ` — ${detalhe.descricaoDosItens}` : ""
-            }`.slice(0, 180),
-            valor: paraDecimal(deDecimal(parcela.valorReais)),
-            dataVencimento: parcela.vencimento,
-            origem: "BLING",
-            status: "PENDENTE",
-            // Obrigatória e sem default. A nota do Bling traz um id de forma
-            // de pagamento que não corresponde a nenhum valor deste enum, e
-            // gravar um chute poria dado falso no gráfico de entradas por
-            // forma. Era a ausência deste campo que fazia a sincronização
-            // falhar — com a mensagem genérica escondendo o motivo.
-            formaRecebimento: "NAO_INFORMADO",
-            blingParcelaRef: referencia,
-            numeroParcela: indice + 1,
-            totalParcelas: detalhe.parcelas.length,
-          },
-        });
-
-        contasCriadas += 1;
-      }
+      // A conta a receber NÃO nasce mais daqui.
+      //
+      // As parcelas da nota são o PLANO de pagamento — "R$ 250 em 01/12" — e
+      // plano não tem estado: não existe ali campo nenhum dizendo se foi
+      // pago. Criar a conta a partir delas fez notas de janeiro, já baixadas
+      // no Bling, aparecerem como dívida atrasada no Contas a Receber.
+      //
+      // Quem sabe o que foi recebido é `/contas/receber`, com o campo
+      // `situacao`. É de lá que as contas vêm agora — ver a fase abaixo.
     }
+
+    // ── Fase das contas a receber ──────────────────────────────────────────
+    contasCriadas = await importarContasAReceber({
+      accessToken,
+      contaReceber,
+      prisma: prisma as unknown as PrismaComRaw,
+      hoje,
+      comoData,
+    });
 
     const [faltamDetalhes, totalNoKonext] = await Promise.all([
       notaFiscal.count({ where: { blingId: { not: null }, valorTotal: null } }),
@@ -419,8 +524,8 @@ export async function sincronizarNotasDoBling(): Promise<ResumoDaSincronizacao> 
       // que 60 notas nunca tinham sido procuradas.
       mensagem:
         faltamDetalhes > 0
-          ? `${totalNoKonext} notas no Konext (${novas} novas agora). Faltam ${faltamDetalhes} valores — clique de novo para continuar.`
-          : `${totalNoKonext} notas no Konext, tudo em dia (${novas} novas agora).`,
+          ? `${totalNoKonext} notas e ${contasCriadas} contas novas. Faltam ${faltamDetalhes} valores — clique de novo para continuar.`
+          : `${totalNoKonext} notas no Konext, tudo em dia. ${contasCriadas} contas a receber novas.`,
       notasLidas: lidas,
       notasNovas: novas,
       detalhesBuscados,
