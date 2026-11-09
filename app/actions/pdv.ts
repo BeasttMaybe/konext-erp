@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { exigirPermissao, temPermissao } from "@/lib/auth/permissoes";
+import { paraMensagemSegura } from "@/lib/erros";
 import { registrarMovimentacaoEstoque } from "@/lib/estoque-movimentacao";
 import {
   mensagemIndicaRuntimeLegadoConfiguracao,
@@ -1578,6 +1579,45 @@ export async function obterPedidoOSParaPDV(osId: string): Promise<PedidoOSPDV> {
       unitCost: podeVerCustos ? item.unitCost : null,
     })),
   };
+}
+
+export type ResultadoPedidoOSParaPDV =
+  | { sucesso: true; pedido: PedidoOSPDV }
+  | { sucesso: false; mensagem: string };
+
+/**
+ * O mesmo que `obterPedidoOSParaPDV`, mas devolvendo o motivo em vez de
+ * lançá-lo.
+ *
+ * Existe por causa de um erro que o dono viu na tela: ao escolher uma OS sem
+ * peça, aparecia "Minified React error #441". Esse erro é o Next dizendo que
+ * ESCONDEU a mensagem — em produção, o texto de um erro lançado no servidor
+ * é trocado por um código, para não vazar detalhe interno.
+ *
+ * Quer dizer: o servidor sabia exatamente o que dizer ("cadastre pelo menos
+ * uma peça ou serviço na OS") e essa frase não chegava a ninguém. A pessoa
+ * recebia um código do React para um problema de cadastro.
+ *
+ * Mensagem que o usuário precisa ler não pode viajar como exceção. Ela viaja
+ * como DADO — que é o padrão que o resto deste projeto já usa com
+ * `paraMensagemSegura`.
+ */
+export async function carregarPedidoOSParaPDV(osId: string): Promise<ResultadoPedidoOSParaPDV> {
+  try {
+    return { sucesso: true, pedido: await obterPedidoOSParaPDV(osId) };
+  } catch (erro) {
+    // `paraMensagemSegura`, e não `erro.message`, por duas razões — e a
+    // primeira é a que importa:
+    //
+    // 1. Ela chama `unstable_rethrow`. Redirect e notFound do Next viajam
+    //    COMO EXCEÇÃO; um `catch` que os engole transforma "sua sessão
+    //    expirou, vá para o login" numa frase escrita no meio do PDV, e a
+    //    pessoa fica presa numa tela que não funciona mais.
+    // 2. Ela deixa passar a mensagem de regra de negócio (que é o ponto
+    //    disto tudo) e troca erro interno do Prisma por texto genérico,
+    //    registrando o original no log do servidor.
+    return { sucesso: false, mensagem: paraMensagemSegura(erro) };
+  }
 }
 
 export async function processarVendaOSNoPDV(osId: string, pagamentos: PagamentoPdvInput[]) {

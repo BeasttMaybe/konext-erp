@@ -55,7 +55,7 @@ import {
   listarClientesPDV,
   listarProdutosPDV,
   obterConfiguracaoPagamentosPDV,
-  obterPedidoOSParaPDV,
+  carregarPedidoOSParaPDV,
   processarVendaComOSNoPDV,
   type PedidoOSPDV,
   processarVenda,
@@ -225,7 +225,20 @@ function PDVPageConteudo() {
 
       try {
         setCarregandoPedidoOS(true);
-        const pedido = await obterPedidoOSParaPDV(osIdNaUrl);
+        // `carregarPedidoOSParaPDV` devolve o motivo como DADO. A versão que
+        // lançava fazia o Next trocar a frase por um código ("Minified React
+        // error #441") antes de ela chegar aqui — o operador recebia um erro
+        // do React para um problema de cadastro de OS.
+        const resultado = await carregarPedidoOSParaPDV(osIdNaUrl);
+
+        if (!resultado.sucesso) {
+          setPedidoOS(null);
+          toast.error(resultado.mensagem);
+          router.replace("/pdv");
+          return;
+        }
+
+        const pedido = resultado.pedido;
         limparCarrinho();
         setPedidoOS(pedido);
         setClienteSelecionadoId(pedido.clienteId);

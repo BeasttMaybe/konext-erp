@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { verificarStatusCaixa } from "@/app/actions/caixa-pdv";
 import {
   obterConfiguracaoPagamentosPDV,
-  obterPedidoOSParaPDV,
+  carregarPedidoOSParaPDV,
   processarVendaComOSNoPDV,
   type ConfiguracaoPagamentosPDV,
   type PedidoOSPDV,
@@ -67,13 +67,21 @@ export function SheetFaturarOS({ osId, numeroOs, aoFechar }: Props) {
     let ativo = true;
 
     void Promise.all([
-      obterPedidoOSParaPDV(osId),
+      carregarPedidoOSParaPDV(osId),
       obterConfiguracaoPagamentosPDV(),
       verificarStatusCaixa(),
     ])
-      .then(([pedidoCarregado, configuracaoCarregada, caixa]) => {
+      .then(([resultado, configuracaoCarregada, caixa]) => {
         if (!ativo) return;
-        setPedido(pedidoCarregado);
+
+        // O motivo vem como dado. Lançado, o Next o trocaria por um código
+        // do React antes de chegar na tela.
+        if (!resultado.sucesso) {
+          setErro(resultado.mensagem);
+          return;
+        }
+
+        setPedido(resultado.pedido);
         setConfiguracao(configuracaoCarregada);
         setCaixaAberto(caixa);
       })
