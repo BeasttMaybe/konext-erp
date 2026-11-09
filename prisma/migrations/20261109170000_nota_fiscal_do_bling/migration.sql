@@ -28,7 +28,13 @@ ALTER TABLE "NotaFiscal" ADD COLUMN "situacaoBling" INTEGER;
 ALTER TABLE "NotaFiscal" ADD COLUMN "dataEmissao" TIMESTAMPTZ(3);
 ALTER TABLE "NotaFiscal" ADD COLUMN "clienteNome" TEXT;
 ALTER TABLE "NotaFiscal" ADD COLUMN "clienteDocumento" TEXT;
+-- `atualizadoEm` e NOT NULL e o schema NAO lhe da default (e @updatedAt, que
+-- o Prisma preenche na escrita). Mas adicionar coluna NOT NULL sem default
+-- quebra se a tabela ja tiver linhas. Entao: adiciona COM default, o que
+-- preenche as linhas existentes, e solta o default em seguida — assim o
+-- estado final bate com o schema e nenhuma linha fica sem valor.
 ALTER TABLE "NotaFiscal" ADD COLUMN "atualizadoEm" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE "NotaFiscal" ALTER COLUMN "atualizadoEm" DROP DEFAULT;
 
 CREATE UNIQUE INDEX "NotaFiscal_blingId_key" ON "NotaFiscal"("blingId");
 CREATE INDEX "NotaFiscal_dataEmissao_idx" ON "NotaFiscal"("dataEmissao");
