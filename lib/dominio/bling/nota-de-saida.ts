@@ -193,3 +193,113 @@ export function lerPaginaDeNotas(resposta: unknown): NotaDeSaidaLida[] {
     .map(lerNotaDeSaidaDoBling)
     .filter((nota): nota is NotaDeSaidaLida => nota !== null);
 }
+
+/**
+ * O detalhe da nota: `/nfe/{id}`.
+ *
+ * Existe porque a LISTAGEM não traz o valor. O detalhe traz — e traz mais
+ * duas coisas que mudam o que dá para fazer:
+ *
+ * - **`parcelas`**, cada uma com `data` e `valor`. É daqui que sai a conta a
+ *   receber, com a data de vencimento que o dono pediu, sem precisar bater
+ *   na API de contas: já veio junto.
+ * - **`xml` e `linkDanfe`**, endereços diretos do arquivo e do documento no
+ *   Bling. São eles que permitem baixar a nota sem sair do Konext.
+ *
+ * `serie` aqui é NÚMERO (`1`), enquanto na chave de acesso é `"001"`. A da
+ * chave é a que o contador lê, então ela continua sendo a preferida; esta é
+ * a reserva para quando não houver chave.
+ */
+
+export type ParcelaDaNota = {
+  /** Vencimento, como data de calendário. */
+  vencimento: Date;
+  valorReais: number;
+};
+
+export type DetalheDaNota = {
+  blingId: string;
+  /** Em REAIS, como o Bling manda. A conversão para centavos é de quem grava. */
+  valorNotaReais: number | null;
+  serie: string | null;
+  linkXml: string | null;
+  linkDanfe: string | null;
+  parcelas: ParcelaDaNota[];
+  /** Descrição dos itens, para a tela dizer o que foi vendido. */
+  descricaoDosItens: string | null;
+};
+
+function numero(valor: unknown): number | null {
+  if (typeof valor === "number" && Number.isFinite(valor)) return valor;
+  if (typeof valor === "string" && valor.trim() !== "") {
+    const convertido = Number(valor);
+    return Number.isFinite(convertido) ? convertido : null;
+  }
+  return null;
+}
+
+/**
+ * Só aceita endereço https do próprio Bling.
+ *
+ * Estes links são guardados e viram botão na tela. Guardar e clicar no que
+ * veio de fora sem conferir o destino é como um link de terceiro entra num
+ * sistema — e o fato de a resposta ser do Bling hoje não é razão para a tela
+ * abrir qualquer endereço que apareça nesse campo amanhã.
+ */
+function linkDoBling(valor: unknown): string | null {
+  const bruto = texto(valor);
+  if (!bruto) return null;
+
+  try {
+    const url = new URL(bruto);
+    const ehDoBling = url.hostname === "bling.com.br" || url.hostname.endsWith(".bling.com.br");
+
+    return url.protocol === "https:" && ehDoBling ? bruto : null;
+  } catch {
+    return null;
+  }
+}
+
+export function lerDetalheDaNota(resposta: unknown): DetalheDaNota | null {
+  const envelope = objeto(resposta);
+  const nota = objeto(envelope?.data) ?? envelope;
+  if (!nota) return null;
+
+  const blingId = texto(nota.id);
+  if (!blingId) return null;
+
+  const serieBruta = texto(nota.serie);
+  const itens = Array.isArray(nota.itens) ? nota.itens : [];
+
+  const descricoes = itens
+    .map((item) => objeto(item))
+    .map((item) => (item ? texto(item.descricao) : null))
+    .filter((descricao): descricao is string => descricao !== null);
+
+  const parcelas: ParcelaDaNota[] = (Array.isArray(nota.parcelas) ? nota.parcelas : [])
+    .map((bruta) => {
+      const parcela = objeto(bruta);
+      if (!parcela) return null;
+
+      const vencimento = lerDataDoBling(parcela.data);
+      const valorReais = numero(parcela.valor);
+
+      // Parcela sem data ou sem valor não vira conta a receber: ela não teria
+      // quando vencer nem quanto cobrar, e uma conta assim na tela é pior que
+      // conta nenhuma.
+      if (!vencimento || valorReais === null) return null;
+
+      return { vencimento, valorReais };
+    })
+    .filter((parcela): parcela is ParcelaDaNota => parcela !== null);
+
+  return {
+    blingId,
+    valorNotaReais: numero(nota.valorNota),
+    serie: serieDaChave(texto(nota.chaveAcesso)) ?? serieBruta,
+    linkXml: linkDoBling(nota.xml),
+    linkDanfe: linkDoBling(nota.linkDanfe),
+    parcelas,
+    descricaoDosItens: descricoes.length > 0 ? descricoes.join(", ").slice(0, 300) : null,
+  };
+}

@@ -13,11 +13,31 @@ export type ResultadoAcaoNotaFiscal =
 export type NotaFiscalLista = {
   id: string;
   numero: string;
+  serie: string | null;
   chaveAcesso: string | null;
-  valorTotal: number;
+  /**
+   * NULO = ainda não lido do Bling.
+   *
+   * Era `Number(valorTotal ?? 0)`: uma nota sem valor virava R$ 0,00 na tela
+   * e somava zero no total, sem ninguém desconfiar. A listagem do Bling não
+   * traz o valor — ele chega na sincronização seguinte —, então essa janela
+   * existe de verdade e precisa aparecer como travessão.
+   */
+  valorTotal: number | null;
   status: StatusNotaFiscal;
+  situacaoBling: number | null;
+  dataEmissao: string | null;
   clienteId: string | null;
   clienteNome: string | null;
+  /** Veio do Bling? É a presença do id de lá que diz. */
+  doBling: boolean;
+  /** Venda deste sistema reconhecida como esta nota. */
+  pedidoId: string | null;
+  numeroPedido: number | null;
+  motivoSemVinculo: string | null;
+  linkXml: string | null;
+  linkDanfe: string | null;
+  descricaoItens: string | null;
   criadoEm: string;
 };
 
@@ -87,18 +107,35 @@ export async function listarNotasFiscais(
 
     const notas = await prisma.notaFiscal.findMany({
       where,
-      orderBy: { criadoEm: "desc" },
+      // Pela emissão, que é a data que importa para quem procura uma nota.
+      // Nota lançada à mão não tem emissão e cai depois, pela criação.
+      orderBy: [{ dataEmissao: "desc" }, { criadoEm: "desc" }],
       select: {
         id: true,
         numero: true,
+        serie: true,
         chaveAcesso: true,
         valorTotal: true,
         status: true,
+        situacaoBling: true,
+        dataEmissao: true,
+        blingId: true,
+        pedidoId: true,
+        motivoSemVinculo: true,
+        linkXml: true,
+        linkDanfe: true,
+        descricaoItens: true,
+        clienteNome: true,
         criadoEm: true,
         clienteId: true,
         cliente: {
           select: {
             nomeRazaoSocial: true,
+          },
+        },
+        pedido: {
+          select: {
+            numeroPedido: true,
           },
         },
       },
@@ -110,10 +147,25 @@ export async function listarNotasFiscais(
         id: nota.id,
         numero: nota.numero,
         chaveAcesso: nota.chaveAcesso,
-        valorTotal: Number(nota.valorTotal ?? 0),
+        serie: nota.serie,
+        // Sem `?? 0`: nota sem valor lido tem que aparecer como travessão,
+        // não como R$ 0,00 somando zero no total.
+        valorTotal: nota.valorTotal === null ? null : Number(nota.valorTotal),
         status: nota.status,
+        situacaoBling: nota.situacaoBling,
+        dataEmissao: nota.dataEmissao?.toISOString() ?? null,
         clienteId: nota.clienteId,
-        clienteNome: nota.cliente?.nomeRazaoSocial ?? null,
+        // O nome do contato do Bling é a reserva: o cadastro de clientes da
+        // Konext pode não ter esse cliente, e nota sem nome é pior que nota
+        // com o nome que o Bling conhece.
+        clienteNome: nota.cliente?.nomeRazaoSocial ?? nota.clienteNome ?? null,
+        doBling: nota.blingId !== null,
+        pedidoId: nota.pedidoId,
+        numeroPedido: nota.pedido?.numeroPedido ?? null,
+        motivoSemVinculo: nota.motivoSemVinculo,
+        linkXml: nota.linkXml,
+        linkDanfe: nota.linkDanfe,
+        descricaoItens: nota.descricaoItens,
         criadoEm: nota.criadoEm.toISOString(),
       })),
     };
