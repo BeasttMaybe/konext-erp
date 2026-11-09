@@ -1,432 +1,337 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import {
-  atualizarNotaFiscal,
-  atualizarStatusNotaFiscal,
-  criarNotaFiscal,
-  listarNotasFiscais,
-  type NotaFiscalLista,
-} from "@/app/actions/notas-fiscais";
-import type { StatusNotaFiscal } from "@prisma/client";
-import { rotuloDaSituacaoDoBling } from "@/lib/dominio/bling/nota-de-saida";
+import { useRouter } from "next/navigation";
+import { Download, FileText, Link2Off, RefreshCw, Search } from "lucide-react";
+import { toast } from "sonner";
+
 import { sincronizarNotasDoBling } from "@/app/actions/bling-sincronizar";
+import type { NotaFiscalLista } from "@/app/actions/notas-fiscais";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { PilulaStatus } from "@/components/ui/pilula-status";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { useTemPermissao } from "@/contextos/contexto-permissoes";
+import { deDecimal, formatarReais, somar } from "@/lib/dinheiro";
+import { casaComBusca, prepararTermoDeBusca } from "@/lib/dominio/financeiro/busca-de-conta";
+import { rotuloDaSituacaoDoBling } from "@/lib/dominio/bling/nota-de-saida";
+
+/**
+ * Notas fiscais de saída.
+ *
+ * ESTA TELA É SÓ CONSULTA, e isso é uma decisão, não uma falta.
+ *
+ * A anterior dedicava metade do espaço a um formulário de "nova nota fiscal"
+ * — num sistema que não emite nota. O dono emite no Bling, onde está o motor
+ * fiscal e a contabilidade; o que aquele formulário permitia era criar um
+ * registro que não corresponde a documento nenhum. Ele saiu.
+ *
+ * O que ficou é o que ele usa de verdade: quanto emitiu no período, achar
+ * uma nota pelo cliente, e levar os arquivos para o contador.
+ */
 
 type Props = {
   notasIniciais: NotaFiscalLista[];
-  clientes: Array<{ id: string; nome: string }>;
+  periodo: { inicio: string; fim: string };
 };
 
-const OPCOES_STATUS: StatusNotaFiscal[] = ["PENDENTE", "EMITIDA", "CANCELADA"];
+function rotuloDaSituacao(nota: NotaFiscalLista): string {
+  // O rótulo do Bling é mais preciso que os três estados da Konext:
+  // "Rejeitada" e "Aguardando recibo" caem ambas em PENDENTE, e saber qual é
+  // o que diz se há algo a fazer.
+  return nota.situacaoBling !== null ? rotuloDaSituacaoDoBling(nota.situacaoBling) : nota.status;
+}
 
-export function PaginaNotasFiscais({ notasIniciais, clientes }: Props) {
-  const podeLancar = useTemPermissao("financeiro.lancar");
-  const podeEditar = useTemPermissao("financeiro.editar");
-  const [notas, setNotas] = useState<NotaFiscalLista[]>(notasIniciais);
+function varianteDaSituacao(nota: NotaFiscalLista): "sucesso" | "erro" | "alerta" | "neutro" {
+  if (nota.status === "EMITIDA") return "sucesso";
+  if (nota.status === "CANCELADA") return "erro";
+  return "alerta";
+}
+
+export function PaginaNotasFiscais({ notasIniciais, periodo }: Props) {
+  const router = useRouter();
+  const podeSincronizar = useTemPermissao("financeiro.editar");
+
   const [busca, setBusca] = useState("");
-  const [status, setStatus] = useState<StatusNotaFiscal |"TODAS">("TODAS");
-  const [erro, setErro] = useState<string | null>(null);
-  const [mensagem, setMensagem] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
   const [sincronizando, setSincronizando] = useState(false);
-  const [resumoDaSincronizacao, setResumoDaSincronizacao] = useState<string | null>(null);
+  const [recarregando, iniciarRecarga] = useTransition();
+  const [aviso, setAviso] = useState<string | null>(null);
 
-  const [idEdicao, setIdEdicao] = useState<string | null>(null);
-  const [numero, setNumero] = useState("");
-  const [chaveAcesso, setChaveAcesso] = useState("");
-  const [valorTotal, setValorTotal] = useState("0");
-  const [clienteId, setClienteId] = useState<string>("");
-  const [statusFormulario, setStatusFormulario] = useState<StatusNotaFiscal>("PENDENTE");
+  const notas = useMemo(() => {
+    const palavras = prepararTermoDeBusca(busca);
 
-  const notasFiltradas = useMemo(() => {
-    const buscaNormalizada = busca.trim().toLowerCase();
+    return notasIniciais.filter((nota) =>
+      casaComBusca(palavras, [
+        nota.numero,
+        nota.serie,
+        nota.chaveAcesso,
+        nota.clienteNome,
+        nota.descricaoItens,
+      ])
+    );
+  }, [notasIniciais, busca]);
 
-    return notas.filter((nota) => {
-      const statusOk = status === "TODAS" || nota.status === status;
-      const buscaOk =
-        !buscaNormalizada ||
-        nota.numero.toLowerCase().includes(buscaNormalizada) ||
-        String(nota.chaveAcesso ?? "").toLowerCase().includes(buscaNormalizada) ||
-        String(nota.clienteNome ?? "").toLowerCase().includes(buscaNormalizada);
+  const resumo = useMemo(() => {
+    // Nota cancelada não entra no total emitido: ela não produziu receita, e
+    // somá-la inflaria o número que o dono usa para conferir o mês.
+    const valendo = notas.filter((nota) => nota.status !== "CANCELADA");
 
-      return statusOk && buscaOk;
-    });
-  }, [notas, busca, status]);
+    return {
+      // Em CENTAVOS INTEIROS, somados por `somar`. A action entrega reais
+      // como número, e somar reais com `+` é somar ponto flutuante — o erro
+      // que `lib/dinheiro` existe para não deixar acontecer. Trinta notas de
+      // R$ 0,10 somadas assim não dão R$ 3,00.
+      totalCentavos: somar(
+        ...valendo.map((nota) => (nota.valorTotal === null ? 0 : deDecimal(nota.valorTotal)))
+      ),
+      quantidade: notas.length,
+      canceladas: notas.filter((nota) => nota.status === "CANCELADA").length,
+      semValor: notas.filter((nota) => nota.valorTotal === null).length,
+      semVinculo: notas.filter((nota) => nota.doBling && nota.numeroPedido === null).length,
+    };
+  }, [notas]);
 
-  function limparFormulario() {
-    setIdEdicao(null);
-    setNumero("");
-    setChaveAcesso("");
-    setValorTotal("0");
-    setClienteId("");
-    setStatusFormulario("PENDENTE");
-  }
-
-  function preencherFormulario(nota: NotaFiscalLista) {
-    setIdEdicao(nota.id);
-    setNumero(nota.numero);
-    setChaveAcesso(nota.chaveAcesso ?? "");
-    setValorTotal(String(nota.valorTotal));
-    setClienteId(nota.clienteId ?? "");
-    setStatusFormulario(nota.status);
-  }
-
-  function recarregarLista() {
-    startTransition(async () => {
-      const resultado = await listarNotasFiscais({ busca, status });
-      if (!resultado.sucesso) {
-        setErro(resultado.erro);
-        return;
-      }
-
-      setNotas(resultado.dados);
-    });
-  }
-
-  function salvarNotaFiscal() {
-    setErro(null);
-    setMensagem(null);
-
-    const valorParse = Number(valorTotal);
-
-    startTransition(async () => {
-      const payload = {
-        numero,
-        chaveAcesso,
-        valorTotal: valorParse,
-        clienteId: clienteId || null,
-        status: statusFormulario,
-      };
-
-      const resultado = idEdicao
-        ? await atualizarNotaFiscal({ id: idEdicao, ...payload })
-        : await criarNotaFiscal(payload);
-
-      if (!resultado.sucesso) {
-        setErro(resultado.erro);
-        return;
-      }
-
-      setMensagem(resultado.mensagem);
-      limparFormulario();
-      recarregarLista();
-    });
-  }
-
-  function alterarStatus(id: string, novoStatus: StatusNotaFiscal) {
-    setErro(null);
-    setMensagem(null);
-
-    startTransition(async () => {
-      const resultado = await atualizarStatusNotaFiscal({ id, status: novoStatus });
-      if (!resultado.sucesso) {
-        setErro(resultado.erro);
-        return;
-      }
-
-      setMensagem(resultado.mensagem);
-      recarregarLista();
-    });
-  }
-
-  /**
-   * A sincronização é limitada por execução: o Bling aceita 3 requisições por
-   * segundo e o valor da nota só vem no detalhe, uma requisição por nota.
-   * Então a lista aparece inteira na primeira passada e os valores vão
-   * preenchendo — e a mensagem diz quantos faltam, para quem está olhando
-   * saber que não travou.
-   */
-  async function sincronizarAgora() {
+  async function sincronizar() {
     setSincronizando(true);
+    setAviso(null);
     try {
-      const resumo = await sincronizarNotasDoBling();
+      const resultado = await sincronizarNotasDoBling();
 
-      setResumoDaSincronizacao(
-        resumo.sucesso || !resumo.detalhe ? resumo.mensagem : `${resumo.mensagem}\n\n${resumo.detalhe}`
-      );
-      if (resumo.sucesso) recarregarLista();
+      if (resultado.sucesso) {
+        toast.success(resultado.mensagem);
+        router.refresh();
+      } else {
+        toast.error(resultado.mensagem);
+        // O detalhe cru só aparece quando falha, e é o que permite
+        // diagnosticar sem precisar do log do servidor.
+        setAviso(resultado.detalhe ?? resultado.mensagem);
+      }
     } finally {
       setSincronizando(false);
     }
   }
 
+  const linkDoPacote = `/api/financeiro/notas-fiscais/xml?inicio=${periodo.inicio}&fim=${periodo.fim}`;
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4 rounded-xl border border-kx-painel-borda bg-kx-painel p-6">
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
+          <p className="text-sm text-kx-legenda">Emitidas no Bling</p>
           <h1 className="text-2xl font-bold text-kx-texto">Notas Fiscais</h1>
-          <p className="mt-1 max-w-xl text-sm text-kx-texto-2">
-            As notas emitidas no Bling aparecem aqui. A Konext só lê — nada é emitido,
-            cancelado ou alterado lá.
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button asChild variant="outline">
+            <a href={linkDoPacote} download>
+              <Download className="mr-1.5 h-4 w-4" aria-hidden />
+              Baixar XML do período
+            </a>
+          </Button>
+
+          {podeSincronizar && (
+            <Button onClick={sincronizar} disabled={sincronizando}>
+              <RefreshCw
+                className={`mr-1.5 h-4 w-4 ${sincronizando ? "animate-spin" : ""}`}
+                aria-hidden
+              />
+              {sincronizando ? "Buscando no Bling…" : "Sincronizar"}
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {aviso && (
+        <p className="whitespace-pre-line rounded-kx-painel border border-kx-erro-borda bg-kx-erro-fundo px-3 py-2 text-xs text-kx-erro-texto">
+          {aviso}
+        </p>
+      )}
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="rounded-kx-cartao border border-kx-painel-borda bg-kx-cartao p-4">
+          <p className="text-xs text-kx-legenda">Emitido no período</p>
+          <p className="mt-1 text-xl font-extrabold tabular-nums text-kx-texto">
+            {formatarReais(resumo.totalCentavos)}
+          </p>
+          {resumo.semValor > 0 && (
+            <p className="mt-0.5 text-xs text-kx-alerta">
+              {resumo.semValor} sem valor lido — sincronize de novo
+            </p>
+          )}
+        </div>
+
+        <div className="rounded-kx-cartao border border-kx-painel-borda bg-kx-cartao p-4">
+          <p className="text-xs text-kx-legenda">Notas</p>
+          <p className="mt-1 text-xl font-extrabold tabular-nums text-kx-texto">
+            {resumo.quantidade}
           </p>
         </div>
 
-        {podeEditar && (
-          <div className="text-right">
-            <button
-              onClick={sincronizarAgora}
-              disabled={sincronizando}
-              className="rounded-md bg-kx-primaria px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60"
-            >
-              {sincronizando ? "Buscando no Bling…" : "Sincronizar com o Bling"}
-            </button>
-            {resumoDaSincronizacao && (
-              <p className="mt-2 max-w-xs whitespace-pre-line text-xs text-kx-legenda">
-                {resumoDaSincronizacao}
-              </p>
+        <div className="rounded-kx-cartao border border-kx-painel-borda bg-kx-cartao p-4">
+          <p className="text-xs text-kx-legenda">Canceladas</p>
+          <p className="mt-1 text-xl font-extrabold tabular-nums text-kx-texto">
+            {resumo.canceladas}
+          </p>
+          <p className="mt-0.5 text-xs text-kx-legenda">fora do total</p>
+        </div>
+
+        <div className="rounded-kx-cartao border border-kx-painel-borda bg-kx-cartao p-4">
+          <p className="text-xs text-kx-legenda">Sem venda vinculada</p>
+          <p className="mt-1 text-xl font-extrabold tabular-nums text-kx-texto">
+            {resumo.semVinculo}
+          </p>
+        </div>
+      </div>
+
+      <div className="relative max-w-md">
+        <Search
+          className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-kx-legenda"
+          aria-hidden
+        />
+        <Input
+          value={busca}
+          onChange={(evento) => setBusca(evento.target.value)}
+          placeholder="Buscar por cliente, número, chave ou item"
+          className="h-10 pl-9"
+          aria-label="Buscar nota fiscal"
+        />
+      </div>
+
+      <div className="overflow-x-auto rounded-kx-painel border border-kx-painel-borda bg-kx-painel">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Nota</TableHead>
+              <TableHead>Cliente</TableHead>
+              <TableHead className="text-right">Valor</TableHead>
+              <TableHead>Situação</TableHead>
+              <TableHead>Emissão</TableHead>
+              <TableHead>Venda</TableHead>
+              <TableHead className="text-right">Arquivos</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {notas.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={7} className="py-10 text-center text-sm text-kx-legenda">
+                  {notasIniciais.length === 0
+                    ? "Nenhuma nota no período. Clique em Sincronizar para buscar no Bling."
+                    : "Nenhuma nota com esse texto. Limpe a busca para ver todas."}
+                </TableCell>
+              </TableRow>
             )}
-          </div>
-        )}
-      </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="rounded-xl border border-kx-painel-borda bg-kx-painel p-4">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-kx-legenda">Filtros</h2>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <input
-              value={busca}
-              onChange={(event) => setBusca(event.target.value)}
-              placeholder="Buscar por numero, chave ou cliente"
-              className="rounded-md border border-kx-campo-borda bg-kx-painel px-3 py-2 text-sm"
-            />
-            <select
-              value={status}
-              onChange={(event) => setStatus(event.target.value as StatusNotaFiscal |"TODAS")}
-              className="rounded-md border border-kx-campo-borda bg-kx-painel px-3 py-2 text-sm"
-            >
-              <option value="TODAS">Todos os status</option>
-              {OPCOES_STATUS.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </div>
-          <button
-            onClick={recarregarLista}
-            disabled={isPending}
-            className="mt-3 rounded-md bg-kx-superficie px-4 py-2 text-sm font-medium text-kx-texto disabled:opacity-60"
-          >
-            Atualizar lista
-          </button>
-        </div>
+            {notas.map((nota) => (
+              <TableRow key={nota.id}>
+                <TableCell className="font-semibold tabular-nums text-kx-texto">
+                  {nota.serie ? `${nota.serie}/` : ""}
+                  {nota.numero}
+                </TableCell>
 
-        {(podeLancar || podeEditar) && (
-        <div className="rounded-xl border border-kx-painel-borda bg-kx-painel p-4">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-kx-legenda">
-            {idEdicao ? "Editar nota fiscal" : "Nova nota fiscal"}
-          </h2>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <input
-              value={numero}
-              onChange={(event) => setNumero(event.target.value)}
-              placeholder="Numero"
-              className="rounded-md border border-kx-campo-borda bg-kx-painel px-3 py-2 text-sm"
-            />
-            <input
-              value={chaveAcesso}
-              onChange={(event) => setChaveAcesso(event.target.value)}
-              placeholder="Chave de acesso"
-              className="rounded-md border border-kx-campo-borda bg-kx-painel px-3 py-2 text-sm"
-            />
-            <input
-              value={valorTotal}
-              onChange={(event) => setValorTotal(event.target.value)}
-              type="number"
-              min="0"
-              step="0.01"
-              placeholder="Valor total"
-              className="rounded-md border border-kx-campo-borda bg-kx-painel px-3 py-2 text-sm"
-            />
-            <select
-              value={statusFormulario}
-              onChange={(event) => setStatusFormulario(event.target.value as StatusNotaFiscal)}
-              className="rounded-md border border-kx-campo-borda bg-kx-painel px-3 py-2 text-sm"
-            >
-              {OPCOES_STATUS.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-            <select
-              value={clienteId}
-              onChange={(event) => setClienteId(event.target.value)}
-              className="rounded-md border border-kx-campo-borda bg-kx-painel px-3 py-2 text-sm md:col-span-2"
-            >
-              <option value="">Sem cliente vinculado</option>
-              {clientes.map((cliente) => (
-                <option key={cliente.id} value={cliente.id}>
-                  {cliente.nome}
-                </option>
-              ))}
-            </select>
-          </div>
+                <TableCell className="max-w-[18rem]">
+                  <span className="block truncate text-kx-texto">{nota.clienteNome ?? "—"}</span>
+                  {nota.descricaoItens && (
+                    <span className="block truncate text-xs text-kx-legenda">
+                      {nota.descricaoItens}
+                    </span>
+                  )}
+                </TableCell>
 
-          <div className="mt-3 flex gap-2">
-            <button
-              onClick={salvarNotaFiscal}
-              disabled={isPending}
-              className="rounded-md bg-kx-sucesso px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
-            >
-              {idEdicao ? "Salvar alteracoes" : "Criar nota"}
-            </button>
-            {idEdicao ? (
-              <button
-                onClick={limparFormulario}
-                className="rounded-md border border-kx-campo-borda px-4 py-2 text-sm font-medium"
-              >
-                Cancelar edicao
-              </button>
-            ) : null}
-          </div>
-        </div>
-        )}
-      </div>
+                <TableCell className="text-right tabular-nums">
+                  {/* Travessão, nunca R$ 0,00: o valor não vem na listagem do
+                      Bling e chega na sincronização seguinte. Zero somaria
+                      errado no total sem ninguém desconfiar. */}
+                  {nota.valorTotal === null ? (
+                    <span className="text-kx-legenda" title="Valor ainda não lido do Bling">
+                      —
+                    </span>
+                  ) : (
+                    formatarReais(deDecimal(nota.valorTotal))
+                  )}
+                </TableCell>
 
-      {erro ? (
-        <div className="rounded-md border border-kx-erro-borda/40 bg-kx-erro-fundo px-3 py-2 text-sm text-kx-erro-texto">
-          {erro}
-        </div>
-      ) : null}
-      {mensagem ? (
-        <div className="rounded-md border border-kx-sucesso/40 bg-kx-sucesso-fundo px-3 py-2 text-sm text-kx-sucesso-texto">
-          {mensagem}
-        </div>
-      ) : null}
+                <TableCell>
+                  <PilulaStatus variante={varianteDaSituacao(nota)} className="w-fit">
+                    {rotuloDaSituacao(nota)}
+                  </PilulaStatus>
+                </TableCell>
 
-      <div className="rounded-xl border border-kx-painel-borda bg-kx-painel p-4">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-kx-legenda">Lista de notas fiscais</h2>
+                <TableCell className="tabular-nums text-kx-texto-2">
+                  {nota.dataEmissao
+                    ? new Date(nota.dataEmissao).toLocaleDateString("pt-BR", { timeZone: "UTC" })
+                    : "—"}
+                </TableCell>
 
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] table-auto border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-kx-painel-borda text-left">
-                <th className="px-2 py-2">Número</th>
-                <th className="px-2 py-2">Cliente</th>
-                <th className="px-2 py-2">Valor</th>
-                <th className="px-2 py-2">Situação</th>
-                <th className="px-2 py-2">Emissão</th>
-                <th className="px-2 py-2">Venda</th>
-                <th className="px-2 py-2">Arquivos</th>
-                {podeEditar && <th className="px-2 py-2">Acoes</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {notasFiltradas.map((nota) => (
-                <tr key={nota.id} className="border-b border-kx-painel-borda">
-                  <td className="px-2 py-2 font-medium">
-                    {nota.serie ? `${nota.serie}/` : ""}
-                    {nota.numero}
-                    {nota.doBling && (
-                      <span className="ml-1.5 rounded-kx-pilula border border-kx-painel-borda px-1.5 py-0.5 text-[10px] font-semibold uppercase text-kx-legenda">
-                        Bling
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-2 py-2">
-                    {nota.clienteNome ?? "—"}
-                    {nota.descricaoItens && (
-                      <span className="block truncate text-xs text-kx-legenda">{nota.descricaoItens}</span>
-                    )}
-                  </td>
-                  <td className="px-2 py-2 tabular-nums">
-                    {/* Travessão, nunca R$ 0,00: o valor não vem na listagem
-                        do Bling e chega na sincronização seguinte. Zero aqui
-                        somaria errado sem ninguém desconfiar. */}
-                    {nota.valorTotal === null ? (
-                      <span className="text-kx-legenda" title="Valor ainda não lido do Bling">
-                        —
-                      </span>
-                    ) : (
-                      new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
-                        nota.valorTotal
-                      )
-                    )}
-                  </td>
-                  <td className="px-2 py-2">
-                    {/* O rótulo do Bling é mais preciso que os três estados da
-                        Konext: "Rejeitada" e "Aguardando recibo" ambas caem em
-                        PENDENTE, e saber qual é o que diz o que fazer. */}
-                    {nota.situacaoBling !== null
-                      ? rotuloDaSituacaoDoBling(nota.situacaoBling)
-                      : nota.status}
-                  </td>
-                  <td className="px-2 py-2 tabular-nums">
-                    {nota.dataEmissao
-                      ? new Date(nota.dataEmissao).toLocaleDateString("pt-BR", { timeZone: "UTC" })
-                      : new Date(nota.criadoEm).toLocaleDateString("pt-BR")}
-                  </td>
-                  <td className="px-2 py-2">
-                    {nota.numeroPedido !== null ? (
-                      <a className="underline" href={`/vendas?pedido=${nota.numeroPedido}`}>
-                        Pedido {nota.numeroPedido}
+                <TableCell>
+                  {nota.numeroPedido !== null ? (
+                    <a className="underline" href={`/vendas?pedido=${nota.numeroPedido}`}>
+                      Pedido {nota.numeroPedido}
+                    </a>
+                  ) : nota.motivoSemVinculo ? (
+                    <span
+                      className="flex items-center gap-1 text-xs text-kx-legenda"
+                      title={nota.motivoSemVinculo}
+                    >
+                      <Link2Off className="h-3.5 w-3.5" aria-hidden />
+                      sem vínculo
+                    </span>
+                  ) : (
+                    <span className="text-kx-legenda">—</span>
+                  )}
+                </TableCell>
+
+                <TableCell>
+                  <div className="flex items-center justify-end gap-2 text-xs">
+                    {nota.linkDanfe && (
+                      <a
+                        className="inline-flex items-center gap-1 underline"
+                        href={nota.linkDanfe}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <FileText className="h-3.5 w-3.5" aria-hidden />
+                        DANFE
                       </a>
-                    ) : nota.motivoSemVinculo ? (
-                      <span className="text-xs text-kx-legenda" title={nota.motivoSemVinculo}>
-                        sem vínculo
-                      </span>
-                    ) : (
+                    )}
+                    {nota.linkXml && (
+                      <a
+                        className="inline-flex items-center gap-1 underline"
+                        href={nota.linkXml}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <Download className="h-3.5 w-3.5" aria-hidden />
+                        XML
+                      </a>
+                    )}
+                    {!nota.linkDanfe && !nota.linkXml && (
                       <span className="text-kx-legenda">—</span>
                     )}
-                  </td>
-                  <td className="px-2 py-2">
-                    <div className="flex gap-2 text-xs">
-                      {nota.linkDanfe && (
-                        <a className="underline" href={nota.linkDanfe} target="_blank" rel="noopener noreferrer">
-                          DANFE
-                        </a>
-                      )}
-                      {nota.linkXml && (
-                        <a className="underline" href={nota.linkXml} target="_blank" rel="noopener noreferrer">
-                          XML
-                        </a>
-                      )}
-                      {!nota.linkDanfe && !nota.linkXml && <span className="text-kx-legenda">—</span>}
-                    </div>
-                  </td>
-                  {podeEditar && (
-                    <td className="px-2 py-2">
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          onClick={() => preencherFormulario(nota)}
-                          className="rounded border border-kx-campo-borda px-2 py-1 text-xs"
-                        >
-                          Editar
-                        </button>
-                        {nota.status !== "EMITIDA" ? (
-                          <button
-                            onClick={() => alterarStatus(nota.id, "EMITIDA")}
-                            className="rounded border border-kx-sucesso px-2 py-1 text-xs text-kx-sucesso-texto"
-                          >
-                            Emitir
-                          </button>
-                        ) : null}
-                        {nota.status !== "CANCELADA" ? (
-                          <button
-                            onClick={() => alterarStatus(nota.id, "CANCELADA")}
-                            className="rounded border border-kx-erro-borda px-2 py-1 text-xs text-kx-erro-texto"
-                          >
-                            Cancelar
-                          </button>
-                        ) : null}
-                      </div>
-                    </td>
-                  )}
-                </tr>
-              ))}
-              {notasFiltradas.length === 0 ? (
-                <tr>
-                  <td className="px-2 py-4 text-kx-legenda" colSpan={podeEditar ? 8 : 7}>
-                    Nenhuma nota fiscal encontrada para os filtros atuais.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </div>
+
+      {recarregando && <p className="text-xs text-kx-legenda">Atualizando…</p>}
+
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => iniciarRecarga(() => router.refresh())}
+        disabled={recarregando}
+      >
+        Atualizar lista
+      </Button>
     </div>
   );
 }
