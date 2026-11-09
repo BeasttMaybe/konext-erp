@@ -206,6 +206,48 @@ enum TipoDeContaAvisada {
   RECEBER
 }
 
+/// A conexao desta loja com o Bling. Uma linha so, como `Configuracao`.
+///
+/// A Konext LE do Bling e nunca escreve: o dono continua emitindo a nota la,
+/// onde ja esta o motor fiscal e a contabilidade dele, e aqui as notas
+/// aparecem para consulta e para alimentar o financeiro. Os escopos pedidos
+/// no cadastro do aplicativo sao so de leitura, e isso nao e detalhe: e o que
+/// garante que um bug deste lado nao emite, cancela nem da baixa em nada.
+model IntegracaoBling {
+  id String @id @default(uuid())
+
+  /// Vale ~6h. Renovado sozinho antes de expirar.
+  accessToken  String
+  /// ROTACIONA A CADA USO: o Bling devolve um novo e invalida o anterior.
+  refreshToken String
+  expiraEm     DateTime @db.Timestamptz(3)
+
+  /// Trava da renovacao, pelo relogio.
+  ///
+  /// Como o refresh token rotaciona, duas renovacoes simultaneas se matam: a
+  /// segunda chega com um token que a primeira ja invalidou, e a conexao cai
+  /// de vez — o dono teria que reconectar a mao, sem entender por que. Dois
+  /// requests paralelos chegando com o token vencido e o caso normal, nao o
+  /// raro.
+  ///
+  /// Guardar o INSTANTE em vez de um booleano e o que permite destravar
+  /// sozinho: um processo que morreu no meio da renovacao deixaria a trava
+  /// presa para sempre.
+  renovandoDesde DateTime? @db.Timestamptz(3)
+
+  /// Nonce do fluxo de autorizacao, de uso unico. Ver a rota de callback.
+  estadoPendente   String?
+  estadoPendenteEm DateTime? @db.Timestamptz(3)
+
+  conectadoEm           DateTime  @default(now()) @db.Timestamptz(3)
+  conectadoPor          String?
+  ultimaSincronizacaoEm DateTime? @db.Timestamptz(3)
+  /// Ultima falha, para a tela poder dizer o que houve em vez de so "erro".
+  ultimoErro            String?
+
+  atualizadoEm DateTime @updatedAt @db.Timestamptz(3)
+}
+
 // ==========================================
 // MÓDULO: CRM (Clientes)
 // ==========================================

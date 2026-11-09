@@ -8,6 +8,7 @@ export type SecaoConfiguracoesId =
   | "pdv-caixa"
   | "armazenamento"
   | "avisos"
+  | "bling"
   | "usuarios";
 
 export type ItemSecaoConfiguracoes = {
@@ -61,6 +62,11 @@ export const SECOES_CONFIGURACOES: ItemSecaoConfiguracoes[] = [
     id: "avisos",
     rotulo: "Avisos de vencimento",
     descricao: "Aviso de conta a pagar e a receber, no sistema e no Telegram.",
+  },
+  {
+    id: "bling",
+    rotulo: "Bling",
+    descricao: "Trazer para o Konext as notas emitidas no Bling. Somente leitura.",
   },
   {
     id: "usuarios",

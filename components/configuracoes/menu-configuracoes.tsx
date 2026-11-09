@@ -3,6 +3,7 @@
 import {
   BellRing,
   Building2,
+  Plug,
   CloudUpload,
   FileText,
   Layers,
@@ -27,6 +28,7 @@ const iconesPorSecao: Record<SecaoConfiguracoesId, LucideIcon> = {
   "pdv-caixa": ShoppingCart,
   armazenamento: CloudUpload,
   avisos: BellRing,
+  bling: Plug,
   usuarios: UserCog,
 };
 
