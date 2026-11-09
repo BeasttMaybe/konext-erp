@@ -24,6 +24,16 @@ type PropsCartoesResumoOS = {
   garantiaAtiva: boolean;
   pagamentoConcluido: boolean;
   valorPago: number | null;
+  /**
+   * A OS já pode ser faturada agora?
+   *
+   * Serve só para o cartão dizer a verdade. O texto era fixo — "Gere o
+   * pedido no PDV" — e ficou errado quando o faturamento passou a acontecer
+   * na própria OS: ele mandava a pessoa a outra tela para fazer o que o
+   * botão ao lado já faz. Mandar alguém ao lugar errado é pior que não
+   * dizer nada.
+   */
+  podeFaturarAgora?: boolean;
 };
 
 /** Os 4 cartões de resumo do topo da OS — Etapa/Total/Garantia/Pagamento (referência: docs/design/referencia-os-detalhe.html). */
@@ -37,6 +47,7 @@ export function CartoesResumoOS({
   garantiaAtiva,
   pagamentoConcluido,
   valorPago,
+  podeFaturarAgora = false,
 }: PropsCartoesResumoOS) {
   const sobra = custoTotal === null ? null : totalOS - custoTotal;
 
@@ -79,7 +90,11 @@ export function CartoesResumoOS({
         <span className="text-xs font-semibold opacity-80">Pagamento</span>
         <span className="text-lg font-extrabold">{pagamentoConcluido ? "Concluído" : "Em aberto"}</span>
         <span className="text-xs tabular-nums opacity-90">
-          {pagamentoConcluido && valorPago !== null ? formatarMoeda(valorPago) : "Gere o pedido no PDV"}
+          {pagamentoConcluido && valorPago !== null
+            ? formatarMoeda(valorPago)
+            : podeFaturarAgora
+              ? 'Use "Faturar venda" acima'
+              : "Fature quando a OS estiver pronta"}
         </span>
       </div>
     </section>

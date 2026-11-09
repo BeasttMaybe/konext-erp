@@ -293,6 +293,7 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
           garantiaAtiva={possuiTermoGarantia}
           pagamentoConcluido={possuiPedidoVenda}
           valorPago={possuiPedidoVenda ? valorVendaVinculada : null}
+          podeFaturarAgora={podeGerarPedidoVenda}
         />
 
         {!possuiTermoGarantia && statusAtual !== "ENTREGUE" && (
