@@ -693,7 +693,25 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
                     <span className="tabular-nums text-kx-texto-2">{format(new Date(parcela.dataVencimento), "dd/MM/yyyy")}</span>
                     <span className="text-right font-bold tabular-nums text-kx-texto">{formatarMoeda(parcela.valor)}</span>
                     <span className="flex justify-end">{pilulaDoStatus(status)}</span>
-                    <span className="flex justify-end">
+                    <span className="flex items-center justify-end gap-0.5">
+                      {/* Excluir sai do menu e fica à vista: era a acão que
+                          mais custava para chegar, escondida atrás de dois
+                          cliques. A confirmação continua existindo — isto
+                          abre o diálogo, não apaga nada. */}
+                      {podeExcluir && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-kx-legenda hover:text-kx-erro-texto"
+                          onClick={() => abrirExclusaoDespesa(parcela.despesaId)}
+                        >
+                          <Trash2 className="h-4 w-4" aria-hidden />
+                          <span className="sr-only">
+                            Excluir {parcela.despesa.descricao}
+                          </span>
+                        </Button>
+                      )}
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Mais ações">
@@ -709,14 +727,6 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
                           <DropdownMenuItem onClick={() => abrirGerenciamento(parcela.despesaId)}>
                             <Info className="mr-2 h-4 w-4" /> Detalhes
                           </DropdownMenuItem>
-                          {podeExcluir && (
-                            <DropdownMenuItem
-                              className="text-destructive focus:text-destructive"
-                              onClick={() => abrirExclusaoDespesa(parcela.despesaId)}
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" /> Excluir
-                            </DropdownMenuItem>
-                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </span>
@@ -738,8 +748,7 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
           <div className="grid auto-rows-min grid-cols-1 gap-3 sm:grid-cols-2">
             {recorrencias.length === 0 && (
               <p className="col-span-full py-10 text-center text-sm text-kx-legenda">
-                Nenhuma despesa fixa mensal com parcela no período selecionado. Recorrência de verdade (regra, pausar, data de fim) chega
-                numa reconstrução futura do financeiro — esta vista usa as despesas já marcadas como &ldquo;Fixa Mensal&rdquo; hoje.
+                Nenhuma despesa fixa mensal com parcela no período selecionado.
               </p>
             )}
             {recorrencias.map(({ despesaId, despesa, proxima }) => (
@@ -748,6 +757,23 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
                   <span className="font-extrabold text-kx-texto">{despesa.cliente?.nomeRazaoSocial ?? despesa.fornecedor}</span>
                   <PilulaStatus variante="neutro">{rotuloTipoDespesa(despesa.tipo)}</PilulaStatus>
                   <span className="ml-auto font-extrabold tabular-nums text-kx-texto">{formatarMoeda(proxima.valor)}</span>
+                  {/* A lixeira fica no cartão, não escondida num menu: nesta
+                      vista o cartão É a despesa inteira, e apagar daqui é o
+                      que a pessoa espera poder fazer. A confirmação continua
+                      sendo a mesma de sempre — isto abre o diálogo, não
+                      apaga. */}
+                  {podeEditar && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 shrink-0 text-kx-legenda hover:text-kx-erro-texto"
+                      onClick={() => abrirExclusaoDespesa(despesaId)}
+                    >
+                      <Trash2 className="h-4 w-4" aria-hidden />
+                      <span className="sr-only">Excluir {despesa.descricao}</span>
+                    </Button>
+                  )}
                 </div>
                 <p className="truncate text-xs text-kx-texto-2">{despesa.descricao}</p>
                 <div className="flex items-center gap-2 text-xs">
