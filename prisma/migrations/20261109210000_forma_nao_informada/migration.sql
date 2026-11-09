@@ -1,0 +1,15 @@
+-- Forma de pagamento "nao informada".
+--
+-- A conta a receber que nasce de uma parcela de nota do Bling nao tem como
+-- saber a forma: a nota traz um id de forma de pagamento do Bling, que nao
+-- corresponde a nenhum valor deste enum.
+--
+-- `formaRecebimento` e obrigatoria e nao tem default, entao a sincronizacao
+-- falhava — e falhava em silencio, porque o erro do Prisma era mascarado
+-- pela mensagem generica.
+--
+-- A alternativa seria gravar um chute. Outros pontos deste sistema gravam
+-- "PIX" quando nao sabem; isso poe forma de pagamento falsa num registro
+-- financeiro, e ela aparece no grafico de entradas por forma do painel como
+-- se fosse fato. Um valor que diz "nao sei" e melhor que um que mente.
+ALTER TYPE "FormaPagamento" ADD VALUE IF NOT EXISTS 'NAO_INFORMADO';

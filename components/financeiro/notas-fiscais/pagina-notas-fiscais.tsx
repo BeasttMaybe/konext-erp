@@ -142,7 +142,9 @@ export function PaginaNotasFiscais({ notasIniciais, clientes }: Props) {
     try {
       const resumo = await sincronizarNotasDoBling();
 
-      setResumoDaSincronizacao(resumo.mensagem);
+      setResumoDaSincronizacao(
+        resumo.sucesso || !resumo.detalhe ? resumo.mensagem : `${resumo.mensagem}\n\n${resumo.detalhe}`
+      );
       if (resumo.sucesso) recarregarLista();
     } finally {
       setSincronizando(false);
@@ -170,7 +172,9 @@ export function PaginaNotasFiscais({ notasIniciais, clientes }: Props) {
               {sincronizando ? "Buscando no Bling…" : "Sincronizar com o Bling"}
             </button>
             {resumoDaSincronizacao && (
-              <p className="mt-2 max-w-xs text-xs text-kx-legenda">{resumoDaSincronizacao}</p>
+              <p className="mt-2 max-w-xs whitespace-pre-line text-xs text-kx-legenda">
+                {resumoDaSincronizacao}
+              </p>
             )}
           </div>
         )}
