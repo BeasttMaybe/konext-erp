@@ -389,3 +389,26 @@ input[type= "number"] {
     color 200ms cubic-bezier(0.4, 0, 0.2, 1),
     background-color 120ms cubic-bezier(0.4, 0, 0.2, 1);
 }
+/*
+ * Nada de interface na folha impressa.
+ *
+ * O toast de "OS finalizada, abrindo o termo de garantia" saiu IMPRESSO em
+ * cima do termo: a finalização avisa e navega para a impressão em seguida, e
+ * como tudo acontece em menos de um segundo, o aviso ainda estava na tela
+ * quando o navegador montou a página. Ele cobriu o prazo da garantia.
+ *
+ * A regra é global, e não na página do termo, porque o problema não é do
+ * termo: qualquer impressão disparada logo depois de uma ação pode pegar um
+ * aviso no ar — a da OS, a do recibo, a da proposta. Esconder só onde doeu
+ * deixaria as outras esperando a vez.
+ *
+ * `[data-sonner-toaster]` é o atributo que a própria biblioteca põe no
+ * contêiner; `[data-radix-popper-content-wrapper]` cobre menu e popover
+ * abertos, que têm o mesmo destino se a impressão sair com um deles aberto.
+ */
+@media print {
+  [data-sonner-toaster],
+  [data-radix-popper-content-wrapper] {
+    display: none !important;
+  }
+}
