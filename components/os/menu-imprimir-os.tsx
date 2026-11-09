@@ -7,12 +7,25 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
 type PropsMenuImprimirOS = {
   osId: string;
   modeloPadrao: ModeloImpressaoOS;
+  /**
+   * A OS já tem termo de garantia emitido?
+   *
+   * O termo nasce na finalização, e a impressão dele acontece sozinha
+   * naquele momento. Este item existe para a SEGUNDA vez: cliente que
+   * perdeu o papel, ou que volta pedindo cópia. Sem ele, reimprimir exigia
+   * digitar a URL na mão.
+   *
+   * Só aparece quando o termo existe — oferecer a impressão de um documento
+   * que ainda não foi emitido leva a uma tela que só sabe dizer "ainda não".
+   */
+  possuiTermoGarantia?: boolean;
 };
 
 const OPCOES_IMPRESSAO = [
@@ -20,7 +33,11 @@ const OPCOES_IMPRESSAO = [
   { modelo: "TERMICA_80MM" as const, rotulo: "Térmica 80 mm", parametro: "termica" },
 ];
 
-export function MenuImprimirOS({ osId, modeloPadrao }: PropsMenuImprimirOS) {
+export function MenuImprimirOS({
+  osId,
+  modeloPadrao,
+  possuiTermoGarantia = false,
+}: PropsMenuImprimirOS) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -45,6 +62,21 @@ export function MenuImprimirOS({ osId, modeloPadrao }: PropsMenuImprimirOS) {
             </a>
           </DropdownMenuItem>
         ))}
+
+        {possuiTermoGarantia && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild className="cursor-pointer gap-2">
+              <a
+                href={`/os/${osId}/garantia?auto=1`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Termo de garantia
+              </a>
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
