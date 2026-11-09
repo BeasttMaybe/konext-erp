@@ -9,8 +9,10 @@ import {
   blingEstaConfigurado,
   chamarBling,
   ErroDoBling,
+  esperarPelaVazao,
   montarUrlDeRedirecionamento,
 } from "@/lib/bling/api";
+import { lerPaginaDeNotas } from "@/lib/dominio/bling/nota-de-saida";
 import { desconectar, lerConexao, obterAccessTokenValido } from "@/lib/bling/conexao";
 import { paraMensagemSegura } from "@/lib/erros";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
@@ -112,12 +114,39 @@ export type AmostraDoBling =
  *
  * Só traz 1 registro e corta o texto: é diagnóstico, não exportação de dados.
  */
-export async function espiarRespostaDoBling(recurso: "nfe" | "contas"): Promise<AmostraDoBling> {
+export async function espiarRespostaDoBling(
+  recurso: "nfe" | "contas" | "nfe-detalhe"
+): Promise<AmostraDoBling> {
   try {
     const contexto = await exigirContextoTenant();
     exigirPermissao(contexto, "configuracoes.sistema");
 
     const accessToken = await obterAccessTokenValido(contexto.prisma);
+
+    // O detalhe precisa de um id, e o id vem da listagem. Duas chamadas, com
+    // a pausa da vazão entre elas: o Bling aceita 3 por segundo.
+    if (recurso === "nfe-detalhe") {
+      const lista = await chamarBling({
+        accessToken,
+        caminho: "/nfe",
+        parametros: { limite: 1, pagina: 1 },
+      });
+
+      const primeira = lerPaginaDeNotas(lista)[0];
+      if (!primeira) {
+        return { sucesso: false, mensagem: "Nenhuma nota de saída encontrada no Bling.", exigeReconexao: false };
+      }
+
+      await esperarPelaVazao();
+
+      const detalhe = await chamarBling({ accessToken, caminho: `/nfe/${primeira.blingId}` });
+
+      return {
+        sucesso: true,
+        recurso: `/nfe/${primeira.blingId}`,
+        amostra: JSON.stringify(detalhe, null, 2).slice(0, 6000),
+      };
+    }
 
     const caminho = recurso === "nfe" ? "/nfe" : "/contas/receber";
     const resposta = await chamarBling({
