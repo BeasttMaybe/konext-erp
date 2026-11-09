@@ -6,7 +6,14 @@ import { registrarLogAuditoria, contextoAuditoriaDoUsuario } from "@/lib/auditor
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { exigirPermissao } from "@/lib/auth/permissoes";
 import { paraMensagemSegura } from "@/lib/erros";
-import { enviarMensagemNoTelegram, telegramEstaConfigurado } from "@/lib/notificacoes/telegram";
+import {
+  enviarMensagemNoTelegram,
+  explicarErroDoTelegram,
+  idDoBot,
+  listarChatsRecentes,
+  telegramEstaConfigurado,
+  type ChatEncontrado,
+} from "@/lib/notificacoes/telegram";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 
 /**
@@ -78,9 +85,20 @@ export async function obterConfiguracaoDeAvisos(): Promise<ConfiguracaoDeAvisos>
 function validarChatId(valor: string): string | null {
   const limpo = valor.trim();
   if (limpo === "") return null;
+
   if (!/^-?\d{1,32}$/.test(limpo) && !/^@[A-Za-z0-9_]{3,64}$/.test(limpo)) {
-    return "O chat id é o número que o bot informa (pode ser negativo, em grupo), ou @nome do canal.";
+    return "O chat id é um número (negativo, em grupo) ou @nome do canal.";
   }
+
+  // O erro que aconteceu de verdade na primeira configuração: o número antes
+  // dos dois-pontos do TOKEN é o id do próprio bot, e é facílimo confundir
+  // com o chat. O Telegram recusa com "the bot can't send messages to the
+  // bot" — mensagem correta e inútil pra quem não sabe o que é um chat id.
+  // Melhor recusar aqui, dizendo o que fazer.
+  if (limpo === idDoBot()) {
+    return "Esse é o número do próprio bot (o que vem antes dos dois-pontos no token), não o seu. Mande uma mensagem pro bot no Telegram e clique em “Procurar meu chat”.";
+  }
+
   return null;
 }
 
@@ -162,6 +180,44 @@ export async function salvarConfiguracaoDeAvisos(entrada: {
  * produção. Descobrir ali que o chat id está errado é descobrir no dia em que
  * um boleto venceu sem aviso.
  */
+export type ResultadoDaProcura =
+  | { sucesso: true; chats: ChatEncontrado[] }
+  | { sucesso: false; mensagem: string };
+
+/**
+ * Procura quem falou com o bot nas últimas horas.
+ *
+ * Existe pra tirar o chat id das mãos de quem configura. Caçar o número num
+ * terceiro bot e colar às cegas é como a primeira configuração foi feita — e
+ * ela foi feita errada, com o id do próprio bot. Aqui a pessoa manda uma
+ * mensagem qualquer pro bot, clica em procurar e escolhe da lista.
+ *
+ * O chat do próprio bot é filtrado: ele nunca é um destino válido.
+ */
+export async function procurarChatsDoTelegram(): Promise<ResultadoDaProcura> {
+  try {
+    const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "configuracoes.sistema");
+
+    if (!telegramEstaConfigurado()) {
+      return {
+        sucesso: false,
+        mensagem:
+          "O bot do Telegram ainda não foi ligado no ambiente (TELEGRAM_BOT_TOKEN). Sem ele não há o que procurar.",
+      };
+    }
+
+    const resultado = await listarChatsRecentes();
+    if (!resultado.ok) return { sucesso: false, mensagem: resultado.motivo };
+
+    const meuBot = idDoBot();
+
+    return { sucesso: true, chats: resultado.chats.filter((chat) => chat.id !== meuBot) };
+  } catch (erro) {
+    return { sucesso: false, mensagem: paraMensagemSegura(erro) };
+  }
+}
+
 export async function enviarAvisoDeTeste(): Promise<ResultadoDeAvisos> {
   try {
     const contexto = await exigirContextoTenant();
@@ -189,7 +245,7 @@ export async function enviarAvisoDeTeste(): Promise<ResultadoDeAvisos> {
 
     return resultado.enviado
       ? { sucesso: true, mensagem: "Mensagem enviada. Confira o Telegram." }
-      : { sucesso: false, mensagem: resultado.motivo };
+      : { sucesso: false, mensagem: explicarErroDoTelegram(resultado.motivo) };
   } catch (erro) {
     return { sucesso: false, mensagem: paraMensagemSegura(erro) };
   }

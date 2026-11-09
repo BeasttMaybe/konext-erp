@@ -1,14 +1,16 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { BellRing, Loader2, Send } from "lucide-react";
+import { BellRing, Loader2, Search, Send } from "lucide-react";
 import { toast } from "sonner";
 
 import {
   enviarAvisoDeTeste,
   obterConfiguracaoDeAvisos,
+  procurarChatsDoTelegram,
   salvarConfiguracaoDeAvisos,
 } from "@/app/actions/avisos-telegram";
+import type { ChatEncontrado } from "@/lib/notificacoes/telegram";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,6 +38,8 @@ export function PainelAvisos() {
   const [carregando, setCarregando] = useState(true);
   const [salvando, iniciarSalvar] = useTransition();
   const [testando, iniciarTeste] = useTransition();
+  const [procurando, iniciarProcura] = useTransition();
+  const [chatsEncontrados, setChatsEncontrados] = useState<ChatEncontrado[] | null>(null);
 
   useEffect(() => {
     let ativo = true;
@@ -65,6 +69,24 @@ export function PainelAvisos() {
 
       if (resultado.sucesso) toast.success(resultado.mensagem);
       else toast.error(resultado.mensagem);
+    });
+  }
+
+  function procurar() {
+    iniciarProcura(async () => {
+      const resultado = await procurarChatsDoTelegram();
+
+      if (!resultado.sucesso) {
+        setChatsEncontrados(null);
+        toast.error(resultado.mensagem);
+        return;
+      }
+
+      setChatsEncontrados(resultado.chats);
+
+      if (resultado.chats.length === 0) {
+        toast.info("Nenhuma conversa encontrada. Mande uma mensagem pro bot no Telegram e procure de novo.");
+      }
     });
   }
 
@@ -126,15 +148,53 @@ export function PainelAvisos() {
           inputMode="text"
         />
         <p className="text-xs text-kx-legenda">
-          Converse com o bot no Telegram e ele informa o número do seu chat. Em grupo o
-          número é negativo. Deixe em branco para não receber por lá.
+          Mande qualquer mensagem pro bot no Telegram e clique em “Procurar meu chat” — ele
+          acha o número sozinho. Deixe em branco para não receber por lá.
         </p>
       </div>
+
+      {/* A lista existe pra que ninguém precise caçar o número e colar às
+          cegas. Foi exatamente assim que a primeira configuração saiu errada:
+          com o id do próprio bot, que vem no começo do token. */}
+      {chatsEncontrados !== null && chatsEncontrados.length > 0 && (
+        <div className="space-y-2 rounded-kx-painel border border-kx-painel-borda bg-kx-superficie p-3">
+          <p className="text-xs font-semibold text-kx-texto-2">
+            Conversas que falaram com o bot. Clique na sua:
+          </p>
+          <div className="flex flex-col gap-1.5">
+            {chatsEncontrados.map((chat) => (
+              <button
+                key={chat.id}
+                type="button"
+                onClick={() => {
+                  setChatId(chat.id);
+                  toast.success("Número preenchido. Salve e mande o teste.");
+                }}
+                className="flex items-center justify-between gap-3 rounded-kx-pilula border border-kx-painel-borda px-3 py-2 text-left text-sm transition-colors hover:border-kx-destaque"
+              >
+                <span className="font-semibold text-kx-texto">{chat.nome}</span>
+                <span className="text-xs text-kx-legenda">
+                  {chat.tipo === "private" ? "conversa direta" : "grupo"} · {chat.id}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
         <Button type="button" onClick={salvar} disabled={carregando || salvando}>
           {salvando && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden />}
           Salvar destino
+        </Button>
+
+        <Button type="button" variant="outline" onClick={procurar} disabled={carregando || procurando}>
+          {procurando ? (
+            <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden />
+          ) : (
+            <Search className="mr-1.5 h-4 w-4" aria-hidden />
+          )}
+          Procurar meu chat
         </Button>
 
         <Button
