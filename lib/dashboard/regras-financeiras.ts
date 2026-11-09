@@ -124,6 +124,30 @@ function normalizarNomeCliente(valor: string | null): string {
   return nome.length > 0 ? nome : "Cliente nao identificado";
 }
 
+/**
+ * POR QUE AS CONTAS VINDAS DO BLING FICAM FORA DA RECEITA
+ *
+ * Toda regra de receita deste arquivo soma contas a receber marcadas como
+ * RECEBIDO, datando-as por `COALESCE(dataRecebimento, criadoEm)`. O
+ * `criadoEm` como reserva funciona para conta lançada aqui — ela é criada
+ * perto de quando é recebida — e é VENENO para conta importada: a
+ * importação traz anos de histórico e cria tudo hoje.
+ *
+ * Foi exatamente o que aconteceu. O painel mostrou R$ 97.692,45 de
+ * faturamento em novembro, enquanto o gráfico logo abaixo dizia "sem receita
+ * no período": um ano inteiro de notas do Bling, já pagas lá atrás, tinha
+ * sido datado pelo dia da importação.
+ *
+ * Datar pelo vencimento resolveria o mês, mas gravaria no campo de
+ * recebimento uma data que não é a do recebimento — a API do Bling não
+ * manda essa data na listagem. Então a escolha é não contar: nota emitida no
+ * Bling tem o seu próprio total, na tela de Notas Fiscais, e misturá-la ao
+ * faturamento sem data real de pagamento troca um número errado por outro.
+ *
+ * Se um dia essa receita precisar entrar aqui, o caminho é buscar a data de
+ * baixa no detalhe da conta no Bling — uma decisão deliberada, não um efeito
+ * colateral da importação.
+ */
 export async function obterReceitaTotalPadrao(
   inicio: Date,
   fim: Date,
@@ -164,6 +188,7 @@ export async function obterReceitaTotalPadrao(
           LEFT JOIN "RetornoGarantiaOS" rg ON rg.id = os."retornoGarantiaId"
           WHERE cr."estornadaEm" IS NULL
             AND cr.status::text = 'RECEBIDO'
+            AND cr."blingParcelaRef" IS NULL
             AND cr."vendaId" IS NULL
             AND COALESCE(cr."dataRecebimento", cr."criadoEm") >= ${inicio}
             AND COALESCE(cr."dataRecebimento", cr."criadoEm") <= ${fim}
@@ -199,6 +224,7 @@ export async function obterReceitaTotalPadrao(
         LEFT JOIN "OrdemServico" os ON os.id = cr."ordemServicoId"
         WHERE cr."estornadaEm" IS NULL
             AND cr.status::text = 'RECEBIDO'
+            AND cr."blingParcelaRef" IS NULL
           AND cr."vendaId" IS NULL
           AND COALESCE(cr."dataRecebimento", cr."criadoEm") >= ${inicio}
           AND COALESCE(cr."dataRecebimento", cr."criadoEm") <= ${fim}
@@ -255,6 +281,7 @@ export async function obterReceitaMensalPadrao(
             LEFT JOIN "RetornoGarantiaOS" rg ON rg.id = os."retornoGarantiaId"
             WHERE cr."estornadaEm" IS NULL
             AND cr.status::text = 'RECEBIDO'
+            AND cr."blingParcelaRef" IS NULL
               AND cr."vendaId" IS NULL
               AND COALESCE(cr."dataRecebimento", cr."criadoEm") >= ${inicio}
               AND COALESCE(cr."dataRecebimento", cr."criadoEm") <= ${fim}
@@ -289,6 +316,7 @@ export async function obterReceitaMensalPadrao(
             LEFT JOIN "OrdemServico" os ON os.id = cr."ordemServicoId"
             WHERE cr."estornadaEm" IS NULL
             AND cr.status::text = 'RECEBIDO'
+            AND cr."blingParcelaRef" IS NULL
               AND cr."vendaId" IS NULL
               AND COALESCE(cr."dataRecebimento", cr."criadoEm") >= ${inicio}
               AND COALESCE(cr."dataRecebimento", cr."criadoEm") <= ${fim}
@@ -356,6 +384,7 @@ export async function obterReceitaPorClientePadrao(
             LEFT JOIN "RetornoGarantiaOS" rg ON rg.id = os."retornoGarantiaId"
             WHERE cr."estornadaEm" IS NULL
             AND cr.status::text = 'RECEBIDO'
+            AND cr."blingParcelaRef" IS NULL
               AND cr."vendaId" IS NULL
               AND (cr."clienteId" IS NULL OR cr."clienteId" != ${ID_CLIENTE_CONSUMIDOR_FINAL})
               AND COALESCE(cr."dataRecebimento", cr."criadoEm") >= ${inicio}
@@ -394,6 +423,7 @@ export async function obterReceitaPorClientePadrao(
             LEFT JOIN "OrdemServico" os ON os.id = cr."ordemServicoId"
             WHERE cr."estornadaEm" IS NULL
             AND cr.status::text = 'RECEBIDO'
+            AND cr."blingParcelaRef" IS NULL
               AND cr."vendaId" IS NULL
               AND (cr."clienteId" IS NULL OR cr."clienteId" != ${ID_CLIENTE_CONSUMIDOR_FINAL})
               AND COALESCE(cr."dataRecebimento", cr."criadoEm") >= ${inicio}
