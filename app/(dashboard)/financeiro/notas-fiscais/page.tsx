@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 
-import { listarNotasFiscais } from "@/app/actions/notas-fiscais";
+import { contarNotasFiscais, listarNotasFiscais } from "@/app/actions/notas-fiscais";
 import { NavFinanceiro } from "@/components/financeiro/nav-financeiro";
 import { PaginaNotasFiscais } from "@/components/financeiro/notas-fiscais/pagina-notas-fiscais";
 import { FiltroPeriodoPagina } from "@/components/ui/filtro-periodo-pagina";
@@ -34,7 +34,10 @@ export default async function FinanceiroNotasFiscaisPage({
   const inicio = parametros.inicio ?? comoTexto(preset.inicio);
   const fim = parametros.fim ?? comoTexto(preset.fim);
 
-  const resultado = await listarNotasFiscais({ inicio, fim });
+  const [resultado, totalGeral] = await Promise.all([
+    listarNotasFiscais({ inicio, fim }),
+    contarNotasFiscais(),
+  ]);
 
   return (
     <div className="min-h-full w-full px-6 py-6 lg:px-8">
@@ -49,6 +52,7 @@ export default async function FinanceiroNotasFiscaisPage({
         <PaginaNotasFiscais
           notasIniciais={resultado.sucesso ? resultado.dados : []}
           periodo={{ inicio, fim }}
+          totalGeral={totalGeral}
         />
       </div>
     </div>

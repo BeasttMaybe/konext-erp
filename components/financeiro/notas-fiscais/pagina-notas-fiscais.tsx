@@ -40,6 +40,8 @@ import { rotuloDaSituacaoDoBling } from "@/lib/dominio/bling/nota-de-saida";
 type Props = {
   notasIniciais: NotaFiscalLista[];
   periodo: { inicio: string; fim: string };
+  /** Quantas notas existem no total, ignorando o período. */
+  totalGeral: number;
 };
 
 function rotuloDaSituacao(nota: NotaFiscalLista): string {
@@ -55,7 +57,7 @@ function varianteDaSituacao(nota: NotaFiscalLista): "sucesso" | "erro" | "alerta
   return "alerta";
 }
 
-export function PaginaNotasFiscais({ notasIniciais, periodo }: Props) {
+export function PaginaNotasFiscais({ notasIniciais, periodo, totalGeral }: Props) {
   const router = useRouter();
   const podeSincronizar = useTemPermissao("financeiro.editar");
 
@@ -189,6 +191,17 @@ export function PaginaNotasFiscais({ notasIniciais, periodo }: Props) {
           </p>
         </div>
       </div>
+
+      {/* Sem esta linha, quem acabou de sincronizar vê as notas do mês numa
+          tela que filtra pelo mês e conclui que a importação falhou. Foi
+          exatamente o que aconteceu. */}
+      {totalGeral > notasIniciais.length && (
+        <p className="text-xs text-kx-legenda">
+          {totalGeral} notas no Konext no total — a lista mostra as{" "}
+          {notasIniciais.length} do período escolhido. Amplie o período acima para ver as
+          outras.
+        </p>
+      )}
 
       <div className="relative max-w-md">
         <Search
