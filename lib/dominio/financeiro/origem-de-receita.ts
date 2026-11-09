@@ -16,7 +16,8 @@ export type OrigemDeReceita =
   | "ORDEM_SERVICO"
   | "CONTRATO_RECORRENTE"
   | "LICITACAO"
-  | "AVULSO";
+  | "AVULSO"
+  | "BLING";
 
 const ROTULOS: Record<OrigemDeReceita, string> = {
   VENDA_PDV: "Venda no balcão",
@@ -24,6 +25,10 @@ const ROTULOS: Record<OrigemDeReceita, string> = {
   CONTRATO_RECORRENTE: "Contrato recorrente",
   LICITACAO: "Licitação",
   AVULSO: "Lançamento avulso",
+  // Parcela de nota emitida no Bling que não corresponde a nenhuma venda
+  // daqui. Filtrar por ela é o que o dono pediu para conseguir isolar, na
+  // lista, o que veio de lá.
+  BLING: "Nota do Bling",
 };
 
 export const ORIGENS_DE_RECEITA: ReadonlyArray<{
