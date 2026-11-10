@@ -1,5 +1,6 @@
 "use client";
 
+import { lerEntradaMonetaria, paraMoeda } from "@/lib/dinheiro";
 import { useState } from "react";
 import { useFormContext, useFieldArray } from "react-hook-form";
 import { Trash2 } from "lucide-react";
@@ -40,8 +41,10 @@ export function PassoOrcamento({ nomeClienteResumo, prazoGarantiaPadraoDias }: P
     append({
       tipo: "OUTROS",
       descricao,
-      custoPeca: Number(custoNovo || 0),
-      valorCobrado: Number(valorNovo || 0),
+      // Pelo leitor unico: `Number("8.153,90")` e NaN, e `Number("8.153")`
+      // e oito reais e quinze -- num custo de peca, mil vezes menos, calado.
+      custoPeca: paraMoeda(lerEntradaMonetaria(custoNovo) ?? 0),
+      valorCobrado: paraMoeda(lerEntradaMonetaria(valorNovo) ?? 0),
     });
     setDescricaoNova("");
     setCustoNovo("");
@@ -75,8 +78,8 @@ export function PassoOrcamento({ nomeClienteResumo, prazoGarantiaPadraoDias }: P
             </Label>
             <Input
               id="nova-item-custo"
-              type="number"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
               placeholder="R$ 0,00"
               className={CAMPO}
               value={custoNovo}
@@ -89,8 +92,8 @@ export function PassoOrcamento({ nomeClienteResumo, prazoGarantiaPadraoDias }: P
             </Label>
             <Input
               id="nova-item-valor"
-              type="number"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
               placeholder="R$ 0,00"
               className={CAMPO}
               value={valorNovo}

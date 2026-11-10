@@ -30,6 +30,7 @@ import {
  CommandItem,
  CommandList,
 } from "@/components/ui/command";
+import { CampoDinheiro } from "@/components/ui/campo-dinheiro";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -52,7 +53,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { createPedidoVenda } from "@/app/actions/vendas";
 import { cn } from "@/lib/utils";
-import { deDecimal, dividirEmParcelas, paraMoeda } from "@/lib/dinheiro";
+import { deDecimal, dividirEmParcelas, lerEntradaMonetaria, paraMoeda } from "@/lib/dinheiro";
 
 const tabValues = [
  "dados-gerais",
@@ -881,15 +882,19 @@ export function NewSalesOrderWizard({
 
  <div className="space-y-2">
  <Label htmlFor="preco-unitario-rapido">Preço Un.</Label>
- <Input
+ {/* `CampoDinheiro` no lugar de `<Input type="number">`: alem de o
+ campo numerico recusar a virgula, este convertia A CADA TECLA --
+ quem digita "12,50" passa por "12,", que virava 12 e reescrevia o
+ campo embaixo do cursor. O componente confirma no blur e volta ao
+ valor anterior quando o texto nao e valor.
+
+ O campo de Desc (%) ao lado NAO foi convertido: e percentual, e
+ `CampoDinheiro` formata como R$. */}
+ <CampoDinheiro
  id="preco-unitario-rapido"
- type="number"
- min={0}
- step="0.01"
- placeholder="0,00"
- className="border-kx-painel-borda bg-kx-painel text-kx-texto placeholder:text-kx-legenda [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
- value={draftPreco}
- onChange={(event) => setDraftPreco(Number(event.target.value) || 0)}
+ className="border-kx-painel-borda bg-kx-painel text-kx-texto placeholder:text-kx-legenda"
+ valorCentavos={deDecimal(draftPreco)}
+ onChange={(centavos) => setDraftPreco(paraMoeda(centavos))}
  />
  </div>
 
@@ -1139,11 +1144,12 @@ export function NewSalesOrderWizard({
  <Label htmlFor={`parcelas-${index}-valor`}>Valor</Label>
  <Input
  id={`parcelas-${index}-valor`}
- type="number"
- min={0}
- step="0.01"
- className="border-kx-painel-borda bg-kx-painel text-kx-texto [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
- {...register(`parcelas.${index}.valor`, { valueAsNumber: true })}
+ type="text"
+ inputMode="decimal"
+ className="border-kx-painel-borda bg-kx-painel text-kx-texto"
+ {...register(`parcelas.${index}.valor`, {
+ setValueAs: (valor) => paraMoeda(lerEntradaMonetaria(valor) ?? 0),
+ })}
  />
  </div>
  </div>
@@ -1171,14 +1177,11 @@ export function NewSalesOrderWizard({
  control={control}
  name="acrescimos"
  render={({ field }) => (
- <Input
+ <CampoDinheiro
  id="acrescimos"
- type="number"
- min={0}
- step="0.01"
- value={field.value}
- onChange={(event) => field.onChange(Number(event.target.value) || 0)}
- className="border-kx-painel-borda bg-kx-superficie text-kx-texto [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+ className="border-kx-painel-borda bg-kx-superficie text-kx-texto"
+ valorCentavos={deDecimal(field.value)}
+ onChange={(centavos) => field.onChange(paraMoeda(centavos))}
  />
  )}
  />
@@ -1190,14 +1193,11 @@ export function NewSalesOrderWizard({
  control={control}
  name="descontos"
  render={({ field }) => (
- <Input
+ <CampoDinheiro
  id="descontos"
- type="number"
- min={0}
- step="0.01"
- value={field.value}
- onChange={(event) => field.onChange(Number(event.target.value) || 0)}
- className="border-kx-painel-borda bg-kx-superficie text-kx-texto [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+ className="border-kx-painel-borda bg-kx-superficie text-kx-texto"
+ valorCentavos={deDecimal(field.value)}
+ onChange={(centavos) => field.onChange(paraMoeda(centavos))}
  />
  )}
  />
