@@ -216,7 +216,23 @@ export async function chamarBling({
   });
 
   if (resposta.status === 401) {
-    throw new ErroDoBling("O Bling recusou o token de acesso.", 401, false);
+    // `exigeReconexao: true`, e nao false.
+    //
+    // 401 do Bling e o UNICO erro que sempre quer dizer a mesma coisa: o
+    // token nao vale mais. Acontece quando ele expira, quando a autorizacao
+    // e revogada e -- o caso que pegou o dono -- quando os ESCOPOS do
+    // aplicativo mudam no Bling, o que invalida os tokens antigos.
+    //
+    // Marcado como `false`, a tela mostrava "O Bling recusou o token de
+    // acesso." e parava ali: a frase descreve o que aconteceu e nao diz o
+    // que fazer. O dono ficou olhando um erro cuja solucao era um botao na
+    // mesma tela.
+    throw new ErroDoBling(
+      "O Bling recusou o token de acesso. Desconecte e conecte de novo para autorizar — " +
+        "isso acontece quando o token expira ou quando as permissões do aplicativo mudam no Bling.",
+      401,
+      true
+    );
   }
 
   if (resposta.status === 429) {
