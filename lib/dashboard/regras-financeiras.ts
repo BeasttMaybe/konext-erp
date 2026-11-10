@@ -188,10 +188,9 @@ export async function obterReceitaTotalPadrao(
           LEFT JOIN "RetornoGarantiaOS" rg ON rg.id = os."retornoGarantiaId"
           WHERE cr."estornadaEm" IS NULL
             AND cr.status::text = 'RECEBIDO'
-            AND cr."blingParcelaRef" IS NULL
             AND cr."vendaId" IS NULL
-            AND COALESCE(cr."dataRecebimento", cr."criadoEm") >= ${inicio}
-            AND COALESCE(cr."dataRecebimento", cr."criadoEm") <= ${fim}
+            AND COALESCE(cr."dataRecebimento", CASE WHEN cr."blingParcelaRef" IS NULL THEN cr."criadoEm" END) >= ${inicio}
+            AND COALESCE(cr."dataRecebimento", CASE WHEN cr."blingParcelaRef" IS NULL THEN cr."criadoEm" END) <= ${fim}
             AND (os.id IS NULL OR (os."excluidaEm" IS NULL AND os."entregueSemServico" = false))
             AND (
               os.id IS NULL
@@ -224,10 +223,9 @@ export async function obterReceitaTotalPadrao(
         LEFT JOIN "OrdemServico" os ON os.id = cr."ordemServicoId"
         WHERE cr."estornadaEm" IS NULL
             AND cr.status::text = 'RECEBIDO'
-            AND cr."blingParcelaRef" IS NULL
           AND cr."vendaId" IS NULL
-          AND COALESCE(cr."dataRecebimento", cr."criadoEm") >= ${inicio}
-          AND COALESCE(cr."dataRecebimento", cr."criadoEm") <= ${fim}
+          AND COALESCE(cr."dataRecebimento", CASE WHEN cr."blingParcelaRef" IS NULL THEN cr."criadoEm" END) >= ${inicio}
+          AND COALESCE(cr."dataRecebimento", CASE WHEN cr."blingParcelaRef" IS NULL THEN cr."criadoEm" END) <= ${fim}
           AND (os.id IS NULL OR (os."excluidaEm" IS NULL AND os."entregueSemServico" = false))
       ) base
     `;
@@ -274,17 +272,16 @@ export async function obterReceitaMensalPadrao(
 
             UNION ALL
 
-            SELECT COALESCE(cr."dataRecebimento", cr."criadoEm") AS mes,
+            SELECT COALESCE(cr."dataRecebimento", CASE WHEN cr."blingParcelaRef" IS NULL THEN cr."criadoEm" END) AS mes,
                    cr.valor AS valor
             FROM "ContaReceber" cr
             LEFT JOIN "OrdemServico" os ON os.id = cr."ordemServicoId"
             LEFT JOIN "RetornoGarantiaOS" rg ON rg.id = os."retornoGarantiaId"
             WHERE cr."estornadaEm" IS NULL
             AND cr.status::text = 'RECEBIDO'
-            AND cr."blingParcelaRef" IS NULL
               AND cr."vendaId" IS NULL
-              AND COALESCE(cr."dataRecebimento", cr."criadoEm") >= ${inicio}
-              AND COALESCE(cr."dataRecebimento", cr."criadoEm") <= ${fim}
+              AND COALESCE(cr."dataRecebimento", CASE WHEN cr."blingParcelaRef" IS NULL THEN cr."criadoEm" END) >= ${inicio}
+              AND COALESCE(cr."dataRecebimento", CASE WHEN cr."blingParcelaRef" IS NULL THEN cr."criadoEm" END) <= ${fim}
               AND (os.id IS NULL OR (os."excluidaEm" IS NULL AND os."entregueSemServico" = false))
               AND (
                 os.id IS NULL
@@ -310,16 +307,15 @@ export async function obterReceitaMensalPadrao(
 
             UNION ALL
 
-            SELECT COALESCE(cr."dataRecebimento", cr."criadoEm") AS mes,
+            SELECT COALESCE(cr."dataRecebimento", CASE WHEN cr."blingParcelaRef" IS NULL THEN cr."criadoEm" END) AS mes,
                    cr.valor AS valor
             FROM "ContaReceber" cr
             LEFT JOIN "OrdemServico" os ON os.id = cr."ordemServicoId"
             WHERE cr."estornadaEm" IS NULL
             AND cr.status::text = 'RECEBIDO'
-            AND cr."blingParcelaRef" IS NULL
               AND cr."vendaId" IS NULL
-              AND COALESCE(cr."dataRecebimento", cr."criadoEm") >= ${inicio}
-              AND COALESCE(cr."dataRecebimento", cr."criadoEm") <= ${fim}
+              AND COALESCE(cr."dataRecebimento", CASE WHEN cr."blingParcelaRef" IS NULL THEN cr."criadoEm" END) >= ${inicio}
+              AND COALESCE(cr."dataRecebimento", CASE WHEN cr."blingParcelaRef" IS NULL THEN cr."criadoEm" END) <= ${fim}
               AND (os.id IS NULL OR (os."excluidaEm" IS NULL AND os."entregueSemServico" = false))
           ) base
           GROUP BY DATE_TRUNC('month', base.mes)
@@ -384,11 +380,10 @@ export async function obterReceitaPorClientePadrao(
             LEFT JOIN "RetornoGarantiaOS" rg ON rg.id = os."retornoGarantiaId"
             WHERE cr."estornadaEm" IS NULL
             AND cr.status::text = 'RECEBIDO'
-            AND cr."blingParcelaRef" IS NULL
               AND cr."vendaId" IS NULL
               AND (cr."clienteId" IS NULL OR cr."clienteId" != ${ID_CLIENTE_CONSUMIDOR_FINAL})
-              AND COALESCE(cr."dataRecebimento", cr."criadoEm") >= ${inicio}
-              AND COALESCE(cr."dataRecebimento", cr."criadoEm") <= ${fim}
+              AND COALESCE(cr."dataRecebimento", CASE WHEN cr."blingParcelaRef" IS NULL THEN cr."criadoEm" END) >= ${inicio}
+              AND COALESCE(cr."dataRecebimento", CASE WHEN cr."blingParcelaRef" IS NULL THEN cr."criadoEm" END) <= ${fim}
               AND (os.id IS NULL OR (os."excluidaEm" IS NULL AND os."entregueSemServico" = false))
               AND (
                 os.id IS NULL
@@ -423,11 +418,10 @@ export async function obterReceitaPorClientePadrao(
             LEFT JOIN "OrdemServico" os ON os.id = cr."ordemServicoId"
             WHERE cr."estornadaEm" IS NULL
             AND cr.status::text = 'RECEBIDO'
-            AND cr."blingParcelaRef" IS NULL
               AND cr."vendaId" IS NULL
               AND (cr."clienteId" IS NULL OR cr."clienteId" != ${ID_CLIENTE_CONSUMIDOR_FINAL})
-              AND COALESCE(cr."dataRecebimento", cr."criadoEm") >= ${inicio}
-              AND COALESCE(cr."dataRecebimento", cr."criadoEm") <= ${fim}
+              AND COALESCE(cr."dataRecebimento", CASE WHEN cr."blingParcelaRef" IS NULL THEN cr."criadoEm" END) >= ${inicio}
+              AND COALESCE(cr."dataRecebimento", CASE WHEN cr."blingParcelaRef" IS NULL THEN cr."criadoEm" END) <= ${fim}
               AND (os.id IS NULL OR (os."excluidaEm" IS NULL AND os."entregueSemServico" = false))
           ) base
           GROUP BY base."clienteNome"
