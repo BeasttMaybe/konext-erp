@@ -3,19 +3,12 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { Assistente } from "@/components/ui/assistente";
 import { lerEntradaMonetaria, paraMoeda } from "@/lib/dinheiro";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogDescription,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { atualizarMeta, criarMeta } from "@/app/actions/metas";
 import type {
@@ -313,290 +306,355 @@ export function ModalNovaMeta({ aberto, aoFechar, aoConcluir, meta }: ModalNovaM
 
   return (
     <Dialog open={aberto} onOpenChange={(v) => { if (!v) fechar(); }}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{editando ? "Editar meta" : "Nova meta"}</DialogTitle>
-          <DialogDescription>
-            {editando
-              ? "O progresso já registrado continua como está — aqui você muda o objetivo, não o realizado."
-              : "Crie um objetivo para acompanhar o progresso da empresa."}
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="max-w-2xl">
+        {/* O titulo visivel e desenhado pelo `Assistente`. Este aqui existe
+            para o leitor de tela: o Radix exige um `DialogTitle` dentro do
+            `DialogContent` e, sem ele, quem navega por leitor de tela abre um
+            dialogo sem nome -- e o lint nao acusa isso. */}
+        <DialogTitle className="sr-only">
+          {editando ? "Editar meta" : "Nova meta"}
+        </DialogTitle>
 
-        <div className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="meta-titulo">Título *</Label>
-            <Input
-              id="meta-titulo"
-              value={titulo}
-              onChange={(e) => setTitulo(e.target.value)}
-              placeholder="Ex: Faturar R$ 50.000 em agosto"
-              maxLength={120}
-              disabled={salvando}
-            />
-          </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="meta-descricao">Descrição</Label>
-            <Textarea
-              id="meta-descricao"
-              value={descricao}
-              onChange={(e) => setDescricao(e.target.value)}
-              placeholder="Contexto e detalhes da meta (opcional)"
-              maxLength={1000}
-              disabled={salvando}
-              className="resize-none h-20"
-            />
-          </div>
+        {/* Em ETAPAS, e nao numa tela so.
+            O dono escolheu este formato: "assistente em etapas, como a de
+            nova OS, que ja uso". Dezessete campos de uma vez era a queixa
+            de "campo demais de uma vez" -- e o bloco de configuracao
+            automatica, que aparece no meio, era o que fazia o dialogo
+            crescer ate as bordas sairem da tela.
 
-          <div className="grid grid-cols-2 gap-3">
+            A casca vem de components/ui/assistente.tsx, a MESMA da nova OS.
+            Aqui ficam so os campos de cada passo e o que valida cada um. */}
+        <Assistente
+          titulo={editando ? "Editar meta" : "Nova meta"}
+          subtitulo={
+            editando
+              ? "O progresso já registrado continua como está."
+              : "Um objetivo para acompanhar o progresso da empresa."
+          }
+          rotuloConcluir={editando ? "Salvar alterações" : "Criar meta"}
+          onCancelar={fechar}
+          onConcluir={salvar}
+          concluindo={salvando}
+          passos={[
+            {
+              titulo: "O objetivo",
+              descricao: "O que você quer alcançar",
+              dica: "Título, categoria e tipo de valor são obrigatórios.",
+              // Valida AQUI, e não só no botão final: descobrir no terceiro
+              // passo que faltou o título do primeiro é pior que não ter
+              // etapa nenhuma. E diz o que falta, em vez de só travar.
+              validar: () => {
+                if (!titulo.trim()) {
+                  toast.error("Dê um título à meta.");
+                  return false;
+                }
+                if (!categoria || !tipoValor) {
+                  toast.error("Escolha a categoria e o tipo de valor.");
+                  return false;
+                }
+                if (precisaValorAlvo && !valorAlvo.trim()) {
+                  toast.error("Informe o valor alvo da meta.");
+                  return false;
+                }
+                return true;
+              },
+              conteudo: (
+                <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label>Categoria *</Label>
-              <Select value={categoria} onValueChange={(v) => setCategoria(v as CategoriaMeta)} disabled={salvando}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecionar..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {categorias.map((c) => (
-                    <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="meta-titulo">Título *</Label>
+              <Input
+                id="meta-titulo"
+                value={titulo}
+                onChange={(e) => setTitulo(e.target.value)}
+                placeholder="Ex: Faturar R$ 50.000 em agosto"
+                maxLength={120}
+                disabled={salvando}
+              />
             </div>
 
             <div className="space-y-1.5">
-              <Label>Tipo de valor *</Label>
-              <Select value={tipoValor} onValueChange={(v) => setTipoValor(v as TipoValorMeta)} disabled={salvando}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecionar..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {tiposValor.map((t) => (
-                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="meta-descricao">Descrição</Label>
+              <Textarea
+                id="meta-descricao"
+                value={descricao}
+                onChange={(e) => setDescricao(e.target.value)}
+                placeholder="Contexto e detalhes da meta (opcional)"
+                maxLength={1000}
+                disabled={salvando}
+                className="resize-none h-20"
+              />
             </div>
-          </div>
 
-          {precisaValorAlvo && (
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="meta-valor-alvo">Valor alvo *</Label>
-                <Input
-                  id="meta-valor-alvo"
-                  // `type="text"` com `inputMode="decimal"`, e não
-                  // `type="number"`.
-                  //
-                  // Campo numérico do navegador NÃO ACEITA VÍRGULA: o que
-                  // vem depois dela é descartado antes de o sistema ver.
-                  // Era a segunda causa do relato do dono — além do leitor
-                  // errado, o próprio campo recusava "8.153,90".
-                  //
-                  // `inputMode="decimal"` mantém o teclado numérico no
-                  // celular, que é o que `type="number"` dava de útil aqui.
-                  type="text"
-                  inputMode="decimal"
-                  value={valorAlvo}
-                  onChange={(e) => setValorAlvo(e.target.value)}
-                  placeholder={tipoValor === "DINHEIRO" ? "0,00" : "0"}
-                  disabled={salvando}
-                />
+                <Label>Categoria *</Label>
+                <Select value={categoria} onValueChange={(v) => setCategoria(v as CategoriaMeta)} disabled={salvando}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecionar..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categorias.map((c) => (
+                      <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
+
               <div className="space-y-1.5">
-                <Label htmlFor="meta-unidade">Unidade</Label>
+                <Label>Tipo de valor *</Label>
+                <Select value={tipoValor} onValueChange={(v) => setTipoValor(v as TipoValorMeta)} disabled={salvando}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecionar..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tiposValor.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {precisaValorAlvo && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="meta-valor-alvo">Valor alvo *</Label>
+                  <Input
+                    id="meta-valor-alvo"
+                    // `type="text"` com `inputMode="decimal"`, e não
+                    // `type="number"`.
+                    //
+                    // Campo numérico do navegador NÃO ACEITA VÍRGULA: o que
+                    // vem depois dela é descartado antes de o sistema ver.
+                    // Era a segunda causa do relato do dono — além do leitor
+                    // errado, o próprio campo recusava "8.153,90".
+                    //
+                    // `inputMode="decimal"` mantém o teclado numérico no
+                    // celular, que é o que `type="number"` dava de útil aqui.
+                    type="text"
+                    inputMode="decimal"
+                    value={valorAlvo}
+                    onChange={(e) => setValorAlvo(e.target.value)}
+                    placeholder={tipoValor === "DINHEIRO" ? "0,00" : "0"}
+                    disabled={salvando}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="meta-unidade">Unidade</Label>
+                  <Input
+                    id="meta-unidade"
+                    value={unidade}
+                    onChange={(e) => setUnidade(e.target.value)}
+                    placeholder={tipoValor === "PERCENTUAL" ? "%" : "Ex: OS, peças..."}
+                    maxLength={30}
+                    disabled={salvando}
+                  />
+                </div>
+              </div>
+            )}
+                </div>
+              ),
+            },
+            {
+              titulo: "Como medir",
+              descricao: "Manual ou automática",
+              dica: ehAutomatica
+                ? "Meta automática: a fonte e a métrica dizem de onde o número vem."
+                : "Meta manual: você registra o progresso quando quiser.",
+              validar: () => {
+                if (ehAutomatica && (!fonteAutomatica || !metricaAutomatica)) {
+                  toast.error("Escolha a fonte e a métrica da meta automática.");
+                  return false;
+                }
+                return true;
+              },
+              conteudo: (
+                <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Origem do progresso *</Label>
+                <Select
+                  value={origemProgresso}
+                  onValueChange={(v) => {
+                    setOrigemProgresso(v as OrigemProgressoMeta);
+                    if (v === "MANUAL") {
+                      setFonteAutomatica("");
+                      setMetricaAutomatica("");
+                    }
+                  }}
+                  disabled={salvando}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="MANUAL">Manual</SelectItem>
+                    <SelectItem value="AUTOMATICA">Automática</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Prioridade</Label>
+                <Select value={prioridade} onValueChange={(v) => setPrioridade(v as PrioridadeMeta)} disabled={salvando}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {prioridades.map((p) => (
+                      <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            {ehAutomatica && (
+              <div className="space-y-3 rounded-md border border-kx-painel-borda p-3">
+                <p className="text-xs text-kx-legenda">Configuração automática</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>Fonte automática *</Label>
+                    <Select
+                      value={fonteAutomatica}
+                      onValueChange={(v) => {
+                        setFonteAutomatica(v as FonteAutomaticaMeta);
+                        setMetricaAutomatica("");
+                      }}
+                      disabled={salvando}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecionar..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ORDENS_SERVICO">Ordens de Serviço</SelectItem>
+                        <SelectItem value="GARANTIAS">Garantias</SelectItem>
+                        <SelectItem value="FINANCEIRO">Financeiro</SelectItem>
+                        <SelectItem value="PDV">PDV</SelectItem>
+                        <SelectItem value="VENDAS">Vendas</SelectItem>
+                        <SelectItem value="ESTOQUE">Estoque</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label>Métrica *</Label>
+                    <Select
+                      value={metricaAutomatica}
+                      onValueChange={(v) => setMetricaAutomatica(v as MetricaAutomaticaMeta)}
+                      disabled={salvando || !fonteAutomatica}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecionar..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {opcoesMetricas.map((m) => (
+                          <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>Direção da meta</Label>
+                    <Select value={direcao} onValueChange={(v) => setDirecao(v as DirecaoMeta)} disabled={salvando}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="MAIOR_MELHOR">Quanto maior, melhor</SelectItem>
+                        <SelectItem value="MENOR_MELHOR">Quanto menor, melhor</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="meta-produto-auto">Produto (quando aplicável)</Label>
+                    <Input
+                      id="meta-produto-auto"
+                      value={produtoIdAutomatica}
+                      onChange={(e) => setProdutoIdAutomatica(e.target.value)}
+                      placeholder="ID do produto"
+                      disabled={salvando}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="meta-inicio-auto">Data inicial análise</Label>
+                    <Input
+                      id="meta-inicio-auto"
+                      type="text"
+                      value={dataInicioAutomatica}
+                      onChange={(e) => setDataInicioAutomatica(formatarDataBR(e.target.value))}
+                      placeholder="DD/MM/AAAA"
+                      inputMode="numeric"
+                      maxLength={10}
+                      disabled={salvando}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="meta-fim-auto">Data final análise</Label>
+                    <Input
+                      id="meta-fim-auto"
+                      type="text"
+                      value={dataFimAutomatica}
+                      onChange={(e) => setDataFimAutomatica(formatarDataBR(e.target.value))}
+                      placeholder="DD/MM/AAAA"
+                      inputMode="numeric"
+                      maxLength={10}
+                      disabled={salvando}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+                </div>
+              ),
+            },
+            {
+              titulo: "Prazo",
+              descricao: "Até quando",
+              dica: "Prazo e data de início são opcionais.",
+              conteudo: (
+                <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="meta-prazo">Prazo</Label>
                 <Input
-                  id="meta-unidade"
-                  value={unidade}
-                  onChange={(e) => setUnidade(e.target.value)}
-                  placeholder={tipoValor === "PERCENTUAL" ? "%" : "Ex: OS, peças..."}
-                  maxLength={30}
+                  id="meta-prazo"
+                  type="text"
+                  value={dataPrazo}
+                  onChange={(e) => setDataPrazo(formatarDataBR(e.target.value))}
+                  placeholder="DD/MM/AAAA"
+                  inputMode="numeric"
+                  maxLength={10}
                   disabled={salvando}
                 />
               </div>
             </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>Origem do progresso *</Label>
-              <Select
-                value={origemProgresso}
-                onValueChange={(v) => {
-                  setOrigemProgresso(v as OrigemProgressoMeta);
-                  if (v === "MANUAL") {
-                    setFonteAutomatica("");
-                    setMetricaAutomatica("");
-                  }
-                }}
-                disabled={salvando}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="MANUAL">Manual</SelectItem>
-                  <SelectItem value="AUTOMATICA">Automática</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
 
             <div className="space-y-1.5">
-              <Label>Prioridade</Label>
-              <Select value={prioridade} onValueChange={(v) => setPrioridade(v as PrioridadeMeta)} disabled={salvando}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {prioridades.map((p) => (
-                    <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {ehAutomatica && (
-            <div className="space-y-3 rounded-md border border-kx-painel-borda p-3">
-              <p className="text-xs text-kx-legenda">Configuração automática</p>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label>Fonte automática *</Label>
-                  <Select
-                    value={fonteAutomatica}
-                    onValueChange={(v) => {
-                      setFonteAutomatica(v as FonteAutomaticaMeta);
-                      setMetricaAutomatica("");
-                    }}
-                    disabled={salvando}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecionar..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ORDENS_SERVICO">Ordens de Serviço</SelectItem>
-                      <SelectItem value="GARANTIAS">Garantias</SelectItem>
-                      <SelectItem value="FINANCEIRO">Financeiro</SelectItem>
-                      <SelectItem value="PDV">PDV</SelectItem>
-                      <SelectItem value="VENDAS">Vendas</SelectItem>
-                      <SelectItem value="ESTOQUE">Estoque</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label>Métrica *</Label>
-                  <Select
-                    value={metricaAutomatica}
-                    onValueChange={(v) => setMetricaAutomatica(v as MetricaAutomaticaMeta)}
-                    disabled={salvando || !fonteAutomatica}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecionar..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {opcoesMetricas.map((m) => (
-                        <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label>Direção da meta</Label>
-                  <Select value={direcao} onValueChange={(v) => setDirecao(v as DirecaoMeta)} disabled={salvando}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="MAIOR_MELHOR">Quanto maior, melhor</SelectItem>
-                      <SelectItem value="MENOR_MELHOR">Quanto menor, melhor</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="meta-produto-auto">Produto (quando aplicável)</Label>
-                  <Input
-                    id="meta-produto-auto"
-                    value={produtoIdAutomatica}
-                    onChange={(e) => setProdutoIdAutomatica(e.target.value)}
-                    placeholder="ID do produto"
-                    disabled={salvando}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="meta-inicio-auto">Data inicial análise</Label>
-                  <Input
-                    id="meta-inicio-auto"
-                    type="text"
-                    value={dataInicioAutomatica}
-                    onChange={(e) => setDataInicioAutomatica(formatarDataBR(e.target.value))}
-                    placeholder="DD/MM/AAAA"
-                    inputMode="numeric"
-                    maxLength={10}
-                    disabled={salvando}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="meta-fim-auto">Data final análise</Label>
-                  <Input
-                    id="meta-fim-auto"
-                    type="text"
-                    value={dataFimAutomatica}
-                    onChange={(e) => setDataFimAutomatica(formatarDataBR(e.target.value))}
-                    placeholder="DD/MM/AAAA"
-                    inputMode="numeric"
-                    maxLength={10}
-                    disabled={salvando}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="meta-prazo">Prazo</Label>
+              <Label htmlFor="meta-inicio">Data de início</Label>
               <Input
-                id="meta-prazo"
+                id="meta-inicio"
                 type="text"
-                value={dataPrazo}
-                onChange={(e) => setDataPrazo(formatarDataBR(e.target.value))}
+                value={dataInicio}
+                onChange={(e) => setDataInicio(formatarDataBR(e.target.value))}
                 placeholder="DD/MM/AAAA"
                 inputMode="numeric"
                 maxLength={10}
                 disabled={salvando}
               />
             </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="meta-inicio">Data de início</Label>
-            <Input
-              id="meta-inicio"
-              type="text"
-              value={dataInicio}
-              onChange={(e) => setDataInicio(formatarDataBR(e.target.value))}
-              placeholder="DD/MM/AAAA"
-              inputMode="numeric"
-              maxLength={10}
-              disabled={salvando}
-            />
-          </div>
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={fechar} disabled={salvando}>Cancelar</Button>
-          <Button onClick={salvar} disabled={salvando || !titulo.trim() || !categoria || !tipoValor}>
-            {salvando ? "Salvando..." : editando ? "Salvar alterações" : "Criar meta"}
-          </Button>
-        </DialogFooter>
+                </div>
+              ),
+            },
+          ]}
+        />
       </DialogContent>
     </Dialog>
   );
