@@ -951,9 +951,12 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
             <div className="space-y-2">
               <Label>Valor Total</Label>
               <Input
-                type="number"
-                step="0.01"
-                min="0"
+                // Texto, nao `type="number"`: campo numerico do navegador
+                // recusa a virgula, descartando o que vem depois dela antes
+                // de o sistema ver. `inputMode="decimal"` mantem o teclado
+                // numerico no celular.
+                type="text"
+                inputMode="decimal"
                 disabled={despesaTemParcelaPaga}
                 value={formEditar.valorTotal}
                 onChange={(e) => setFormEditar((prev) => ({ ...prev, valorTotal: e.target.value }))}
@@ -1048,9 +1051,12 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
             <div className="space-y-2">
               <Label>Valor Total</Label>
               <Input
-                type="number"
-                step="0.01"
-                min="0"
+                // Texto, nao `type="number"`: campo numerico do navegador
+                // recusa a virgula, descartando o que vem depois dela antes
+                // de o sistema ver. `inputMode="decimal"` mantem o teclado
+                // numerico no celular.
+                type="text"
+                inputMode="decimal"
                 value={formDespesa.valorTotal}
                 onChange={(e) => setFormDespesa((prev) => ({ ...prev, valorTotal: e.target.value }))}
                 placeholder="0,00"
@@ -1146,7 +1152,7 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
 
             <div className="space-y-2">
               <Label>Valor pago (R$)</Label>
-              <Input type="number" min="0" step="0.01" value={valorPagamento} onChange={(e) => setValorPagamento(e.target.value)} placeholder="0,00" />
+              <Input type="text" inputMode="decimal" value={valorPagamento} onChange={(e) => setValorPagamento(e.target.value)} placeholder="0,00" />
             </div>
           </div>
 

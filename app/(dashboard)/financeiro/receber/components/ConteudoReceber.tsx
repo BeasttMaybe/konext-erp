@@ -654,6 +654,7 @@ export function ConteudoReceber({ contas }: ConteudoReceberProps) {
               <Label htmlFor="edit-valor">Valor (R$)</Label>
               <Input
                 id="edit-valor"
+                inputMode="decimal"
                 placeholder="0,00"
                 value={formEdicao.valor}
                 onChange={(e) => setFormEdicao((prev) => ({ ...prev, valor: e.target.value }))}
@@ -793,6 +794,7 @@ export function ConteudoReceber({ contas }: ConteudoReceberProps) {
               <Label htmlFor="valor-conta">Valor Total (R$)</Label>
               <Input
                 id="valor-conta"
+                inputMode="decimal"
                 placeholder="0,00"
                 value={formNovaConta.valorTotal}
                 onChange={(e) => setFormNovaConta((prev) => ({ ...prev, valorTotal: e.target.value }))}
