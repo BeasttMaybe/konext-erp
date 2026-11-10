@@ -13,6 +13,10 @@ import {
   montarUrlDeRedirecionamento,
 } from "@/lib/bling/api";
 import { lerPaginaDeNotas } from "@/lib/dominio/bling/nota-de-saida";
+import {
+  lerPaginaDeContas,
+  SITUACOES_DE_CONTA,
+} from "@/lib/dominio/bling/conta-a-receber";
 import { desconectar, lerConexao, obterAccessTokenValido } from "@/lib/bling/conexao";
 import { paraMensagemSegura } from "@/lib/erros";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
@@ -115,7 +119,7 @@ export type AmostraDoBling =
  * Só traz 1 registro e corta o texto: é diagnóstico, não exportação de dados.
  */
 export async function espiarRespostaDoBling(
-  recurso: "nfe" | "contas" | "nfe-detalhe"
+  recurso: "nfe" | "contas" | "nfe-detalhe" | "conta-detalhe"
 ): Promise<AmostraDoBling> {
   try {
     const contexto = await exigirContextoTenant();
@@ -144,6 +148,48 @@ export async function espiarRespostaDoBling(
       return {
         sucesso: true,
         recurso: `/nfe/${primeira.blingId}`,
+        amostra: JSON.stringify(detalhe, null, 2).slice(0, 6000),
+      };
+    }
+
+    // DETALHE DE UMA CONTA JA RECEBIDA.
+    //
+    // E o que falta para o faturamento contar as vendas do Bling no mes em
+    // que o dinheiro entrou: a LISTA de contas diz que foi recebida
+    // (`situacao: 2`), mas nao diz QUANDO. A data de baixa so existe no
+    // detalhe, e o nome do campo precisa ser visto, nao adivinhado -- chutar
+    // nome de campo de DATA em tela de faturamento e como se erra o mes
+    // inteiro de uma vez.
+    //
+    // Busca uma conta com `situacao: 2` de proposito: numa conta em aberto o
+    // campo da baixa viria vazio, e um campo vazio nao diz o nome dele.
+    if (recurso === "conta-detalhe") {
+      const lista = await chamarBling({
+        accessToken,
+        caminho: "/contas/receber",
+        parametros: { limite: 1, pagina: 1, situacao: SITUACOES_DE_CONTA.RECEBIDO },
+      });
+
+      const primeira = lerPaginaDeContas(lista)[0];
+      if (!primeira) {
+        return {
+          sucesso: false,
+          mensagem:
+            "Nenhuma conta a receber JA RECEBIDA foi encontrada no Bling. Dê baixa em uma conta por lá e tente de novo.",
+          exigeReconexao: false,
+        };
+      }
+
+      await esperarPelaVazao();
+
+      const detalhe = await chamarBling({
+        accessToken,
+        caminho: `/contas/receber/${primeira.blingId}`,
+      });
+
+      return {
+        sucesso: true,
+        recurso: `/contas/receber/${primeira.blingId}`,
         amostra: JSON.stringify(detalhe, null, 2).slice(0, 6000),
       };
     }
