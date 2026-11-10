@@ -66,6 +66,31 @@ describe("leitura de dinheiro digitado mora num lugar só", () => {
     ).toEqual([]);
   });
 
+  it("campo de dinheiro não volta a ser input numérico", () => {
+    // `<input type="number">` RECUSA A VÍRGULA: o navegador descarta o que
+    // vem depois dela antes de o sistema ver. `step="0.01"` é a assinatura
+    // de um campo que pretende aceitar centavos — se ele aparecer de novo,
+    // é um campo de dinheiro que voltou a recusar o formato brasileiro.
+    //
+    // Os percentuais são a exceção conhecida: `CampoDinheiro` formata como
+    // R$ e não serve para eles.
+    const PERCENTUAIS_CONHECIDOS = [
+      "components/configuracoes/painel-pdv.tsx",
+      "components/vendas/new-sales-order-wizard.tsx",
+    ];
+
+    const encontrados = procurar(String.raw`step="0\.01"|step=\{0\.01\}`).filter(
+      (linha) => !PERCENTUAIS_CONHECIDOS.some((arquivo) => linha.startsWith(arquivo))
+    );
+
+    expect(
+      encontrados,
+      `Campo de dinheiro com input numérico. Use 'CampoDinheiro' de ` +
+        `@/components/ui/campo-dinheiro, ou type="text" com inputMode="decimal".\n` +
+        encontrados.join("\n")
+    ).toEqual([]);
+  });
+
   it("o leitor único continua exportado com o nome esperado", () => {
     const dinheiro = readFileSync(join(process.cwd(), "lib/dinheiro.ts"), "utf8");
 

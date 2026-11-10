@@ -1,5 +1,6 @@
 "use client";
 
+import { lerEntradaMonetaria, paraMoeda } from "@/lib/dinheiro";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from"react";
 import Link from"next/link";
 import { useRouter, useSearchParams } from"next/navigation";
@@ -700,7 +701,7 @@ function PDVPageConteudo() {
   };
 
   const abrirCaixa = async () => {
-    const valor = Number(valorAberturaCaixa || 0);
+    const valor = paraMoeda(lerEntradaMonetaria(valorAberturaCaixa) ?? 0);
 
     try {
       setAbrindoCaixa(true);
@@ -903,9 +904,8 @@ function PDVPageConteudo() {
             </label>
             <Input
               id="valor-abertura-caixa"
-              type="number"
-              min="0"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
               value={valorAberturaCaixa}
               onChange={(evento) => setValorAberturaCaixa(evento.target.value)}
               placeholder="0,00"

@@ -459,9 +459,8 @@ export function PaginaProduto({
                     <Label htmlFor="custo">Custo (R$)</Label>
                     <Input
                       id="custo"
-                      type="number"
-                      min={0}
-                      step="0.01"
+                      type="text"
+                      inputMode="decimal"
                       value={campos.custo}
                       disabled={!podeEditar}
                       onChange={(evento) => alterar("custo", evento.target.value)}
@@ -473,9 +472,8 @@ export function PaginaProduto({
                   <Label htmlFor="precoVenda">Preço de venda (R$)</Label>
                   <Input
                     id="precoVenda"
-                    type="number"
-                    min={0}
-                    step="0.01"
+                    type="text"
+                    inputMode="decimal"
                     value={campos.precoVenda}
                     disabled={!podeEditar}
                     onChange={(evento) => alterar("precoVenda", evento.target.value)}

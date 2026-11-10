@@ -1,5 +1,6 @@
 "use client";
 
+import { lerEntradaMonetaria, paraMoeda } from "@/lib/dinheiro";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -188,8 +189,12 @@ export default function PDVCaixaPage() {
   }, [aba, caixaAberto, periodoFechamentos.inicio.getTime(), periodoFechamentos.fim.getTime()]);
 
   const confirmarFechamento = async () => {
-    const valor = Number(valorContadoTexto);
-    if (!Number.isFinite(valor)) return;
+    // Pelo leitor unico: contar a gaveta e digitar dinheiro, e
+    // `Number("1.250,00")` e NaN -- o botao nao fazia nada e ninguem dizia
+    // por que.
+    const centavos = lerEntradaMonetaria(valorContadoTexto);
+    if (centavos === null) return;
+    const valor = paraMoeda(centavos);
 
     try {
       setConfirmando(true);
