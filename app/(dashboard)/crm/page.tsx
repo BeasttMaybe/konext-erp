@@ -113,9 +113,25 @@ const tipoPessoaLabelMap: Record<"FISICA" | "JURIDICA", string> = {
   JURIDICA: "Pessoa jurídica",
 };
 
+/**
+ * Cores de familias OPOSTAS, para dar para distinguir de relance.
+ *
+ * O dono: "deixe cores opostas pra ficar mais facil de identificar".
+ *
+ * As duas etiquetas vinham de familias com nomes diferentes -- `info` e
+ * `entregue` -- mas no tema escuro as duas valem A MESMA COR: `#8b91ff`, com
+ * o mesmo texto `#c7caff`. So o fundo mudava de `#2e3168` para `#332f6b`,
+ * diferenca que ninguem enxerga num badge. Eram dois rotulos pintados igual.
+ *
+ * Agora `info` (azul-violeta, matiz 237) contra `sucesso` (verde, matiz 156):
+ * 81 graus de distancia, familias que divergem nos DOIS temas, e contraste
+ * de 7,6:1 e 7,0:1 do texto sobre o proprio fundo.
+ *
+ * Verde aqui nao quer dizer "aprovado" -- quer dizer apenas "a outra".
+ */
 const tipoPessoaColorMap: Record<"FISICA" | "JURIDICA", string> = {
-  FISICA: "bg-kx-info-fundo text-kx-info-texto border-kx-info",
-  JURIDICA: "bg-kx-entregue-fundo text-kx-entregue-texto border-kx-entregue",
+  FISICA: "bg-kx-sucesso-fundo text-kx-sucesso-texto border-kx-sucesso",
+  JURIDICA: "bg-kx-info-fundo text-kx-info-texto border-kx-info",
 };
 
 function mapClientRecord(client: {
