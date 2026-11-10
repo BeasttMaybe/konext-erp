@@ -22,7 +22,7 @@ import {
  listarProdutosProposta,
 } from "@/app/actions/propostas";
 import { calcularProposta } from "@/lib/dominio/propostas/calculo";
-import { paraMoeda } from "@/lib/dinheiro";
+import { lerEntradaMonetaria, paraMoeda } from "@/lib/dinheiro";
 import {
  propostaFormSchema,
  type PropostaFormInput,
@@ -782,10 +782,14 @@ export function FormularioDeProposta({ proposta }: { proposta?: PropostaParaEdit
  </td>
  <td className="px-4 py-2.5">
  <Input
- type="number"
- min={0}
- step={0.01}
- {...register(`itens.${index}.precoUnitario`, { valueAsNumber: true })}
+ // `setValueAs` no lugar de `valueAsNumber`: o campo virou texto para
+ // aceitar a virgula, e `valueAsNumber` devolveria NaN para "8.153,90".
+ // O leitor unico converte, e o schema continua recebendo numero.
+ type="text"
+ inputMode="decimal"
+ {...register(`itens.${index}.precoUnitario`, {
+ setValueAs: (valor) => paraMoeda(lerEntradaMonetaria(valor) ?? 0),
+ })}
  placeholder="0,00"
  className="h-8 w-28 border-kx-painel-borda bg-kx-superficie text-right text-kx-texto placeholder:text-kx-texto-2 focus-visible:border-kx-primaria [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
  />

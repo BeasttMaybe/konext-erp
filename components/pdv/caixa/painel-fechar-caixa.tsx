@@ -116,9 +116,8 @@ export function PainelFecharCaixa({
         <label className="flex flex-col gap-2">
           <span className="text-[13px] font-bold text-kx-texto">Quanto tem em dinheiro na gaveta?</span>
           <input
-            type="number"
-            min="0"
-            step="0.01"
+            type="text"
+            inputMode="decimal"
             autoFocus
             placeholder="R$ 0,00"
             value={valorContadoTexto}

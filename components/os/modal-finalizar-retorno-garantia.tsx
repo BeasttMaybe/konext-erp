@@ -1,5 +1,6 @@
 "use client";
 
+import { lerEntradaMonetaria, paraMoeda } from "@/lib/dinheiro";
 import { useMemo, useState } from "react";
 import {
   AlertDialog,
@@ -65,8 +66,10 @@ const labelResultado: Record<Exclude<ResultadoRetornoGarantia, "EM_ANALISE">, st
 function validarCobranca(houveCobranca: boolean, valorAdicional: string): string | null {
   if (!houveCobranca) return null;
 
-  const numero = Number(valorAdicional);
-  if (!Number.isFinite(numero) || numero <= 0) {
+  // Pelo leitor unico, igual ao resto do sistema: `Number("1.250,00")` e
+  // NaN, e a cobranca do retorno era recusada como "valor invalido".
+  const centavos = lerEntradaMonetaria(valorAdicional);
+  if (centavos === null || centavos <= 0) {
     return "Informe um valor adicional valido.";
   }
 
@@ -105,7 +108,7 @@ export function ModalFinalizarRetornoGarantia({
       observacoesTecnicas,
       houveTroca,
       houveCobranca,
-      valorAdicional: houveCobranca ? Number(valorAdicional) : undefined,
+      valorAdicional: houveCobranca ? paraMoeda(lerEntradaMonetaria(valorAdicional) ?? 0) : undefined,
     });
   };
 
@@ -217,9 +220,8 @@ export function ModalFinalizarRetornoGarantia({
                 <Label htmlFor="valor-adicional-retorno" className="text-xs whitespace-nowrap">Valor (R$)</Label>
                 <Input
                   id="valor-adicional-retorno"
-                  type="number"
-                  min={0.01}
-                  step={0.01}
+                  type="text"
+                  inputMode="decimal"
                   className="h-7 text-sm w-36"
                   value={valorAdicional}
                   onChange={(event) => setValorAdicional(event.target.value)}
