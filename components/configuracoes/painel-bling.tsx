@@ -59,7 +59,7 @@ export function PainelBling() {
     });
   }
 
-  function espiar(recurso: "nfe" | "contas" | "nfe-detalhe" | "conta-detalhe") {
+  function espiar(recurso: "nfe" | "contas" | "nfe-detalhe" | "conta-detalhe" | "bordero") {
     iniciarEspiada(async () => {
       const resultado = await espiarRespostaDoBling(recurso);
 
@@ -189,6 +189,10 @@ export function PainelBling() {
             <Button type="button" variant="outline" size="sm" disabled={espiando} onClick={() => espiar("conta-detalhe")}>
               {espiando && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden />}
               Ver o detalhe de uma conta já recebida
+            </Button>
+            <Button type="button" variant="outline" size="sm" disabled={espiando} onClick={() => espiar("bordero")}>
+              {espiando && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden />}
+              Ver o borderô (lote de baixa)
             </Button>
           </div>
 
