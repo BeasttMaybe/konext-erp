@@ -1,5 +1,6 @@
 "use client";
 
+import { lerEntradaMonetaria, paraMoeda } from "@/lib/dinheiro";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
@@ -300,7 +301,7 @@ export function ConteudoReceber({ contas }: ConteudoReceberProps) {
 
   async function salvarEdicao() {
     if (!contaEditando) return;
-    const valorNumero = Number(String(formEdicao.valor).replace(",", "."));
+    const valorNumero = paraMoeda(lerEntradaMonetaria(formEdicao.valor) ?? NaN);
     if (!Number.isFinite(valorNumero) || valorNumero <= 0) {
       toast.error("Informe um valor válido.");
       return;
@@ -362,7 +363,7 @@ export function ConteudoReceber({ contas }: ConteudoReceberProps) {
   }
 
   async function salvarNovaConta() {
-    const valorTotalNumero = Number(formNovaConta.valorTotal.replace(",", "."));
+    const valorTotalNumero = paraMoeda(lerEntradaMonetaria(formNovaConta.valorTotal) ?? NaN);
     const qtdParcelasNumero = Math.max(1, Math.trunc(Number(formNovaConta.qtdParcelas || "1")));
 
     if (!formNovaConta.descricao.trim()) {

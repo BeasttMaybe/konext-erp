@@ -1,5 +1,6 @@
 "use client";
 
+import { lerEntradaMonetaria, paraMoeda } from "@/lib/dinheiro";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
@@ -309,7 +310,7 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
   }
 
   async function salvarDespesa() {
-    const valorTotalNumero = Number(formDespesa.valorTotal.replace(",", "."));
+    const valorTotalNumero = paraMoeda(lerEntradaMonetaria(formDespesa.valorTotal) ?? NaN);
     const qtdParcelasNumero = Math.max(1, Math.trunc(Number(formDespesa.qtdParcelas || "1")));
 
     if (!clienteSelecionado) {
@@ -364,7 +365,7 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
   async function confirmarPagamento() {
     if (!parcelaSelecionada) return;
 
-    const valorPagoNumero = Number(valorPagamento.replace(",", "."));
+    const valorPagoNumero = paraMoeda(lerEntradaMonetaria(valorPagamento) ?? NaN);
     if (!Number.isFinite(valorPagoNumero) || valorPagoNumero <= 0) {
       toast.error("Informe um valor de pagamento válido.");
       return;

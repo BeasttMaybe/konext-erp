@@ -1,5 +1,7 @@
 "use server";
 
+import { lerEntradaMonetaria, paraMoeda } from "@/lib/dinheiro";
+
 import { revalidatePath } from "next/cache";
 import type { ModeloImpressaoOS, Prisma } from "@prisma/client";
 import { z } from "zod";
@@ -485,8 +487,10 @@ function decimalParaNumero(valor: unknown, fallback = 0): number {
   }
 
   if (typeof valor === "string") {
-    const numero = Number(valor.replace(",", "."));
-    return Number.isFinite(numero) ? numero : fallback;
+    // `lerEntradaMonetaria` e nao `Number(replace)`: o segundo recusa
+    // "8.153,90" e aceita "8.153" como oito reais e quinze.
+    const centavos = lerEntradaMonetaria(valor);
+    return centavos === null ? fallback : paraMoeda(centavos);
   }
 
   if (

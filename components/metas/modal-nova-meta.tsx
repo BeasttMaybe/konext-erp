@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
+
+import { lerEntradaMonetaria, paraMoeda } from "@/lib/dinheiro";
 import {
   Dialog,
   DialogContent,
@@ -255,7 +257,18 @@ export function ModalNovaMeta({ aberto, aoFechar, aoConcluir, meta }: ModalNovaM
               }
             : undefined,
         direcao,
-        valorAlvo: tipoValor !== "CHECKLIST" && valorAlvo ? Number(valorAlvo) : undefined,
+        // `Number(valorAlvo)` cru era o que recusava "8.153,90" (vira NaN) e,
+        // pior, aceitava "8.153" como oito reais e quinze. `lerEntradaMonetaria`
+        // entende as duas formas que o teclado produz: a pt-BR, com ponto de
+        // milhar e vírgula decimal, e a do campo numérico, com ponto decimal.
+        // Serve a alvo em dinheiro, em quantidade e em percentual igualmente.
+        valorAlvo:
+          tipoValor !== "CHECKLIST" && valorAlvo
+            ? (() => {
+                const centavos = lerEntradaMonetaria(valorAlvo);
+                return centavos === null ? undefined : paraMoeda(centavos);
+              })()
+            : undefined,
         unidade: unidade || undefined,
         dataInicio: dataInicioIso ?? undefined,
         dataPrazo: dataPrazoIso ?? undefined,

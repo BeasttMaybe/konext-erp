@@ -1,5 +1,6 @@
 "use client";
 
+import { lerEntradaMonetaria, paraMoeda } from "@/lib/dinheiro";
 import {
   converterDescontoEntreUnidades,
   formatarPercentual,
@@ -18,10 +19,12 @@ const sanitizarPrecoInput = (valor: string): string => {
   return `${inteira},${decimaisExtras.join("")}`;
 };
 
+// Estas duas copias funcionavam -- tiravam o ponto antes de trocar a
+// virgula. Mas eram copia, e copia de regra de dinheiro e o que faz a
+// mesma digitacao valer uma coisa num campo e outra no campo ao lado.
 const parsePrecoInput = (valor: string): number => {
-  const normalizado = valor.replace(/\./g, "").replace(",", ".").trim();
-  const numero = Number(normalizado);
-  return Number.isFinite(numero) && numero >= 0 ? numero : 0;
+  const centavos = lerEntradaMonetaria(valor);
+  return centavos === null || centavos < 0 ? 0 : paraMoeda(centavos);
 };
 
 const formatarMoeda = (valor: number): string =>

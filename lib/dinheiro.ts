@@ -359,7 +359,27 @@ export function lerEntradaMonetaria(valor: unknown): number | null {
   if (!semSimbolo) return null;
 
   try {
-    return semSimbolo.includes(",") ? lerReais(semSimbolo) : deDecimal(semSimbolo);
+    if (semSimbolo.includes(",")) return lerReais(semSimbolo);
+
+    // SEM VÍRGULA, O PONTO AINDA PODE SER MILHAR.
+    //
+    // "8.153" digitado por quem escreve em pt-BR é oito mil cento e
+    // cinquenta e três. Caindo em `deDecimal`, viraria R$ 8,15 — e um valor
+    // mil vezes menor entra sem reclamação nenhuma, que é o jeito mais caro
+    // de errar dinheiro.
+    //
+    // O padrão abaixo só casa com agrupamento de milhar de verdade: um a
+    // três dígitos, e depois grupos de exatamente três ("1.234",
+    // "1.234.567"). "1234.56" não casa, porque tem dois dígitos depois do
+    // ponto — ali o ponto é decimal, que é o que `input[type=number]` manda.
+    //
+    // O `0.` fica de fora porque "0.500" vindo de um campo numérico é meio
+    // real, não quinhentos.
+    if (/^\d{1,3}(\.\d{3})+$/.test(semSimbolo) && !semSimbolo.startsWith("0.")) {
+      return lerReais(semSimbolo);
+    }
+
+    return deDecimal(semSimbolo);
   } catch {
     return null;
   }

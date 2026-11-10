@@ -30,7 +30,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useTemPermissao } from "@/contextos/contexto-permissoes";
-import { deDecimal, formatarReais } from "@/lib/dinheiro";
+import { deDecimal, formatarReais, lerEntradaMonetaria, paraMoeda } from "@/lib/dinheiro";
 import { digitoVerificadorEanConfere } from "@/lib/dominio/estoque/etiqueta";
 import {
   UNIDADES_DE_MEDIDA,
@@ -152,8 +152,8 @@ export function PaginaProduto({
   const alterar = <C extends keyof Campos>(campo: C, valor: Campos[C]) =>
     setCampos((atual) => ({ ...atual, [campo]: valor }));
 
-  const custoEmReais = Number(campos.custo.replace(",", ".")) || 0;
-  const precoEmReais = Number(campos.precoVenda.replace(",", ".")) || 0;
+  const custoEmReais = paraMoeda(lerEntradaMonetaria(campos.custo) ?? 0);
+  const precoEmReais = paraMoeda(lerEntradaMonetaria(campos.precoVenda) ?? 0);
 
   const precificacao = useMemo(() => {
     const custoCentavos = deDecimal(custoEmReais);

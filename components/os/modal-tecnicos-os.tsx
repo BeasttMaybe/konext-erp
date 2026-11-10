@@ -1,5 +1,6 @@
 "use client";
 
+import { lerEntradaMonetaria, paraMoeda } from "@/lib/dinheiro";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -115,7 +116,7 @@ export function ModalTecnicosOS({
   };
 
   const alterarParticipacao = (usuarioId: string, valorTexto: string) => {
-    const valor = Number(valorTexto.replace(",", "."));
+    const valor = paraMoeda(lerEntradaMonetaria(valorTexto) ?? NaN);
     setSelecionados((atual) =>
       atual.map((tecnico) =>
         tecnico.usuarioId === usuarioId
