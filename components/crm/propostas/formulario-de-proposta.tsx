@@ -195,7 +195,16 @@ export function FormularioDeProposta({ proposta }: { proposta?: PropostaParaEdit
  formState: { errors },
  } = useForm<PropostaFormInput, unknown, PropostaFormValues>({
  resolver: zodResolver(propostaFormSchema),
- defaultValues,
+ // Editando, os valores da proposta entram AQUI, no estado inicial do
+ // formulario -- inclusive os itens, que o `useFieldArray` abaixo lê
+ // deste mesmo lugar. Era isto que faltava: a tela de editar abria com o
+ // formulario em branco, como se fosse uma proposta nova.
+ //
+ // Montado uma vez (a pagina de edicao so renderiza este componente com a
+ // proposta ja carregada), entao nao ha o que re-sincronizar depois --
+ // que seria o reset dentro de efeito que o
+ // `react-hooks/set-state-in-effect` recusa, com razao.
+ defaultValues: proposta?.valores ?? defaultValues,
  });
 
  const { fields, append, remove } = useFieldArray({
