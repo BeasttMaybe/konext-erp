@@ -10,6 +10,7 @@ import { LinhaMeta } from "@/components/metas/linha-meta";
 import { pesoDeUrgencia, calcularRitmo } from "@/lib/dominio/metas/ritmo";
 import { FiltrosMetas } from "@/components/metas/filtros-metas";
 import { ModalNovaMeta } from "@/components/metas/modal-nova-meta";
+import { metaParaFormulario } from "@/lib/dominio/metas/formulario";
 import {
   listarMetas,
   obterDashboardMetas,
@@ -92,6 +93,14 @@ export function PaginaMetas() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [modalAberto, setModalAberto] = useState(false);
+  /**
+   * A meta sendo editada, ou null para criar.
+   *
+   * Guarda a meta, e nao so o id: o modal e montado com os valores ja
+   * prontos, sem buscar de novo e sem nenhum `setState` dentro de efeito
+   * para re-sincronizar os 17 campos depois de abrir.
+   */
+  const [metaEmEdicao, setMetaEmEdicao] = useState<LinhaMetaLista | null>(null);
   const podeEditarMetas = useTemPermissao("metas.editar");
   const [sincronizandoAutomaticas, setSincronizandoAutomaticas] = useState(false);
   const inicializado = useRef(false);
@@ -130,9 +139,23 @@ export function PaginaMetas() {
   };
 
   const aoMetaCriada = (id: string) => {
+    const estavaEditando = metaEmEdicao !== null;
+
     setModalAberto(false);
+    setMetaEmEdicao(null);
     void carregar(filtros);
-    router.push(`/metas/${id}`);
+
+    // Criando, leva para a meta nova -- e o que a pessoa quer ver em
+    // seguida. Editando, ela ja estava na lista olhando o conjunto; tirar ela
+    // de la seria tomar a decisao por ela.
+    if (!estavaEditando) {
+      router.push(`/metas/${id}`);
+    }
+  };
+
+  const abrirEdicao = (meta: LinhaMetaLista) => {
+    setMetaEmEdicao(meta);
+    setModalAberto(true);
   };
 
   const atualizarMetasAutomaticas = async () => {
@@ -211,16 +234,25 @@ export function PaginaMetas() {
       ) : (
         <ul className="flex flex-col gap-2">
           {metasOrdenadas.map((m) => (
-            <LinhaMeta key={m.id} meta={m} agora={agora} />
+            <LinhaMeta key={m.id} meta={m} agora={agora} aoEditar={() => abrirEdicao(m)} />
           ))}
         </ul>
       )}
 
-      <ModalNovaMeta
-        aberto={modalAberto}
-        aoFechar={() => setModalAberto(false)}
-        aoConcluir={aoMetaCriada}
-      />
+      {/* MONTADO ao abrir, nao apenas controlado por `aberto`: e o que faz os
+          17 campos nascerem com os valores da meta sem nenhum reset dentro de
+          efeito (que e o que o `react-hooks/set-state-in-effect` recusa). */}
+      {modalAberto && (
+        <ModalNovaMeta
+          aberto
+          aoFechar={() => {
+            setModalAberto(false);
+            setMetaEmEdicao(null);
+          }}
+          aoConcluir={aoMetaCriada}
+          meta={metaEmEdicao ? metaParaFormulario(metaEmEdicao) : undefined}
+        />
+      )}
     </div>
   );
 }

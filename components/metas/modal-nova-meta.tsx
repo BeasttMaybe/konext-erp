@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { criarMeta } from "@/app/actions/metas";
+import { atualizarMeta, criarMeta } from "@/app/actions/metas";
 import type {
   CategoriaMeta,
   TipoValorMeta,
@@ -26,10 +26,51 @@ import type {
   DirecaoMeta,
 } from "@prisma/client";
 
+/**
+ * Os valores de uma meta existente, no formato dos campos do formulario.
+ *
+ * `atualizarMeta` existia no servidor desde sempre, completa e com
+ * auditoria -- so nao tinha tela. Editar uma meta significava apagar e
+ * recriar, perdendo o historico de progresso dela.
+ */
+export type MetaParaEditar = {
+  id: string;
+  titulo: string;
+  descricao: string;
+  categoria: CategoriaMeta;
+  tipoValor: TipoValorMeta;
+  valorAlvo: string;
+  unidade: string;
+  /** Em DD/MM/AAAA, como o campo mostra. */
+  dataInicio: string;
+  dataPrazo: string;
+  prioridade: PrioridadeMeta;
+  origemProgresso: OrigemProgressoMeta;
+  fonteAutomatica: FonteAutomaticaMeta | "";
+  metricaAutomatica: MetricaAutomaticaMeta | "";
+  direcao: DirecaoMeta;
+  dataInicioAutomatica: string;
+  dataFimAutomatica: string;
+  produtoIdAutomatica: string;
+};
+
 type ModalNovaMetaProps = {
   aberto: boolean;
   aoFechar: () => void;
   aoConcluir: (id: string) => void;
+  /**
+   * Ausente = criar. Presente = editar aquela meta.
+   *
+   * O formulario e o MESMO nos dois casos, de proposito: ele tem 17 campos e
+   * tres blocos condicionais de meta automatica. Um segundo formulario para
+   * editar divergiria do de criar campo a campo, e o dono acabaria com duas
+   * telas pedindo coisas diferentes para a mesma meta.
+   *
+   * Quem usa este componente deve MONTA-LO ao abrir (ver `pagina-metas`), e
+   * nao apenas passar `aberto`: assim o estado nasce com os valores certos,
+   * sem nenhum `setState` dentro de efeito para re-sincronizar.
+   */
+  meta?: MetaParaEditar;
 };
 
 const categorias: Array<{ value: CategoriaMeta; label: string }> = [
@@ -57,23 +98,24 @@ const prioridades: Array<{ value: PrioridadeMeta; label: string }> = [
   { value: "CRITICA", label: "Crítica" },
 ];
 
-export function ModalNovaMeta({ aberto, aoFechar, aoConcluir }: ModalNovaMetaProps) {
-  const [titulo, setTitulo] = useState("");
-  const [descricao, setDescricao] = useState("");
-  const [categoria, setCategoria] = useState<CategoriaMeta |"">("");
-  const [tipoValor, setTipoValor] = useState<TipoValorMeta |"">("");
-  const [valorAlvo, setValorAlvo] = useState("");
-  const [unidade, setUnidade] = useState("");
-  const [dataInicio, setDataInicio] = useState("");
-  const [dataPrazo, setDataPrazo] = useState("");
-  const [prioridade, setPrioridade] = useState<PrioridadeMeta>("MEDIA");
-  const [origemProgresso, setOrigemProgresso] = useState<OrigemProgressoMeta>("MANUAL");
-  const [fonteAutomatica, setFonteAutomatica] = useState<FonteAutomaticaMeta |"">("");
-  const [metricaAutomatica, setMetricaAutomatica] = useState<MetricaAutomaticaMeta |"">("");
-  const [direcao, setDirecao] = useState<DirecaoMeta>("MAIOR_MELHOR");
-  const [dataInicioAutomatica, setDataInicioAutomatica] = useState("");
-  const [dataFimAutomatica, setDataFimAutomatica] = useState("");
-  const [produtoIdAutomatica, setProdutoIdAutomatica] = useState("");
+export function ModalNovaMeta({ aberto, aoFechar, aoConcluir, meta }: ModalNovaMetaProps) {
+  const editando = meta !== undefined;
+  const [titulo, setTitulo] = useState(meta?.titulo ?? "");
+  const [descricao, setDescricao] = useState(meta?.descricao ?? "");
+  const [categoria, setCategoria] = useState<CategoriaMeta |"">(meta?.categoria ?? "");
+  const [tipoValor, setTipoValor] = useState<TipoValorMeta |"">(meta?.tipoValor ?? "");
+  const [valorAlvo, setValorAlvo] = useState(meta?.valorAlvo ?? "");
+  const [unidade, setUnidade] = useState(meta?.unidade ?? "");
+  const [dataInicio, setDataInicio] = useState(meta?.dataInicio ?? "");
+  const [dataPrazo, setDataPrazo] = useState(meta?.dataPrazo ?? "");
+  const [prioridade, setPrioridade] = useState<PrioridadeMeta>(meta?.prioridade ?? "MEDIA");
+  const [origemProgresso, setOrigemProgresso] = useState<OrigemProgressoMeta>(meta?.origemProgresso ?? "MANUAL");
+  const [fonteAutomatica, setFonteAutomatica] = useState<FonteAutomaticaMeta |"">(meta?.fonteAutomatica ?? "");
+  const [metricaAutomatica, setMetricaAutomatica] = useState<MetricaAutomaticaMeta |"">(meta?.metricaAutomatica ?? "");
+  const [direcao, setDirecao] = useState<DirecaoMeta>(meta?.direcao ?? "MAIOR_MELHOR");
+  const [dataInicioAutomatica, setDataInicioAutomatica] = useState(meta?.dataInicioAutomatica ?? "");
+  const [dataFimAutomatica, setDataFimAutomatica] = useState(meta?.dataFimAutomatica ?? "");
+  const [produtoIdAutomatica, setProdutoIdAutomatica] = useState(meta?.produtoIdAutomatica ?? "");
   const [salvando, setSalvando] = useState(false);
 
   const metricasPorFonte: Record<FonteAutomaticaMeta, Array<{ value: MetricaAutomaticaMeta; label: string }>> = {
@@ -191,7 +233,12 @@ export function ModalNovaMeta({ aberto, aoFechar, aoConcluir }: ModalNovaMetaPro
 
     setSalvando(true);
     try {
-      const res = await criarMeta({
+      // Editando, a chamada vai para `atualizarMeta`, que ja existia no
+      // servidor com validacao e auditoria -- o que faltava era esta tela.
+      // `valorAtual` NAO viaja: o progresso realizado nao e campo de
+      // formulario (meta manual tem o modal de progresso; meta automatica e
+      // sincronizada pelo cron).
+      const campos = {
         titulo,
         descricao: descricao || undefined,
         categoria,
@@ -213,7 +260,22 @@ export function ModalNovaMeta({ aberto, aoFechar, aoConcluir }: ModalNovaMetaPro
         dataInicio: dataInicioIso ?? undefined,
         dataPrazo: dataPrazoIso ?? undefined,
         prioridade,
-      });
+      };
+
+      if (meta) {
+        const res = await atualizarMeta({ id: meta.id, ...campos });
+
+        if (!res.sucesso) {
+          toast.error(res.erro);
+          return;
+        }
+
+        toast.success(res.mensagem);
+        aoConcluir(meta.id);
+        return;
+      }
+
+      const res = await criarMeta(campos);
 
       if (!res.sucesso) {
         toast.error(res.erro);
@@ -224,7 +286,9 @@ export function ModalNovaMeta({ aberto, aoFechar, aoConcluir }: ModalNovaMetaPro
       limpar();
       aoConcluir(res.id);
     } catch {
-      toast.error("Não foi possível criar a meta.");
+      toast.error(
+        meta ? "Não foi possível salvar a meta." : "Não foi possível criar a meta."
+      );
     } finally {
       setSalvando(false);
     }
@@ -238,8 +302,12 @@ export function ModalNovaMeta({ aberto, aoFechar, aoConcluir }: ModalNovaMetaPro
     <Dialog open={aberto} onOpenChange={(v) => { if (!v) fechar(); }}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Nova meta</DialogTitle>
-          <DialogDescription>Crie um objetivo para acompanhar o progresso da empresa.</DialogDescription>
+          <DialogTitle>{editando ? "Editar meta" : "Nova meta"}</DialogTitle>
+          <DialogDescription>
+            {editando
+              ? "O progresso já registrado continua como está — aqui você muda o objetivo, não o realizado."
+              : "Crie um objetivo para acompanhar o progresso da empresa."}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -504,7 +572,7 @@ export function ModalNovaMeta({ aberto, aoFechar, aoConcluir }: ModalNovaMetaPro
         <DialogFooter>
           <Button variant="outline" onClick={fechar} disabled={salvando}>Cancelar</Button>
           <Button onClick={salvar} disabled={salvando || !titulo.trim() || !categoria || !tipoValor}>
-            {salvando ? "Salvando..." : "Criar meta"}
+            {salvando ? "Salvando..." : editando ? "Salvar alterações" : "Criar meta"}
           </Button>
         </DialogFooter>
       </DialogContent>

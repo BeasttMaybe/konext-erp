@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { unstable_rethrow } from "next/navigation";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { exigirPermissao } from "@/lib/auth/permissoes";
 import { mensagemDeErroConhecido } from "@/lib/erros";
@@ -8,6 +9,10 @@ import { obterIdUsuarioOperacionalOuNulo } from "@/lib/tenant/usuario-operaciona
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 import { deDecimal, paraMoeda } from "@/lib/dinheiro";
+import {
+  filtroPrismaDePeriodoDeReceita,
+  filtroPrismaDeReceitaRealizada,
+} from "@/lib/dominio/financeiro/receita-realizada";
 import { numeroDaMeta, numeroDaMetaOuNulo } from "@/lib/dominio/metas/valores";
 import {
   agoraNaLoja,
@@ -132,12 +137,19 @@ export type LinhaMetaLista = {
   ultimaSincronizacaoEm: string | null;
   erroSincronizacao: string | null;
   criadoEm: string;
+  /**
+   * A configuracao da meta automatica (periodo proprio, produto do estoque).
+   *
+   * Vem na LISTA, e nao so no detalhe, porque a tela de editar abre a partir
+   * da lista e precisa preencher esses campos. Sem isso, editar uma meta
+   * automatica apagaria silenciosamente o periodo configurado nela.
+   */
+  configuracaoAutomatica: ConfiguracaoAutomaticaMeta | null;
 };
 
 export type DetalhesMeta = LinhaMetaLista & {
   concluidaEm: string | null;
   canceladaEm: string | null;
-  configuracaoAutomatica: ConfiguracaoAutomaticaMeta | null;
   itensChecklist: {
     id: string;
     titulo: string;
@@ -547,15 +559,10 @@ function montarFiltroPeriodoContaReceber(
   const filtroRecebimento = montarFiltroData(periodo.inicio, periodo.fim);
   if (!filtroRecebimento) return undefined;
 
-  return {
-    OR: [
-      { dataRecebimento: filtroRecebimento },
-      {
-        dataRecebimento: null,
-        dataVencimento: filtroRecebimento,
-      },
-    ],
-  };
+  // A reserva e `criadoEm`, nao `dataVencimento`. Vencimento e quando o
+  // dinheiro DEVERIA entrar; a meta mede o que entrou. Ver
+  // lib/dominio/financeiro/receita-realizada.ts.
+  return filtroPrismaDePeriodoDeReceita(filtroRecebimento);
 }
 
 async function executarCalculoMetaAutomatica(
@@ -579,7 +586,7 @@ async function executarCalculoMetaAutomatica(
       const where: Prisma.ContaReceberWhereInput = {
         origem: "ORDEM_SERVICO",
         ordemServicoId: { not: null },
-        status: { in: ["RECEBIDO", "PAGO"] },
+        ...filtroPrismaDeReceitaRealizada(),
         ordemServico: { entregueSemServico: false },
       };
 
@@ -623,7 +630,7 @@ async function executarCalculoMetaAutomatica(
       const where: Prisma.ContaReceberWhereInput = {
         origem: "ORDEM_SERVICO",
         ordemServicoId: { not: null },
-        status: { in: ["RECEBIDO", "PAGO"] },
+        ...filtroPrismaDeReceitaRealizada(),
         ordemServico: { entregueSemServico: false },
       };
 
@@ -632,12 +639,32 @@ async function executarCalculoMetaAutomatica(
         where.AND = [filtroPeriodo];
       }
 
-      const agregado = await prismaClient.contaReceber.aggregate({
-        where,
-        _avg: { valor: true },
-      });
+      // `_avg` dava a média POR CONTA, não por OS. Uma OS de R$ 900 paga em
+      // 3 parcelas de R$ 300 entrava como três tickets de R$ 300 e DERRUBAVA
+      // a média — quanto mais o cliente parcela, menor o "ticket médio"
+      // aparecia. Ticket médio da OS é total dividido pelo número de OS.
+      const [agregado, osDistintas] = await Promise.all([
+        prismaClient.contaReceber.aggregate({ where, _sum: { valor: true } }),
+        prismaClient.contaReceber.findMany({
+          where,
+          select: { ordemServicoId: true },
+          distinct: ["ordemServicoId"],
+        }),
+      ]);
 
-      return { sucesso: true, valorAtual: agregado._avg.valor !== null ? paraMoeda(deDecimal(agregado._avg.valor)) : 0 };
+      const quantidadeDeOS = osDistintas.length;
+      if (quantidadeDeOS === 0) {
+        return { sucesso: true, valorAtual: 0, detalhes: "Sem OS recebidas no período." };
+      }
+
+      const totalEmCentavos = agregado._sum.valor !== null ? deDecimal(agregado._sum.valor) : 0;
+
+      // Divide em centavos e só então vira reais: dividir reais em ponto
+      // flutuante devolve dízima e o ticket aparece com casas que não existem.
+      return {
+        sucesso: true,
+        valorAtual: paraMoeda(Math.round(totalEmCentavos / quantidadeDeOS)),
+      };
     }
 
     if (meta.metricaAutomatica === "RETORNOS_GARANTIA") {
@@ -684,7 +711,7 @@ async function executarCalculoMetaAutomatica(
 
     if (meta.metricaAutomatica === "RECEBIMENTOS_FINANCEIRO") {
       const where: Prisma.ContaReceberWhereInput = {
-        status: { in: ["RECEBIDO", "PAGO"] },
+        ...filtroPrismaDeReceitaRealizada(),
         ...(config?.origensReceita?.length
           ? { origem: { in: config.origensReceita } }
           : {}),
@@ -719,7 +746,7 @@ async function executarCalculoMetaAutomatica(
     if (meta.metricaAutomatica === "FATURAMENTO_PDV") {
       const where: Prisma.ContaReceberWhereInput = {
         origem: "VENDA_PDV",
-        status: { in: ["RECEBIDO", "PAGO"] },
+        ...filtroPrismaDeReceitaRealizada(),
       };
       const filtroPeriodo = montarFiltroPeriodoContaReceber(periodo);
       if (filtroPeriodo) {
@@ -733,7 +760,14 @@ async function executarCalculoMetaAutomatica(
     if (meta.metricaAutomatica === "QUANTIDADE_VENDAS") {
       const filtroCriacao = montarFiltroData(periodo.inicio, periodo.fim);
       const total = await prismaClient.venda.count({
-        where: filtroCriacao ? { criadoEm: filtroCriacao } : {},
+        where: {
+          // Venda estornada nao conta, igual no painel financeiro. Contar o
+          // estorno faz a meta premiar a venda que foi desfeita -- e o
+          // proprio schema diz que `estornadaEm` e "o que tira a venda da
+          // apuracao de receita".
+          estornadaEm: null,
+          ...(filtroCriacao ? { criadoEm: filtroCriacao } : {}),
+        },
       });
       return { sucesso: true, valorAtual: total };
     }
@@ -757,7 +791,21 @@ async function executarCalculoMetaAutomatica(
     }
 
     return { sucesso: false, erro: "Métrica automática não suportada no momento." };
-  } catch {
+  } catch (erro) {
+    // `unstable_rethrow` primeiro: redirect e notFound do Next viajam COMO
+    // EXCEÇÃO, e um `catch` que os engole transforma "sua sessão expirou" em
+    // "falha ao calcular a métrica" — a pessoa fica olhando uma meta zerada
+    // em vez de ir para o login.
+    unstable_rethrow(erro);
+
+    // E o motivo vai para o log do servidor em vez de desaparecer. O
+    // `erroSincronizacao` da meta guarda o texto genérico; quem for descobrir
+    // POR QUE uma meta parou de sincronizar precisa do erro de verdade.
+    console.error(
+      `Falha ao calcular meta automática ${meta.metricaAutomatica} (meta ${meta.id}):`,
+      erro
+    );
+
     return { sucesso: false, erro: "Falha ao calcular a métrica automática." };
   }
 }
@@ -973,6 +1021,10 @@ export async function listarMetas(
           ultimaSincronizacaoEm: true,
           erroSincronizacao: true,
           criadoEm: true,
+          // A tela de editar abre a partir da lista e precisa deste campo;
+          // sem ele, salvar uma meta automática apagaria em silêncio o
+          // período e o produto configurados nela.
+          configuracaoAutomatica: true,
           itensChecklist: {
             select: { concluido: true },
           },
@@ -1018,6 +1070,7 @@ export async function listarMetas(
         ultimaSincronizacaoEm: serializarData(m.ultimaSincronizacaoEm),
         erroSincronizacao: m.erroSincronizacao,
         criadoEm: m.criadoEm.toISOString(),
+        configuracaoAutomatica: parseConfiguracaoAutomatica(m.configuracaoAutomatica),
       };
     });
 
