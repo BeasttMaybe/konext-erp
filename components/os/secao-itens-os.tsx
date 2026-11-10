@@ -1,5 +1,6 @@
 "use client";
 
+import { lerEntradaMonetaria, paraMoeda } from "@/lib/dinheiro";
 import { useMemo, useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import type { TipoPeca } from "@prisma/client";
@@ -106,8 +107,12 @@ export function SecaoItensOS({
   const [valorCobradoEdicao, setValorCobradoEdicao] = useState<string>("");
   const [marcaPecaIdEdicao, setMarcaPecaIdEdicao] = useState<string | null>(null);
 
-  const custoPecaNumero = Number(custoPeca || 0);
-  const valorManualNumero = Number(valorManual || 0);
+  // `lerEntradaMonetaria` e nao `Number()`: aqui se lanca CUSTO DE PECA, que
+  // e onde o dono digita dinheiro todo dia. `Number("8.153,90")` e NaN, e
+  // `Number("8.153")` e oito reais e quinze -- mil vezes menos, sem erro na
+  // tela.
+  const custoPecaNumero = paraMoeda(lerEntradaMonetaria(custoPeca) ?? 0);
+  const valorManualNumero = paraMoeda(lerEntradaMonetaria(valorManual) ?? 0);
 
   const totalOS = useMemo(() => itens.reduce((total, item) => total + item.valorCobrado, 0), [itens]);
   const mostraCusto = itens.length === 0 || itens.some((item) => item.custoPeca !== null);
@@ -187,8 +192,8 @@ export function SecaoItensOS({
   const aoSalvarEdicao = () => {
     if (!itemEmEdicao) return;
 
-    const custoNormalizado = Number(custoPecaEdicao || 0);
-    const valorCobradoNormalizado = Number(valorCobradoEdicao || 0);
+    const custoNormalizado = paraMoeda(lerEntradaMonetaria(custoPecaEdicao) ?? 0);
+    const valorCobradoNormalizado = paraMoeda(lerEntradaMonetaria(valorCobradoEdicao) ?? 0);
 
     if (!descricaoEdicao.trim()) {
       toast.error("Informe a descricao da peca ou servico.");
@@ -386,12 +391,17 @@ export function SecaoItensOS({
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
+                {/* Os quatro campos de dinheiro desta secao sao `type="text"`
+                    com `inputMode="decimal"`, e nao `type="number"`: campo
+                    numerico do navegador recusa a virgula e descarta o que vem
+                    depois dela -- chegavam a prometer "0,00" no placeholder,
+                    uma virgula que eles mesmos nao deixavam digitar. Aqui se
+                    lanca custo de peca, que e dinheiro digitado todo dia. */}
                 <Label htmlFor="custo-peca">Custo (R$)</Label>
                 <Input
                   id="custo-peca"
-                  type="number"
-                  min="0"
-                  step="0.01"
+                  type="text"
+                  inputMode="decimal"
                   value={custoPeca}
                   onChange={(evento) => setCustoPeca(evento.target.value)}
                   placeholder="0,00"
@@ -401,9 +411,8 @@ export function SecaoItensOS({
                 <Label htmlFor="valor-manual">Cobrado (R$)</Label>
                 <Input
                   id="valor-manual"
-                  type="number"
-                  min="0"
-                  step="0.01"
+                  type="text"
+                  inputMode="decimal"
                   value={valorManual}
                   onChange={(evento) => setValorManual(evento.target.value)}
                   placeholder="0,00"
@@ -476,9 +485,8 @@ export function SecaoItensOS({
                 <Label htmlFor="custo-edicao">Custo (R$)</Label>
                 <Input
                   id="custo-edicao"
-                  type="number"
-                  min="0"
-                  step="0.01"
+                  type="text"
+                  inputMode="decimal"
                   value={custoPecaEdicao}
                   onChange={(evento) => setCustoPecaEdicao(evento.target.value)}
                 />
@@ -487,9 +495,8 @@ export function SecaoItensOS({
                 <Label htmlFor="valor-edicao">Cobrado (R$)</Label>
                 <Input
                   id="valor-edicao"
-                  type="number"
-                  min="0"
-                  step="0.01"
+                  type="text"
+                  inputMode="decimal"
                   value={valorCobradoEdicao}
                   onChange={(evento) => setValorCobradoEdicao(evento.target.value)}
                 />

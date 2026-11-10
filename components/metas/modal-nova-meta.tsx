@@ -385,12 +385,21 @@ export function ModalNovaMeta({ aberto, aoFechar, aoConcluir, meta }: ModalNovaM
                 <Label htmlFor="meta-valor-alvo">Valor alvo *</Label>
                 <Input
                   id="meta-valor-alvo"
-                  type="number"
-                  min={0}
-                  step={tipoValor === "DINHEIRO" ? "0.01" : "1"}
+                  // `type="text"` com `inputMode="decimal"`, e não
+                  // `type="number"`.
+                  //
+                  // Campo numérico do navegador NÃO ACEITA VÍRGULA: o que
+                  // vem depois dela é descartado antes de o sistema ver.
+                  // Era a segunda causa do relato do dono — além do leitor
+                  // errado, o próprio campo recusava "8.153,90".
+                  //
+                  // `inputMode="decimal"` mantém o teclado numérico no
+                  // celular, que é o que `type="number"` dava de útil aqui.
+                  type="text"
+                  inputMode="decimal"
                   value={valorAlvo}
                   onChange={(e) => setValorAlvo(e.target.value)}
-                  placeholder="0"
+                  placeholder={tipoValor === "DINHEIRO" ? "0,00" : "0"}
                   disabled={salvando}
                 />
               </div>
