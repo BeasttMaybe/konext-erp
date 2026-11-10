@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { HistoricoDoClientePainel } from "@/components/crm/historico-do-cliente";
 import { ModalNovoCliente } from "@/components/crm/modal-novo-cliente";
 import { PaginationControls } from "@/components/ui/pagination-controls";
 import { Badge } from "@/components/ui/badge";
@@ -698,7 +699,7 @@ function ContactsPageContent() {
                 </dd>
               </div>
               <div>
-                <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Categoria</dt>
+                <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tipo</dt>
                 <dd className="mt-0.5">
                   <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${tipoPessoaColorMap[profileClient.tipoPessoa]}`}>
                     {tipoPessoaLabelMap[profileClient.tipoPessoa]}
@@ -706,6 +707,18 @@ function ContactsPageContent() {
                 </dd>
               </div>
             </dl>
+          )}
+
+          {/* MONTADO junto com o painel: o histórico é buscado quando o
+              cliente abre, e não junto da lista. Trazer isto no `include` de
+              cada contato seria pagar por todos para mostrar um. */}
+          {profileClient && (
+            <div className="space-y-2 border-t border-kx-painel-borda pt-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Histórico
+              </p>
+              <HistoricoDoClientePainel clienteId={profileClient.id} />
+            </div>
           )}
 
           <DialogFooter>
