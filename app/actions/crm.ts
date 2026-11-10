@@ -579,7 +579,16 @@ export async function listarClientesPaginado(
         observacoes: true,
       },
     }),
-    prisma.cliente.count({ where: { ...where, categoria: "EMPRESA" } }),
+    // Conta PESSOA JURIDICA, e nao mais a etiqueta "categoria".
+    //
+    // O dono viu "Fornecedores 0" e "Empresas B2B 62" na mesma tela, com
+    // pessoas fisicas de CPF entre as 62. A categoria era preenchida
+    // automaticamente em varios caminhos (criar pela aba de fornecedores,
+    // pessoa juridica marcada como cliente final...) e virou uma etiqueta
+    // que ninguem escolheu e que contradizia o papel ao lado.
+    //
+    // `tipoPessoa` sai do proprio documento e nao e opiniao de ninguem.
+    prisma.cliente.count({ where: { ...where, tipoPessoa: "JURIDICA" } }),
   ]);
 
   return {
