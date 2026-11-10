@@ -87,7 +87,8 @@ export interface ParcelaDespesaComRelacao {
     cliente: {
       id: string;
       nomeRazaoSocial: string;
-      documento: string;
+      /** Nulo quando o cliente nao informou CPF/CNPJ. */
+      documento: string | null;
     } | null;
   };
 }

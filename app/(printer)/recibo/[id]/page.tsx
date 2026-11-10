@@ -23,7 +23,7 @@ type VendaReciboView = {
   desconto: number;
   cliente: {
     nomeRazaoSocial: string;
-    documento: string;
+    documento: string | null;
   } | null;
   itens: Array<{
     id: string;

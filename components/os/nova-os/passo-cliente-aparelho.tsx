@@ -54,7 +54,13 @@ export function PassoClienteAparelho({ clienteIdInicial, clienteNomeInicial, onC
 
   const selecionarCliente = (cliente: ClienteBuscaOS) => {
     setValue("clienteId", cliente.id, { shouldValidate: true, shouldDirty: true });
-    setClienteSelecionadoTexto(`${cliente.nomeRazaoSocial} · ${cliente.documento} · ${cliente.telefone}`);
+    // Em template string, `${null}` imprime a palavra "null". Sem documento,
+    // a parte some junto com o separador, em vez de virar "Fulano · null · ...".
+    setClienteSelecionadoTexto(
+      [cliente.nomeRazaoSocial, cliente.documento, cliente.telefone]
+        .filter((parte) => Boolean(parte))
+        .join(" · ")
+    );
     setClientesEncontrados([]);
     onClienteSelecionado?.(cliente.nomeRazaoSocial);
   };
@@ -106,7 +112,7 @@ export function PassoClienteAparelho({ clienteIdInicial, clienteNomeInicial, onC
     selecionarCliente({
       id: resultado.cliente.id,
       nomeRazaoSocial: resultado.cliente.nomeRazaoSocial,
-      documento: resultado.cliente.documento,
+      documento: resultado.cliente.documento ?? "",
       telefone: resultado.cliente.telefone,
     });
     setBuscaCliente(resultado.cliente.nomeRazaoSocial);

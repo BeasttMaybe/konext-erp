@@ -85,7 +85,7 @@ export async function buscarGlobal(
         })),
         clientes: clientesCRM
           .slice(0, 6)
-          .map((cliente) => ({ id: cliente.id, nome: cliente.nomeRazaoSocial, documento: cliente.documento })),
+          .map((cliente) => ({ id: cliente.id, nome: cliente.nomeRazaoSocial, documento: cliente.documento ?? "" })),
       },
     };
   } catch (erro) {

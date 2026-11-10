@@ -1287,7 +1287,7 @@ export async function consultarCnpjReceita(cnpj: string): Promise<ResultadoConsu
       dados: {
         razaoSocial: resultado.dados.nomeRazaoSocial,
         nomeFantasia: resultado.dados.nomeFantasia,
-        cnpj: resultado.dados.documento,
+        cnpj: resultado.dados.documento ?? "",
         inscricaoEstadual: resultado.dados.inscricaoEstadual,
         telefone: resultado.dados.telefone,
         cep: resultado.dados.cep,

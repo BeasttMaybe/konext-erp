@@ -394,10 +394,11 @@ export async function buscarClientesOS(termoBusca: string): Promise<ClienteBusca
     take: 15,
   });
 
-  return clientes.map((cliente: { id: string; nomeRazaoSocial: string; documento: string; telefone: string }) => ({
+  return clientes.map((cliente: { id: string; nomeRazaoSocial: string; documento: string | null; telefone: string }) => ({
     id: String(cliente.id),
     nomeRazaoSocial: String(cliente.nomeRazaoSocial),
-    documento: String(cliente.documento),
+    // `String(null)` e a palavra "null" -- apareceria escrita na tela.
+    documento: cliente.documento ? String(cliente.documento) : "",
     telefone: String(cliente.telefone),
   }));
 }
@@ -428,7 +429,8 @@ export async function buscarClientePorId(clienteId: string): Promise<ClienteBusc
   return {
     id: String(cliente.id),
     nomeRazaoSocial: String(cliente.nomeRazaoSocial),
-    documento: String(cliente.documento),
+    // `String(null)` e a palavra "null" -- apareceria escrita na tela.
+    documento: cliente.documento ? String(cliente.documento) : "",
     telefone: String(cliente.telefone),
   };
 }

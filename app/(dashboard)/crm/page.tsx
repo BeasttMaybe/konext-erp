@@ -116,7 +116,7 @@ function mapClientRecord(client: {
   papel: "CLIENTE" |"FORNECEDOR";
   nomeRazaoSocial: string;
   nomeFantasia: string | null;
-  documento: string;
+  documento: string | null;
   inscricaoEstadual: string | null;
   email: string | null;
   telefone: string;
@@ -136,7 +136,7 @@ function mapClientRecord(client: {
     papel: client.papel,
     nomeRazaoSocial: client.nomeRazaoSocial,
     nomeFantasia: client.nomeFantasia || "",
-    documento: client.documento,
+    documento: client.documento ?? "",
     inscricaoEstadual: client.inscricaoEstadual || "",
     email: client.email || "",
     telefone: client.telefone,
@@ -263,7 +263,7 @@ function ContactsPageContent() {
             papel: editingClient.papel,
             nomeRazaoSocial: editingClient.nomeRazaoSocial,
             nomeFantasia: editingClient.nomeFantasia ?? "",
-            documento: editingClient.documento,
+            documento: editingClient.documento ?? "",
             inscricaoEstadual: editingClient.inscricaoEstadual ?? "",
             email: editingClient.email ?? "",
             telefone: editingClient.telefone,

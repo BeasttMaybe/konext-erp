@@ -220,7 +220,7 @@ export function ModalNovoCliente({
 
     try {
       setBuscandoCnpj(true);
-      const resultado = await consultarCnpjReceitaCliente(documentoAtual);
+      const resultado = await consultarCnpjReceitaCliente(documentoAtual ?? "");
 
       if (!resultado.sucesso) {
         toast.error("CNPJ invalido ou nao encontrado na Receita.");
@@ -231,7 +231,7 @@ export function ModalNovoCliente({
 
       setValue("nomeRazaoSocial", dados.nomeRazaoSocial, { shouldDirty: true });
       setValue("nomeFantasia", dados.nomeFantasia, { shouldDirty: true });
-      setValue("documento", dados.documento, { shouldDirty: true });
+      setValue("documento", dados.documento ?? "", { shouldDirty: true });
       setValue("inscricaoEstadual", dados.inscricaoEstadual, { shouldDirty: true });
       setValue("telefone", dados.telefone, { shouldDirty: true });
       setValue("cep", formatarCep(dados.cep), { shouldDirty: true });
@@ -372,7 +372,7 @@ export function ModalNovoCliente({
                 )}
 
                 <div>
-                  <Label htmlFor="documento">CPF / CNPJ</Label>
+                  <Label htmlFor="documento">CPF / CNPJ <span className="text-kx-legenda">(opcional)</span></Label>
                   <div className="flex items-end gap-2">
                     <Controller
                       name="documento"

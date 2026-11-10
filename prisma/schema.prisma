@@ -257,7 +257,10 @@ model Cliente {
   papel             TipoPapel        @default(CLIENTE)
   nomeRazaoSocial   String
   nomeFantasia      String?
-  documento         String           @unique // CPF ou CNPJ
+  /// Nulo quando o cliente nao informou CPF/CNPJ. NULO, e nao string vazia:
+  /// a coluna e unica, e no Postgres varios NULL convivem, enquanto varios ""
+  /// colidiriam no segundo cliente sem documento.
+  documento         String?          @unique // CPF ou CNPJ
   inscricaoEstadual String?
   email             String?
   telefone          String
