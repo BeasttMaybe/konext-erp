@@ -44,7 +44,6 @@ type ConfiguracaoRegistro = {
   modeloImpressaoOSPadrao?: ModeloImpressaoOS | null;
   imprimirLogoTermica?: boolean | null;
   mensagemRodapeImpressaoOS?: string | null;
-  habilitarMargemAutomatica?: boolean | null;
   permitirVendaSemEstoque?: boolean | null;
   fechamentoAutomaticoCaixaAtivo?: boolean | null;
   fechamentoAutomaticoCaixaHorario?: string | null;
@@ -147,7 +146,6 @@ export type DadosConfiguracoes = {
   modeloImpressaoOSPadrao: ModeloImpressaoOS;
   imprimirLogoTermica: boolean;
   mensagemRodapeImpressaoOS: string;
-  habilitarMargemAutomatica: boolean;
   permitirVendaSemEstoque: boolean;
   fechamentoAutomaticoCaixaAtivo: boolean;
   fechamentoAutomaticoCaixaHorario: string;
@@ -256,7 +254,6 @@ const schemaDadosConfiguracoes = z.object({
   modeloImpressaoOSPadrao: z.enum(["A4", "TERMICA_80MM"]),
   imprimirLogoTermica: z.boolean(),
   mensagemRodapeImpressaoOS: z.string().trim().max(300, "Mensagem de rodapé excede o limite de 300 caracteres."),
-  habilitarMargemAutomatica: z.boolean(),
   permitirVendaSemEstoque: z.boolean(),
   fechamentoAutomaticoCaixaAtivo: z.boolean(),
   fechamentoAutomaticoCaixaHorario: z
@@ -387,7 +384,6 @@ function obterConfiguracoesPadrao(): DadosConfiguracoes {
     modeloImpressaoOSPadrao: "A4",
     imprimirLogoTermica: true,
     mensagemRodapeImpressaoOS: "",
-    habilitarMargemAutomatica: true,
     permitirVendaSemEstoque: false,
     fechamentoAutomaticoCaixaAtivo: false,
     fechamentoAutomaticoCaixaHorario: "23:59",
@@ -603,7 +599,6 @@ export async function obterConfiguracoes(): Promise<{ id: string } & DadosConfig
           estado: "",
           endereco: "",
           mensagemCupom: null,
-          habilitarMargemAutomatica: true,
           permitirVendaSemEstoque: false,
           fechamentoAutomaticoCaixaAtivo: false,
           fechamentoAutomaticoCaixaHorario: "23:59",
@@ -667,10 +662,6 @@ export async function obterConfiguracoes(): Promise<{ id: string } & DadosConfig
     mensagemRodapeImpressaoOS: configuracao?.mensagemRodapeImpressaoOS
       ? String(configuracao.mensagemRodapeImpressaoOS)
       : "",
-    habilitarMargemAutomatica:
-      typeof configuracao?.habilitarMargemAutomatica === "boolean"
-        ? Boolean(configuracao.habilitarMargemAutomatica)
-        : true,
     permitirVendaSemEstoque:
       typeof configuracao?.permitirVendaSemEstoque === "boolean"
         ? Boolean(configuracao.permitirVendaSemEstoque)
@@ -1000,7 +991,6 @@ export async function salvarConfiguracoes(data: DadosConfiguracoes) {
         modeloImpressaoOSPadrao: "A4",
         imprimirLogoTermica: true,
         mensagemRodapeImpressaoOS: null,
-        habilitarMargemAutomatica: true,
         permitirVendaSemEstoque: false,
         fechamentoAutomaticoCaixaAtivo: false,
         fechamentoAutomaticoCaixaHorario: "23:59",
@@ -1058,7 +1048,6 @@ export async function salvarConfiguracoes(data: DadosConfiguracoes) {
     modeloImpressaoOSPadrao: dadosNormalizados.modeloImpressaoOSPadrao,
     imprimirLogoTermica: dadosNormalizados.imprimirLogoTermica,
     mensagemRodapeImpressaoOS: dadosNormalizados.mensagemRodapeImpressaoOS || null,
-    habilitarMargemAutomatica: dadosNormalizados.habilitarMargemAutomatica,
     permitirVendaSemEstoque: dadosNormalizados.permitirVendaSemEstoque,
     fechamentoAutomaticoCaixaAtivo: dadosNormalizados.fechamentoAutomaticoCaixaAtivo,
     fechamentoAutomaticoCaixaHorario: dadosNormalizados.fechamentoAutomaticoCaixaHorario,
@@ -1173,7 +1162,6 @@ export async function salvarConfiguracoes(data: DadosConfiguracoes) {
           custoPecaOSJaPago: dadosAntes.custoPecaOSJaPago,
           permitirFinalizarSemPagamento: dadosAntes.permitirFinalizarSemPagamento,
           permitirGarantiaPersonalizada: dadosAntes.permitirGarantiaPersonalizada,
-          habilitarMargemAutomatica: dadosAntes.habilitarMargemAutomatica,
         },
         dadosDepois: {
           prazoGarantiaPadraoDias: dadosNormalizados.prazoGarantiaPadraoDias,
@@ -1186,7 +1174,6 @@ export async function salvarConfiguracoes(data: DadosConfiguracoes) {
           custoPecaOSJaPago: dadosNormalizados.custoPecaOSJaPago,
           permitirFinalizarSemPagamento: dadosNormalizados.permitirFinalizarSemPagamento,
           permitirGarantiaPersonalizada: dadosNormalizados.permitirGarantiaPersonalizada,
-          habilitarMargemAutomatica: dadosNormalizados.habilitarMargemAutomatica,
         },
       }
     );
