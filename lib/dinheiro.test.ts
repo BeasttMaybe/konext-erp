@@ -245,3 +245,50 @@ describe("lib/dinheiro — lerEntradaMonetaria", () => {
     expect(lerEntradaMonetaria({})).toBeNull();
   });
 });
+
+describe("lerEntradaMonetaria: o que o dono realmente digita", () => {
+  /**
+   * O dono: "se por exemplo eu coloco 8.153,90 o sistema não reconhece, daí
+   * tenho que retirar o . pra reconhecer".
+   *
+   * Ele não estava errado em digitar: 8.153,90 é como se escreve dinheiro em
+   * português. Quem estava errado eram as telas, que liam o texto com um
+   * `.replace(",", ".")` próprio — e `"8.153.90"` não é número nenhum.
+   */
+  it("aceita o formato com ponto de milhar e vírgula decimal", () => {
+    expect(lerEntradaMonetaria("8.153,90")).toBe(815390);
+    expect(lerEntradaMonetaria("R$ 8.153,90")).toBe(815390);
+    expect(lerEntradaMonetaria("1.234.567,89")).toBe(123456789);
+  });
+
+  it("continua aceitando sem o ponto de milhar", () => {
+    expect(lerEntradaMonetaria("8153,90")).toBe(815390);
+    expect(lerEntradaMonetaria("8153")).toBe(815300);
+  });
+
+  it("ponto de milhar sem centavos não vira troco", () => {
+    // Era aqui que "8.153" virava R$ 8,15 — mil vezes menos, em silêncio.
+    expect(lerEntradaMonetaria("8.153")).toBe(815300);
+    expect(lerEntradaMonetaria("1.234")).toBe(123400);
+    expect(lerEntradaMonetaria("1.234.567")).toBe(123456700);
+  });
+
+  it("ponto decimal do campo numérico continua sendo decimal", () => {
+    // `input[type=number]` manda "1234.56", com o ponto separando centavos.
+    expect(lerEntradaMonetaria("1234.56")).toBe(123456);
+    expect(lerEntradaMonetaria("0.5")).toBe(50);
+    expect(lerEntradaMonetaria("8.1")).toBe(810);
+    // "0.500" é meio real, não quinhentos.
+    expect(lerEntradaMonetaria("0.500")).toBe(50);
+  });
+
+  it("devolve null para o que não é dinheiro, em vez de zero", () => {
+    // Zero silencioso é o que fazia a peça de mil reais entrar custando nada.
+    expect(lerEntradaMonetaria("")).toBeNull();
+    expect(lerEntradaMonetaria("   ")).toBeNull();
+    expect(lerEntradaMonetaria("abc")).toBeNull();
+    expect(lerEntradaMonetaria(null)).toBeNull();
+    expect(lerEntradaMonetaria(undefined)).toBeNull();
+    expect(lerEntradaMonetaria(NaN)).toBeNull();
+  });
+});

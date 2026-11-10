@@ -36,7 +36,23 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed left-[50%] top-[50%] z-kx-dialogo grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg",
+        // ALTURA MÁXIMA E ROLAGEM, no componente base.
+        //
+        // Sem isto, um diálogo mais alto que a tela vaza para fora dela nos
+        // dois sentidos — porque ele é `fixed` no meio e puxado por
+        // `translate-y-[-50%]`. O resultado é o que o dono viu ao criar uma
+        // meta automática: "a tela fica grande e somem as bordas". As bordas
+        // não somem, elas saem do campo de visão; e junto vai o rodapé, com
+        // os botões de salvar e cancelar.
+        //
+        // Quatro modais já tinham resolvido isso por conta própria, cada um
+        // com o seu `max-h`. Quatro remendos para o mesmo buraco é o sinal de
+        // que o buraco é do padrão, não de cada tela.
+        //
+        // `dvh` e não `vh`: no celular, `vh` ignora a barra do navegador e o
+        // rodapé fica escondido atrás dela. O `-2rem` deixa a folga que faz a
+        // borda aparecer.
+        "fixed left-[50%] top-[50%] z-kx-dialogo grid max-h-[calc(100dvh-2rem)] w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg",
         className
       )}
       {...props}
@@ -73,7 +89,16 @@ const DialogFooter = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      "flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2",
+      // RODAPÉ GRUDADO NO FIM, para os botões não dependerem de rolagem.
+      //
+      // Num diálogo alto, "Criar meta" ficava abaixo da dobra: a pessoa
+      // preenchia tudo e ainda precisava descobrir que havia mais tela para
+      // baixo. Grudado, a ação principal está sempre à mão.
+      //
+      // As margens negativas e o padding refazem o respiro de 24px do
+      // `DialogContent` (`p-6`): sem elas, o conteúdo rolaria aparecendo por
+      // trás dos botões nas laterais e embaixo.
+      "sticky -bottom-6 z-kx-sticky -mx-6 -mb-6 flex flex-col-reverse gap-2 border-t border-kx-painel-borda bg-background px-6 pb-6 pt-4 sm:flex-row sm:justify-end sm:space-x-2",
       className
     )}
     {...props}

@@ -1,5 +1,6 @@
 "use client";
 
+import { lerEntradaMonetaria, paraMoeda } from "@/lib/dinheiro";
 import { useMemo, useState, type KeyboardEvent, type RefObject } from "react";
 import { Percent, Search, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,11 +18,15 @@ const MAXIMO_RESULTADOS_BUSCA = 8;
 const formatarMoeda = (valor: number): string =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(valor);
 
-/** Mesmo padrão de parse já usado em controle-desconto-pdv.tsx/painel-produto-selecionado-pdv.tsx para valores em R$. */
+/**
+ * O comentário que estava aqui dizia "mesmo padrão de parse já usado em
+ * controle-desconto-pdv.tsx/painel-produto-selecionado-pdv.tsx" — ou seja, a
+ * própria duplicação estava documentada. Agora é a mesma FUNÇÃO, e não o
+ * mesmo padrão copiado.
+ */
 const parseValorInput = (valor: string): number => {
-  const normalizado = valor.replace(/\./g, "").replace(",", ".").trim();
-  const numero = Number(normalizado);
-  return Number.isFinite(numero) && numero >= 0 ? numero : 0;
+  const centavos = lerEntradaMonetaria(valor);
+  return centavos === null || centavos < 0 ? 0 : paraMoeda(centavos);
 };
 
 interface PropsEtapaProdutoPdv {
