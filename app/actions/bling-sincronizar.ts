@@ -12,6 +12,7 @@ import {
   explicarNaoCasamento,
   type VendaCandidata,
 } from "@/lib/dominio/bling/casamento-de-venda";
+import { borderosDaConta, lerBordero } from "@/lib/dominio/bling/bordero";
 import {
   lerPaginaDeContas,
   referenciaDaConta,
@@ -283,6 +284,55 @@ async function tentarVincular({
  * VINCULADA a esse cliente — assim ela aparece com nome de cliente nas telas
  * que já sabem mostrar cliente, em vez de depender do texto da descrição.
  */
+/**
+ * A data em que a conta foi efetivamente baixada no Bling.
+ *
+ * Custa duas chamadas: o detalhe da conta (que tem os ids de bordero) e o
+ * bordero (que tem a data). Nao ha caminho mais curto -- a lista nao traz
+ * nenhum dos dois.
+ *
+ * O CACHE DE BORDEROS E O QUE TORNA ISTO VIAVEL
+ *
+ * Um bordero e um LOTE: varias contas baixadas juntas compartilham o mesmo.
+ * Sem cache, uma baixa de trinta contas custaria trinta leituras do mesmo
+ * bordero, a 3 requisicoes por segundo.
+ *
+ * Devolve `null` quando nao da para saber -- conta sem bordero, bordero sem
+ * data, erro de rede. `null` deixa a conta FORA do faturamento, que e o
+ * comportamento certo: numero ausente numa tela de dinheiro e melhor que
+ * numero errado.
+ */
+async function buscarDataDaBaixa(
+  accessToken: string,
+  blingIdDaConta: string,
+  cache: Map<string, Date | null>
+): Promise<Date | null> {
+  try {
+    await esperarPelaVazao();
+    const detalhe = await chamarBling({
+      accessToken,
+      caminho: `/contas/receber/${blingIdDaConta}`,
+    });
+
+    const [idDoBordero] = borderosDaConta(detalhe);
+    if (!idDoBordero) return null;
+
+    if (cache.has(idDoBordero)) return cache.get(idDoBordero) ?? null;
+
+    await esperarPelaVazao();
+    const resposta = await chamarBling({ accessToken, caminho: `/borderos/${idDoBordero}` });
+    const bordero = lerBordero(resposta);
+
+    cache.set(idDoBordero, bordero?.data ?? null);
+    return bordero?.data ?? null;
+  } catch (erro) {
+    // Uma conta sem data nao pode derrubar a sincronizacao inteira: as
+    // outras contas e as notas continuam valendo.
+    console.error(`Nao consegui ler a data de baixa da conta ${blingIdDaConta} no Bling:`, erro);
+    return null;
+  }
+}
+
 async function importarContasAReceber({
   accessToken,
   contaReceber,
@@ -297,6 +347,8 @@ async function importarContasAReceber({
   comoData: (data: Date) => string;
 }): Promise<number> {
   let criadas = 0;
+  /** Bordero ja lido nesta sincronizacao -> data. Ver `buscarDataDaBaixa`. */
+  const cacheDeBorderos = new Map<string, Date | null>();
 
   for (let ano = 0; ano < ANOS_DE_HISTORICO; ano += 1) {
     const fimDaJanela = somarDiasEmDataDeCalendario(hoje, -365 * ano);
@@ -332,10 +384,27 @@ async function importarContasAReceber({
         // cliente errado é pior que deixá-la sem cliente.
         const clienteLocal = await acharClientePorDocumento(prisma, conta.clienteDocumento);
 
+        // A DATA EM QUE O DINHEIRO ENTROU, para conta ja recebida.
+        //
+        // Nem a lista nem o detalhe da conta tem essa data: o detalhe traz
+        // `vencimento`, `dataEmissao`, `competencia` e `vencimentoOriginal`,
+        // todos definidos na CRIACAO. A data da baixa mora no bordero, que o
+        // detalhe referencia por id -- duas chamadas a mais por conta.
+        //
+        // Vale o custo: a primeira conta real do dono vencia em 08/01 e foi
+        // paga em 15/01. Usar o vencimento como atalho jogaria a receita para
+        // a semana errada, e numa conta que vence dia 28 e e paga dia 3, para
+        // o MES errado.
+        const dataRecebimento =
+          conta.status === "RECEBIDO"
+            ? await buscarDataDaBaixa(accessToken, conta.blingId, cacheDeBorderos)
+            : null;
+
         const dados = {
           descricao: conta.descricao,
           valor: paraDecimal(deDecimal(conta.valorReais)),
           dataVencimento: conta.vencimento,
+          dataRecebimento,
           status: conta.status,
           origem: "BLING" as const,
           formaRecebimento: "NAO_INFORMADO" as const,
