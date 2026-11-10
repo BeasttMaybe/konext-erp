@@ -75,10 +75,16 @@ export function filtroPrismaDeReceitaRealizada(): {
  * Equivale exatamente a `COALESCE(dataRecebimento, criadoEm) BETWEEN …` do
  * SQL: o primeiro ramo pega quem tem data de recebimento, o segundo pega
  * quem não tem e usa a data de criação.
+ *
+ * Genérica no tipo do intervalo de propósito: este módulo é de domínio e não
+ * importa tipos do Prisma. Declarar `{ gte?: Date; lte?: Date }` parecia
+ * bastar e não bastava — o filtro de data que o chamador monta é o
+ * `DateTimeFilter` do Prisma, que tem mais campos, e o build quebrou. O
+ * intervalo atravessa esta função sem ela precisar saber o que ele é.
  */
-export function filtroPrismaDePeriodoDeReceita(intervalo: { gte?: Date; lte?: Date }): {
-  OR: Array<{ dataRecebimento: { gte?: Date; lte?: Date } | null; criadoEm?: { gte?: Date; lte?: Date } }>;
-} {
+export function filtroPrismaDePeriodoDeReceita<Intervalo>(
+  intervalo: Intervalo
+): { OR: [{ dataRecebimento: Intervalo }, { dataRecebimento: null; criadoEm: Intervalo }] } {
   return {
     OR: [
       { dataRecebimento: intervalo },
