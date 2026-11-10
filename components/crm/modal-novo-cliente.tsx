@@ -18,13 +18,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Loader2, Search } from "lucide-react";
 import { toast } from "sonner";
 import { formClienteSchema, type FormCliente } from "@/lib/validations/crm";
@@ -426,25 +419,17 @@ export function ModalNovoCliente({
                   </div>
                 )}
 
-                <div>
-                  <Label htmlFor="categoria">Categoria</Label>
-                  <Controller
-                    name="categoria"
-                    control={control}
-                    render={({ field }) => (
-                      <Select value={field.value} onValueChange={field.onChange}>
-                        <SelectTrigger id="categoria">
-                          <SelectValue placeholder="Selecione" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="CLIENTE_FINAL">Cliente Final</SelectItem>
-                          <SelectItem value="EMPRESA">Empresa</SelectItem>
-                          <SelectItem value="ORGAO_PUBLICO">Orgao Publico</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
-                </div>
+                {/* O campo "Categoria" saiu daqui.
+                    Ele repetia o que "Registrar como" (cliente ou fornecedor)
+                    ja diz, e a opcao `EMPRESA` era exibida na lista como
+                    "Fornecedor / Empresa" -- entao pessoa fisica com CPF
+                    aparecia como fornecedor ao lado do proprio "Perfil:
+                    Cliente". Dois campos dizendo coisas diferentes sobre a
+                    mesma pessoa.
+
+                    A coluna continua no banco, com o valor padrao, ate o dono
+                    decidir se derruba: apagar coluna nao tem volta, e ninguem
+                    precisa dessa decisao hoje para o cadastro funcionar. */}
               </div>
             </div>
 

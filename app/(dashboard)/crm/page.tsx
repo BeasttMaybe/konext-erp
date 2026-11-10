@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { HistoricoDoClientePainel } from "@/components/crm/historico-do-cliente";
 import { ModalNovoCliente } from "@/components/crm/modal-novo-cliente";
 import { PaginationControls } from "@/components/ui/pagination-controls";
 import { Badge } from "@/components/ui/badge";
@@ -30,13 +31,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -98,16 +92,30 @@ interface ClientRecord {
   observacoes?: string;
 }
 
-const categoryLabelMap: Record<ClientCategory, string> = {
-  CLIENTE_FINAL: "Cliente final",
-  EMPRESA: "Fornecedor / Empresa",
-  ORGAO_PUBLICO: "Órgão público",
+/**
+ * A etiqueta mostra PESSOA FISICA ou JURIDICA, e nao mais "Categoria".
+ *
+ * O dono: "existe a categoria que de nada serve, ja que possui 'Registrar
+ * como cliente ou fornecedor', e a maioria dos clientes estao como Empresas
+ * B2B".
+ *
+ * Ele estava certo duas vezes. A categoria repetia o que o papel ja diz -- e
+ * a etiqueta `EMPRESA` era exibida como "Fornecedor / Empresa", entao uma
+ * pessoa fisica com CPF aparecia como FORNECEDOR na coluna ao lado do
+ * "Perfil: Cliente". Dois campos dizendo coisas diferentes sobre a mesma
+ * pessoa, e o visitante acredita no errado.
+ *
+ * Pessoa fisica ou juridica nao e opiniao: sai do proprio documento, e e a
+ * informacao que de fato muda alguma coisa (nota fiscal, inscricao estadual).
+ */
+const tipoPessoaLabelMap: Record<"FISICA" | "JURIDICA", string> = {
+  FISICA: "Pessoa física",
+  JURIDICA: "Pessoa jurídica",
 };
 
-const categoryColorMap: Record<ClientCategory, string> = {
-  CLIENTE_FINAL: "bg-kx-info-fundo text-kx-info-texto border-kx-info",
-  EMPRESA: "bg-kx-entregue-fundo text-kx-entregue-texto border-kx-entregue",
-  ORGAO_PUBLICO: "bg-kx-alerta-fundo text-kx-alerta-texto border-kx-alerta",
+const tipoPessoaColorMap: Record<"FISICA" | "JURIDICA", string> = {
+  FISICA: "bg-kx-info-fundo text-kx-info-texto border-kx-info",
+  JURIDICA: "bg-kx-entregue-fundo text-kx-entregue-texto border-kx-entregue",
 };
 
 function mapClientRecord(client: {
@@ -199,7 +207,6 @@ function ContactsPageContent() {
   const [reloadToken, setReloadToken] = useState(0);
   const [isListLoading, setIsListLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState<"TODOS" | ClientCategory>("TODOS");
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
   const [deletingClientId, setDeletingClientId] = useState<string | null>(null);
   const [editingClient, setEditingClient] = useState<ClientRecord | null>(null);
@@ -229,7 +236,9 @@ function ContactsPageContent() {
           currentPage,
           PAGE_SIZE,
           searchTerm,
-          categoryFilter,
+          // Sem filtro de categoria: ele saiu da tela junto com o campo.
+          // `undefined` e o que `montarFiltroClientes` entende como "todas".
+          undefined,
           paperFilter
         );
 
@@ -251,7 +260,7 @@ function ContactsPageContent() {
     return () => {
       mounted = false;
     };
-  }, [currentPage, searchTerm, categoryFilter, viewMode, reloadToken]);
+  }, [currentPage, searchTerm, viewMode, reloadToken]);
 
   const totalBusiness = summary.empresas;
 
@@ -288,11 +297,6 @@ function ContactsPageContent() {
 
   const handleSearchChange = (value: string) => {
     setSearchTerm(value);
-    goToPage(1);
-  };
-
-  const handleCategoryFilterChange = (value: string) => {
-    setCategoryFilter(value as "TODOS" | ClientCategory);
     goToPage(1);
   };
 
@@ -385,17 +389,6 @@ function ContactsPageContent() {
           />
         </div>
 
-        <Select value={categoryFilter} onValueChange={handleCategoryFilterChange}>
-          <SelectTrigger className="w-full lg:w-[220px]">
-            <SelectValue placeholder="Filtrar categoria" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="TODOS">Todas as categorias</SelectItem>
-            <SelectItem value="CLIENTE_FINAL">Cliente final</SelectItem>
-            <SelectItem value="EMPRESA">Fornecedor / Empresa</SelectItem>
-            <SelectItem value="ORGAO_PUBLICO">Órgão público</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
 
       <div className="rounded-lg border border-border overflow-hidden">
@@ -406,7 +399,7 @@ function ContactsPageContent() {
               <TableHead>Documento</TableHead>
               <TableHead>Telefone</TableHead>
               <TableHead>Perfil</TableHead>
-              <TableHead>Categoria</TableHead>
+              <TableHead>Tipo</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
@@ -422,8 +415,8 @@ function ContactsPageContent() {
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  <Badge className={categoryColorMap[client.categoria]}>
-                    {categoryLabelMap[client.categoria]}
+                  <Badge className={tipoPessoaColorMap[client.tipoPessoa]}>
+                    {tipoPessoaLabelMap[client.tipoPessoa]}
                   </Badge>
                 </TableCell>
                 <TableCell className="text-right">
@@ -563,7 +556,7 @@ function ContactsPageContent() {
               <Card className="p-5 border-border bg-card">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-sm text-muted-foreground">Empresas B2B</p>
+                    <p className="text-sm text-muted-foreground">Pessoas jurídicas</p>
                     <p className="text-3xl font-bold text-foreground mt-2">{totalBusiness}</p>
                   </div>
                   <Filter className="h-5 w-5 text-muted-foreground" />
@@ -706,14 +699,26 @@ function ContactsPageContent() {
                 </dd>
               </div>
               <div>
-                <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Categoria</dt>
+                <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tipo</dt>
                 <dd className="mt-0.5">
-                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${categoryColorMap[profileClient.categoria]}`}>
-                    {categoryLabelMap[profileClient.categoria]}
+                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${tipoPessoaColorMap[profileClient.tipoPessoa]}`}>
+                    {tipoPessoaLabelMap[profileClient.tipoPessoa]}
                   </span>
                 </dd>
               </div>
             </dl>
+          )}
+
+          {/* MONTADO junto com o painel: o histórico é buscado quando o
+              cliente abre, e não junto da lista. Trazer isto no `include` de
+              cada contato seria pagar por todos para mostrar um. */}
+          {profileClient && (
+            <div className="space-y-2 border-t border-kx-painel-borda pt-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Histórico
+              </p>
+              <HistoricoDoClientePainel clienteId={profileClient.id} />
+            </div>
           )}
 
           <DialogFooter>
