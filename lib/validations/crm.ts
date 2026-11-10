@@ -9,9 +9,11 @@ export const formClienteSchema = z.object({
     .string()
     .min(3, "O nome ou Razão Social é obrigatório."),
   nomeFantasia: z.string().optional(),
-  documento: z
-    .string()
-    .nonempty("CPF ou CNPJ é obrigatório."), // Pode adicionar regex de validação depois
+  // Opcional por decisão do dono: no cadastro de cliente, só nome e telefone
+  // são obrigatórios. Quem atende no balcão nem sempre tem o documento na
+  // hora, e exigir um campo que a pessoa não tem leva ao pior dos mundos --
+  // alguém digita qualquer coisa só para passar da tela.
+  documento: z.string().optional(),
   inscricaoEstadual: z.string().optional(),
 
   // Contato

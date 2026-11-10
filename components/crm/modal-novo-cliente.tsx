@@ -372,7 +372,7 @@ export function ModalNovoCliente({
                 )}
 
                 <div>
-                  <Label htmlFor="documento">CPF / CNPJ</Label>
+                  <Label htmlFor="documento">CPF / CNPJ <span className="text-kx-legenda">(opcional)</span></Label>
                   <div className="flex items-end gap-2">
                     <Controller
                       name="documento"

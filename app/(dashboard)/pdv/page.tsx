@@ -200,7 +200,7 @@ function PDVPageConteudo() {
     return clientes
       .filter((cliente) => {
         const nome = normalizarBuscaCliente(cliente.nomeRazaoSocial);
-        const documento = normalizarBuscaCliente(cliente.documento);
+        const documento = normalizarBuscaCliente(cliente.documento ?? "");
         const telefone = normalizarBuscaCliente(cliente.telefone);
 
         return (

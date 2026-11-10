@@ -212,7 +212,9 @@ export async function criarCliente(
       papel: papelNormalizado,
       nomeRazaoSocial: dadosValidados.nomeRazaoSocial.trim(),
       nomeFantasia: dadosValidados.nomeFantasia?.trim() || null,
-      documento: dadosValidados.documento.trim(),
+      // NULO quando vazio, nunca "": a coluna e unica, e varias
+      // strings vazias colidiriam no segundo cliente sem documento.
+      documento: dadosValidados.documento?.trim() || null,
       inscricaoEstadual: dadosValidados.inscricaoEstadual?.trim() || null,
       email: dadosValidados.email?.trim() || null,
       telefone: dadosValidados.telefone.trim(),
@@ -239,7 +241,7 @@ export async function criarCliente(
         tipoPessoa: cliente.tipoPessoa,
         nomeRazaoSocial: cliente.nomeRazaoSocial,
         nomeFantasia: cliente.nomeFantasia,
-        documento: cliente.documento,
+        documento: cliente.documento ?? "",
         inscricaoEstadual: cliente.inscricaoEstadual,
         email: cliente.email,
         telefone: cliente.telefone,
@@ -381,7 +383,9 @@ export async function atualizarCliente(
         papel: papelNormalizado,
         nomeRazaoSocial: dadosValidados.nomeRazaoSocial.trim(),
         nomeFantasia: dadosValidados.nomeFantasia?.trim() || null,
-        documento: dadosValidados.documento.trim(),
+        // NULO quando vazio, nunca "": a coluna e unica, e varias
+      // strings vazias colidiriam no segundo cliente sem documento.
+      documento: dadosValidados.documento?.trim() || null,
         inscricaoEstadual: dadosValidados.inscricaoEstadual?.trim() || null,
         email: dadosValidados.email?.trim() || null,
         telefone: dadosValidados.telefone.trim(),
@@ -407,7 +411,7 @@ export async function atualizarCliente(
         tipoPessoa: clienteAtualizado.tipoPessoa,
         nomeRazaoSocial: clienteAtualizado.nomeRazaoSocial,
         nomeFantasia: clienteAtualizado.nomeFantasia,
-        documento: clienteAtualizado.documento,
+        documento: clienteAtualizado.documento ?? "",
         inscricaoEstadual: clienteAtualizado.inscricaoEstadual,
         email: clienteAtualizado.email,
         telefone: clienteAtualizado.telefone,
