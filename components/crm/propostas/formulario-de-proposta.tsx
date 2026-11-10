@@ -415,7 +415,7 @@ export function FormularioDeProposta({ proposta }: { proposta?: PropostaParaEdit
  .filter((cliente) => {
  const nome = normalizeSearch(cliente.nomeRazaoSocial);
  const fantasia = normalizeSearch(cliente.nomeFantasia ?? "");
- const documento = normalizeDigits(cliente.documento);
+ const documento = normalizeDigits(cliente.documento ?? "");
 
  const bateTexto =
  clienteTextoNormalizado.length > 0 &&
@@ -432,7 +432,7 @@ export function FormularioDeProposta({ proposta }: { proposta?: PropostaParaEdit
  clientesSugestoes.some((cliente) => {
  const nome = normalizeSearch(cliente.nomeRazaoSocial);
  const fantasia = normalizeSearch(cliente.nomeFantasia ?? "");
- const documento = normalizeDigits(cliente.documento);
+ const documento = normalizeDigits(cliente.documento ?? "");
 
  return (
  nome === clienteTextoNormalizado ||

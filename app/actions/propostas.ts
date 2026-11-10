@@ -42,7 +42,8 @@ type ClientePropostaSugestao = {
   id: string;
   nomeRazaoSocial: string;
   nomeFantasia: string | null;
-  documento: string;
+  /** Nulo quando o cliente nao informou CPF/CNPJ. */
+  documento: string | null;
 };
 
 type ProdutoPropostaSugestao = {

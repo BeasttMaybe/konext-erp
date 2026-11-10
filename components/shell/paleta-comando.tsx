@@ -103,7 +103,7 @@ export function PaletaComando({ aberta, onAbertaChange }: PropsPaletaComando) {
               >
                 <Users className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                 <span className="flex-1 truncate">
-                  {cliente.nome} · {cliente.documento}
+                  {cliente.documento ? `${cliente.nome} · ${cliente.documento}` : cliente.nome}
                 </span>
               </CommandItem>
             ))}

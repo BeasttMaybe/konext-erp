@@ -18,7 +18,8 @@ type ResultadoCriarCliente =
         tipoPessoa: "FISICA" | "JURIDICA";
         nomeRazaoSocial: string;
         nomeFantasia: string | null;
-        documento: string;
+        /** Nulo quando o cliente nao informou CPF/CNPJ. */
+        documento: string | null;
         inscricaoEstadual: string | null;
         email: string | null;
         telefone: string;
@@ -45,7 +46,8 @@ type ResultadoConsultaCnpjCliente =
       dados: {
         nomeRazaoSocial: string;
         nomeFantasia: string;
-        documento: string;
+        /** Nulo quando o cliente nao informou CPF/CNPJ. */
+        documento: string | null;
         cep: string;
         logradouro: string;
         numero: string;
@@ -527,7 +529,8 @@ export async function listarClientesPaginado(
   papel: "CLIENTE" | "FORNECEDOR";
   nomeRazaoSocial: string;
   nomeFantasia: string | null;
-  documento: string;
+  /** Nulo quando o cliente nao informou CPF/CNPJ. */
+  documento: string | null;
   inscricaoEstadual: string | null;
   email: string | null;
   telefone: string;
@@ -597,7 +600,8 @@ export interface ClienteBuscaCRM {
   id: string;
   nomeRazaoSocial: string;
   nomeFantasia: string | null;
-  documento: string;
+  /** Nulo quando o cliente nao informou CPF/CNPJ. */
+  documento: string | null;
   telefone: string;
 }
 

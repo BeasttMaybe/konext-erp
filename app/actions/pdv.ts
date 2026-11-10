@@ -47,7 +47,8 @@ import {
 export interface ClientePDV {
   id: string;
   nomeRazaoSocial: string;
-  documento: string;
+  /** Nulo quando o cliente nao informou CPF/CNPJ. */
+  documento: string | null;
   telefone: string;
 }
 

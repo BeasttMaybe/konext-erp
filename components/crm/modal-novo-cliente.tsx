@@ -220,7 +220,7 @@ export function ModalNovoCliente({
 
     try {
       setBuscandoCnpj(true);
-      const resultado = await consultarCnpjReceitaCliente(documentoAtual);
+      const resultado = await consultarCnpjReceitaCliente(documentoAtual ?? "");
 
       if (!resultado.sucesso) {
         toast.error("CNPJ invalido ou nao encontrado na Receita.");
