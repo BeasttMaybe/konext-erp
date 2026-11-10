@@ -16,6 +16,22 @@ import { formatarReais, lerReais } from "@/lib/dinheiro";
  * Texto que não é valor nenhum volta pro último valor válido, em vez de
  * virar zero: zero é um número, e um frete que virou R$ 0,00 sozinho é pior
  * do que um campo que não aceitou o que foi digitado.
+ *
+ * POR QUE ELE SAIU DA PASTA DO ESTOQUE
+ *
+ * Nasceu para a entrada de nota e ficou lá. Enquanto isso, 25 outros campos
+ * de dinheiro no sistema usavam `<input type="number">` — e campo numérico
+ * do navegador NÃO ACEITA VÍRGULA: o que a pessoa digita depois dela é
+ * descartado antes de o sistema ver.
+ *
+ * Era a segunda causa do relato do dono ("coloco 8.153,90 e o sistema não
+ * reconhece"): além de catorze leitores diferentes, o próprio campo recusava
+ * o formato brasileiro. Um deles chegava a prometer "0,00" no placeholder —
+ * uma vírgula que ele mesmo não deixava digitar.
+ *
+ * Este componente aceita, porque é um campo de TEXTO com `inputMode`
+ * decimal: o teclado do celular abre com números, e o teclado do computador
+ * digita o que quiser.
  */
 export function CampoDinheiro({
   valorCentavos,

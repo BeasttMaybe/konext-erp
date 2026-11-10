@@ -20,7 +20,7 @@ import type { CustoDoItem } from "@/lib/dominio/compras/custo";
 import { unidadeDoCadastro } from "@/lib/dominio/compras/unidade";
 import { UNIDADES_DE_MEDIDA } from "@/lib/dominio/estoque/preco";
 
-import { CampoDinheiro } from "./campo-dinheiro";
+import { CampoDinheiro } from "@/components/ui/campo-dinheiro";
 
 /**
  * O destino de uma linha da nota.

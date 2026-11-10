@@ -34,7 +34,7 @@ import {
   type RegraDeCusto,
 } from "@/lib/dominio/compras/custo";
 
-import { CampoDinheiro } from "./campo-dinheiro";
+import { CampoDinheiro } from "@/components/ui/campo-dinheiro";
 import { LinhaDaNota, type Destino } from "./linha-da-nota";
 import { SoltarArquivo } from "./soltar-arquivo";
 
