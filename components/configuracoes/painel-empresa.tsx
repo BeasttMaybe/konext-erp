@@ -5,7 +5,6 @@ import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { PilulaStatus } from "@/components/ui/pilula-status";
 import type { UseFormRegister, UseFormSetValue } from "react-hook-form";
 import {
@@ -222,18 +221,16 @@ export function PainelEmpresa({
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="endereco" className="text-xs font-bold text-kx-texto">
-              Endereço completo
-            </Label>
-            <Textarea
-              id="endereco"
-              rows={2}
-              placeholder="Rua, número, bairro, cidade, estado e CEP"
-              className="border-kx-campo-borda bg-kx-superficie"
-              {...register("endereco")}
-            />
-          </div>
+          {/* O campo de texto livre "Endereço completo" saiu daqui.
+              Ele duplicava os seis campos acima — e, pior, GANHAVA deles: o
+              dono preenchia CEP, rua, número, bairro, cidade e estado, e
+              nenhum aparecia em documento algum enquanto o texto livre
+              estivesse preenchido. O CEP nunca aparecia em lugar nenhum.
+
+              A coluna continua no banco e ainda é usada como reserva para
+              quem nunca preencheu os campos separados (ver
+              `montarEnderecoEmpresa`): tirar da tela para de criar trabalho
+              dobrado sem encolher o endereço de ninguém. */}
 
           {CAMPOS_EMPRESA_PLANEJADOS.endereco.length > 0 && (
             <div className="rounded-kx-botao border border-dashed border-kx-campo-borda p-3">

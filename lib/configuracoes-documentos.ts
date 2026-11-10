@@ -112,12 +112,30 @@ export function montarCidadeUf(configuracao: Partial<ConfiguracaoEmpresaDocument
   return cidadeUf || "Cidade/UF não informada";
 }
 
+/**
+ * O endereco da empresa para documentos.
+ *
+ * QUEM GANHA, E POR QUE ISTO MUDOU
+ *
+ * Antes, o campo de texto livre "Endereco" ganhava SEMPRE. Resultado: o dono
+ * preenchia CEP, logradouro, numero, bairro, cidade e estado -- seis campos
+ * -- e nada disso aparecia em documento nenhum enquanto o texto livre
+ * estivesse preenchido. O CEP, que so existe no formato estruturado, nunca
+ * aparecia em lugar algum.
+ *
+ * Agora ganha o endereco MONTADO a partir dos campos, que e o mais completo
+ * (tem CEP) e o unico que serve para nota fiscal depois.
+ *
+ * A TROCA SO VALE COM LOGRADOURO
+ *
+ * Um endereco montado so de "Sao Paulo - SP" e pior que um texto livre
+ * completo. Entao a inversao exige que exista RUA: sem ela, o texto livre
+ * continua mandando, e quem nunca preencheu os campos separados nao ve o
+ * endereco do seu documento encolher sozinho.
+ */
 export function montarEnderecoEmpresa(configuracao: Partial<ConfiguracaoEmpresaDocumentos> | null | undefined): string {
   const enderecoDireto = limparTexto(configuracao?.endereco);
-
-  if (enderecoDireto) {
-    return enderecoDireto;
-  }
+  const temLogradouro = Boolean(limparTexto(configuracao?.logradouro));
 
   const ruaNumero = [limparTexto(configuracao?.logradouro), limparTexto(configuracao?.numero)]
     .filter(Boolean)
@@ -132,7 +150,11 @@ export function montarEnderecoEmpresa(configuracao: Partial<ConfiguracaoEmpresaD
     .filter(Boolean)
     .join(" | ");
 
-  return endereco || "Endereço não informado";
+  if (temLogradouro && endereco) {
+    return endereco;
+  }
+
+  return enderecoDireto || endereco || "Endereço não informado";
 }
 
 export function montarResumoEmpresaDocumentos(

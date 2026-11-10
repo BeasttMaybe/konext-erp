@@ -11,7 +11,6 @@ export const TEXTO_RESPONSABILIDADE_DADOS_PADRAO =
 
 export type ConfiguracaoOsGarantias = Pick<
   DadosConfiguracoes,
-  | "habilitarMargemAutomatica"
   | "prazoGarantiaPadraoDias"
   | "prazoMinimoGarantiaDias"
   | "prazoMaximoGarantiaDias"
@@ -29,7 +28,6 @@ export type ConfiguracaoOsGarantias = Pick<
 
 export function obterDefaultsConfiguracaoOsGarantias(): ConfiguracaoOsGarantias {
   return {
-    habilitarMargemAutomatica: true,
     prazoGarantiaPadraoDias: 90,
     prazoMinimoGarantiaDias: 1,
     prazoMaximoGarantiaDias: 365,

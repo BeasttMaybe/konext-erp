@@ -83,12 +83,10 @@ model Configuracao {
   estado                    String   @default("")
   endereco                  String   @default("")
   logoUrl                   String?
-  chavePix                  String?
   mensagemCupom             String?
   modeloImpressaoOSPadrao   ModeloImpressaoOS @default(A4)
   imprimirLogoTermica       Boolean           @default(true)
   mensagemRodapeImpressaoOS String?
-  habilitarMargemAutomatica Boolean  @default(true)
   permitirVendaSemEstoque   Boolean  @default(false)
   permitirPagamentoMisto    Boolean  @default(true)
   permitirDescontoPDV       Boolean  @default(true)

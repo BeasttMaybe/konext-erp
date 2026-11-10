@@ -19,8 +19,7 @@ type CampoToggleOs =
   | "exigirItemParaEnviarPDV"
   | "exigirDiagnosticoParaFinalizar"
   | "permitirFinalizarSemPagamento"
-  | "custoPecaOSJaPago"
-  | "habilitarMargemAutomatica";
+  | "custoPecaOSJaPago";
 
 type BlocoToggleOsProps = {
   control: Control<DadosConfiguracoes>;
@@ -133,13 +132,6 @@ export function PainelOs({ control, configuracaoAtual }: PropsPainelOs) {
               Reaproveita a configuração atual de cálculo automático de margem para manter compatibilidade com o orçamento da OS.
             </p>
           </div>
-
-          <BlocoToggleOs
-            control={control}
-            campo="habilitarMargemAutomatica"
-            titulo="Habilitar cálculo automático de margem na OS"
-            descricao="Sugere valores de cobrança com base no custo e margem configurada."
-          />
         </div>
       </div>
     </SecaoConfiguracoes>

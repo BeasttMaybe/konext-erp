@@ -1,0 +1,209 @@
+import { NextRequest, NextResponse } from "next/server";
+
+import { prismaCentral } from "@/lib/central/prisma-central";
+import { obterPrismaTenant } from "@/lib/tenant/prisma-tenant";
+import { resolverConexaoTenant } from "@/lib/tenant/resolver-conexao-tenant";
+import { FUSO_HORARIO_PADRAO } from "@/lib/datas";
+import { deDecimal, paraDecimal, somar } from "@/lib/dinheiro";
+import {
+  decidirFechamentoAutomatico,
+  type CaixaParaFechar,
+} from "@/lib/dominio/caixa/fechamento-automatico";
+
+/**
+ * GET /api/cron/fechar-caixa
+ *
+ * Fecha o caixa que passou do horário configurado.
+ *
+ * O QUE ESTA ROTINA CONSERTA
+ *
+ * A configuração "Fechamento automático do caixa" existia, com horário e
+ * tudo — e o sistema só DESENHAVA um aviso na tela do caixa dizendo
+ * "Fechamento automático 23:59". Nada fechava. O dono podia ligar a opção,
+ * ver o aviso todo dia e confiar nela enquanto o caixa seguia aberto a noite
+ * inteira. Opção que promete e não cumpre é pior que opção que não existe.
+ *
+ * A REGRA NÃO MORA AQUI
+ *
+ * Quem decide o que está atrasado é `lib/dominio/caixa/fechamento-automatico`,
+ * puro e com 13 testes — inclusive o caso do caixa esquecido aberto há dias e
+ * o do servidor em UTC enquanto a loja está em São Paulo. Aqui fica só o que
+ * precisa de banco: ler os caixas abertos, somar o esperado, gravar.
+ *
+ * DE HORA EM HORA, E NÃO UMA VEZ POR DIA
+ *
+ * Uma execução diária só pegaria lojas cujo horário caísse naquele minuto.
+ * De hora em hora, qualquer horário configurado é alcançado na primeira
+ * execução seguinte — e a regra olha para trás, então o atraso de até uma
+ * hora não deixa nada passar.
+ */
+
+type DecimalPrisma = { toString(): string };
+
+type PrismaDoTenant = {
+  configuracao: {
+    findFirst: (args: unknown) => Promise<{
+      fechamentoAutomaticoCaixaAtivo: boolean | null;
+      fechamentoAutomaticoCaixaHorario: string | null;
+      fusoHorario: string | null;
+    } | null>;
+  };
+  caixaSession: {
+    findMany: (args: unknown) => Promise<
+      Array<{
+        id: string;
+        dataAbertura: Date;
+        valorAbertura: DecimalPrisma;
+        vendas: Array<{ valorTotal: DecimalPrisma; estornadaEm: Date | null }>;
+      }>
+    >;
+    update: (args: unknown) => Promise<unknown>;
+  };
+};
+
+type ResumoDoTenant = {
+  fechados: number;
+  /** ISO do instante usado como corte, para o log dizer POR QUE fechou. */
+  limite: string | null;
+};
+
+async function processarTenant(prisma: PrismaDoTenant, agora: Date): Promise<ResumoDoTenant> {
+  const configuracao = await prisma.configuracao.findFirst({
+    orderBy: { criadoEm: "asc" },
+    select: {
+      fechamentoAutomaticoCaixaAtivo: true,
+      fechamentoAutomaticoCaixaHorario: true,
+      fusoHorario: true,
+    },
+  });
+
+  if (!configuracao?.fechamentoAutomaticoCaixaAtivo) {
+    return { fechados: 0, limite: null };
+  }
+
+  const abertos = await prisma.caixaSession.findMany({
+    where: { status: "ABERTO" },
+    select: {
+      id: true,
+      dataAbertura: true,
+      valorAbertura: true,
+      vendas: { select: { valorTotal: true, estornadaEm: true } },
+    },
+  });
+
+  const decisao = decidirFechamentoAutomatico({
+    ativo: true,
+    horarioTexto: configuracao.fechamentoAutomaticoCaixaHorario,
+    fusoHorario: configuracao.fusoHorario || FUSO_HORARIO_PADRAO,
+    agora,
+    caixasAbertos: abertos.map(
+      (caixa): CaixaParaFechar => ({ id: caixa.id, dataAbertura: caixa.dataAbertura })
+    ),
+  });
+
+  if (!decisao) return { fechados: 0, limite: null };
+
+  const porId = new Map(abertos.map((caixa) => [caixa.id, caixa]));
+  let fechados = 0;
+
+  for (const alvo of decisao.aFechar) {
+    const caixa = porId.get(alvo.id);
+    if (!caixa) continue;
+
+    // O VALOR DE FECHAMENTO É O ESPERADO, e não um valor contado.
+    //
+    // Não há ninguém contando a gaveta às 23:59. O esperado é a única coisa
+    // honesta a gravar: abertura mais as vendas não estornadas. A diferença
+    // entre esperado e contado — que é o ponto do fechamento manual — não
+    // existe aqui, e inventar um valor contado seria fabricar uma conferência
+    // que ninguém fez.
+    const vendasValidas = caixa.vendas.filter((venda) => venda.estornadaEm === null);
+    const esperado = somar(
+      deDecimal(caixa.valorAbertura),
+      ...vendasValidas.map((venda) => deDecimal(venda.valorTotal))
+    );
+
+    await prisma.caixaSession.update({
+      where: { id: caixa.id },
+      data: {
+        status: "FECHADO",
+        valorFechamento: paraDecimal(esperado),
+        // A data de fechamento é o HORÁRIO CONFIGURADO, não o instante em que
+        // esta rotina rodou. O caixa das 23:59 que fechou na execução de
+        // 00:00 pertence ao dia anterior — gravar 00:00 jogaria o fechamento
+        // para o dia seguinte nos relatórios.
+        dataFechamento: decisao.limite,
+      },
+    });
+
+    fechados += 1;
+  }
+
+  return { fechados, limite: decisao.limite.toISOString() };
+}
+
+export async function GET(request: NextRequest) {
+  const authHeader = request.headers.get("authorization");
+  const cronSecret = process.env.CRON_SECRET;
+
+  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: "Nao autorizado." }, { status: 401 });
+  }
+
+  const agora = new Date();
+
+  try {
+    const tenantsAtivos = await prismaCentral.tenant.findMany({
+      where: { status: "ATIVO" },
+      select: { id: true, slug: true, connectionRef: true },
+    });
+
+    let fechados = 0;
+    const porTenant: Array<{ tenantSlug: string } & ResumoDoTenant> = [];
+    const falhas: Array<{ tenantId: string; tenantSlug: string; erro: string }> = [];
+
+    for (const tenant of tenantsAtivos) {
+      if (!tenant.connectionRef) {
+        falhas.push({
+          tenantId: tenant.id,
+          tenantSlug: tenant.slug,
+          erro: "Tenant sem connectionRef.",
+        });
+        continue;
+      }
+
+      try {
+        const prismaTenant = obterPrismaTenant({
+          tenantId: tenant.id,
+          connectionString: resolverConexaoTenant(tenant.connectionRef),
+        }) as unknown as PrismaDoTenant;
+
+        const resumo = await processarTenant(prismaTenant, agora);
+
+        fechados += resumo.fechados;
+        porTenant.push({ tenantSlug: tenant.slug, ...resumo });
+      } catch (erro) {
+        // Um tenant com problema não pode deixar o caixa dos outros aberto.
+        falhas.push({
+          tenantId: tenant.id,
+          tenantSlug: tenant.slug,
+          erro: erro instanceof Error ? erro.message : String(erro),
+        });
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      fechados,
+      tenantsProcessados: porTenant.length,
+      porTenant,
+      falhas,
+    });
+  } catch (erro) {
+    console.error("Erro no cron de fechamento de caixa:", erro);
+    return NextResponse.json(
+      { error: erro instanceof Error ? erro.message : "Erro desconhecido." },
+      { status: 500 }
+    );
+  }
+}
