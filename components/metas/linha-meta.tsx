@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { AlertTriangle, ChevronRight, WifiOff } from "lucide-react";
+import { AlertTriangle, ChevronRight, Pencil, WifiOff } from "lucide-react";
 
 import type { LinhaMetaLista } from "@/app/actions/metas";
 import { PilulaStatus } from "@/components/ui/pilula-status";
@@ -19,7 +19,16 @@ import { calcularRitmo, type Ritmo } from "@/lib/dominio/metas/ritmo";
  * real e marca onde ele deveria estar hoje. "42%" sozinho não responde se vai
  * bater; "42%, devia estar em 70%" responde.
  */
-export function LinhaMeta({ meta, agora }: { meta: LinhaMetaLista; agora: Date }) {
+export function LinhaMeta({
+  meta,
+  agora,
+  aoEditar,
+}: {
+  meta: LinhaMetaLista;
+  agora: Date;
+  /** Ausente = sem botão de editar (a lista que não oferece edição). */
+  aoEditar?: () => void;
+}) {
   const ritmo = calcularRitmo({
     progresso: meta.progresso,
     inicio: meta.dataInicio ? new Date(meta.dataInicio) : null,
@@ -30,10 +39,15 @@ export function LinhaMeta({ meta, agora }: { meta: LinhaMetaLista; agora: Date }
   const encerrada = meta.status === "CONCLUIDA" || meta.status === "CANCELADA";
 
   return (
-    <li>
+    // `relative` porque o botão de editar fica FORA do link, sobreposto à
+    // direita. Dentro, seria um <button> dentro de um <a> — HTML inválido — e
+    // o clique navegaria para o detalhe em vez de abrir a edição.
+    <li className="relative">
       <Link
         href={`/metas/${meta.id}`}
-        className="grid grid-cols-1 items-center gap-3 rounded-kx-botao border border-kx-painel-borda bg-kx-cartao px-4 py-3 transition-colors hover:border-kx-destaque sm:grid-cols-[minmax(0,2fr)_minmax(0,1.6fr)_auto_auto]"
+        className={`grid grid-cols-1 items-center gap-3 rounded-kx-botao border border-kx-painel-borda bg-kx-cartao py-3 pl-4 transition-colors hover:border-kx-destaque sm:grid-cols-[minmax(0,2fr)_minmax(0,1.6fr)_auto_auto] ${
+          aoEditar ? "pr-14" : "pr-4"
+        }`}
       >
         <div className="min-w-0">
           <div className="flex items-center gap-2">
@@ -59,8 +73,25 @@ export function LinhaMeta({ meta, agora }: { meta: LinhaMetaLista; agora: Date }
           {pilulaDeSituacao(ritmo, meta.status)}
         </div>
 
-        <ChevronRight className="hidden h-4 w-4 shrink-0 text-kx-legenda sm:block" aria-hidden />
+        {/* O chevron sai quando ha botao de editar: os dois disputam o mesmo
+            canto e o lapis cobria a seta. A linha continua sendo um link
+            inteiro, entao nada se perde em clicabilidade -- so o enfeite. */}
+        {!aoEditar && (
+          <ChevronRight className="hidden h-4 w-4 shrink-0 text-kx-legenda sm:block" aria-hidden />
+        )}
       </Link>
+
+      {aoEditar && (
+        <button
+          type="button"
+          onClick={aoEditar}
+          aria-label={`Editar meta ${meta.titulo}`}
+          title="Editar meta"
+          className="absolute right-3 top-1/2 -translate-y-1/2 rounded-kx-botao p-2 text-kx-legenda transition-colors hover:bg-kx-superficie hover:text-kx-texto"
+        >
+          <Pencil className="h-4 w-4" aria-hidden />
+        </button>
+      )}
     </li>
   );
 }
