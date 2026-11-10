@@ -83,10 +83,18 @@ model Configuracao {
   estado                    String   @default("")
   endereco                  String   @default("")
   logoUrl                   String?
+  // Colunas mortas, mantidas de proposito. Nenhum codigo le as duas: elas
+  // existem so para que um runtime ANTERIOR a #31 -- cujo cliente Prisma
+  // ainda as pede no SELECT de `obterConfiguracoes`, que nao usa `select` --
+  // nao derrube toda pagina que chama essa funcao. Removi as duas em #31 e o
+  // drop em producao tirou o sistema do ar. So voltam a sair quando houver
+  // certeza de que o deploy no ar e posterior a #31.
+  chavePix                  String?
   mensagemCupom             String?
   modeloImpressaoOSPadrao   ModeloImpressaoOS @default(A4)
   imprimirLogoTermica       Boolean           @default(true)
   mensagemRodapeImpressaoOS String?
+  habilitarMargemAutomatica Boolean  @default(true)
   permitirVendaSemEstoque   Boolean  @default(false)
   permitirPagamentoMisto    Boolean  @default(true)
   permitirDescontoPDV       Boolean  @default(true)
