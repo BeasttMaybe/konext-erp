@@ -118,8 +118,24 @@ export type AmostraDoBling =
  *
  * Só traz 1 registro e corta o texto: é diagnóstico, não exportação de dados.
  */
+/**
+ * O id do primeiro bordero de uma conta, ou nulo.
+ *
+ * O bordero e o lote de baixa do Bling: e nele que mora a data em que o
+ * dinheiro entrou. O detalhe da conta traz so a lista de ids.
+ */
+function primeiroBorderoDaConta(resposta: unknown): string | null {
+  const envelope = resposta as { data?: { borderos?: unknown } } | null;
+  const borderos = envelope?.data?.borderos;
+
+  if (!Array.isArray(borderos) || borderos.length === 0) return null;
+
+  const primeiro = borderos[0];
+  return typeof primeiro === "number" || typeof primeiro === "string" ? String(primeiro) : null;
+}
+
 export async function espiarRespostaDoBling(
-  recurso: "nfe" | "contas" | "nfe-detalhe" | "conta-detalhe"
+  recurso: "nfe" | "contas" | "nfe-detalhe" | "conta-detalhe" | "bordero"
 ): Promise<AmostraDoBling> {
   try {
     const contexto = await exigirContextoTenant();
@@ -191,6 +207,65 @@ export async function espiarRespostaDoBling(
         sucesso: true,
         recurso: `/contas/receber/${primeira.blingId}`,
         amostra: JSON.stringify(detalhe, null, 2).slice(0, 6000),
+      };
+    }
+
+    // O BORDERO, que e onde a data da baixa deve estar.
+    //
+    // O detalhe da conta recebida NAO TEM data de pagamento. O payload real
+    // trouxe `vencimento`, `dataEmissao`, `competencia` e
+    // `vencimentoOriginal` -- todos definidos na CRIACAO da conta, nenhum
+    // deles "quando entrou o dinheiro". O `saldo: 0` confirma que foi
+    // quitada, e nao diz quando.
+    //
+    // O que resta e `borderos: [id]`: no Bling o bordero e o lote de baixa.
+    // Esta opcao segue esse fio ate o fim para que o nome do campo de data
+    // seja VISTO, e nao deduzido.
+    //
+    // A alternativa seria usar o vencimento como se fosse a data do
+    // pagamento. Para conta paga em dia daria no mesmo; para conta paga com
+    // atraso, jogaria a receita para o mes errado -- e numa tela de
+    // faturamento isso e o erro que o dono ja pegou uma vez.
+    if (recurso === "bordero") {
+      const lista = await chamarBling({
+        accessToken,
+        caminho: "/contas/receber",
+        parametros: { limite: 1, pagina: 1, situacao: SITUACOES_DE_CONTA.RECEBIDO },
+      });
+
+      const primeira = lerPaginaDeContas(lista)[0];
+      if (!primeira) {
+        return {
+          sucesso: false,
+          mensagem: "Nenhuma conta a receber já recebida foi encontrada no Bling.",
+          exigeReconexao: false,
+        };
+      }
+
+      await esperarPelaVazao();
+      const detalhe = await chamarBling({
+        accessToken,
+        caminho: `/contas/receber/${primeira.blingId}`,
+      });
+
+      const idDoBordero = primeiroBorderoDaConta(detalhe);
+      if (!idDoBordero) {
+        return {
+          sucesso: false,
+          mensagem:
+            `A conta ${primeira.blingId} está recebida mas não tem borderô. ` +
+            "Dê baixa em uma conta pelo Bling (com borderô) e tente de novo.",
+          exigeReconexao: false,
+        };
+      }
+
+      await esperarPelaVazao();
+      const bordero = await chamarBling({ accessToken, caminho: `/borderos/${idDoBordero}` });
+
+      return {
+        sucesso: true,
+        recurso: `/borderos/${idDoBordero}`,
+        amostra: JSON.stringify(bordero, null, 2).slice(0, 6000),
       };
     }
 
