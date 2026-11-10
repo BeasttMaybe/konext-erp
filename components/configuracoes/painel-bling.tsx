@@ -24,6 +24,8 @@ import { Button } from "@/components/ui/button";
 export function PainelBling() {
   const [estado, setEstado] = useState<EstadoDaIntegracaoBling | null>(null);
   const [amostra, setAmostra] = useState<string | null>(null);
+  /** Mensagem de erro que so se resolve reconectando. Fica na tela. */
+  const [precisaReconectar, setPrecisaReconectar] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [desconectando, iniciarDesconexao] = useTransition();
   const [espiando, iniciarEspiada] = useTransition();
@@ -68,6 +70,15 @@ export function PainelBling() {
         toast.success("Resposta recebida.");
       } else {
         setAmostra(null);
+        // Quando o erro exige reconexao, o aviso fica NA TELA ate ser
+        // resolvido, e nao num toast que some em segundos -- a acao que
+        // resolve e um botao logo acima, e o dono precisa dos dois ao mesmo
+        // tempo diante dos olhos.
+        if (resultado.exigeReconexao) {
+          setPrecisaReconectar(resultado.mensagem);
+        } else {
+          setPrecisaReconectar(null);
+        }
         toast.error(resultado.mensagem);
       }
     });
@@ -169,6 +180,12 @@ export function PainelBling() {
       {estado?.conectado && (
         <div className="space-y-2 border-t border-kx-painel-borda pt-4">
           <span className="text-sm font-semibold text-kx-texto">Conferir a conexão</span>
+
+          {precisaReconectar && (
+            <p className="rounded-kx-painel border border-kx-erro-borda bg-kx-erro-fundo px-3 py-2 text-sm text-kx-erro-texto">
+              {precisaReconectar}
+            </p>
+          )}
           <p className="text-xs text-kx-legenda">
             Busca um registro e mostra como o Bling respondeu. Serve para confirmar que a
             autorização funcionou e para diagnosticar, se um dia o Bling mudar alguma coisa.
