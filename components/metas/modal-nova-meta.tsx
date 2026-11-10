@@ -1,16 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Assistente } from "@/components/ui/assistente";
 import { lerEntradaMonetaria, paraMoeda } from "@/lib/dinheiro";
+
+/**
+ * `<SelectItem value="">` nao e permitido pelo Radix, entao "nenhum" precisa
+ * de um valor proprio. Ele nunca e gravado: vira string vazia ao sair daqui.
+ */
+const SEM_PRODUTO = "__sem_produto__";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { atualizarMeta, criarMeta } from "@/app/actions/metas";
+import { atualizarMeta, criarMeta,
+  listarProdutosParaMeta,
+  type ProdutoParaMeta,
+} from "@/app/actions/metas";
 import type {
   CategoriaMeta,
   TipoValorMeta,
@@ -111,6 +120,26 @@ export function ModalNovaMeta({ aberto, aoFechar, aoConcluir, meta }: ModalNovaM
   const [dataInicioAutomatica, setDataInicioAutomatica] = useState(meta?.dataInicioAutomatica ?? "");
   const [dataFimAutomatica, setDataFimAutomatica] = useState(meta?.dataFimAutomatica ?? "");
   const [produtoIdAutomatica, setProdutoIdAutomatica] = useState(meta?.produtoIdAutomatica ?? "");
+  /** `null` enquanto carrega — para o campo dizer isso em vez de parecer vazio. */
+  const [produtos, setProdutos] = useState<ProdutoParaMeta[] | null>(null);
+
+  useEffect(() => {
+    let ativo = true;
+
+    // Buscado ao abrir, nao junto da pagina de metas: so a meta AUTOMATICA de
+    // estoque usa esta lista, e a maioria das metas nao e dessas.
+    void listarProdutosParaMeta()
+      .then((lista) => {
+        if (ativo) setProdutos(lista);
+      })
+      .catch(() => {
+        if (ativo) setProdutos([]);
+      });
+
+    return () => {
+      ativo = false;
+    };
+  }, []);
   const [salvando, setSalvando] = useState(false);
 
   const metricasPorFonte: Record<FonteAutomaticaMeta, Array<{ value: MetricaAutomaticaMeta; label: string }>> = {
@@ -572,13 +601,47 @@ export function ModalNovaMeta({ aberto, aoFechar, aoConcluir, meta }: ModalNovaM
 
                   <div className="space-y-1.5">
                     <Label htmlFor="meta-produto-auto">Produto (quando aplicável)</Label>
-                    <Input
-                      id="meta-produto-auto"
-                      value={produtoIdAutomatica}
-                      onChange={(e) => setProdutoIdAutomatica(e.target.value)}
-                      placeholder="ID do produto"
+                    {/* Lista, e não um campo pedindo o ID do produto.
+                        O campo antigo tinha o placeholder "ID do produto" —
+                        um identificador de banco de dados. Para criar uma
+                        meta de estoque, era preciso descobrir esse número em
+                        algum lugar e copiá-lo; ninguém sabe o próprio id de
+                        produto de cabeça. */}
+                    <Select
+                      value={produtoIdAutomatica || SEM_PRODUTO}
+                      onValueChange={(valor) =>
+                        setProdutoIdAutomatica(valor === SEM_PRODUTO ? "" : valor)
+                      }
                       disabled={salvando}
-                    />
+                    >
+                      <SelectTrigger id="meta-produto-auto">
+                        <SelectValue
+                          placeholder={
+                            produtos === null ? "Carregando produtos…" : "Nenhum produto"
+                          }
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={SEM_PRODUTO}>Nenhum produto</SelectItem>
+                        {/* Produto que saiu da lista (inativado, removido) mas
+                            continua gravado na meta. Sem esta entrada, o campo
+                            PARECERIA vazio enquanto o id seguia salvo — e quem
+                            editasse acharia que não havia produto nenhum. */}
+                        {produtoIdAutomatica &&
+                          produtos !== null &&
+                          !produtos.some((produto) => produto.id === produtoIdAutomatica) && (
+                            <SelectItem value={produtoIdAutomatica}>
+                              Produto inativo ou removido
+                            </SelectItem>
+                          )}
+                        {(produtos ?? []).map((produto) => (
+                          <SelectItem key={produto.id} value={produto.id}>
+                            {produto.nome}
+                            {produto.codigoBarras ? ` · ${produto.codigoBarras}` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 

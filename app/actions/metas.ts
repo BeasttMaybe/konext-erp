@@ -2209,3 +2209,33 @@ export async function sincronizarMetasAutomaticasDoTenant(
 
   return { verificadas: metasAutomaticas.length, atualizadas, falhas };
 }
+
+/**
+ * Produtos para o seletor da meta de estoque.
+ *
+ * O campo pedia o ID DO PRODUTO digitado a mao -- um identificador de banco
+ * de dados, com o placeholder "ID do produto". Para criar uma meta de
+ * estoque, o dono teria que descobrir esse numero em algum lugar do sistema
+ * e copia-lo. Ninguem sabe o proprio id de produto de cabeca.
+ *
+ * Permissao `metas.editar`, e nao `estoque.ver`: quem esta criando a meta ja
+ * passou por essa porta, e exigir uma segunda permissao faria o campo sumir
+ * para quem tem direito de criar metas mas nao de abrir o estoque.
+ */
+export type ProdutoParaMeta = {
+  id: string;
+  nome: string;
+  codigoBarras: string | null;
+};
+
+export async function listarProdutosParaMeta(): Promise<ProdutoParaMeta[]> {
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "metas.editar");
+
+  return contexto.prisma.produto.findMany({
+    where: { ativo: true },
+    select: { id: true, nome: true, codigoBarras: true },
+    orderBy: { nome: "asc" },
+    take: 500,
+  });
+}
