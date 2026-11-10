@@ -116,7 +116,7 @@ function mapClientRecord(client: {
   papel: "CLIENTE" |"FORNECEDOR";
   nomeRazaoSocial: string;
   nomeFantasia: string | null;
-  documento: string;
+  documento: string | null;
   inscricaoEstadual: string | null;
   email: string | null;
   telefone: string;

@@ -112,7 +112,7 @@ export function PassoClienteAparelho({ clienteIdInicial, clienteNomeInicial, onC
     selecionarCliente({
       id: resultado.cliente.id,
       nomeRazaoSocial: resultado.cliente.nomeRazaoSocial,
-      documento: resultado.cliente.documento,
+      documento: resultado.cliente.documento ?? "",
       telefone: resultado.cliente.telefone,
     });
     setBuscaCliente(resultado.cliente.nomeRazaoSocial);

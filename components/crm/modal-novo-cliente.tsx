@@ -231,7 +231,7 @@ export function ModalNovoCliente({
 
       setValue("nomeRazaoSocial", dados.nomeRazaoSocial, { shouldDirty: true });
       setValue("nomeFantasia", dados.nomeFantasia, { shouldDirty: true });
-      setValue("documento", dados.documento, { shouldDirty: true });
+      setValue("documento", dados.documento ?? "", { shouldDirty: true });
       setValue("inscricaoEstadual", dados.inscricaoEstadual, { shouldDirty: true });
       setValue("telefone", dados.telefone, { shouldDirty: true });
       setValue("cep", formatarCep(dados.cep), { shouldDirty: true });

@@ -48,7 +48,7 @@ type ClienteSugestao = {
  id: string;
  nomeRazaoSocial: string;
  nomeFantasia: string | null;
- documento: string;
+ documento: string | null;
 };
 
 type ProdutoSugestao = {
