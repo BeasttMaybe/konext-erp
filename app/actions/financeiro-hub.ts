@@ -140,7 +140,7 @@ async function abertoAteOFimDoMes(
   return { total: paraMoeda(totalCentavos), atrasado: paraMoeda(atrasadoCentavos) };
 }
 
-export async function obterReceberEmAberto(): Promise<AbertoComAtraso> {
+async function obterReceberEmAberto(): Promise<AbertoComAtraso> {
   const contexto = await exigirContextoTenant();
   exigirPermissao(contexto, "financeiro.ver");
 
@@ -159,7 +159,7 @@ export async function obterReceberEmAberto(): Promise<AbertoComAtraso> {
   );
 }
 
-export async function obterPagarEmAberto(): Promise<AbertoComAtraso> {
+async function obterPagarEmAberto(): Promise<AbertoComAtraso> {
   const contexto = await exigirContextoTenant();
   exigirPermissao(contexto, "financeiro.ver");
 
@@ -193,7 +193,7 @@ export interface ResultadoDoMes {
   resultado: number;
 }
 
-export async function obterResultadoDoMes(): Promise<ResultadoDoMes> {
+async function obterResultadoDoMes(): Promise<ResultadoDoMes> {
   const contexto = await exigirContextoTenant();
   exigirPermissao(contexto, "financeiro.ver");
   const { prisma } = contexto;
@@ -232,7 +232,7 @@ export interface SemanaFluxoCaixa {
   projetado: boolean;
 }
 
-export async function obterFluxoDeCaixaSemanal(): Promise<SemanaFluxoCaixa[]> {
+async function obterFluxoDeCaixaSemanal(): Promise<SemanaFluxoCaixa[]> {
   const contexto = await exigirContextoTenant();
   exigirPermissao(contexto, "financeiro.ver");
   const { prisma } = contexto;
@@ -329,7 +329,7 @@ export interface FatiaCategoria {
   valor: number;
 }
 
-export async function obterSaidasPorCategoria(): Promise<FatiaCategoria[]> {
+async function obterSaidasPorCategoria(): Promise<FatiaCategoria[]> {
   const contexto = await exigirContextoTenant();
   exigirPermissao(contexto, "financeiro.ver");
   const { prisma } = contexto;
@@ -358,7 +358,7 @@ export async function obterSaidasPorCategoria(): Promise<FatiaCategoria[]> {
 }
 
 /** "Entradas por forma" — pagamentos de venda recebidos no mês, por forma. */
-export async function obterEntradasPorForma(): Promise<FatiaCategoria[]> {
+async function obterEntradasPorForma(): Promise<FatiaCategoria[]> {
   const contexto = await exigirContextoTenant();
   exigirPermissao(contexto, "financeiro.ver");
   const { prisma } = contexto;
@@ -412,7 +412,7 @@ export interface ItemAtencao {
   diasAtraso: number;
 }
 
-export async function obterPrecisaDeAtencao(limite = 8): Promise<ItemAtencao[]> {
+async function obterPrecisaDeAtencao(limite = 8): Promise<ItemAtencao[]> {
   const contexto = await exigirContextoTenant();
   exigirPermissao(contexto, "financeiro.ver");
   const { prisma } = contexto;

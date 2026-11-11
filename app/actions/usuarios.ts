@@ -14,7 +14,7 @@ import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes
 import { contextoAuditoriaCentralDoUsuario, registrarLogAuditoriaCentral } from "@/lib/auditoria-central";
 import { prismaCentral } from "@/lib/central/prisma-central";
 import { paraMensagemSegura } from "@/lib/erros";
-import { listarUsuariosComAcessoAdmin } from "@/app/actions/cargos";
+import { listarUsuariosComAcessoAdmin } from "@/lib/auth/usuarios-com-acesso-admin";
 import { permissoesEfetivasDoCargo } from "@/lib/auth/permissoes-efetivas-cargo";
 
 export type UsuarioListado = {

@@ -1,5 +1,6 @@
 "use server";
 
+import { exigirChamadaInterna, type MarcaDeChamadaInterna } from "@/lib/auth/chamada-interna";
 import { revalidatePath } from "next/cache";
 import { Prisma, type ResultadoRetornoGarantia } from "@prisma/client";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
@@ -518,6 +519,9 @@ try {
 }
 
 export async function garantirTermoGarantiaPorOS(
+  // Primeiro argumento, e nao um campo do `input`: assim nao existe forma
+  // de chamar esta funcao esquecendo a marca. Ver lib/auth/chamada-interna.ts.
+  marca: MarcaDeChamadaInterna,
   client: ClientTx,
   input: {
     osId: string;
@@ -543,6 +547,8 @@ export async function garantirTermoGarantiaPorOS(
   dataFimGarantia: Date;
   criadoNovo: boolean;
 }> {
+  exigirChamadaInterna(marca);
+
   const osId = normalizarTexto(input.osId);
   if (!osId) {
     throw new Error("OS invalida para geracao de garantia.");

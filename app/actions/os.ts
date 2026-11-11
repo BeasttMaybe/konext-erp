@@ -1,5 +1,6 @@
 "use server";
 
+import { CHAMADA_INTERNA } from "@/lib/auth/chamada-interna";
 import { revalidatePath } from "next/cache";
 import type { StatusOS, TipoPeca } from "@prisma/client";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
@@ -1501,7 +1502,7 @@ export async function finalizarOrdemServico(
     let prazoGarantiaAplicado: number | null = null;
 
     if (!ordemServico.ehRetornoGarantia) {
-      const garantia = await garantirTermoGarantiaPorOS(tx, {
+      const garantia = await garantirTermoGarantiaPorOS(CHAMADA_INTERNA, tx, {
         osId,
         criadoPorId: normalizarIdUsuarioOperacional(usuario),
         prazoGarantiaDias: avaliacao.prazoGarantiaEfetivo ?? undefined,
@@ -1973,7 +1974,7 @@ export async function excluirOrdemServico(input: EntradaExcluirOrdemServico): Pr
   }
 }
 
-export async function listarOrdensServicoExcluidas(): Promise<DadosOrdemServicoExcluida[]> {
+async function listarOrdensServicoExcluidas(): Promise<DadosOrdemServicoExcluida[]> {
   const contexto = await exigirContextoTenant();
   const prisma = contexto.prisma;
 

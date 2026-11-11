@@ -5,6 +5,8 @@ import { LayoutConfiguracoes } from "@/components/configuracoes/layout-configura
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { temAlgumaPermissao, temPermissao } from "@/lib/auth/permissoes";
 import { AcessoNegado } from "@/components/ui/acesso-negado";
+import { EstadoDoSistema } from "@/components/configuracoes/estado-do-sistema";
+import { lerEstadoDoSistema } from "@/lib/sistema/estado";
 
 export const metadata = { title: "Configurações | Konext" };
 
@@ -47,6 +49,10 @@ export default async function ConfiguracoesPage() {
         marcasPeca={marcasPeca}
         categoriasProduto={categoriasProduto}
       />
+
+      {/* So para quem administra o sistema: e informacao de operacao, e o
+          aviso pede uma acao na hospedagem que so o dono pode tomar. */}
+      {podeGerirCadastros ? <EstadoDoSistema estado={lerEstadoDoSistema(process.env)} /> : null}
     </div>
   );
 }

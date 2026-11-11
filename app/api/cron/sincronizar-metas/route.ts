@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { decidirAutorizacaoDoCron } from "@/lib/cron/autorizacao";
+import { CHAMADA_INTERNA } from "@/lib/auth/chamada-interna";
 
 import { prismaCentral } from "@/lib/central/prisma-central";
 import { obterPrismaTenant } from "@/lib/tenant/prisma-tenant";
@@ -19,11 +21,14 @@ import type { PrismaClient } from "@prisma/client";
  * resposta em vez de abortar a rota.
  */
 export async function GET(request: NextRequest) {
-  const authHeader = request.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET;
+  const autorizacao = decidirAutorizacaoDoCron({
+    cabecalho: request.headers.get("authorization"),
+    segredo: process.env.CRON_SECRET,
+    ambiente: process.env.NODE_ENV,
+  });
 
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: "Nao autorizado." }, { status: 401 });
+  if (!autorizacao.autorizado) {
+    return NextResponse.json({ error: autorizacao.erro }, { status: autorizacao.status });
   }
 
   try {
@@ -56,7 +61,7 @@ export async function GET(request: NextRequest) {
         });
 
         const fusoHorario = await resolverFusoHorarioTenant(prismaTenant);
-        const resultado = await sincronizarMetasAutomaticasDoTenant(prismaTenant, fusoHorario);
+        const resultado = await sincronizarMetasAutomaticasDoTenant(CHAMADA_INTERNA, prismaTenant, fusoHorario);
 
         metasVerificadas += resultado.verificadas;
         metasAtualizadas += resultado.atualizadas;

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { decidirAutorizacaoDoCron } from "@/lib/cron/autorizacao";
 
 import { prismaCentral } from "@/lib/central/prisma-central";
 import { obterPrismaTenant } from "@/lib/tenant/prisma-tenant";
@@ -284,11 +285,14 @@ async function processarTenant(prisma: PrismaDoTenant): Promise<ResumoDoTenant> 
 }
 
 export async function GET(request: NextRequest) {
-  const authHeader = request.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET;
+  const autorizacao = decidirAutorizacaoDoCron({
+    cabecalho: request.headers.get("authorization"),
+    segredo: process.env.CRON_SECRET,
+    ambiente: process.env.NODE_ENV,
+  });
 
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: "Nao autorizado." }, { status: 401 });
+  if (!autorizacao.autorizado) {
+    return NextResponse.json({ error: autorizacao.erro }, { status: autorizacao.status });
   }
 
   try {

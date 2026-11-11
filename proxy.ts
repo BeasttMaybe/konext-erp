@@ -4,14 +4,27 @@ import { COOKIE_SESSAO_CENTRAL, COOKIE_SESSAO_LEGADA } from "@/lib/auth/cookies"
 
 // Rotas publicas explicitas. Todo o restante exige sessao central.
 //
-// `/rastreio/[id]` (acompanhamento de OS pelo cliente) continua EXIGINDO
-// sessao por enquanto, mesmo sendo pensada para acesso publico — o modelo de
-// acesso por token da Fase 1C ainda nao existe. Nao adicionar aqui sem
-// aquele mecanismo: isso abriria os dados da OS (cliente, aparelho, itens)
-// para qualquer um com o link, sem nenhum controle.
-// "/login" cobre também "/login/recuperar" (Fase 1B-FIX, Parte 4.6) pelo
-// match por prefixo em `rotaPublica` abaixo — sem entrada separada.
-const ROTAS_PUBLICAS = ["/login"] as const;
+// "/login" cobre tambem "/login/recuperar" pelo match por prefixo em
+// `rotaPublica` abaixo.
+//
+// "/foto" e "/r" SAO PUBLICAS, E NAO ESTAVAM AQUI.
+//
+// As duas paginas foram escritas para quem nao tem conta: o tecnico aponta o
+// celular para o QR code e manda a foto (`/foto/<loja>/<segredo>`), o cliente
+// abre o link do WhatsApp e ve o andamento do conserto (`/r/<loja>/<os>`).
+// Cada uma se autoriza sozinha — a de foto por um segredo com validade e
+// revogacao, a de rastreio pelo id sorteado da OS — e nenhuma le sessao.
+//
+// So que a lista abaixo tinha apenas "/login". O proxy redirecionava as duas
+// para a tela de login antes de a pagina rodar: o link do QR so funcionava
+// num celular que ja estivesse logado no sistema, e o link mandado ao cliente
+// nunca funcionou para cliente nenhum. O codigo das paginas estava certo e
+// testado; faltava a porta estar aberta.
+//
+// O que NAO entra aqui: "/rastreio/<id>", a rota antiga. Ela nao sabe de que
+// loja e a OS e hoje so redireciona quem esta logado para "/r" (ver
+// app/rastreio/[id]/page.tsx).
+const ROTAS_PUBLICAS = ["/login", "/foto", "/r"] as const;
 
 function rotaPublica(pathname: string): boolean {
   return ROTAS_PUBLICAS.some((rota) => pathname === rota || pathname.startsWith(`${rota}/`));

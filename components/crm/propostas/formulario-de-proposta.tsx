@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { format } from "date-fns";
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import {
  ChevronDown,
@@ -107,7 +108,10 @@ export type PropostaParaEditar = {
 const defaultValues: PropostaFormInput = {
  cliente: "",
  aosCuidados: "",
- dataEmissao: new Date().toISOString().slice(0, 10),
+ // Data LOCAL de quem esta na tela. `toISOString()` devolve a data em UTC:
+ // das 21h a meia-noite de Brasilia ja e "amanha" em UTC, e toda proposta
+ // criada nesse horario nascia com a data de emissao do dia seguinte.
+ dataEmissao: format(new Date(), "yyyy-MM-dd"),
  validade: "",
  proximoContato: "",
  equipamento: "",

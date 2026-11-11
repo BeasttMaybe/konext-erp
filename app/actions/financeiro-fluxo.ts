@@ -59,7 +59,7 @@ export interface ProjecaoSaldo {
   temSaldoNegativo: boolean;
 }
 
-export async function obterProjecaoSaldo(dias = 30): Promise<ProjecaoSaldo> {
+async function obterProjecaoSaldo(dias = 30): Promise<ProjecaoSaldo> {
   const contexto = await exigirContextoTenant();
   exigirPermissao(contexto, "financeiro.ver");
   const { prisma } = contexto;
@@ -132,7 +132,7 @@ export interface ProximosLancamentos {
 }
 
 /** Só o que ainda vai vencer nos próximos N dias — o atrasado já mora em "Precisa de atenção" (Visão geral). */
-export async function obterProximosLancamentos(dias = 7): Promise<ProximosLancamentos> {
+async function obterProximosLancamentos(dias = 7): Promise<ProximosLancamentos> {
   const contexto = await exigirContextoTenant();
   exigirPermissao(contexto, "financeiro.ver");
   const { prisma } = contexto;
@@ -191,7 +191,7 @@ export interface PrevistoXRecebido {
 }
 
 /** Do que vencia este mês (recebido + pendente + atrasado), quanto já entrou de fato. */
-export async function obterPrevistoXRecebido(): Promise<PrevistoXRecebido> {
+async function obterPrevistoXRecebido(): Promise<PrevistoXRecebido> {
   const resumo = await obterResumoReceber({});
   if (resumo.totalPeriodo <= 0) {
     return { percentual: 0, naoRecebido: 0 };
@@ -231,7 +231,7 @@ function variacaoPercentual(atual: number, anterior: number): number | null {
   return Math.round(((atual - anterior) / anterior) * 100);
 }
 
-export async function obterResultadoDoPeriodo(referencia: Date = new Date()): Promise<ResultadoPeriodo> {
+async function obterResultadoDoPeriodo(referencia: Date = new Date()): Promise<ResultadoPeriodo> {
   const contexto = await exigirContextoTenant();
   exigirPermissao(contexto, "financeiro.ver");
   const { prisma } = contexto;
@@ -275,7 +275,7 @@ export interface ServicoXProduto {
  * "produto" é venda de balcão sem OS. Reusa exatamente os mesmos filtros de
  * garantia da função original — não é uma segunda definição de faturamento.
  */
-export async function obterServicoXProduto(referencia: Date = new Date()): Promise<ServicoXProduto> {
+async function obterServicoXProduto(referencia: Date = new Date()): Promise<ServicoXProduto> {
   const contexto = await exigirContextoTenant();
   exigirPermissao(contexto, "financeiro.ver");
   const { prisma } = contexto;
@@ -353,7 +353,7 @@ export interface QuantoSobrouPorOS {
  * uma venda com pagamento em cartão; Comissão não existe no sistema — ver
  * `comissaoIndisponivel`. Sobra = Cobrado − Peça − Taxa.
  */
-export async function obterQuantoSobrouPorOS(referencia: Date = new Date(), limite = 30): Promise<QuantoSobrouPorOS> {
+async function obterQuantoSobrouPorOS(referencia: Date = new Date(), limite = 30): Promise<QuantoSobrouPorOS> {
   const contexto = await exigirContextoTenant();
   exigirPermissao(contexto, "financeiro.ver");
   const { prisma } = contexto;

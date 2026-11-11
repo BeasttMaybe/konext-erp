@@ -16,6 +16,14 @@ type LoginState = {
   erro: string | null;
 };
 
+/**
+ * Hash bcrypt (custo 12, o mesmo de `lib/auth/senha.ts`) de um valor
+ * aleatorio que foi descartado ao gerar. Nenhuma senha confere com ele: serve
+ * so para o login de um e-mail inexistente custar o mesmo que o de um
+ * existente. Ver o uso em `autenticarCentral`.
+ */
+const HASH_DE_COMPARACAO_VAZIA = "$2b$12$iyVPjW7GZBK2NzEYwQQ3teg3p7psXD0Tfe2btyEwZoTwHrIi3RBxi";
+
 const ERRO_CREDENCIAIS = "E-mail ou senha incorretos. Confira os dados e tente de novo.";
 
 /**
@@ -55,6 +63,14 @@ async function autenticarCentral(
   });
 
   if (!usuarioCentral?.ativo || !usuarioCentral.senha) {
+    // Gasta o mesmo tempo de uma conferencia de verdade antes de responder.
+    //
+    // Sem isto, um e-mail que nao existe era recusado em poucos milissegundos
+    // e um que existe levava o tempo do bcrypt (centenas de milissegundos). A
+    // mensagem de erro era identica nos dois casos, mas o RELOGIO entregava a
+    // resposta: bastava cronometrar o login para descobrir quais e-mails tem
+    // conta — o primeiro passo de qualquer ataque de adivinhacao de senha.
+    await bcrypt.compare(senha, HASH_DE_COMPARACAO_VAZIA);
     return { autenticado: false, motivo: "usuario_inexistente" };
   }
 
