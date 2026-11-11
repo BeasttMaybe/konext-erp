@@ -1317,9 +1317,12 @@ export async function obterDadosPerfilConfiguracao() {
   const prismaTenant = contextoTenant.prisma as PrismaConfiguracoesClient;
 
   const configuracaoDelegate = obterDelegateConfiguracao(contextoTenant.prisma);
+  // So as tres colunas que esta funcao devolve. Ela roda no layout de TODA
+  // tela do sistema; trazer as 60 colunas da configuracao para usar tres era
+  // o maior desperdicio fixo de cada carregamento.
   const configuracao = configuracaoDelegate?.findFirst
     ? await configuracaoDelegate.findFirst({
-        select: SELECAO_DE_CONFIGURACAO,
+        select: { id: true, nomeFantasia: true, logoUrl: true },
         orderBy: {
           criadoEm: "asc",
         },
@@ -1334,7 +1337,12 @@ export async function obterDadosPerfilConfiguracao() {
     try {
       const usuarioDelegate = prismaTenant.usuario ?? prismaTenant.Usuario;
       const usuarioOperacional = usuarioDelegate?.findUnique
-        ? await usuarioDelegate.findUnique({ where: { id: usuarioOperacionalId } })
+        ? await usuarioDelegate.findUnique({
+            where: { id: usuarioOperacionalId },
+            // Sem `select` vinha a linha inteira do usuario — inclusive a
+            // coluna `senha` — para usar um unico campo.
+            select: { fotoPerfilUrl: true },
+          })
         : null;
       fotoPerfilUrl = usuarioOperacional?.fotoPerfilUrl ? String(usuarioOperacional.fotoPerfilUrl) : null;
     } catch {

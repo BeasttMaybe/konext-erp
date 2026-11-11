@@ -31,10 +31,6 @@ vi.mock("@/contextos/contexto-permissoes", () => ({
 
 vi.mock("@/app/actions/auth", () => ({ logout: vi.fn() }));
 
-vi.mock("@/app/actions/configuracoes", () => ({
-  obterDadosPerfilConfiguracao: () => Promise.resolve({ configuracao: { logoUrl: null } }),
-}));
-
 vi.mock("./status-caixa", () => ({ StatusCaixa: () => null }));
 
 const { BarraLateral } = await import("./barra-lateral");

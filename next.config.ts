@@ -40,11 +40,34 @@ const CABECALHOS_DE_SEGURANCA = [
   },
 ];
 
+/**
+ * Copia de `CSP_DA_PAGINA_DE_RESPOSTA` (lib/bling/pagina-de-resposta.ts).
+ * Copia, e nao import, porque este arquivo e carregado antes de o alias `@/`
+ * existir. lib/bling/pagina-de-resposta.test.ts falha se as duas divergirem.
+ */
+const CSP_DO_RETORNO_DO_BLING =
+  "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+
 const nextConfig: NextConfig = {
   // Nao anunciar a tecnologia e a versao em toda resposta.
   poweredByHeader: false,
   async headers() {
-    return [{ source: "/:path*", headers: CABECALHOS_DE_SEGURANCA }];
+    return [
+      { source: "/:path*", headers: CABECALHOS_DE_SEGURANCA },
+      // A pagina de retorno do Bling e HTML montado como texto, numa rota
+      // sem login, com um parametro da URL dentro. Ela pede uma politica bem
+      // mais dura que o resto: nenhum script, de origem nenhuma.
+      //
+      // Tem que ser declarada AQUI. A rota tambem envia este cabecalho, mas
+      // os cabecalhos deste arquivo sao aplicados por cima dos da resposta:
+      // subindo o servidor e chamando a rota, o que chegava ao navegador era
+      // a politica geral da linha acima, e a da rota sumia. Entre duas
+      // entradas daqui que casam com o mesmo caminho, vale a ultima.
+      {
+        source: "/api/integracoes/bling/callback",
+        headers: [{ key: "Content-Security-Policy", value: CSP_DO_RETORNO_DO_BLING }],
+      },
+    ];
   },
   experimental: {
     serverActions: {

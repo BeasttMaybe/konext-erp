@@ -84,4 +84,22 @@ describe("rota de callback do Bling", () => {
   it("envia a politica de conteudo junto", () => {
     expect(fonte).toContain("CSP_DA_PAGINA_DE_RESPOSTA");
   });
+
+  /**
+   * Achado subindo o servidor de verdade: os cabecalhos de `next.config.ts`
+   * sao aplicados por cima dos da resposta, entao a politica que a rota
+   * envia NAO chegava ao navegador — chegava a geral, que permite script.
+   * A politica estrita precisa estar declarada tambem la, identica.
+   */
+  it("next.config.ts declara a MESMA politica para esta rota, depois da regra geral", () => {
+    const config = readFileSync(join(process.cwd(), "next.config.ts"), "utf8");
+
+    expect(config).toContain(`"${CSP_DA_PAGINA_DE_RESPOSTA}"`);
+
+    const geral = config.indexOf('{ source: "/:path*", headers: CABECALHOS_DE_SEGURANCA }');
+    const daRota = config.indexOf('source: "/api/integracoes/bling/callback"');
+
+    expect(geral).toBeGreaterThan(-1);
+    expect(daRota).toBeGreaterThan(geral);
+  });
 });
