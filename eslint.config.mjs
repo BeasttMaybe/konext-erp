@@ -131,6 +131,16 @@ const eslintConfig = defineConfig([
       ],
     },
   },
+  // Scripts CommonJS de apoio (scripts/dev/local). O de preparo do driver
+  // PRECISA ser CommonJS: e carregado por `node --require`, que nao aceita
+  // modulo ES. A regra que proibe `require()` existe para o codigo do
+  // sistema, que e todo ESM.
+  {
+    files: ["scripts/**/*.cjs"],
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

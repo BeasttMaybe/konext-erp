@@ -1,7 +1,6 @@
 // Login pelo formulario real e visita a todas as telas, registrando o que
 // quebra: tela de erro, resposta 5xx, erro no console do navegador.
 const { chromium } = require("playwright");
-const fs = require("node:fs");
 const path = require("node:path");
 
 const BASE = "http://localhost:3100";
