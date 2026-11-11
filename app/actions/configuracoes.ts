@@ -27,8 +27,10 @@ import {
 
 type ConfiguracaoRegistro = {
   id: string;
-  criadoEm: Date;
-  atualizadoEm: Date;
+  // `criadoEm` e `atualizadoEm` nao estao aqui de proposito: a linha e lida
+  // por SELECAO_DE_CONFIGURACAO, que so pede o que o codigo usa, e ninguem
+  // le essas duas (so se ORDENA por `criadoEm`, o que nao exige traze-la).
+  // Declara-las faria o tipo prometer campos que a consulta nao devolve.
   razaoSocial?: string | null;
   nomeFantasia?: string | null;
   cnpj?: string | null;
