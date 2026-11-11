@@ -6,6 +6,7 @@ import { obterPrismaTenant } from "@/lib/tenant/prisma-tenant";
 import { resolverConexaoTenant } from "@/lib/tenant/resolver-conexao-tenant";
 import { FUSO_HORARIO_PADRAO } from "@/lib/datas";
 import { deDecimal, paraDecimal, somar } from "@/lib/dinheiro";
+import { calcularEsperadoFechamento } from "@/lib/dominio/financeiro/estorno";
 import {
   decidirFechamentoAutomatico,
   type CaixaParaFechar,
@@ -55,7 +56,8 @@ type PrismaDoTenant = {
         id: string;
         dataAbertura: Date;
         valorAbertura: DecimalPrisma;
-        vendas: Array<{ valorTotal: DecimalPrisma; estornadaEm: Date | null }>;
+        vendas: Array<{ valorTotal: DecimalPrisma }>;
+        vendasEstornadasAqui: Array<{ valorTotal: DecimalPrisma }>;
       }>
     >;
     update: (args: unknown) => Promise<unknown>;
@@ -88,7 +90,8 @@ async function processarTenant(prisma: PrismaDoTenant, agora: Date): Promise<Res
       id: true,
       dataAbertura: true,
       valorAbertura: true,
-      vendas: { select: { valorTotal: true, estornadaEm: true } },
+      vendas: { select: { valorTotal: true } },
+      vendasEstornadasAqui: { select: { valorTotal: true } },
     },
   });
 
@@ -114,15 +117,33 @@ async function processarTenant(prisma: PrismaDoTenant, agora: Date): Promise<Res
     // O VALOR DE FECHAMENTO É O ESPERADO, e não um valor contado.
     //
     // Não há ninguém contando a gaveta às 23:59. O esperado é a única coisa
-    // honesta a gravar: abertura mais as vendas não estornadas. A diferença
-    // entre esperado e contado — que é o ponto do fechamento manual — não
-    // existe aqui, e inventar um valor contado seria fabricar uma conferência
-    // que ninguém fez.
-    const vendasValidas = caixa.vendas.filter((venda) => venda.estornadaEm === null);
-    const esperado = somar(
-      deDecimal(caixa.valorAbertura),
-      ...vendasValidas.map((venda) => deDecimal(venda.valorTotal))
-    );
+    // honesta a gravar. A diferença entre esperado e contado — que é o ponto
+    // do fechamento manual — não existe aqui, e inventar um valor contado
+    // seria fabricar uma conferência que ninguém fez.
+    //
+    // E O ESPERADO É O DA REGRA, NÃO UMA CONTA PARECIDA.
+    //
+    // A primeira versão desta rotina somava "abertura + vendas não
+    // estornadas". Parece a mesma coisa que a regra de estorno
+    // (`calcularEsperadoFechamento`), e não é: pela regra, a venda NUNCA sai
+    // da sessão em que foi feita, e o estorno é descontado da sessão que o
+    // ABSORVEU — a que estava aberta quando o dinheiro saiu da gaveta.
+    //
+    // As duas contas só coincidem quando a venda é estornada no mesmo caixa
+    // em que foi feita. Num caixa que devolveu o dinheiro de uma venda de
+    // OUTRO dia, a conta antiga não descontava nada: gravava um fechamento
+    // maior que o esperado, e o histórico — que usa a regra — passava a
+    // mostrar uma "sobra" que nunca existiu, do valor exato do estorno.
+    //
+    // Agora a rotina grava o que o histórico vai recalcular, pela mesma
+    // função. A diferença de um fechamento automático é zero por construção.
+    const esperado = calcularEsperadoFechamento({
+      aberturaCentavos: deDecimal(caixa.valorAbertura),
+      vendasDaSessaoCentavos: somar(...caixa.vendas.map((venda) => deDecimal(venda.valorTotal))),
+      estornosAbsorvidosCentavos: somar(
+        ...caixa.vendasEstornadasAqui.map((venda) => deDecimal(venda.valorTotal))
+      ),
+    });
 
     await prisma.caixaSession.update({
       where: { id: caixa.id },
