@@ -8,20 +8,17 @@ import {
  CalendarDays,
  Check,
  ChevronsUpDown,
- CircleDollarSign,
  ClipboardCheck,
  Package2,
  Plus,
  ShieldCheck,
  Trash2,
  Truck,
- UserRound,
 } from "lucide-react";
 import { Controller, SubmitErrorHandler, SubmitHandler, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
  Command,
  CommandEmpty,
@@ -64,16 +61,13 @@ const tabValues = [
 
 type TabValue = (typeof tabValues)[number];
 
-const paymentMethodValues = [
- "pix",
- "ted",
- "boleto",
- "cartao-debito",
- "cartao-credito-avista",
- "cartao-credito-parcelado",
-] as const;
-
-type PaymentMethodValue = (typeof paymentMethodValues)[number];
+type PaymentMethodValue =
+ | "pix"
+ | "ted"
+ | "boleto"
+ | "cartao-debito"
+ | "cartao-credito-avista"
+ | "cartao-credito-parcelado";
 
 type ComboboxOption = {
  id: string;
@@ -472,10 +466,6 @@ export function NewSalesOrderWizard({
  control: form.control,
  name: "descontos",
  }) ?? 0;
- const watchedInstallments = useWatch({
- control: form.control,
- name: "parcelas",
- }) ?? [];
  const watchedSalesDate = useWatch({
  control: form.control,
  name: "dataVenda",

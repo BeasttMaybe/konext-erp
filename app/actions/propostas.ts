@@ -19,7 +19,6 @@ import {
   calcularSituacao,
   calcularTaxaDeConversao,
   motivoDeNaoPoderEditar,
-  podeEditar,
   podeMarcarComoEnviada,
   podeRegistrarResposta,
   type StatusProposta,

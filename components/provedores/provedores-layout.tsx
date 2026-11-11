@@ -1,7 +1,6 @@
 "use client";
 
 import { ProvedorTema } from "@/components/provedores/provedor-tema";
-import { ProvedorSidebar } from "@/contextos/contexto-sidebar";
 import { ReactNode } from "react";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -11,10 +10,8 @@ import { Toaster } from "@/components/ui/sonner";
 export function ProvedoresLayout({ children }: { children: ReactNode }) {
   return (
     <ProvedorTema>
-      <ProvedorSidebar>
-        {children}
-        <Toaster richColors position="top-right" />
-      </ProvedorSidebar>
+      {children}
+      <Toaster richColors position="top-right" />
     </ProvedorTema>
   );
 }

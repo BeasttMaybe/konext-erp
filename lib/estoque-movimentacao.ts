@@ -27,10 +27,6 @@ type MovimentacaoDelegate = {
   createMany?: (args: unknown) => Promise<{ count: number }>;
 };
 
-type ProdutoDelegate = {
-  findUnique?: (args: unknown) => Promise<{ quantidadeEstoque: number } | null>;
-};
-
 type ClienteEstoque = unknown;
 
 function obterDelegateMovimentacao(client: ClienteEstoque): MovimentacaoDelegate {
@@ -42,17 +38,6 @@ function obterDelegateMovimentacao(client: ClienteEstoque): MovimentacaoDelegate
 
   if (!delegate?.create) {
     throw new Error("Delegate Prisma de MovimentacaoEstoque nao disponivel.");
-  }
-
-  return delegate;
-}
-
-function obterDelegateProduto(client: ClienteEstoque): ProdutoDelegate {
-  const prismaClient = client as { produto?: ProdutoDelegate; Produto?: ProdutoDelegate };
-  const delegate = prismaClient.produto ?? prismaClient.Produto;
-
-  if (!delegate?.findUnique) {
-    throw new Error("Delegate Prisma de Produto nao disponivel.");
   }
 
   return delegate;
@@ -119,19 +104,6 @@ export async function registrarMovimentacaoEstoque(
   });
 
   return { id: String(registro.id) };
-}
-
-/** Lê o saldo atual do produto na mesma transação. */
-export async function lerSaldoAtual(
-  client: ClienteEstoque,
-  produtoId: string
-): Promise<number | null> {
-  const produto = await obterDelegateProduto(client).findUnique!({
-    where: { id: produtoId },
-    select: { quantidadeEstoque: true },
-  });
-
-  return produto ? produto.quantidadeEstoque : null;
 }
 
 /**

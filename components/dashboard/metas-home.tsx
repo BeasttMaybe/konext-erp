@@ -84,17 +84,3 @@ export function MetasHome({ resumo }: MetasHomeProps) {
     </Painel>
   );
 }
-
-/** Skeleton das Metas do mês. */
-export function MetasHomeCarregando() {
-  return (
-    <Painel>
-      <CabecalhoCard titulo="Metas do mês" />
-      <div className="flex flex-col gap-kx-3 px-kx-4 pb-kx-4 pt-kx-3">
-        {Array.from({ length: 3 }).map((_, indice) => (
-          <div key={indice} className="h-8 w-full animate-pulse rounded bg-kx-superficie" />
-        ))}
-      </div>
-    </Painel>
-  );
-}

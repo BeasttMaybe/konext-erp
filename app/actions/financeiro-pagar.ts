@@ -93,7 +93,6 @@ export interface ParcelaDespesaComRelacao {
   };
 }
 
-
 type DelegateDespesaCreate = {
   create: (args: unknown) => Promise<{ id: string }>;
 };
@@ -678,38 +677,6 @@ export async function excluirDespesa(id: string): Promise<ResultadoAcaoDespesa> 
     return { sucesso: false, mensagem: paraMensagemSegura(erro) };
   }
 }
-
-export async function listarParcelasPagar(): Promise<ParcelaDespesaComRelacao[]> {
-  const contexto = await exigirContextoTenant();
-  exigirPermissao(contexto, "financeiro.ver");
-  const { prisma } = contexto;
-  const prismaAny = prisma as unknown as PrismaFinanceiroPagarAny;
-  const parcelaDespesaDelegate = obterDelegateParcelaDespesa(prismaAny, prismaAny);
-
-  const parcelas = await parcelaDespesaDelegate.findMany({
-    where: { despesa: { is: escopoDespesa(contexto) } },
-    include: {
-      despesa: {
-        include: {
-          cliente: {
-            select: {
-              id: true,
-              nomeRazaoSocial: true,
-              documento: true,
-            },
-          },
-        },
-      },
-    },
-    orderBy: {
-      dataVencimento: "asc",
-    },
-  });
-
-  return parcelas as ParcelaDespesaComRelacao[];
-}
-
-// ── Tipos e funções para consulta filtrada ──────────────────────────────────
 
 export interface FiltrosPagar {
   /** Início/fim do período (DATA DE CALENDÁRIO, "yyyy-MM-dd") — vem do componente `FiltroPeriodo` (Fase 2A-1), filtra `dataVencimento`. */

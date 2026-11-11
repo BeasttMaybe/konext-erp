@@ -194,29 +194,6 @@ export function normalizarConfiguracaoPdv(
   };
 }
 
-export function obterTaxaCreditoPorParcela(
-  configuracao: ConfiguracaoPdvPagamentos,
-  parcelas: number
-): number {
-  const parcela = Math.min(12, Math.max(1, Math.trunc(parcelas)));
-  const mapa: Record<number, number> = {
-    1: configuracao.taxaCartaoCredito1xPercentual,
-    2: configuracao.taxaCartaoCredito2xPercentual,
-    3: configuracao.taxaCartaoCredito3xPercentual,
-    4: configuracao.taxaCartaoCredito4xPercentual,
-    5: configuracao.taxaCartaoCredito5xPercentual,
-    6: configuracao.taxaCartaoCredito6xPercentual,
-    7: configuracao.taxaCartaoCredito7xPercentual,
-    8: configuracao.taxaCartaoCredito8xPercentual,
-    9: configuracao.taxaCartaoCredito9xPercentual,
-    10: configuracao.taxaCartaoCredito10xPercentual,
-    11: configuracao.taxaCartaoCredito11xPercentual,
-    12: configuracao.taxaCartaoCredito12xPercentual,
-  };
-
-  return mapa[parcela] ?? configuracao.taxaCartaoCredito1xPercentual;
-}
-
 export function possuiFormaPagamentoHabilitada(configuracao: ConfiguracaoPdvPagamentos): boolean {
   return (
     configuracao.habilitarPix ||

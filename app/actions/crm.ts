@@ -445,32 +445,6 @@ export async function atualizarCliente(
   }
 }
 
-export async function listarClientes() {
-  const contextoTenant = await exigirContextoTenant();
-  exigirPermissao(contextoTenant, "crm.ver");
-  const prisma = contextoTenant.prisma;
-
-  return prisma.cliente.findMany({
-    where: {
-      id: { not: ID_CLIENTE_CONSUMIDOR_FINAL },
-    },
-    orderBy: {
-      nomeRazaoSocial: "asc",
-    },
-    select: {
-      id: true,
-      tipoPessoa: true,
-      nomeRazaoSocial: true,
-      nomeFantasia: true,
-      documento: true,
-      telefone: true,
-      categoria: true,
-    },
-  });
-}
-
-// ── Paginação de Clientes ──────────────────────────────────────────────────────
-
 export interface PaginatedResult<T> {
   data: T[];
   total: number;

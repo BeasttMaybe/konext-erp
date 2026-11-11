@@ -85,20 +85,3 @@ export function FluxoOs({ fluxoEtapas }: FluxoOsProps) {
     </Painel>
   );
 }
-
-/** Skeleton do Fluxo de OS — barra e 4 linhas em animate-pulse. */
-export function FluxoOsCarregando() {
-  return (
-    <Painel>
-      <CabecalhoCard titulo="Fluxo de OS" />
-      <div className="px-kx-4 pb-kx-4 pt-kx-3">
-        <div className="mb-kx-4 h-2 w-full animate-pulse rounded-full bg-kx-superficie" />
-        <div className="flex flex-col gap-kx-2">
-          {Array.from({ length: 4 }).map((_, indice) => (
-            <div key={indice} className="h-6 w-full animate-pulse rounded bg-kx-superficie" />
-          ))}
-        </div>
-      </div>
-    </Painel>
-  );
-}
