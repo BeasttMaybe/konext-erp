@@ -50,7 +50,7 @@ export function EstadoDoSistema({ estado }: { estado: Estado }) {
       {estado.rotinasProtegidas ? null : (
         <div
           role="alert"
-          className="flex items-start gap-2.5 rounded-kx-painel border border-kx-alerta-borda bg-kx-alerta-fundo px-3 py-2.5 text-sm text-kx-alerta-texto"
+          className="flex items-start gap-2.5 rounded-kx-painel border border-kx-alerta bg-kx-alerta-fundo px-3 py-2.5 text-sm text-kx-alerta-texto"
         >
           <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
           <p>

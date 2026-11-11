@@ -99,7 +99,7 @@ export function PainelBling() {
       </div>
 
       {estado && !estado.configuradoNoAmbiente && (
-        <p className="rounded-kx-painel border border-kx-alerta-borda bg-kx-alerta-fundo px-3 py-2 text-sm text-kx-alerta-texto">
+        <p className="rounded-kx-painel border border-kx-alerta bg-kx-alerta-fundo px-3 py-2 text-sm text-kx-alerta-texto">
           As credenciais do aplicativo (BLING_CLIENT_ID e BLING_CLIENT_SECRET) ainda não estão
           no ambiente. Sem elas não é possível conectar.
         </p>
@@ -172,7 +172,7 @@ export function PainelBling() {
       </div>
 
       {estado?.ultimoErro && (
-        <p className="rounded-kx-painel border border-kx-alerta-borda bg-kx-alerta-fundo px-3 py-2 text-xs text-kx-alerta-texto">
+        <p className="rounded-kx-painel border border-kx-alerta bg-kx-alerta-fundo px-3 py-2 text-xs text-kx-alerta-texto">
           Última falha: {estado.ultimoErro}
         </p>
       )}
