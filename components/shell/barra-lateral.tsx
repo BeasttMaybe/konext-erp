@@ -26,7 +26,7 @@ import {
   itemEstaAtivo,
 } from "@/lib/navegacao/itens-navegacao";
 import { logout } from "@/app/actions/auth";
-import { obterDadosPerfilConfiguracao } from "@/app/actions/configuracoes";
+import { usePerfilDaMoldura } from "@/contextos/contexto-perfil";
 import { StatusCaixa } from "./status-caixa";
 
 const ICONES: Record<string, LucideIcon> = {
@@ -100,7 +100,10 @@ export function BarraLateral() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { permissoes } = usePermissoes();
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  // Vem pronto do servidor (ver contextos/contexto-perfil.tsx). Antes esta
+  // barra buscava o logo num efeito, depois de montada: uma requisicao a mais
+  // por tela, e a marca "K" piscando antes de o logo aparecer.
+  const { logoUrl } = usePerfilDaMoldura();
   const [falhaLogo, setFalhaLogo] = useState(false);
   const [topoIndicador, setTopoIndicador] = useState<number | null>(null);
   const refsItens = useRef<Array<HTMLAnchorElement | null>>([]);
@@ -149,20 +152,6 @@ export function BarraLateral() {
     // aberta empurram pra baixo todo item que vem depois dela: sem isso o
     // indicador fica medido na posição antiga e flutua sozinho na barra.
   }, [indiceAtivo, itensRenderizados.length, filhosAbertos.length]);
-
-  useEffect(() => {
-    let ativo = true;
-    obterDadosPerfilConfiguracao()
-      .then((dados) => {
-        if (ativo) setLogoUrl(dados.configuracao?.logoUrl || null);
-      })
-      .catch(() => {
-        // Mantém o fallback (marca "K") — a barra não pode quebrar por causa do logo.
-      });
-    return () => {
-      ativo = false;
-    };
-  }, []);
 
   return (
     <aside className="relative z-kx-barra-lateral hidden w-[72px] shrink-0 flex-col bg-kx-painel lg:flex xl:w-[248px]">

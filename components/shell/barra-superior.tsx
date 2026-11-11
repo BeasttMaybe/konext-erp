@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { Moon, Search, Sun } from "lucide-react";
-import { obterDadosPerfilConfiguracao } from "@/app/actions/configuracoes";
+import { usePerfilDaMoldura } from "@/contextos/contexto-perfil";
 import { logout } from "@/app/actions/auth";
 import { useTheme } from "@/components/provedores/provedor-tema";
 import { useTemAlgumaPermissao, usePermissoes } from "@/contextos/contexto-permissoes";
@@ -49,34 +49,17 @@ export function BarraSuperior({ onAbrirBusca }: { onAbrirBusca: () => void }) {
   const router = useRouter();
   const { papel } = usePermissoes();
   const podeVerConfiguracoes = useTemAlgumaPermissao(PERMISSOES_CONFIGURACOES);
-  const [nomeUsuario, setNomeUsuario] = useState("");
-  const [emailUsuario, setEmailUsuario] = useState("");
-  const [fotoPerfilUrl, setFotoPerfilUrl] = useState<string | null>(null);
+  // Vem pronto do servidor (ver contextos/contexto-perfil.tsx): sem busca
+  // depois de montar, o nome ja aparece no primeiro desenho da barra.
+  const perfil = usePerfilDaMoldura();
+  const emailUsuario = perfil.email;
+  const nomeUsuario = nomeOuEmail(perfil.nome, emailUsuario);
+  const fotoPerfilUrl = perfil.fotoPerfilUrl;
   const montado = useSyncExternalStore(
     () => () => {},
     () => true,
     () => false
   );
-
-  useEffect(() => {
-    let ativo = true;
-
-    obterDadosPerfilConfiguracao()
-      .then((dados) => {
-        if (!ativo) return;
-        const email = dados.usuario?.email || "";
-        setNomeUsuario(nomeOuEmail(dados.usuario?.nome, email));
-        setEmailUsuario(email);
-        setFotoPerfilUrl(dados.usuario?.fotoPerfilUrl || null);
-      })
-      .catch(() => {
-        // Mantém os valores padrão — a barra não pode quebrar a tela por causa do perfil.
-      });
-
-    return () => {
-      ativo = false;
-    };
-  }, []);
 
   return (
     <header className="sticky top-0 z-kx-cabecalho flex h-[72px] shrink-0 items-center gap-3 border-b border-kx-painel-borda bg-kx-painel px-4 lg:px-6">
