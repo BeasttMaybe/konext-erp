@@ -118,6 +118,52 @@ export function validarFoto(entrada: {
   return { valido: true };
 }
 
+/**
+ * O tipo de imagem que os BYTES dizem ser, pela assinatura no comeco do
+ * arquivo — ou `null` se nao for nenhum dos aceitos.
+ *
+ * POR QUE NAO BASTA O `arquivo.type`
+ *
+ * O tipo que chega no formulario e escrito por quem envia. Um arquivo HTML
+ * declarado como `image/jpeg` passava em `validarFoto`, era gravado no bucket
+ * e ficava registrado como foto da OS. O envio pelo celular e uma rota sem
+ * login: basta ter um link valido na mao para tentar.
+ *
+ * A assinatura nao pode ser escolhida a vontade por quem envia sem que o
+ * arquivo deixe de ser o que ele queria que fosse.
+ */
+export function tipoRealDaImagem(bytes: Uint8Array): TipoDeImagemAceito | null {
+  const comeca = (assinatura: readonly number[], deslocamento = 0) =>
+    bytes.length >= deslocamento + assinatura.length &&
+    assinatura.every((byte, indice) => bytes[deslocamento + indice] === byte);
+
+  // JPEG: FF D8 FF
+  if (comeca([0xff, 0xd8, 0xff])) return "image/jpeg";
+
+  // PNG: 89 "PNG" CR LF 1A LF
+  if (comeca([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return "image/png";
+
+  // WebP: "RIFF" <4 bytes de tamanho> "WEBP"
+  if (comeca([0x52, 0x49, 0x46, 0x46]) && comeca([0x57, 0x45, 0x42, 0x50], 8)) return "image/webp";
+
+  return null;
+}
+
+/**
+ * O conteudo e mesmo do tipo declarado?
+ *
+ * Exige que os dois CONCORDEM, e nao so que o conteudo seja alguma imagem: o
+ * tipo declarado e o que vai para o bucket e volta no cabecalho da resposta,
+ * entao um PNG declarado como JPEG tambem e recusado.
+ */
+export function conteudoConfereComOTipo(bytes: Uint8Array, tipoDeclarado: string): boolean {
+  const real = tipoRealDaImagem(bytes);
+  return real !== null && real === tipoDeclarado;
+}
+
+export const ERRO_DE_CONTEUDO_QUE_NAO_E_IMAGEM =
+  "O conteúdo desse arquivo não é uma imagem JPG, PNG ou WebP.";
+
 const EXTENSAO_POR_TIPO: Readonly<Record<TipoDeImagemAceito, string>> = {
   "image/jpeg": "jpg",
   "image/png": "png",

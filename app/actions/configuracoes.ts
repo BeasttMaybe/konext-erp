@@ -1259,6 +1259,14 @@ export async function salvarConfiguracoes(data: DadosConfiguracoes) {
 }
 
 export async function consultarCnpjReceita(cnpj: string): Promise<ResultadoConsultaCnpj> {
+  // Exige sessao ANTES do try: sem ela, o redirect do login precisa subir.
+  //
+  // Esta action nao le nada do banco, e por isso nunca tinha conferido quem
+  // chamava. Mas ela faz uma requisicao a um servico externo em nome do
+  // sistema: aberta, era um repetidor publico — qualquer pessoa na internet
+  // consumia a cota de consultas de CNPJ da loja, sem login.
+  await exigirContextoTenant();
+
   try {
     const resultado = await consultarCnpjReceitaCliente(cnpj);
 

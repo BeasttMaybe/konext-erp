@@ -1,4 +1,21 @@
-"use server";
+// NUNCA "use server" aqui.
+//
+// Este arquivo comecava com a diretiva, e ela transforma TODA funcao async
+// exportada em Server Action -- ou seja, em endpoint HTTP que qualquer um na
+// internet pode chamar com os argumentos que quiser. `criarSessaoCentral`
+// recebe um id de usuario e devolve um cookie de sessao valido para ele, sem
+// pedir senha: como endpoint, e login sem senha para qualquer conta.
+//
+// O que impedia a exploracao era so o identificador da action nao ir para o
+// navegador (nenhum componente de cliente importa este modulo) e ser sorteado
+// a cada build. A documentacao do Next e explicita em nao confiar nisso:
+// "treat Server Actions as reachable via direct POST requests".
+//
+// `server-only` faz o contrario da diretiva: quebra o BUILD se um componente
+// de cliente importar este modulo. Guardado por
+// lib/auth/modulos-de-servidor-nao-sao-actions.test.ts.
+import "server-only";
+
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";

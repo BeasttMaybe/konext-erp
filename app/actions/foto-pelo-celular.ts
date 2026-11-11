@@ -7,7 +7,9 @@ import { abrirTenantPorSlug } from "@/lib/tenant/tenant-publico-por-slug";
 import { hashDoSegredo } from "@/lib/fotos/token-de-envio";
 import { gravarObjeto, traduzirErroDeArmazenamento, armazenamentoEstaConfigurado } from "@/lib/fotos/armazenamento";
 import {
+  conteudoConfereComOTipo,
   ehTipoDeImagemAceito,
+  ERRO_DE_CONTEUDO_QUE_NAO_E_IMAGEM,
   MAXIMO_DE_FOTOS_POR_OS,
   montarChaveDaFoto,
   validarFoto,
@@ -200,6 +202,12 @@ export async function enviarFotoPeloCelular(dados: FormData): Promise<ResultadoE
     });
 
     const conteudo = new Uint8Array(await arquivo.arrayBuffer());
+
+    // O tipo declarado ja passou em `validarFoto`, mas ele e escrito por quem
+    // envia. Aqui conferem-se os BYTES, antes de qualquer coisa ir ao bucket.
+    if (!conteudoConfereComOTipo(conteudo, arquivo.type)) {
+      return { sucesso: false, erro: ERRO_DE_CONTEUDO_QUE_NAO_E_IMAGEM };
+    }
 
     // Objeto antes da linha, igual ao envio de dentro: falha ao gravar o
     // arquivo não pode deixar linha apontando pro que não existe.

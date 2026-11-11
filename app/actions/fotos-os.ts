@@ -12,7 +12,9 @@ import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditor
 import {
   MAXIMO_DE_FOTOS_POR_OS,
   chavePertenceAOrdem,
+  conteudoConfereComOTipo,
   ehTipoDeImagemAceito,
+  ERRO_DE_CONTEUDO_QUE_NAO_E_IMAGEM,
   montarChaveDaFoto,
   validarFoto,
   type MomentoFoto,
@@ -155,6 +157,12 @@ export async function enviarFotoDaOS(dados: FormData): Promise<ResultadoFoto> {
     });
 
     const conteudo = new Uint8Array(await arquivo.arrayBuffer());
+
+    // O tipo declarado ja passou em `validarFoto`, mas ele e escrito por quem
+    // envia. Aqui conferem-se os BYTES, antes de qualquer coisa ir ao bucket.
+    if (!conteudoConfereComOTipo(conteudo, arquivo.type)) {
+      return { sucesso: false, erro: ERRO_DE_CONTEUDO_QUE_NAO_E_IMAGEM };
+    }
 
     // O arquivo vai pro bucket ANTES da linha no banco. Se gravar o objeto
     // falhar, nada é escrito e a tela mostra o erro; na ordem inversa, uma

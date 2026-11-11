@@ -718,7 +718,7 @@ function calcularProgressoMeta(parametros: {
  * quando o contexto tem a permissão financeira). O bloco de metas só é
  * buscado quando o usuário tem `metas.ver`.
  */
-export async function obterPainelOperacionalHome(
+async function obterPainelOperacionalHome(
   periodo: PeriodoDashboard = "hoje",
   intervaloCustom?: { inicio: Date; fim: Date }
 ): Promise<PainelOperacionalHome> {

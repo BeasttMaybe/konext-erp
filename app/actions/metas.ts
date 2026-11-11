@@ -1,5 +1,6 @@
 "use server";
 
+import { exigirChamadaInterna, type MarcaDeChamadaInterna } from "@/lib/auth/chamada-interna";
 import { revalidatePath } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
@@ -2135,10 +2136,15 @@ export async function excluirMeta(id: string): Promise<ResultadoAcao> {
  * requisição de usuário, e revalidar cache de rota dali não faz sentido.
  */
 export async function sincronizarMetasAutomaticasDoTenant(
+  marca: MarcaDeChamadaInterna,
   prisma: PrismaMetasClient,
   fusoHorario: string = FUSO_HORARIO_PADRAO,
   usuarioId: string | null = null
 ): Promise<{ verificadas: number; atualizadas: number; falhas: number }> {
+  // Esta funcao recebe um cliente do banco pronto e nao confere sessao: so
+  // pode ser chamada de dentro do servidor. Ver lib/auth/chamada-interna.ts.
+  exigirChamadaInterna(marca);
+
   const metasAutomaticas = await prisma.meta.findMany({
     where: { excluidaEm: null, origemProgresso: "AUTOMATICA" },
     select: {

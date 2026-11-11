@@ -12,6 +12,7 @@ import {
 } from "@/lib/auth/permissoes";
 import { mapearCargoParaRoleLegado } from "@/lib/auth/mapear-cargo-legado";
 import { permissoesEfetivasDoCargo } from "@/lib/auth/permissoes-efetivas-cargo";
+import { listarUsuariosComAcessoAdmin } from "@/lib/auth/usuarios-com-acesso-admin";
 import {
   contarAdminsAtivos,
   podeAlterarCargoDoUsuario,
@@ -21,7 +22,6 @@ import {
   podeEditarPermissoesDoCargo,
   podeRemoverAcessoAdminDoUsuario,
   podeRenomearCargo,
-  type UsuarioComAcessoAdmin,
 } from "@/lib/auth/invariantes-cargos";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { contextoAuditoriaCentralDoUsuario, registrarLogAuditoriaCentral } from "@/lib/auditoria-central";
@@ -105,30 +105,6 @@ type CargoComPermissoes = {
 
 function primeiroErroZod(erro: z.ZodError): string {
   return erro.issues[0]?.message ?? "Dados inválidos.";
-}
-
-/**
- * Todo vinculo da empresa, com se cada um possui (efetivamente) a permissao
- * configuracoes.usuarios — base pra checar a invariante "sempre sobra 1
- * admin ativo" (lib/auth/invariantes-cargos.ts).
- */
-export async function listarUsuariosComAcessoAdmin(empresaId: string): Promise<UsuarioComAcessoAdmin[]> {
-  const vinculos = await prismaCentral.usuarioEmpresa.findMany({
-    where: { empresaId },
-    select: {
-      usuarioId: true,
-      ativo: true,
-      cargo: { select: { fixo: true, permissoes: { select: { permissao: true } } } },
-    },
-  });
-
-  return vinculos.map((vinculo) => ({
-    usuarioId: vinculo.usuarioId,
-    ativo: vinculo.ativo,
-    possuiConfiguracoesUsuarios: vinculo.cargo
-      ? permissoesEfetivasDoCargo(vinculo.cargo).includes("configuracoes.usuarios")
-      : false,
-  }));
 }
 
 function revalidarTelasDeConfiguracoes(): void {

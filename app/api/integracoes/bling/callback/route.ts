@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { trocarCodigoPorTokens } from "@/lib/bling/api";
+import { CSP_DA_PAGINA_DE_RESPOSTA, montarHtmlDeResposta } from "@/lib/bling/pagina-de-resposta";
 import { salvarConexaoNova } from "@/lib/bling/conexao";
 import { estadoExpirou, lerEstado } from "@/lib/bling/estado-oauth";
 import { abrirTenantPorSlug } from "@/lib/tenant/tenant-publico-por-slug";
@@ -29,42 +30,16 @@ import { urlBaseDaRequisicao } from "@/lib/url-da-requisicao";
  */
 
 function paginaDeResposta(titulo: string, detalhe: string, deuCerto: boolean): NextResponse {
-  // HTML mínimo e autocontido: é uma página de passagem, vista uma vez por
-  // conexão. Carregar o shell do app aqui só atrasaria a volta para as
-  // configurações.
-  //
-  // As cores são as PALAVRAS-CHAVE DE SISTEMA do CSS (`Canvas`, `CanvasText`,
-  // `AccentColor`…), não hex. Esta página roda fora do shell, então não
-  // alcança os tokens `--kx-*` — e cravar hex aqui criaria uma segunda
-  // paleta, solta, que ninguém lembraria de atualizar. As palavras de sistema
-  // já acompanham o tema claro/escuro do aparelho sozinhas, que é tudo o que
-  // uma tela de passagem precisa.
-  const corpo = `<!doctype html>
-<html lang="pt-BR"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${titulo}</title>
-<style>
-  :root { color-scheme: light dark; }
-  body { margin:0; min-height:100vh; display:grid; place-items:center;
-         font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-         background:Canvas; color:CanvasText; padding:24px; }
-  .cartao { max-width:30rem; text-align:center; border:1px solid; border-color:GrayText;
-            border-radius:16px; padding:32px 24px; }
-  h1 { font-size:1.25rem; margin:0 0 8px; }
-  p { margin:0 0 20px; color:GrayText; line-height:1.5; }
-  a { display:inline-block; background:${deuCerto ? "AccentColor" : "ButtonFace"};
-      color:${deuCerto ? "AccentColorText" : "ButtonText"};
-      text-decoration:none; padding:10px 18px; border-radius:10px; font-weight:600; }
-</style></head>
-<body><div class="cartao">
-  <h1>${titulo}</h1>
-  <p>${detalhe}</p>
-  <a href="/configuracoes">Voltar para as configurações</a>
-</div></body></html>`;
-
-  return new NextResponse(corpo, {
+  // O HTML e montado (e ESCAPADO) em lib/bling/pagina-de-resposta.ts. Nao
+  // montar marcacao aqui: o detalhe pode conter o parametro `error` da URL.
+  return new NextResponse(montarHtmlDeResposta(titulo, detalhe, deuCerto), {
     status: deuCerto ? 200 : 400,
-    headers: { "Content-Type": "text/html; charset=utf-8" },
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      "Content-Security-Policy": CSP_DA_PAGINA_DE_RESPOSTA,
+      "X-Content-Type-Options": "nosniff",
+      "Cache-Control": "no-store",
+    },
   });
 }
 

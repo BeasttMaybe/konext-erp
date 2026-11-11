@@ -34,6 +34,14 @@ function nomeDoArquivo(numero: string, serie: string | null, chave: string | nul
   return `${partes.join("-")}.xml`.replace(/[^\w.-]/g, "_");
 }
 
+function ehEnderecoHttps(endereco: string): boolean {
+  try {
+    return new URL(endereco).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 async function baixarEmLotes(
   notas: Array<{ nome: string; url: string }>,
   zip: JSZip
@@ -47,6 +55,14 @@ async function baixarEmLotes(
     await Promise.all(
       lote.map(async (nota) => {
         try {
+          // O endereco vem do banco, gravado pela sincronizacao com o Bling.
+          // So se busca por https: um valor adulterado nao pode fazer o
+          // servidor requisitar `http://` de rede interna nem `file:`.
+          if (!ehEnderecoHttps(nota.url)) {
+            falhas.push(`${nota.nome}: o endereço do XML não é https`);
+            return;
+          }
+
           const resposta = await fetch(nota.url);
 
           if (!resposta.ok) {

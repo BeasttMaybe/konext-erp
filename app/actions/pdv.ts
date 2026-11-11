@@ -1568,7 +1568,7 @@ async function obterPedidoOSParaPDVInterno(osId: string): Promise<PedidoOSPDV> {
  * navegador com a permissão os.ver_custos (F-41). O core interno
  * (`obterPedidoOSParaPDVInterno`) continua vendo o custo real para a venda.
  */
-export async function obterPedidoOSParaPDV(osId: string): Promise<PedidoOSPDV> {
+async function obterPedidoOSParaPDV(osId: string): Promise<PedidoOSPDV> {
   const contexto = await exigirContextoTenant();
   const podeVerCustos = temPermissao(contexto, "os.ver_custos");
   const pedido = await obterPedidoOSParaPDVInterno(osId);
