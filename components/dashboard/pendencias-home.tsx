@@ -33,8 +33,3 @@ export function PendenciasHome({ itens }: PendenciasHomeProps) {
     </Aviso>
   );
 }
-
-/** Skeleton das Pendências. */
-export function PendenciasHomeCarregando() {
-  return <div className="h-16 w-full animate-pulse rounded-kx-cartao border border-kx-painel-borda bg-kx-cartao" />;
-}

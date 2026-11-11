@@ -5,7 +5,6 @@ import { CabecalhoCard } from "./cabecalho-card";
 import { PilulaStatus } from "@/components/ui/pilula-status";
 import {
   Table,
-  TabelaCarregando,
   TabelaVazia,
   TableBody,
   TableCell,
@@ -69,31 +68,6 @@ export function MovimentacoesHome({ itens }: MovimentacoesHomeProps) {
                 </TableRow>
               ))
             )}
-          </TableBody>
-        </Table>
-      </div>
-    </Painel>
-  );
-}
-
-/** Skeleton das Últimas movimentações. */
-export function MovimentacoesHomeCarregando() {
-  return (
-    <Painel>
-      <CabecalhoCard titulo="Últimas movimentações" />
-      <div className="px-kx-2 pb-kx-2">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Referência</TableHead>
-              <TableHead>Cliente</TableHead>
-              <TableHead>Descrição</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Valor</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <TabelaCarregando colunas={COLUNAS} linhas={5} />
           </TableBody>
         </Table>
       </div>

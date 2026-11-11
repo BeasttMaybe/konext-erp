@@ -43,19 +43,6 @@
 export const STATUS_DE_RECEITA_REALIZADA = "RECEBIDO" as const;
 
 /**
- * As contas importadas do Bling ficam fora.
- *
- * Elas são lidas de `/contas/receber` do Bling, que diz se foi recebida mas
- * (na importação de hoje) não diz QUANDO. Sem a data, a conta só poderia ser
- * datada pela de importação ou pelo vencimento — e um número errado numa tela
- * de dinheiro é pior que um número ausente.
- *
- * Quando a data real de baixa passar a ser buscada no detalhe da conta, esta
- * exclusão sai daqui — de um lugar só, para as duas regras ao mesmo tempo.
- */
-export const RECEITA_IGNORA_CONTAS_DO_BLING = true;
-
-/**
  * Filtro Prisma de "conta a receber que conta como receita".
  *
  * Função, e não constante, porque objeto exportado é compartilhado por

@@ -84,17 +84,3 @@ export function KpisHome({
     </div>
   );
 }
-
-/** Skeleton dos 4 KPIs — mesma forma final, sem dado ainda. */
-export function KpisHomeCarregando() {
-  return (
-    <div className="grid grid-cols-1 gap-kx-4 sm:grid-cols-2 xl:grid-cols-4">
-      {Array.from({ length: 4 }).map((_, indice) => (
-        <div
-          key={indice}
-          className="h-[92px] animate-pulse rounded-kx-cartao border border-kx-painel-borda bg-kx-cartao"
-        />
-      ))}
-    </div>
-  );
-}

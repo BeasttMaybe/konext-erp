@@ -345,48 +345,6 @@ export async function salvarProduto(
   }
 }
 
-/**
- * Lista completa de produtos ativos (sem paginacao).
- *
- * NENHUM chamador atual usa esta funcao — a tela de estoque usa
- * `listarProdutosPaginado`. Mantida e corrigida por seguranca (F-41): se
- * algo voltar a chama-la, o custo continua protegido pela mesma regra.
- */
-export async function listarProdutos() {
-  const contexto = await exigirContextoTenant();
-  exigirPermissao(contexto, "estoque.ver");
-  const prisma = contexto.prisma;
-  const podeVerCustos = temPermissao(contexto, "estoque.ver_custos");
-
-  const produtos = await prisma.produto.findMany({
-    where: { ativo: true },
-    orderBy: { nome: "asc" },
-    select: {
-      id: true,
-      nome: true,
-      codigoBarras: true,
-      imagemUrl: true,
-      descricao: true,
-      categoria: true,
-      custo: true,
-      precoVenda: true,
-      quantidadeEstoque: true,
-      estoqueMinimo: true,
-      ativo: true,
-      criadoEm: true,
-      atualizadoEm: true,
-    },
-  });
-
-  return produtos.map((produto) => ({
-    ...produto,
-    custo: podeVerCustos ? paraMoeda(deDecimal(produto.custo)) : null,
-    precoVenda: paraMoeda(deDecimal(produto.precoVenda)),
-  }));
-}
-
-// ── Paginação de Produtos ──────────────────────────────────────────────────────
-
 export interface PaginatedResult<T> {
   data: T[];
   total: number;

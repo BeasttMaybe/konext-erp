@@ -1,7 +1,6 @@
 import { Barcode, Banknote, CreditCard, HandCoins, QrCode } from "lucide-react";
 import { deDecimal, dividirEmParcelas, formatarReais } from "@/lib/dinheiro";
-import type { FormaPagamentoPdv, ParametrosCalculoPagamentoPdv } from "@/lib/pdv/pagamentos";
-import type { ConfiguracaoPdvPagamentos } from "@/lib/configuracoes-pdv";
+import type { FormaPagamentoPdv } from "@/lib/pdv/pagamentos";
 
 /**
  * Funções puras de formatação/rótulo/ícone do fluxo de pagamento do PDV,
@@ -101,30 +100,6 @@ export function formatarRotuloParcelas(valorBruto: number, parcelas: number): st
   const rotuloMaior = quantidadeMaior === 1 ? "1ª" : `${quantidadeMaior}x`;
 
   return `${quantidadeParcelas}x — ${rotuloMaior} de ${formatarReais(valorMaior)} e ${quantidadeMenor}x de ${formatarReais(valorMenor)}`;
-}
-
-// Detalhe da forma (taxa configurada + quando o dinheiro chega) pras
-// "Formas rápidas". Taxa vem da configuração real do tenant
-// (parametrosCalculo), não do percentualTaxaBase estático de
-// CONFIG_PAGAMENTOS_PDV. Prazo de cartão não existe como dado hoje (só
-// boleto/crediário têm diasVencimento) — por isso o texto pra cartão é
-// sobre onde o dinheiro cai, não "em N dias", pra não inventar um prazo que
-// o sistema não rastreia.
-export function detalheFormaRapida(
-  forma: FormaPagamentoPdv,
-  parametrosCalculo: Required<Pick<ParametrosCalculoPagamentoPdv, "taxaCartaoDebitoPercentual" | "taxaCartaoCreditoPorParcela">>,
-  configuracaoAtiva: ConfiguracaoPdvPagamentos
-): string {
-  if (forma === "PIX") return "Sem taxa · cai na hora";
-  if (forma === "DINHEIRO") return "Sem taxa · na gaveta";
-  if (forma === "CARTAO_DEBITO") return `Taxa ${parametrosCalculo.taxaCartaoDebitoPercentual.toFixed(2)}% · direto na conta`;
-  if (forma === "CARTAO_CREDITO") {
-    const taxa1x = parametrosCalculo.taxaCartaoCreditoPorParcela[1] ?? 0;
-    return `Taxa a partir de ${taxa1x.toFixed(2)}% · prazo da adquirente`;
-  }
-  if (forma === "BOLETO") return `Sem taxa · vence em ${configuracaoAtiva.prazoPadraoBoletoDias} dias`;
-  if (forma === "CREDIARIO") return `Sem taxa · vence em ${configuracaoAtiva.prazoPadraoCrediarioDias} dias`;
-  return "";
 }
 
 export const MENSAGEM_CLIENTE_OBRIGATORIO_PARA_PRAZO =

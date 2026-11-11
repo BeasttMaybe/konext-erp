@@ -32,7 +32,6 @@ import type {
   FonteAutomaticaMeta,
   MetricaAutomaticaMeta,
   DirecaoMeta,
-  ResultadoRetornoGarantia,
   StatusOS,
   OrigemReceita,
 } from "@prisma/client";
@@ -1087,7 +1086,6 @@ export async function obterMetaPorId(id: string): Promise<DetalhesMeta | null> {
     const contexto = await exigirContextoTenant();
     exigirPermissao(contexto, "metas.ver");
     const prisma = contexto.prisma;
-    const usuario = { id: obterUsuarioOperacionalId(contexto) };
 
     const meta = await prisma.meta.findFirst({
       where: { id, excluidaEm: null },
@@ -1849,45 +1847,6 @@ export async function adicionarHistoricoMeta(metaId: string, observacao: string)
   }
 }
 
-export async function calcularValorAtualMetaAutomatica(metaId: string): Promise<ResultadoCalculoMetaAutomatica> {
-  try {
-    const contexto = await exigirContextoTenant();
-    exigirPermissao(contexto, "metas.ver");
-    const prisma = contexto.prisma;
-    const usuario = { id: obterUsuarioOperacionalId(contexto) };
-
-    const meta = await prisma.meta.findFirst({
-      where: {
-        id: metaId,
-        excluidaEm: null,
-      },
-      select: {
-        id: true,
-        criadoPorId: true,
-        origemProgresso: true,
-        fonteAutomatica: true,
-        metricaAutomatica: true,
-        configuracaoAutomatica: true,
-        dataInicio: true,
-        dataPrazo: true,
-      },
-    });
-
-    if (!meta) {
-      return { sucesso: false, erro: "Meta não encontrada." };
-    }
-
-    return executarCalculoMetaAutomatica(prisma, meta, contexto.fusoHorario ?? FUSO_HORARIO_PADRAO);
-  } catch (erro) {
-    const mensagemConhecida = mensagemDeErroConhecido(erro);
-    if (mensagemConhecida !== null) {
-      return { sucesso: false, erro: mensagemConhecida };
-    }
-    console.error("Erro ao calcular meta automática:", erro);
-    return { sucesso: false, erro: "Não foi possível calcular a meta automática." };
-  }
-}
-
 export async function sincronizarMetaAutomatica(metaId: string): Promise<ResultadoAcao> {
   try {
     const contexto = await exigirContextoTenant();
@@ -2010,7 +1969,6 @@ export async function sincronizarTodasMetasAutomaticas(): Promise<ResultadoAcao>
     const contexto = await exigirContextoTenant();
     exigirPermissao(contexto, "metas.editar");
     const prisma = contexto.prisma;
-    const usuario = { id: obterUsuarioOperacionalId(contexto) };
 
     const metasAutomaticas = await prisma.meta.findMany({
       where: {

@@ -122,8 +122,6 @@ const formatarMoeda = (valor: number) =>
     currency: "BRL",
   }).format(valor);
 
-const normalizarTexto = (texto: string) => texto.toLowerCase().replace(/[^a-z0-9]/gi, "");
-
 function ConteudoEstoque() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -134,7 +132,6 @@ function ConteudoEstoque() {
   const currentPage = Math.max(1, Number(searchParams.get("page") ?? "1"));
 
   const [produtos, setProdutos] = useState<ProdutoTabela[]>([]);
-  const [totalProdutos, setTotalProdutos] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [busca, setBusca] = useState("");
   const [categoriaSelecionada, setCategoriaSelecionada] = useState<string>("TODAS");
@@ -205,7 +202,6 @@ function ConteudoEstoque() {
             estoqueMinimo: produto.estoqueMinimo,
           }))
         );
-        setTotalProdutos(resultado.total);
         setTotalPages(resultado.totalPages);
       } catch {
         if (!ativo) return;

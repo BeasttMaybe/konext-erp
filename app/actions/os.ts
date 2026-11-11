@@ -218,37 +218,8 @@ type ItemOSCreateManyDelegate = {
   createMany?: (args: unknown) => Promise<unknown>;
 };
 
-type OrdemServicoPedidoItem = {
-  valorCobrado?: EntradaDecimal | null;
-};
-
-type OrdemServicoPedido = {
-  id: string;
-  clienteId: string;
-  status?: string | null;
-  numeroOs?: number | null;
-  itens?: OrdemServicoPedidoItem[];
-};
-
-type OrdemServicoPedidoDelegate = {
-  findUnique?: (args: unknown) => Promise<OrdemServicoPedido | null>;
-};
-
-type ContaReceberPedidoDelegate = {
-  findFirst?: (args: unknown) => Promise<{ vendaId?: string | null } | null>;
-};
-
-type VendaCreateDelegate = {
-  create?: (args: unknown) => Promise<{ id: string }>;
-};
-
-type ContaReceberCreateDelegate = {
-  create?: (args: unknown) => Promise<unknown>;
-};
-
 // Lista de status vem do dominio (fonte unica de verdade).
 const statusValidos: readonly StatusOS[] = STATUS_OS_SEQUENCIA;
-
 
 /**
  * Invalidacao de cache das telas afetadas por uma OS.
@@ -1223,7 +1194,6 @@ export async function reabrirOrdemServico(
   }
 }
 
-
 export type FinalizarOrdemServicoInput = {
   osId: string;
 };
@@ -1726,66 +1696,6 @@ export async function finalizarSemServico(
   };
 }
 
-/**
- * COMPATIBILIDADE. Delegava a logica propria de arquivamento; agora e um
- * invólucro fino de `finalizarOrdemServico`.
- * Chamador: components/os/dashboard-os.tsx.
- */
-export async function archiveDeliveredOrderService(
-  input: FinalizarOrdemServicoInput
-): Promise<ResultadoFinalizacaoOrdemServico> {
-  const resultado = await finalizarOrdemServico({ osId: input.osId });
-
-  if (!resultado.sucesso) {
-    return {
-      sucesso: false,
-      erro: resultado.erro,
-      requerGarantia: resultado.requerGarantia,
-    };
-  }
-
-  return {
-    sucesso: true,
-    mensagem: resultado.mensagem,
-    osId: resultado.osId,
-    termoGarantiaId: resultado.termoGarantiaId,
-    garantiaGerada: resultado.garantiaGerada,
-  };
-}
-
-/**
- * COMPATIBILIDADE. Mesmo invólucro, aceitando o prazo de garantia.
- * Chamador: components/os/dashboard-os.tsx.
- */
-export async function gerarGarantiaEFinalizarOS(
-  input: GerarGarantiaEFinalizarOSInput
-): Promise<ResultadoFinalizacaoOrdemServico> {
-  const prazo = Number(input?.prazoGarantiaDias);
-
-  const resultado = await finalizarOrdemServico({
-    osId: input.osId,
-    prazoGarantiaDias: Number.isFinite(prazo) && prazo > 0 ? prazo : null,
-  });
-
-  if (!resultado.sucesso) {
-    return {
-      sucesso: false,
-      erro: resultado.erro,
-      requerGarantia: resultado.requerGarantia,
-    };
-  }
-
-  return {
-    sucesso: true,
-    mensagem: resultado.mensagem,
-    osId: resultado.osId,
-    termoGarantiaId: resultado.termoGarantiaId,
-    garantiaGerada: resultado.garantiaGerada,
-  };
-}
-
-
-
 export type ResultadoExcluirOrdemServico =
   | {
       sucesso: true;
@@ -1822,8 +1732,6 @@ function normalizarMotivoExclusao(valor: string): string | null {
 
   return motivo;
 }
-
-
 
 export async function excluirOrdemServico(input: EntradaExcluirOrdemServico): Promise<ResultadoExcluirOrdemServico> {
   try {
@@ -2034,167 +1942,6 @@ async function listarOrdensServicoExcluidas(): Promise<DadosOrdemServicoExcluida
   } catch {
     return [];
   }
-}
-
-export async function gerarPedidoVendaPorOS(osId: string) {
-  // C1: exige sessao valida antes de gerar pedido/venda.
-  const contexto = await exigirContextoTenant();
-  exigirPermissao(contexto, "pdv.vender");
-  const { prisma } = contexto;
-
-  if (!osId) {
-    throw new Error("ID da ordem de servico nao informado.");
-  }
-
-  const prismaAny = prisma as typeof prisma & {
-    ordemServico?: OrdemServicoPedidoDelegate;
-    OrdemServico?: OrdemServicoPedidoDelegate;
-    contaReceber?: ContaReceberPedidoDelegate;
-    ContaReceber?: ContaReceberPedidoDelegate;
-  };
-  const ordemServicoDelegate = prismaAny.ordemServico ?? prismaAny.OrdemServico;
-  const contaReceberDelegate = prismaAny.contaReceber ?? prismaAny.ContaReceber;
-
-  if (!ordemServicoDelegate?.findUnique || !contaReceberDelegate?.findFirst) {
-    throw new Error("Delegates Prisma necessarios para gerar pedido de venda nao disponiveis.");
-  }
-
-  const os = await ordemServicoDelegate.findUnique({
-    where: { id: osId },
-    select: {
-      id: true,
-      clienteId: true,
-      status: true,
-      numeroOs: true,
-      itens: {
-        select: {
-          valorCobrado: true,
-        },
-      },
-    },
-  });
-
-  if (!os) {
-    throw new Error("Ordem de servico nao encontrada.");
-  }
-
-  if (String(os.status) !== "PRONTO") {
-    throw new Error("A OS precisa estar com status PRONTO para gerar pedido de venda.");
-  }
-
-  const pedidoExistente = await contaReceberDelegate.findFirst({
-    where: {
-      ordemServicoId: osId,
-      origem: "ORDEM_SERVICO",
-      vendaId: {
-        not: null,
-      },
-    },
-    select: {
-      vendaId: true,
-    },
-  });
-
-  if (pedidoExistente?.vendaId) {
-    return {
-      vendaId: String(pedidoExistente.vendaId),
-      pedidoJaExistia: true,
-    };
-  }
-
-  let configuracao: { exigirItemParaEnviarPDV?: boolean | null } | null = null;
-
-  try {
-    configuracao = await prisma.configuracao.findFirst({
-      orderBy: { criadoEm: "asc" },
-      select: {
-        exigirItemParaEnviarPDV: true,
-      },
-    });
-  } catch (erro) {
-    if (!mensagemIndicaRuntimeLegadoConfiguracao(erro)) {
-      throw erro;
-    }
-    try {
-      const rows = await prisma.$queryRaw<Array<{ exigirItemParaEnviarPDV: boolean | null }>>`
-        SELECT "exigirItemParaEnviarPDV" FROM "Configuracao" ORDER BY "criadoEm" ASC LIMIT 1
-      `;
-      configuracao = rows[0] ?? null;
-    } catch {
-      // mantém null → defaults
-    }
-  }
-
-  const exigirItemParaEnviarPDV =
-    typeof configuracao?.exigirItemParaEnviarPDV === "boolean"
-      ? Boolean(configuracao.exigirItemParaEnviarPDV)
-      : obterDefaultsConfiguracaoOsGarantias().exigirItemParaEnviarPDV;
-
-  const quantidadeItens = (os.itens ?? []).length;
-  if (exigirItemParaEnviarPDV && quantidadeItens === 0) {
-    throw new Error("Para enviar ao PDV, cadastre pelo menos uma peca ou servico na OS.");
-  }
-
-  const totalPedidoCentavos = somar(...(os.itens ?? []).map((item: OrdemServicoPedidoItem) => deDecimal(item.valorCobrado ?? 0)));
-  const totalPedido = paraMoeda(totalPedidoCentavos);
-
-  if (totalPedido <= 0) {
-    throw new Error("Nao foi possivel gerar o pedido: a OS nao possui valor de itens maior que zero.");
-  }
-
-  const resultado = await prisma.$transaction(async (tx) => {
-    const txAny = tx as typeof tx & {
-      venda?: VendaCreateDelegate;
-      Venda?: VendaCreateDelegate;
-      contaReceber?: ContaReceberCreateDelegate;
-      ContaReceber?: ContaReceberCreateDelegate;
-    };
-    const txVenda = txAny.venda ?? txAny.Venda;
-    const txContaReceber = txAny.contaReceber ?? txAny.ContaReceber;
-
-    if (!txVenda?.create || !txContaReceber?.create) {
-      throw new Error("Delegates Prisma de venda/contaReceber nao disponiveis para transacao.");
-    }
-
-    const novaVenda = await txVenda.create({
-      data: {
-        clienteId: String(os.clienteId),
-        formaPagamento: "PIX",
-        valorTotal: paraDecimal(totalPedidoCentavos),
-        desconto: paraDecimal(0),
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    await txContaReceber.create({
-      data: {
-        descricao: `OS #${String(os.numeroOs)} - Pedido de venda`,
-        valor: paraDecimal(totalPedidoCentavos),
-        clienteId: String(os.clienteId),
-        ordemServicoId: String(os.id),
-        vendaId: String(novaVenda.id),
-        dataVencimento: new Date(),
-        status: "PENDENTE",
-        formaRecebimento: "PIX",
-        origem: "ORDEM_SERVICO",
-        notaFiscalEmitida: false,
-      },
-    });
-
-    return {
-      vendaId: String(novaVenda.id),
-      pedidoJaExistia: false,
-    };
-  });
-
-  revalidatePath("/os");
-  revalidatePath(`/os/${osId}`);
-  revalidatePath("/");
-  revalidatePath("/financeiro");
-
-  return resultado;
 }
 
 /**

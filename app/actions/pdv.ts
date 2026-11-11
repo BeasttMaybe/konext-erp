@@ -1621,10 +1621,6 @@ export async function carregarPedidoOSParaPDV(osId: string): Promise<ResultadoPe
   }
 }
 
-export async function processarVendaOSNoPDV(osId: string, pagamentos: PagamentoPdvInput[]) {
-  return processarVendaComOSNoPDV(osId, [], pagamentos);
-}
-
 export async function processarVendaComOSNoPDV(
   osId: string,
   itensProdutos: ItemCarrinhoPdvInput[],

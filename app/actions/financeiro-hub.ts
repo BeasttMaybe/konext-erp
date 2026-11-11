@@ -3,8 +3,6 @@
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { exigirPermissao } from "@/lib/auth/permissoes";
 import { obterReceitaTotalPadrao } from "@/lib/dashboard/regras-financeiras";
-import { obterResumoReceber } from "@/app/actions/financeiro-receber";
-import { obterResumoPagar } from "@/app/actions/financeiro-pagar";
 import {
   agoraNaLoja,
   comoDataDeCalendario,

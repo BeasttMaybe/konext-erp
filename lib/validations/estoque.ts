@@ -3,25 +3,6 @@ import { z } from "zod";
 import { UNIDADES_DE_MEDIDA, UNIDADE_PADRAO } from "@/lib/dominio/estoque/preco";
 import { TAMANHO_MAXIMO_SKU } from "@/lib/dominio/estoque/sku";
 
-/**
- * Categorias de produto são CADASTRO, não enum.
- *
- * Esta constante existia com os cinco valores fixos do antigo
- * `enum CategoriaProduto` do schema. Ficou só porque o PDV e a lista de
- * produtos ainda precisam ler a coluna legada `Produto.categoria` do histórico
- * enquanto ela não for removida — nada novo é gravado com estes valores.
- *
- * Para escolher categoria, use `listarCategoriasAtivas`
- * (app/actions/categorias-produto.ts).
- */
-export const categoriasLegadasProduto = [
-  "ACESSORIO",
-  "PECA_REPARO",
-  "EQUIPAMENTO_REDE",
-  "SERVICO",
-  "OUTROS",
-] as const;
-
 const unidadesValidas = UNIDADES_DE_MEDIDA.map((unidade) => unidade.valor) as [
   string,
   ...string[],

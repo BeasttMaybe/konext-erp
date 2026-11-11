@@ -62,55 +62,6 @@ export interface ContaReceberFinanceiro {
   } | null;
 }
 
-export async function listarContasReceber(): Promise<ContaReceberFinanceiro[]> {
-  // Leitura: sem sessao valida nao expoe dados financeiros.
-  let contexto: Awaited<ReturnType<typeof exigirContextoTenant>>;
-  try {
-    contexto = await exigirContextoTenant();
-    exigirPermissao(contexto, "financeiro.ver");
-  } catch {
-    return [];
-  }
-  const prisma = contexto.prisma;
-
-  const contas = await prisma.contaReceber.findMany({
-    // Fase 2A-3: conta de venda estornada continua gravada (e o rastro), mas
-    // nao e mais conta a receber — sai da lista operacional. O estorno fica
-    // no log de auditoria e no proprio registro.
-    where: { ...escopoContaReceber(contexto), estornadaEm: null },
-    include: {
-      cliente: {
-        select: {
-          nomeRazaoSocial: true,
-        },
-      },
-    },
-    orderBy: [{ dataVencimento: "asc" }, { numeroParcela: "asc" }],
-  });
-
-  const prioridadePorStatus: Record<ContaReceberFinanceiro["status"], number> = {
-    PENDENTE: 0,
-    ATRASADO: 1,
-    RENEGOCIADO: 2,
-    PAGO: 3,
-    RECEBIDO: 4,
-    ESTORNADO: 5,
-  };
-
-  return contas
-    .map((conta) => ({ ...conta, valor: paraMoeda(deDecimal(conta.valor)) }))
-    .sort((a, b) => {
-      const prioridadeA = prioridadePorStatus[a.status];
-      const prioridadeB = prioridadePorStatus[b.status];
-
-      if (prioridadeA !== prioridadeB) {
-        return prioridadeA - prioridadeB;
-      }
-
-      return a.dataVencimento.getTime() - b.dataVencimento.getTime();
-    });
-}
-
 export interface CriarContaReceberInput {
   descricao: string;
   valorTotal: number;

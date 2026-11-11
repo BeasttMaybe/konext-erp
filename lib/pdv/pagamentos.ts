@@ -224,7 +224,3 @@ export function calcularPagamentoPdv(
 export function ehPagamentoPrazo(formaPagamento: FormaPagamentoPdv): boolean {
   return formaPagamento === "BOLETO" || formaPagamento === "CREDIARIO" || formaPagamento === "EMPENHO_PUBLICO";
 }
-
-export function formatarFormaPagamento(formaPagamento: FormaPagamentoPdv): string {
-  return obterConfigPagamento(formaPagamento).rotulo;
-}

@@ -176,7 +176,6 @@ function GlassTextarea(props: React.ComponentProps<typeof Textarea>) {
 }
 
 export function FormularioDeProposta({ proposta }: { proposta?: PropostaParaEditar }) {
- const editando = proposta !== undefined;
  const router = useRouter();
  const [isPending, startTransition] = useTransition();
  const [technicalContextOpen, setTechnicalContextOpen] = useState(true);
@@ -216,7 +215,11 @@ export function FormularioDeProposta({ proposta }: { proposta?: PropostaParaEdit
  name: "itens",
  });
 
- const watchedItems = useWatch({ control, name: "itens" }) ?? [];
+ // O `?? []` criava um array novo a CADA renderizacao quando nao havia itens,
+ // e os `useMemo` abaixo, que dependem dele, recalculavam sempre. Com a
+ // referencia estavel, a conta so refaz quando os itens mudam de verdade.
+ const itensObservados = useWatch({ control, name: "itens" });
+ const watchedItems = useMemo(() => itensObservados ?? [], [itensObservados]);
  const clienteDigitado = useWatch({ control, name: "cliente" }) ?? "";
  const dataEmissaoDigitada = useWatch({ control, name: "dataEmissao" }) ?? "";
  const clienteRegister = register("cliente");
