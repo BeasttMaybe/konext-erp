@@ -437,6 +437,7 @@ model OrdemServico {
   @@index([osOrigemGarantiaId])
   @@index([retornoGarantiaId])
   @@index([etapa])
+  @@index([clienteId])
 }
 
 /**
@@ -547,6 +548,7 @@ model ItemOS {
   criadoEm     DateTime @default(now()) @db.Timestamptz(3)
 
   @@index([marcaPecaId])
+  @@index([osId])
 }
 
 /**
@@ -690,6 +692,9 @@ model ContaReceber {
   @@index([pedidoId])
   @@index([vendaId])
   @@index([criadoPorId])
+  @@index([clienteId])
+  @@index([ordemServicoId])
+  @@index([status, dataVencimento])
 }
 
 enum StatusPagamento {
@@ -771,6 +776,7 @@ model Despesa {
   parcelas ParcelaDespesa[]
 
   @@index([criadoPorId])
+  @@index([clienteId])
 }
 
 model ParcelaDespesa {
@@ -784,6 +790,8 @@ model ParcelaDespesa {
   status         StatusParcelaDespesa @default(PENDENTE)
   valorPago      Decimal?             @db.Decimal(12, 2)
   criadoEm       DateTime             @default(now()) @db.Timestamptz(3)
+  @@index([despesaId])
+  @@index([status, dataVencimento])
 }
 
 enum TipoDespesa {
@@ -862,6 +870,7 @@ model NotaFiscal {
 
   @@index([dataEmissao])
   @@index([pedidoId])
+  @@index([clienteId])
 }
 
 enum StatusNotaFiscal {
@@ -1226,6 +1235,8 @@ model Venda {
 
   @@index([estornadaEm])
   @@index([estornoCaixaSessionId])
+  @@index([clienteId])
+  @@index([caixaSessionId])
 }
 
 model VendaPagamento {
@@ -1267,6 +1278,8 @@ model ItemVenda {
   custoUnitario Decimal @default(0) @db.Decimal(12, 2)
   precoUnitario Decimal @db.Decimal(12, 2)
   subtotal      Decimal @db.Decimal(12, 2)
+  @@index([vendaId])
+  @@index([produtoId])
 }
 
 // ==========================================

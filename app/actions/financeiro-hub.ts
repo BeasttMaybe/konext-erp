@@ -120,12 +120,26 @@ export interface AbertoComAtraso {
  * em lib/dominio/financeiro/aberto-do-mes.ts, com testes nas bordas de data
  * que decidem se o painel conta um mes ou treze.
  */
+/**
+ * O ultimo dia deste mes, como data de calendario — o corte dos dois cartoes.
+ *
+ * Separado para que a MESMA data va ao `where` da consulta e a regra de
+ * dominio: antes a consulta nao filtrava nada, trazia a tabela inteira
+ * (inclusive tudo o que ja foi pago, desde sempre) e a regra descartava
+ * quase tudo na memoria do servidor. O resultado e identico; o que muda e
+ * que o banco deixa de entregar o historico inteiro a cada abertura do
+ * Financeiro, e o custo para de crescer com o tempo de uso do sistema.
+ */
+function ultimoDiaDoMesCorrente(fusoHorario: string): Date {
+  return comoDataDeCalendario(fimDoMes(new Date(), fusoHorario), fusoHorario);
+}
+
 async function abertoAteOFimDoMes(
   parcelas: Array<{ dataVencimento: Date; valor: unknown; liquidada: boolean }>,
   fusoHorario: string
 ): Promise<AbertoComAtraso> {
   const hoje = comoDataDeCalendario(new Date(), fusoHorario);
-  const ultimoDia = comoDataDeCalendario(fimDoMes(new Date(), fusoHorario), fusoHorario);
+  const ultimoDia = ultimoDiaDoMesCorrente(fusoHorario);
 
   const { totalCentavos, atrasadoCentavos } = calcularAbertoDoMes({
     parcelas: parcelas.map((parcela) => ({
@@ -144,8 +158,20 @@ async function obterReceberEmAberto(): Promise<AbertoComAtraso> {
   const contexto = await exigirContextoTenant();
   exigirPermissao(contexto, "financeiro.ver");
 
+  const fusoHorario = contexto.fusoHorario ?? FUSO_HORARIO_PADRAO;
+
+  // O filtro repete, no banco, o que `calcularAbertoDoMes` decide: so o que
+  // NAO esta liquidado e vence ate o fim do mes. A regra continua sendo
+  // aplicada depois — o `where` e so para nao trazer o que ela descartaria.
+  // Os tres status sao os mesmos do `liquidada` logo abaixo; se um mudar, o
+  // outro tem que mudar junto (guardado por
+  // lib/dominio/financeiro/aberto-do-mes-no-banco.test.ts).
   const contas = await contexto.prisma.contaReceber.findMany({
-    where: { estornadaEm: null },
+    where: {
+      estornadaEm: null,
+      status: { notIn: ["RECEBIDO", "PAGO", "ESTORNADO"] },
+      dataVencimento: { lte: ultimoDiaDoMesCorrente(fusoHorario) },
+    },
     select: { dataVencimento: true, valor: true, status: true },
   });
 
@@ -163,7 +189,15 @@ async function obterPagarEmAberto(): Promise<AbertoComAtraso> {
   const contexto = await exigirContextoTenant();
   exigirPermissao(contexto, "financeiro.ver");
 
+  const fusoHorario = contexto.fusoHorario ?? FUSO_HORARIO_PADRAO;
+
+  // Mesmo raciocinio de `obterReceberEmAberto`: esta consulta nao tinha
+  // `where` nenhum e trazia TODA parcela ja criada, paga ou nao.
   const parcelas = await contexto.prisma.parcelaDespesa.findMany({
+    where: {
+      status: { not: "PAGO" },
+      dataVencimento: { lte: ultimoDiaDoMesCorrente(fusoHorario) },
+    },
     select: { dataVencimento: true, valor: true, status: true },
   });
 

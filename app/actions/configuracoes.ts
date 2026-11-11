@@ -7,6 +7,7 @@ import type { ModeloImpressaoOS, Prisma } from "@prisma/client";
 import { z } from "zod";
 import { consultarCnpjReceitaCliente } from "@/app/actions/crm";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
+import { SELECAO_DE_CONFIGURACAO, SELECAO_SO_O_ID } from "@/lib/configuracoes/campos-lidos";
 import { exigirPermissao } from "@/lib/auth/permissoes";
 import { paraMensagemSegura } from "@/lib/erros";
 import type { ContextoTenantServidor } from "@/types/tenant";
@@ -577,6 +578,7 @@ export async function obterConfiguracoes(): Promise<{ id: string } & DadosConfig
   }
 
   let configuracao: ConfiguracaoRegistro | null = (await configuracaoDelegate.findFirst({
+    select: SELECAO_DE_CONFIGURACAO,
     orderBy: {
       criadoEm: "asc",
     },
@@ -585,6 +587,7 @@ export async function obterConfiguracoes(): Promise<{ id: string } & DadosConfig
   if (!configuracao && configuracaoDelegate.create) {
     try {
       configuracao = (await configuracaoDelegate.create({
+        select: SELECAO_DE_CONFIGURACAO,
         data: {
           razaoSocial: "",
           nomeFantasia: "Konext",
@@ -620,6 +623,7 @@ export async function obterConfiguracoes(): Promise<{ id: string } & DadosConfig
       })) as ConfiguracaoRegistro;
     } catch {
       configuracao = await configuracaoDelegate.findFirst({
+        select: SELECAO_DE_CONFIGURACAO,
         orderBy: {
           criadoEm: "asc",
         },
@@ -967,6 +971,7 @@ export async function salvarConfiguracoes(data: DadosConfiguracoes) {
   }
 
   let configuracao: ConfiguracaoRegistro | null = (await configuracaoDelegate.findFirst({
+    select: SELECAO_DE_CONFIGURACAO,
     orderBy: {
       criadoEm: "asc",
     },
@@ -974,6 +979,7 @@ export async function salvarConfiguracoes(data: DadosConfiguracoes) {
 
   if (!configuracao && configuracaoDelegate.create) {
     configuracao = (await configuracaoDelegate.create({
+      select: SELECAO_DE_CONFIGURACAO,
       data: {
         razaoSocial: "",
         nomeFantasia: "Konext",
@@ -1100,6 +1106,7 @@ export async function salvarConfiguracoes(data: DadosConfiguracoes) {
   };
 
   await configuracaoDelegate.update({
+    select: SELECAO_SO_O_ID,
     where: {
       id: configuracao.id,
     },
@@ -1112,6 +1119,7 @@ export async function salvarConfiguracoes(data: DadosConfiguracoes) {
   if (precisaSalvarCamposOsGarantia) {
     try {
       await configuracaoDelegate.update({
+        select: SELECAO_SO_O_ID,
         where: {
           id: configuracao.id,
         },
@@ -1129,6 +1137,7 @@ export async function salvarConfiguracoes(data: DadosConfiguracoes) {
   if (precisaSalvarCamposPdv) {
     try {
       await configuracaoDelegate.update({
+        select: SELECAO_SO_O_ID,
         where: {
           id: configuracao.id,
         },
@@ -1308,6 +1317,7 @@ export async function obterDadosPerfilConfiguracao() {
   const configuracaoDelegate = obterDelegateConfiguracao(contextoTenant.prisma);
   const configuracao = configuracaoDelegate?.findFirst
     ? await configuracaoDelegate.findFirst({
+        select: SELECAO_DE_CONFIGURACAO,
         orderBy: {
           criadoEm: "asc",
         },
@@ -1438,6 +1448,7 @@ export async function atualizarLogoEmpresa(
     // F-03 (IDOR): a Configuracao alvo é SEMPRE a linha única do tenant (é
     // singleton, ver F-31), nunca um id vindo do cliente.
     let configuracaoAlvo = await configuracaoDelegate.findFirst({
+      select: SELECAO_DE_CONFIGURACAO,
       orderBy: {
         criadoEm: "asc",
       },
@@ -1452,6 +1463,7 @@ export async function atualizarLogoEmpresa(
       }
 
       configuracaoAlvo = await configuracaoDelegate.create({
+        select: SELECAO_DE_CONFIGURACAO,
         data: {
           nomeFantasia: nomeFantasia?.trim() || "Konext",
           logoUrl: logoUrlNormalizada,
@@ -1460,6 +1472,7 @@ export async function atualizarLogoEmpresa(
     }
 
     await configuracaoDelegate.update({
+      select: SELECAO_SO_O_ID,
       where: {
         id: configuracaoAlvo.id,
       },
