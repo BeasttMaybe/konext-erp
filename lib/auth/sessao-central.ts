@@ -17,11 +17,13 @@
 import "server-only";
 
 
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { randomBytes, createHash } from "node:crypto";
 import { prismaCentral } from "@/lib/central/prisma-central";
 import { COOKIE_SESSAO_CENTRAL } from "@/lib/auth/cookies";
+import { precisaRegistrarUso } from "@/lib/auth/uso-da-sessao";
 
 /** "Manter conectado neste computador" marcado: sessao de 7 dias, cookie persistente. */
 const DURACAO_SESSAO_LONGA_MS = 1000 * 60 * 60 * 24 * 7;
@@ -96,7 +98,35 @@ export async function obterSessaoCentral(): Promise<SessaoCentralResolvida | nul
     return null;
   }
 
-  const tokenHash = gerarHashToken(token);
+  return resolverSessaoPeloHash(gerarHashToken(token));
+}
+
+/**
+ * A resolucao de verdade, memorizada POR REQUISICAO.
+ *
+ * O QUE ISTO ECONOMIZA
+ *
+ * Resolver a sessao custa uma leitura, mais quatro em paralelo, no banco
+ * central. E a sessao era resolvida do zero a cada chamada: o layout resolve,
+ * a pagina resolve, e cada action de dados que a pagina chama resolve de
+ * novo. A tela inicial sozinha fazia isso cinco vezes — vinte e cinco
+ * consultas e cinco escritas para descobrir, cinco vezes, quem esta logado.
+ *
+ * `cache()` do React guarda o resultado dentro da MESMA renderizacao, e joga
+ * fora no fim dela: a segunda chamada em diante recebe a mesma promessa.
+ * Nada atravessa para a proxima requisicao, entao uma sessao revogada ou um
+ * usuario desativado continuam valendo a partir do proximo clique — o mesmo
+ * raciocinio de `resolverPermissoesEfetivas`, que ja funcionava assim.
+ *
+ * A chave e o HASH do token, e nao "a sessao atual": mesmo que um dia duas
+ * resolucoes de usuarios diferentes compartilhassem um escopo, cada token
+ * teria a sua entrada.
+ *
+ * Fora de renderizacao (dentro de uma Server Action ou Route Handler) o
+ * `cache()` nao tem escopo e simplesmente executa a funcao — comportamento
+ * identico ao de antes.
+ */
+const resolverSessaoPeloHash = cache(async (tokenHash: string): Promise<SessaoCentralResolvida | null> => {
   const agora = new Date();
 
   const sessao = await prismaCentral.sessaoCentral.findUnique({
@@ -109,6 +139,7 @@ export async function obterSessaoCentral(): Promise<SessaoCentralResolvida | nul
       role: true,
       expiraEm: true,
       revogadaEm: true,
+      ultimoUsoEm: true,
     },
   });
 
@@ -152,10 +183,16 @@ export async function obterSessaoCentral(): Promise<SessaoCentralResolvida | nul
     return null;
   }
 
-  await prismaCentral.sessaoCentral.update({
-    where: { id: sessao.id },
-    data: { ultimoUsoEm: agora },
-  });
+  if (precisaRegistrarUso(sessao.ultimoUsoEm, agora)) {
+    // Melhor esforco: "ultimo acesso" e informacao de tela. Uma falha ao
+    // grava-la nao pode derrubar a requisicao de quem esta trabalhando —
+    // antes, um soluco do banco central aqui virava tela de erro.
+    await prismaCentral.sessaoCentral
+      .update({ where: { id: sessao.id }, data: { ultimoUsoEm: agora } })
+      .catch((erro: unknown) => {
+        console.error("[sessao] nao foi possivel registrar o ultimo uso:", erro);
+      });
+  }
 
   return {
     id: sessao.id,
@@ -170,7 +207,7 @@ export async function obterSessaoCentral(): Promise<SessaoCentralResolvida | nul
     role: vinculo.role,
     expiraEm: sessao.expiraEm,
   };
-}
+});
 
 export async function revogarSessaoCentralAtual(): Promise<void> {
   const cookieStore = await cookies();

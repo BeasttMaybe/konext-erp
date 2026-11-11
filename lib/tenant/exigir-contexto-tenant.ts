@@ -1,3 +1,5 @@
+import { cache } from "react";
+
 import { exigirSessaoCentral } from "@/lib/auth/sessao-central";
 import { obterPrismaTenant } from "@/lib/tenant/prisma-tenant";
 import { resolverConexaoTenant } from "@/lib/tenant/resolver-conexao-tenant";
@@ -106,7 +108,25 @@ async function resolverFusoHorarioTenant(
   }
 }
 
+/**
+ * O contexto da requisicao: quem esta logado, em qual loja, com quais
+ * permissoes, e o cliente do banco dessa loja.
+ *
+ * MEMORIZADO POR REQUISICAO (ver `resolverContextoDaRequisicao` abaixo).
+ *
+ * Esta funcao e chamada no layout, na pagina e em cada action de dados que a
+ * pagina usa — cinco vezes para abrir a tela inicial. Cada chamada refazia
+ * tudo: a sessao no banco central, o usuario no banco da loja, o fuso
+ * horario nas configuracoes. Eram as mesmas respostas, buscadas de novo.
+ *
+ * Dentro de uma renderizacao o resultado agora e montado UMA vez. Nada
+ * atravessa para a proxima requisicao.
+ */
 export async function exigirContextoTenant(): Promise<ContextoTenantServidor> {
+  return resolverContextoDaRequisicao();
+}
+
+const resolverContextoDaRequisicao = cache(async (): Promise<ContextoTenantServidor> => {
   const sessaoCentral = await exigirSessaoCentral();
 
   const connectionString = resolverConexaoTenant(sessaoCentral.connectionRef);
@@ -148,4 +168,4 @@ export async function exigirContextoTenant(): Promise<ContextoTenantServidor> {
     fusoHorario,
     prisma,
   };
-}
+});
