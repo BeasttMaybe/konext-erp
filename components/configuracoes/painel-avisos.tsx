@@ -114,7 +114,7 @@ export function PainelAvisos() {
       </div>
 
       {tokenConfigurado === false && (
-        <p className="rounded-kx-painel border border-kx-alerta-borda bg-kx-alerta-fundo px-3 py-2 text-sm text-kx-alerta-texto">
+        <p className="rounded-kx-painel border border-kx-alerta bg-kx-alerta-fundo px-3 py-2 text-sm text-kx-alerta-texto">
           O bot do Telegram ainda não foi ligado no ambiente. Enquanto isso, nenhum aviso sai
           por lá — os do sininho continuam normalmente.
         </p>
