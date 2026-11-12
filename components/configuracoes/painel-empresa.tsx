@@ -13,6 +13,7 @@ import {
   formatarCnpjVisual,
   formatarTelefoneVisual,
 } from "@/lib/configuracoes-documentos";
+import { EnvioDaLogo } from "./envio-da-logo";
 import { PreviewIdentidadeEmpresa } from "./preview-identidade-empresa";
 import { SecaoConfiguracoes } from "./secao-configuracoes";
 
@@ -31,9 +32,8 @@ type PropsPainelEmpresa = {
  * modelo real e por isso NÃO foram inventados aqui: "E-mail de contato"
  * (já sinalizado como planejado — CAMPOS_EMPRESA_PLANEJADOS.contato),
  * "Mostrar endereço no link de rastreio" (nenhum campo correspondente em
- * DadosConfiguracoes) e upload real de logo (o campo é uma URL de texto,
- * sem endpoint de upload). O bloco de logo usa o visual da referência
- * (preview + ações) sobre o mecanismo real (colar link / limpar).
+ * DadosConfiguracoes). A logo é enviada como arquivo (EnvioDaLogo), com o
+ * link de imagem como alternativa.
  */
 export function PainelEmpresa({
   register,
@@ -77,36 +77,12 @@ export function PainelEmpresa({
             </div>
           </div>
 
-          <div className="flex flex-col gap-3 rounded-kx-botao bg-kx-superficie p-4 sm:flex-row sm:items-center">
-            <div className="flex h-16 w-32 shrink-0 items-center justify-center overflow-hidden rounded-kx-botao border border-kx-painel-borda bg-kx-papel text-lg font-extrabold text-kx-papel-texto">
-              {configuracaoAtual.logoUrl ? (
-                <img src={configuracaoAtual.logoUrl} alt="Logo da empresa" className="h-full w-full object-contain p-1.5" />
-              ) : (
-                (configuracaoAtual.nomeFantasia || "K").charAt(0).toUpperCase()
-              )}
-            </div>
-            <div className="flex min-w-0 flex-1 flex-col gap-2">
-              <div>
-                <p className="text-sm font-bold text-kx-texto">Logo da loja</p>
-                <p className="text-xs text-kx-legenda">Link de imagem (PNG/JPG). Usada nos documentos impressos.</p>
-              </div>
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <Input
-                  placeholder="https://exemplo.com/logo.png"
-                  className="h-10 border-kx-campo-borda bg-kx-painel"
-                  {...registroLogoUrl}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-10 shrink-0 rounded-kx-botao border-kx-erro-borda text-kx-erro-texto hover:bg-kx-erro-fundo"
-                  onClick={() => setValue("logoUrl", "", { shouldDirty: true })}
-                >
-                  Remover
-                </Button>
-              </div>
-            </div>
-          </div>
+          <EnvioDaLogo
+            logoUrl={configuracaoAtual.logoUrl}
+            nomeFantasia={configuracaoAtual.nomeFantasia}
+            campoDoLink={registroLogoUrl}
+            aoMudarLogo={(url, gravado) => setValue("logoUrl", url, { shouldDirty: !gravado })}
+          />
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
