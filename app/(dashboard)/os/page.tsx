@@ -1,5 +1,8 @@
 import { DashboardOS } from"@/components/os/dashboard-os";
+import { cookies } from "next/headers";
+
 import { modoDaTelaPeloParametro } from "@/lib/dominio/os/modo-da-tela";
+import { COOKIE_VISAO_OS, lerVisaoDaOS } from "@/lib/dominio/os/lista-de-os";
 import { obterDadosDashboardOS } from"@/app/actions/os";
 import { obterConfiguracoes } from"@/app/actions/configuracoes";
 import { listarGarantiasOS, obterDashboardGarantiasOS, type DashboardGarantiasOS, type LinhaGarantiaOS } from"@/app/actions/garantias";
@@ -38,6 +41,7 @@ export default async function OSPage({
   const params = await searchParams;
   const clienteIdInicial = params.clienteId ?? null;
   const modoInicial = modoDaTelaPeloParametro(params.modo);
+  const visaoInicial = lerVisaoDaOS((await cookies()).get(COOKIE_VISAO_OS)?.value);
   const mostrarExcluidasInicial = String(params.modo ??"").toLowerCase() ==="excluidas";
 
   const [contexto, dadosDashboard, configuracoes, dashboardGarantias, listagemGarantias] = await Promise.all([
@@ -74,6 +78,7 @@ export default async function OSPage({
             deletedOrderServices={dadosDashboard.ordensExcluidas}
             clienteIdInicial={clienteIdInicial}
             modoInicial={modoInicial}
+          visaoInicial={visaoInicial}
             mostrarExcluidasInicial={mostrarExcluidasInicial}
             prazoGarantiaPadraoDias={configuracoes.prazoGarantiaPadraoDias}
             prazoMinimoGarantiaDias={configuracoes.prazoMinimoGarantiaDias}

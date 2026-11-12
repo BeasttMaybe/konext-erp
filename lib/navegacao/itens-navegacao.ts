@@ -23,11 +23,12 @@ export const ITENS_NAVEGACAO: readonly ItemNavegacao[] = [
     path: "/os",
     iconKey: "OS",
     filhos: [
-      // "Kanban" aponta para /os puro: "Hub Central" levava ao MESMO lugar e
-      // saiu. Sem parametro, ele tambem vale para quem chega a /os por
+      // "Em andamento" aponta para /os puro: "Hub Central" levava ao MESMO
+      // lugar e saiu. O item se chamava "Kanban"; desde que a tela passou a
+      // oferecer quadro OU lista, o nome diz o QUE se ve, nao o formato. Sem parametro, ele tambem vale para quem chega a /os por
       // qualquer outro link — e nas outras abas perde pela especificidade
       // (`indiceFilhoAtivo`), entao o destaque continua certo.
-      { label: "Kanban", path: "/os" },
+      { label: "Em andamento", path: "/os" },
       { label: "Finalizadas", path: "/os?modo=lista" },
       { label: "Garantias", path: "/os?modo=garantia" },
       // A tela existia e funcionava desde que as marcas de peça entraram —

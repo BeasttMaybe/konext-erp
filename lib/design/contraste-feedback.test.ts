@@ -150,3 +150,18 @@ describe("text-kx-primaria", () => {
     expect(usos).toEqual([]);
   });
 });
+
+/**
+ * GUARDA: borda sem cor declarada usa a cor de borda do tema.
+ *
+ * Sem esta regra, o Tailwind 4 pinta `border`, `border-b`... com a cor do
+ * TEXTO. Faltou desde o inicio do projeto: toda linha de tabela saia preta
+ * no tema claro e branca no escuro. Ver app/globals.css.
+ */
+describe("cor padrao das bordas", () => {
+  it("app/globals.css define border-color para todo elemento na camada base", () => {
+    const css = readFileSync(join(process.cwd(), "app/globals.css"), "utf8");
+
+    expect(css).toMatch(/@layer base \{\s*\*,\s*::before,\s*::after,\s*::backdrop \{\s*border-color: var\(--border\);/);
+  });
+});

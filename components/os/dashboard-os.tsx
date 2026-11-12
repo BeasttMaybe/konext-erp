@@ -3,6 +3,9 @@
 import { useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { modoDaTelaPeloParametro, parametroDoModo, type ModoDaTelaOS } from "@/lib/dominio/os/modo-da-tela";
+import type { VisaoDaOS } from "@/lib/dominio/os/lista-de-os";
+import { gravarVisaoDaOS } from "./gravar-visao-os";
+import { ListaOSEmAndamento } from "./lista-os-em-andamento";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -64,6 +67,8 @@ interface DashboardOSProps {
   /** Quando fornecido, abre o modal de nova OS automaticamente e pré-seleciona o cliente. */
   clienteIdInicial?: string | null;
   modoInicial?: ModoDaTelaOS;
+  /** Quadro ou lista, lida do cookie no servidor — ver `COOKIE_VISAO_OS`. */
+  visaoInicial?: VisaoDaOS;
   /** Liga o filtro de excluidas ja na primeira renderizacao (link antigo /os?modo=excluidas). */
   mostrarExcluidasInicial?: boolean;
   prazoGarantiaPadraoDias?: number;
@@ -85,6 +90,7 @@ export function DashboardOS({
   deletedOrderServices,
   clienteIdInicial,
   modoInicial = "KANBAN",
+  visaoInicial = "quadro",
   mostrarExcluidasInicial = false,
   prazoGarantiaPadraoDias = 90,
   prazoMinimoGarantiaDias = 1,
@@ -107,6 +113,17 @@ export function DashboardOS({
     ? modoDaTelaPeloParametro(searchParams.get("modo"))
     : modoInicial;
   const [modoVisualizacao, setModoLocal] = useState<ModoDaTelaOS>(modoDoEndereco);
+
+  // Quadro ou lista para as OS em andamento. A escolha vale para esta pessoa
+  // neste navegador e fica num cookie — e nao no localStorage — porque o
+  // SERVIDOR precisa le-la para ja desenhar a visao certa: com localStorage
+  // a tela abriria sempre no quadro e trocaria para a lista um instante
+  // depois.
+  const [visao, setVisaoLocal] = useState<VisaoDaOS>(visaoInicial);
+  const escolherVisao = (nova: VisaoDaOS) => {
+    setVisaoLocal(nova);
+    gravarVisaoDaOS(nova);
+  };
   const [enderecoVisto, setEnderecoVisto] = useState<ModoDaTelaOS>(modoDoEndereco);
   if (enderecoVisto !== modoDoEndereco) {
     setEnderecoVisto(modoDoEndereco);
@@ -547,7 +564,7 @@ export function DashboardOS({
         <TabsList>
           <TabsTrigger value="KANBAN">
             <KanbanSquare className="w-4 h-4 mr-2" />
-            Kanban
+            Em andamento
           </TabsTrigger>
           <TabsTrigger value="LISTA_FINALIZADAS">
             <ListChecks className="w-4 h-4 mr-2" />
@@ -588,7 +605,38 @@ export function DashboardOS({
         <Card className="mt-kx-4 border border-kx-painel-borda bg-kx-cartao overflow-hidden">
           <div className="p-4 sm:p-6">
             <TabsContent value="KANBAN" className="mt-0">
-              <h2 className="text-lg sm:text-xl font-bold text-kx-texto mb-6">Quadro de Ordens de Serviço</h2>
+              <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-lg sm:text-xl font-bold text-kx-texto">Ordens de Serviço em andamento</h2>
+                {/* Quadro ou lista — cada pessoa acompanha do jeito que prefere. */}
+                <div
+                  role="radiogroup"
+                  aria-label="Forma de visualizar"
+                  className="inline-flex rounded-kx-botao border border-kx-painel-borda bg-kx-superficie p-1"
+                >
+                  {(
+                    [
+                      { valor: "quadro", rotulo: "Quadro", Icone: KanbanSquare },
+                      { valor: "lista", rotulo: "Lista", Icone: ListChecks },
+                    ] as const
+                  ).map(({ valor, rotulo, Icone }) => (
+                    <button
+                      key={valor}
+                      type="button"
+                      role="radio"
+                      aria-checked={visao === valor}
+                      onClick={() => escolherVisao(valor)}
+                      className={`inline-flex items-center gap-1.5 rounded-kx-botao px-3 py-1.5 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kx-foco ${
+                        visao === valor
+                          ? "bg-kx-primaria text-primary-foreground"
+                          : "text-kx-texto-2 hover:text-kx-texto"
+                      }`}
+                    >
+                      <Icone className="h-4 w-4" aria-hidden />
+                      {rotulo}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
               {filteredActiveOrders.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -602,6 +650,12 @@ export function DashboardOS({
                       : "Clique em 'Nova Ordem de Serviço' para começar"}
                   </p>
                 </div>
+              ) : visao === "lista" ? (
+                <ListaOSEmAndamento
+                  ordens={filteredActiveOrders}
+                  onAbrir={handleAbrirDetalhesOS}
+                  fusoHorario={fusoHorario}
+                />
               ) : (
                 <div className="px-0">
                 <TabuleiroKanban
