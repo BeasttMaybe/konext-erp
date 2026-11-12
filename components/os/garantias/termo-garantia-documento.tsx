@@ -36,9 +36,9 @@ export function TermoGarantiaDocumento({ termo }: TermoGarantiaDocumentoProps) {
       <header className="border-b border-kx-papel-borda pb-4">
         <div className="flex items-start justify-between gap-6">
           <div className="flex max-w-[70%] items-start gap-4">
-            <div className="flex h-16 w-24 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-kx-papel-borda bg-kx-papel-alternado">
+            <div className="flex h-20 w-40 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-kx-papel-borda bg-kx-papel">
               {logoUrl ? (
-                <img src={logoUrl} alt={`Logo ${nomeEmpresa}`} className="h-full w-full object-contain p-2" />
+                <img src={logoUrl} alt={`Logo ${nomeEmpresa}`} className="h-full w-full object-contain p-1" />
               ) : (
                 <span className="px-2 text-center text-[10px] font-medium text-kx-papel-legenda">Logo não configurada</span>
               )}

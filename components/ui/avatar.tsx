@@ -33,7 +33,10 @@ function AvatarImage({
     <AvatarPrimitive.Image
       data-slot="avatar-image"
       className={cn(
-        "aspect-square w-8 h-8 rounded-full object-cover",
+        // `size-full`, e nao um tamanho fixo: com `w-8 h-8` a foto ficava com
+        // 32px dentro de um avatar de 40px ou 96px — pequena e fora do
+        // circulo, no canto de cima.
+        "aspect-square size-full rounded-full object-cover",
         className
       )}
       {...props}

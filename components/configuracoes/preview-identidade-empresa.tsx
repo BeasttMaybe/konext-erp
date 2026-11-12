@@ -54,7 +54,7 @@ export function PreviewIdentidadeEmpresa({
 
       <div className={`rounded-kx-botao border border-dashed border-kx-campo-borda bg-kx-superficie p-4 ${compacta ? "" : "md:p-5"}`}>
         <div className="flex flex-col gap-4 md:flex-row md:items-start">
-          <div className="flex h-20 w-28 shrink-0 items-center justify-center overflow-hidden rounded-kx-botao border border-kx-painel-borda bg-kx-painel">
+          <div className="flex h-20 w-40 shrink-0 items-center justify-center overflow-hidden rounded-kx-botao border border-kx-painel-borda bg-kx-papel">
             {resumo.logoUrl && !falhaLogo ? (
               <img
                 src={resumo.logoUrl}
@@ -63,7 +63,7 @@ export function PreviewIdentidadeEmpresa({
                 onError={() => setFalhaLogo(true)}
               />
             ) : (
-              <div className="px-3 text-center text-xs font-medium text-kx-legenda">
+              <div className="px-3 text-center text-xs font-medium text-kx-papel-legenda">
                 Logo não configurada
               </div>
             )}
