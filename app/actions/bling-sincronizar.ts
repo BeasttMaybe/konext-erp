@@ -12,7 +12,7 @@ import {
   explicarNaoCasamento,
   type VendaCandidata,
 } from "@/lib/dominio/bling/casamento-de-venda";
-import { borderosDaConta, lerBordero } from "@/lib/dominio/bling/bordero";
+import { borderosDaConta, dataDeBaixaJaConhecida, lerBordero } from "@/lib/dominio/bling/bordero";
 import {
   lerPaginaDeContas,
   referenciaDaConta,
@@ -376,8 +376,8 @@ async function importarContasAReceber({
 
         const existente = (await contaReceber.findFirst?.({
           where: { blingParcelaRef: referencia },
-          select: { id: true },
-        })) as { id: string } | null;
+          select: { id: true, status: true, dataRecebimento: true },
+        })) as { id: string; status: string | null; dataRecebimento: Date | null } | null;
 
         // Busca o cliente pelo documento. Sem documento não procura: nome
         // não identifica ninguém com segurança, e vincular a conta ao
@@ -395,9 +395,14 @@ async function importarContasAReceber({
         // paga em 15/01. Usar o vencimento como atalho jogaria a receita para
         // a semana errada, e numa conta que vence dia 28 e e paga dia 3, para
         // o MES errado.
+        //
+        // So se paga esse custo UMA vez por conta: a data ja gravada e
+        // reaproveitada (ver `dataDeBaixaJaConhecida`). Antes, toda
+        // sincronizacao refazia as chamadas de todas as contas recebidas.
         const dataRecebimento =
           conta.status === "RECEBIDO"
-            ? await buscarDataDaBaixa(accessToken, conta.blingId, cacheDeBorderos)
+            ? (dataDeBaixaJaConhecida(conta.status, existente) ??
+              (await buscarDataDaBaixa(accessToken, conta.blingId, cacheDeBorderos)))
             : null;
 
         const dados = {
