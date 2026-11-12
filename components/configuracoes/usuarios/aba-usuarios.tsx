@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { listarUsuariosDaEmpresa, type UsuarioListado } from "@/app/actions/usuarios";
+import { UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PilulaStatus } from "@/components/ui/pilula-status";
 import { ModalEditarUsuario } from "./modal-editar-usuario";
+import { ModalNovoUsuario } from "./modal-novo-usuario";
 import { ModalTransferirPropriedade } from "./modal-transferir-propriedade";
 
 function formatarUltimoAcesso(iso: string | null): string {
@@ -49,6 +51,7 @@ export function AbaUsuarios() {
   const [carregando, setCarregando] = useState(true);
   const [usuarioEmEdicao, setUsuarioEmEdicao] = useState<UsuarioListado | null>(null);
   const [transferenciaAberta, setTransferenciaAberta] = useState(false);
+  const [novoUsuarioAberto, setNovoUsuarioAberto] = useState(false);
 
   const recarregar = () => {
     setCarregando(true);
@@ -61,6 +64,18 @@ export function AbaUsuarios() {
 
   return (
     <div className="flex flex-col gap-3">
+      <div className="flex justify-end">
+        <Button type="button" className="rounded-kx-botao" onClick={() => setNovoUsuarioAberto(true)}>
+          <UserPlus className="h-4 w-4" />
+          Novo usuário
+        </Button>
+      </div>
+
+      {/* Montado so quando aberto: cada cadastro comeca limpo, com senha nova. */}
+      {novoUsuarioAberto && (
+        <ModalNovoUsuario aberto onFechar={() => setNovoUsuarioAberto(false)} onCriado={recarregar} />
+      )}
+
       <div className="hidden grid-cols-[minmax(0,1.4fr)_130px_110px_85px_160px] gap-3 px-3 text-[11px] font-bold uppercase tracking-wide text-kx-legenda sm:grid">
         <span>Pessoa</span>
         <span>Cargo</span>
