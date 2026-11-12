@@ -58,6 +58,11 @@ interface CartaoOSProps {
   onReabrir?: () => void;
   /** Completa o resgate (arquivar + garantia pendente) de uma OS ja ENTREGUE sem archivedAt. */
   onArquivar?: () => void;
+  /** Etapa para onde cada botao leva — vira o rotulo ("Conserto", em vez de "Proxima"). */
+  rotuloAnterior?: string;
+  rotuloProxima?: string;
+  /** Celular: o cartao nao e arrastavel, entao a alca de arrastar some. */
+  semArraste?: boolean;
   /** Linha curta explicando por que o cartao esta num estado incomum, ex.: "Entregue, falta arquivar". */
   estadoExplicacao?: string;
   /** Marca/limpa a situacao sem mover o card de coluna (Fase 1C-3, Parte 4). Ausente esconde o menu. */
@@ -84,6 +89,9 @@ export function CartaoOS({
   estadoExplicacao,
   onAlterarSituacao,
   podeEditarTecnicos = false,
+  rotuloAnterior,
+  rotuloProxima,
+  semArraste = false,
 }: CartaoOSProps) {
   const router = useRouter();
   const [modalTecnicosAberto, setModalTecnicosAberto] = useState(false);
@@ -113,7 +121,7 @@ export function CartaoOS({
 
   return (
     <Card
-      className={`group p-4 cursor-pointer transition-all duration-200 border border-border bg-background/90 ${
+      className={`group min-w-0 p-4 cursor-pointer transition-all duration-200 border border-border bg-background/90 ${
         isDragging
           ? "rotate-1 scale-[1.01] shadow-2xl ring-2 ring-primary/30"
           : "hover:shadow-md hover:-translate-y-0.5"
@@ -124,7 +132,7 @@ export function CartaoOS({
         {/* Header: Order Number & Status Badge */}
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2">
-            <GripVertical className="w-4 h-4 text-kx-legenda" />
+            {semArraste ? null : <GripVertical className="w-4 h-4 text-kx-legenda" />}
             <h3 className="text-sm font-bold text-kx-texto transition-colors group-hover:text-kx-link">
               {os.numeroOS}
             </h3>
@@ -269,7 +277,7 @@ export function CartaoOS({
             type="button"
             variant="outline"
             size="sm"
-            className="flex-1"
+            className="min-w-0 flex-1"
             onClick={(event) => {
               event.stopPropagation();
               onMoverAnterior?.();
@@ -277,14 +285,14 @@ export function CartaoOS({
             disabled={desabilitarMoverAnterior}
             hidden={esconderMoverAnterior}
           >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Anterior
+            <ArrowLeft className="mr-2 h-4 w-4 shrink-0" />
+            <span className="truncate">{rotuloAnterior ?? "Anterior"}</span>
           </Button>
           <Button
             type="button"
             variant="outline"
             size="sm"
-            className="flex-1"
+            className="min-w-0 flex-1"
             onClick={(event) => {
               event.stopPropagation();
               if (podeFinalizar) {
@@ -297,8 +305,8 @@ export function CartaoOS({
             disabled={podeFinalizar ? !onFinalizar : desabilitarMoverProxima}
             hidden={!podeFinalizar && desabilitarMoverProxima}
           >
-            {podeFinalizar ? textoBotaoFinalizar : "Proxima"}
-            {!podeFinalizar && <ArrowRight className="ml-2 h-4 w-4" />}
+            <span className="truncate">{podeFinalizar ? textoBotaoFinalizar : (rotuloProxima ?? "Próxima")}</span>
+            {!podeFinalizar && <ArrowRight className="ml-2 h-4 w-4 shrink-0" />}
           </Button>
         </div>
 

@@ -20,6 +20,7 @@ import {
   type VarianteEtapaOS,
 } from "@/lib/dominio/os/maquina-estados";
 import { PilulaStatus } from "@/components/ui/pilula-status";
+import { useTelaDeCelular } from "@/lib/dispositivo/tela-de-celular";
 import { CartaoOS } from "./cartao-os";
 import { ListaColunaKanban } from "./lista-coluna-kanban";
 
@@ -67,6 +68,8 @@ type AcaoOtimistaOS =
 
 // Sequencia, rotulos e cores vem do dominio (fonte unica).
 const ETAPA_SEQUENCIA = ETAPA_OS_SEQUENCIA;
+/** Quantos cartoes o celular mostra por vez, antes de "Mostrar mais". */
+const LOTE_NO_CELULAR = 20;
 
 type EtapaKanban = EtapaOS;
 
@@ -204,6 +207,14 @@ export function TabuleiroKanban({
   podeEditarTecnicos = false,
 }: TabuleiroKanbanProps) {
   const [, startTransition] = useTransition();
+  // Celular: em vez de colunas lado a lado com arrastar (que no toque briga
+  // com a rolagem da pagina), uma etapa por vez, escolhida no topo, e os
+  // cartoes mudam de etapa pelos botoes deles.
+  const telaDeCelular = useTelaDeCelular();
+  const [etapaNoCelular, setEtapaNoCelular] = useState<EtapaKanban>(
+    () => ETAPA_SEQUENCIA.find((etapa) => ordensServico.some((os) => os.etapa === etapa)) ?? ETAPA_SEQUENCIA[0]
+  );
+  const [limiteNoCelular, setLimiteNoCelular] = useState(LOTE_NO_CELULAR);
   // Guarda a OS em arraste para bloquear colunas invalidas em tempo real.
   const [osEmArraste, setOsEmArraste] = useState<OrdemServico | null>(null);
 
@@ -422,6 +433,87 @@ export function TabuleiroKanban({
     );
   };
 
+  /**
+   * O cartao com os botoes que a maquina de estados permite. Uma funcao so,
+   * usada pelo quadro do computador (arrastavel) e pela lista do celular (sem
+   * arrastar), para as duas nunca divergirem.
+   */
+  const renderizarCartaoOS = (os: OrdemServico, extras: { isDragging?: boolean; semArraste?: boolean } = {}) => {
+    if (!isEtapaKanban(os.etapa)) return null;
+
+    const contextoOS = { ehRetornoGarantia: Boolean(os.ehRetornoGarantia) };
+    const permitidos = destinosPermitidosEtapa(os.etapa, contextoOS);
+
+    // Os botoes de avancar/voltar seguem a maquina de estados,
+    // nao a ordem crua do quadro.
+    const indiceAtual = ETAPA_SEQUENCIA.indexOf(os.etapa);
+    const etapaAnterior =
+      [...permitidos].reverse().find((item) => ETAPA_SEQUENCIA.indexOf(item) < indiceAtual) ??
+      null;
+    const etapaSeguinte =
+      permitidos.find((item) => ETAPA_SEQUENCIA.indexOf(item) > indiceAtual) ?? null;
+
+    const retornoJaFinalizado = Boolean(os.retornoGarantiaFinalizadoEm);
+    const ehEntregue = os.etapa === "ENTREGUE";
+    // Resgate: ENTREGUE sem archivedAt — a OS entregue que ainda aparece
+    // no quadro porque falta so completar o arquivamento (e a garantia,
+    // se faltar). Ver comentario de arquivarOS acima e de ehResgatePendente
+    // em lib/dominio/os/maquina-estados.ts — mesma regra usada pelo aviso
+    // em dashboard-os.tsx, nunca reimplementada duas vezes.
+    const precisaArquivar = ehResgatePendente(os);
+    const podeFinalizarRetorno =
+      Boolean(os.ehRetornoGarantia) && !retornoJaFinalizado && !ehEntregue;
+    // A entrega sai pelo dialogo de finalizacao; o botao do
+    // cartao so trata o fluxo de retorno de garantia.
+    const podeFinalizar = podeFinalizarRetorno;
+    const textoBotaoFinalizar = "Finalizar retorno";
+
+    return (
+      <CartaoOS
+        os={os}
+        onClick={() => onCartaoClick?.(os)}
+        onMoverAnterior={
+          ehEntregue || !etapaAnterior
+            ? undefined
+            : () => moverPorBotao(os.id, etapaAnterior)
+        }
+        onMoverProxima={
+          ehEntregue || !etapaSeguinte
+            ? undefined
+            : () => moverPorBotao(os.id, etapaSeguinte)
+        }
+        onFinalizar={podeFinalizar ? () => finalizarOS(os) : undefined}
+        podeFinalizar={podeFinalizar}
+        textoBotaoFinalizar={textoBotaoFinalizar}
+        desabilitarMoverAnterior={ehEntregue || !etapaAnterior}
+        desabilitarMoverProxima={ehEntregue || !etapaSeguinte}
+        esconderMoverAnterior={ehEntregue}
+        onEntregar={
+          ehEntregue || !onEntregarOS ? undefined : () => void onEntregarOS(os)
+        }
+        onReabrir={
+          ehEntregue && onReabrirOS ? () => void onReabrirOS(os) : undefined
+        }
+        onArquivar={
+          precisaArquivar && podeArquivarOS && onEntregarOS
+            ? () => void arquivarOS(os)
+            : undefined
+        }
+        estadoExplicacao={precisaArquivar ? "Entregue, falta arquivar" : undefined}
+        onAlterarSituacao={
+          ehEntregue || !onAlterarSituacao
+            ? undefined
+            : (situacao) => void alterarSituacao(os.id, situacao)
+        }
+        podeEditarTecnicos={podeEditarTecnicos}
+        isDragging={extras.isDragging}
+        semArraste={extras.semArraste}
+        rotuloAnterior={etapaAnterior ? configuracaoEtapa[etapaAnterior as EtapaKanban]?.titulo : undefined}
+        rotuloProxima={etapaSeguinte ? configuracaoEtapa[etapaSeguinte as EtapaKanban]?.titulo : undefined}
+      />
+    );
+  };
+
   const aoIniciarDrag = (inicio: { draggableId: string }) => {
     const os = ordensEstado.find((item) => item.id === inicio.draggableId) ?? null;
     setOsEmArraste(os);
@@ -432,6 +524,70 @@ export function TabuleiroKanban({
   // coluna rola por dentro (Kanban é um "canvas" com colunas de altura
   // própria, não uma lista de página) e a página inteira continua rolando
   // normalmente ao redor do quadro.
+  // Ate o navegador dizer a largura (no servidor nao se sabe), so o espaco
+  // do quadro: desenhar as colunas e troca-las no celular seria um piscar.
+  if (telaDeCelular === null) {
+    return <div className="min-h-[420px]" aria-busy="true" />;
+  }
+
+  if (telaDeCelular) {
+    const ordensDaEtapa = ordensPorEtapa[etapaNoCelular];
+    const visiveis = ordensDaEtapa.slice(0, limiteNoCelular);
+    return (
+      <div className="flex flex-col gap-3">
+        <div role="tablist" aria-label="Etapa do quadro" className="grid grid-cols-2 gap-2 min-[400px]:grid-cols-4">
+          {ETAPA_SEQUENCIA.map((etapa) => {
+            const ativa = etapa === etapaNoCelular;
+            return (
+              <button
+                key={etapa}
+                type="button"
+                role="tab"
+                aria-selected={ativa}
+                onClick={() => {
+                  setEtapaNoCelular(etapa);
+                  setLimiteNoCelular(LOTE_NO_CELULAR);
+                }}
+                className={`flex h-14 flex-col items-center justify-center rounded-kx-botao border text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kx-foco ${
+                  ativa
+                    ? "border-transparent bg-kx-primaria text-primary-foreground"
+                    : "border-kx-painel-borda bg-kx-superficie text-kx-texto-2"
+                }`}
+              >
+                <span className="text-lg font-extrabold leading-none tabular-nums">{ordensPorEtapa[etapa].length}</span>
+                <span className="mt-1 leading-none">{configuracaoEtapa[etapa].titulo}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        <p className="text-xs text-kx-legenda">{configuracaoEtapa[etapaNoCelular].descricao}</p>
+
+        {ordensDaEtapa.length === 0 ? (
+          <div className="rounded-kx-cartao border border-dashed border-kx-campo-borda px-4 py-8 text-center text-sm text-kx-legenda">
+            Nenhuma OS em {configuracaoEtapa[etapaNoCelular].titulo.toLowerCase()}.
+          </div>
+        ) : (
+          <div role="tabpanel" className="flex flex-col gap-3">
+            {visiveis.map((os) => (
+              <div key={os.id}>{renderizarCartaoOS(os, { semArraste: true })}</div>
+            ))}
+            {ordensDaEtapa.length > visiveis.length ? (
+              <button
+                type="button"
+                className="h-11 rounded-kx-botao border border-kx-painel-borda text-sm font-semibold text-kx-texto-2"
+                onClick={() => setLimiteNoCelular((atual) => atual + LOTE_NO_CELULAR)}
+              >
+                Mostrar mais {Math.min(LOTE_NO_CELULAR, ordensDaEtapa.length - visiveis.length)} de{" "}
+                {ordensDaEtapa.length - visiveis.length}
+              </button>
+            ) : null}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
       <DragDropContext onDragStart={aoIniciarDrag} onDragEnd={aoFinalizarDrag}>
         <div className="flex min-h-[420px] gap-4 overflow-x-auto pb-4">
@@ -499,33 +655,7 @@ export function TabuleiroKanban({
                     }
                     renderizarCartao={(os, index) => {
                       if (!isEtapaKanban(os.etapa)) return null;
-
-                      const contextoOS = { ehRetornoGarantia: Boolean(os.ehRetornoGarantia) };
-                      const permitidos = destinosPermitidosEtapa(os.etapa, contextoOS);
-
-                      // Os botoes de avancar/voltar seguem a maquina de estados,
-                      // nao a ordem crua do quadro.
-                      const indiceAtual = ETAPA_SEQUENCIA.indexOf(os.etapa);
-                      const etapaAnterior =
-                        [...permitidos].reverse().find((item) => ETAPA_SEQUENCIA.indexOf(item) < indiceAtual) ??
-                        null;
-                      const etapaSeguinte =
-                        permitidos.find((item) => ETAPA_SEQUENCIA.indexOf(item) > indiceAtual) ?? null;
-
-                      const retornoJaFinalizado = Boolean(os.retornoGarantiaFinalizadoEm);
                       const ehEntregue = os.etapa === "ENTREGUE";
-                      // Resgate: ENTREGUE sem archivedAt — a OS entregue que ainda aparece
-                      // no quadro porque falta so completar o arquivamento (e a garantia,
-                      // se faltar). Ver comentario de arquivarOS acima e de ehResgatePendente
-                      // em lib/dominio/os/maquina-estados.ts — mesma regra usada pelo aviso
-                      // em dashboard-os.tsx, nunca reimplementada duas vezes.
-                      const precisaArquivar = ehResgatePendente(os);
-                      const podeFinalizarRetorno =
-                        Boolean(os.ehRetornoGarantia) && !retornoJaFinalizado && !ehEntregue;
-                      // A entrega sai pelo dialogo de finalizacao; o botao do
-                      // cartao so trata o fluxo de retorno de garantia.
-                      const podeFinalizar = podeFinalizarRetorno;
-                      const textoBotaoFinalizar = "Finalizar retorno";
 
                       return (
                         <Draggable
@@ -541,45 +671,7 @@ export function TabuleiroKanban({
                               {...dragProvided.dragHandleProps}
                               style={dragProvided.draggableProps.style as CSSProperties}
                             >
-                              <CartaoOS
-                                os={os}
-                                onClick={() => onCartaoClick?.(os)}
-                                isDragging={dragSnapshot.isDragging}
-                                onMoverAnterior={
-                                  ehEntregue || !etapaAnterior
-                                    ? undefined
-                                    : () => moverPorBotao(os.id, etapaAnterior)
-                                }
-                                onMoverProxima={
-                                  ehEntregue || !etapaSeguinte
-                                    ? undefined
-                                    : () => moverPorBotao(os.id, etapaSeguinte)
-                                }
-                                onFinalizar={podeFinalizar ? () => finalizarOS(os) : undefined}
-                                podeFinalizar={podeFinalizar}
-                                textoBotaoFinalizar={textoBotaoFinalizar}
-                                desabilitarMoverAnterior={ehEntregue || !etapaAnterior}
-                                desabilitarMoverProxima={ehEntregue || !etapaSeguinte}
-                                esconderMoverAnterior={ehEntregue}
-                                onEntregar={
-                                  ehEntregue || !onEntregarOS ? undefined : () => void onEntregarOS(os)
-                                }
-                                onReabrir={
-                                  ehEntregue && onReabrirOS ? () => void onReabrirOS(os) : undefined
-                                }
-                                onArquivar={
-                                  precisaArquivar && podeArquivarOS && onEntregarOS
-                                    ? () => void arquivarOS(os)
-                                    : undefined
-                                }
-                                estadoExplicacao={precisaArquivar ? "Entregue, falta arquivar" : undefined}
-                                onAlterarSituacao={
-                                  ehEntregue || !onAlterarSituacao
-                                    ? undefined
-                                    : (situacao) => void alterarSituacao(os.id, situacao)
-                                }
-                                podeEditarTecnicos={podeEditarTecnicos}
-                              />
+                              {renderizarCartaoOS(os, { isDragging: dragSnapshot.isDragging })}
                             </div>
                           )}
                         </Draggable>

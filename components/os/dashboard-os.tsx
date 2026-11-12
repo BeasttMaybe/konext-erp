@@ -571,20 +571,25 @@ export function DashboardOS({
           setModoVisualizacao(valor as ModoDaTelaOS);
         }}
       >
-        <TabsList>
+        {/* No celular as tres abas dividem a largura, com rotulo curto: antes a
+            segunda saia cortada da tela. */}
+        <TabsList className="grid w-full grid-cols-3 sm:inline-flex sm:w-auto">
           <TabsTrigger value="KANBAN">
-            <KanbanSquare className="w-4 h-4 mr-2" />
+            <KanbanSquare className="mr-2 hidden h-4 w-4 sm:block" />
             Em andamento
           </TabsTrigger>
           <TabsTrigger value="LISTA_FINALIZADAS">
-            <ListChecks className="w-4 h-4 mr-2" />
-            Finalizadas e Entregues (Lista)
+            <ListChecks className="mr-2 hidden h-4 w-4 sm:block" />
+            <span className="sm:hidden">Finalizadas</span>
+            <span className="hidden sm:inline">Finalizadas e Entregues (Lista)</span>
           </TabsTrigger>
           <TabsTrigger value="GARANTIA">Garantia</TabsTrigger>
         </TabsList>
 
-        {/* Statistics Cards - segue as 4 etapas (Fase 1C-3, Parte 4) */}
-        <div className="mt-kx-4 grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-kx-4">
+        {/* Statistics Cards - segue as 4 etapas (Fase 1C-3, Parte 4). No celular
+            somem: o quadro de celular ja mostra a contagem de cada etapa nos
+            botoes de escolher a etapa, e os quatro cartoes ocupavam a tela. */}
+        <div className="mt-kx-4 hidden grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-kx-4 md:grid">
           <CartaoIndicador
             variante="alerta"
             titulo={ROTULOS_ETAPA_OS.ORCAMENTO}
@@ -613,10 +618,13 @@ export function DashboardOS({
 
         {/* Conteúdo da aba ativa */}
         <Card className="mt-kx-4 border border-kx-painel-borda bg-kx-cartao overflow-hidden">
-          <div className="p-4 sm:p-6">
+          <div className="p-3 sm:p-6">
             <TabsContent value="KANBAN" className="mt-0">
-              <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-                <h2 className="text-lg sm:text-xl font-bold text-kx-texto">Ordens de Serviço em andamento</h2>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3 sm:mb-6">
+                <h2 className="text-lg sm:text-xl font-bold text-kx-texto">
+                  <span className="sm:hidden">Em andamento</span>
+                  <span className="hidden sm:inline">Ordens de Serviço em andamento</span>
+                </h2>
                 {/* Quadro ou lista — cada pessoa acompanha do jeito que prefere. */}
                 <div
                   role="radiogroup"
