@@ -58,19 +58,21 @@ export default async function OSPage({
   return (
     <div className="w-full bg-transparent">
       {/* Header Section */}
-      <div className="border-b border-kx-painel-borda/70 bg-kx-painel/75 px-6 py-6 backdrop-blur-sm lg:px-8">
+      {/* No celular, cabecalho enxuto: o titulo grande e a frase empurravam o
+          quadro para a segunda tela. */}
+      <div className="border-b border-kx-painel-borda/70 bg-kx-painel/75 px-4 py-4 backdrop-blur-sm sm:px-6 sm:py-6 lg:px-8">
         <div className="max-w-7xl">
-          <h1 className="text-3xl font-bold text-kx-texto">
+          <h1 className="text-2xl font-bold text-kx-texto sm:text-3xl">
             Ordem de Serviço (OS)
           </h1>
-          <p className="text-kx-legenda mt-2 text-sm">
+          <p className="mt-2 hidden text-sm text-kx-legenda sm:block">
             Gerenciar entradas, orçamentos e status de manutenção de equipamentos
           </p>
         </div>
       </div>
 
       {/* Main Content Area */}
-      <div className="px-6 lg:px-8 py-6 pb-10">
+      <div className="px-4 py-4 pb-10 sm:px-6 sm:py-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <DashboardOS
             activeOrderServices={dadosDashboard.ordensAtivas}
