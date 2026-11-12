@@ -28,7 +28,7 @@ const faixaVariants = cva("absolute inset-y-0 left-0 w-1 rounded-l-kx-cartao", {
 const iconeVariants = cva("flex h-10 w-10 shrink-0 items-center justify-center rounded-kx-botao [&_svg]:h-5 [&_svg]:w-5", {
   variants: {
     variante: {
-      primaria: "bg-kx-primaria/15 text-kx-primaria",
+      primaria: "bg-kx-primaria/15 text-kx-destaque",
       sucesso: "bg-kx-sucesso-fundo text-kx-sucesso-texto",
       alerta: "bg-kx-alerta-fundo text-kx-alerta-texto",
       erro: "bg-kx-erro-fundo text-kx-erro-texto",

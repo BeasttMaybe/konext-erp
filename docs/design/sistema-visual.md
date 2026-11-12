@@ -23,21 +23,39 @@ claro (`:root:not(.dark)`, sobrescreve) — na mesma classe `.dark` que
 `components/provedores/provedor-tema.tsx` já alternava antes desta fase.
 Nenhum mecanismo de tema novo foi criado.
 
+### Paleta atual: azul-marinho (desde 11/11/2026)
+
+O roxo/índigo original foi trocado a pedido do dono ("acho a cor roxa muito
+feia"; "o tema branco acaba escondendo muita coisa"). O que mudou:
+
+- **Escuro:** superfícies em azul-marinho; marca em azul-cobalto.
+- **Claro:** deixou de ser branco sobre quase-branco. O fundo do conteúdo é
+  acinzentado (`--kx-fundo`) para os cartões brancos se destacarem, e as
+  bordas de painel subiram de ~1,25:1 para 1,61:1 contra o branco.
+- **Etapas da OS:** nenhuma tem a cor da marca — "conserto" virou ciano e
+  "entregue" ardósia. Guardado em `lib/design/contraste-feedback.test.ts`.
+- **Laranja foi considerado e descartado** como cor de marca: colidiria com o
+  âmbar que já significa "orçamento" e "alerta".
+
+Os valores das tabelas abaixo são lidos de `app/tokens-konext.css`. Cada par
+texto/fundo passa no mínimo AA nos dois temas — medido também dentro do app
+rodando, em 10 telas × 2 temas, com `scripts/dev/local/fotografar.cjs`.
+
 ### 2.1 Cor — superfícies e texto
 
 | Token | Escuro | Claro | Uso |
 |---|---|---|---|
-| `--kx-fora` | `#101124` | `#DFE1EE` | Fundo da JANELA, fora do cartão flutuante do app (Fase 3-2C) — nunca atrás de texto |
-| `--kx-fundo` | `#1B1D38` | `#F5F6FB` | Fundo do conteúdo, dentro do cartão do app |
-| `--kx-painel` | `#2A2C50` | `#FFFFFF` | Barra lateral, painéis grandes |
-| `--kx-painel-borda` | `#353862` | `#E2E4F3` | Divisor decorativo entre painéis (não precisa 3:1 — não é fronteira de componente interativo) |
-| `--kx-campo-borda` | `#7B80BD` ¹ | `#7B7FB8` ¹ | Fronteira de campo/input — **precisa** de 3:1 (WCAG 1.4.11) |
-| `--kx-superficie` | `#23254A` | `#EEF0FA` | Fundo secundário (hover, blocos dentro de painel) |
-| `--kx-cartao` | `#2E3158` | `#FFFFFF` | Cartões de conteúdo |
-| `--kx-texto` | `#EEF0FB` | `#1B1D38` | Texto principal |
-| `--kx-texto-2` | `#C3C6E4` | `#4B4E76` | Texto secundário |
-| `--kx-legenda` | `#A7AACE` | `#6B6E96` | Legenda, rótulo pequeno |
-| `--kx-placeholder` | `#9DA0C4` ¹ | `#5F639C` ¹ | Placeholder de campo |
+| `--kx-fora` | `#050A14` | `#C4CEDC` | Fundo da JANELA, fora do cartão flutuante do app (Fase 3-2C) — nunca atrás de texto |
+| `--kx-fundo` | `#0C1424` | `#E4E9F1` | Fundo do conteúdo, dentro do cartão do app |
+| `--kx-painel` | `#131E33` | `#FFFFFF` | Barra lateral, painéis grandes |
+| `--kx-painel-borda` | `#283A58` | `#C3CDDB` | Divisor decorativo entre painéis (não precisa 3:1 — não é fronteira de componente interativo) |
+| `--kx-campo-borda` | `#6B80A3` | `#78869B` | Fronteira de campo/input — **precisa** de 3:1 (WCAG 1.4.11) |
+| `--kx-superficie` | `#101A2D` | `#EEF2F7` | Fundo secundário (hover, blocos dentro de painel) |
+| `--kx-cartao` | `#182641` | `#FFFFFF` | Cartões de conteúdo |
+| `--kx-texto` | `#EEF3FB` | `#0B1324` | Texto principal |
+| `--kx-texto-2` | `#C6D1E3` | `#2B3850` | Texto secundário |
+| `--kx-legenda` | `#9FB0C9` | `#46536B` | Legenda, rótulo pequeno |
+| `--kx-placeholder` | `#94A6C1` | `#55627A` | Placeholder de campo |
 
 ¹ Ajustado do valor original do mockup — ver §3 (auditoria de contraste).
 
@@ -45,10 +63,10 @@ Nenhum mecanismo de tema novo foi criado.
 
 | Token | Escuro | Claro | Uso |
 |---|---|---|---|
-| `--kx-primaria` | `#5A5FE0` | `#5A5FE0` | Botão primário, marca |
-| `--kx-destaque` | `#8B91FF` | `#4B50D6` ² | Destaque/acento — mais escuro no claro pra manter contraste sobre branco |
-| `--kx-link` | `#A5AAFF` | `#4548C9` ² | Link |
-| `--kx-foco` | `#8B91FF` | `#4B50D6` ² | Anel de foco (`--ring`) |
+| `--kx-primaria` | `#2563EB` | `#1D5FD8` | Botão primário, marca |
+| `--kx-destaque` | `#60A5FF` | `#1A52BD` | Destaque/acento — mais escuro no claro pra manter contraste sobre branco |
+| `--kx-link` | `#93C2FF` | `#1A52BD` | Link |
+| `--kx-foco` | `#60A5FF` | `#1D5FD8` | Anel de foco (`--ring`) |
 
 ² O mockup só deu o valor escuro; o claro é escolha desta fase, auditada (§3).
 
@@ -60,14 +78,14 @@ indicador sozinho como cor de texto corrido.
 
 | Token indicador | Escuro | Claro | Pílula fundo/texto |
 |---|---|---|---|
-| `--kx-orcamento` | `#FBBF24` | `#92660A` ² | reaproveita o par de `--kx-alerta-*` (mesma cor no mockup) |
-| `--kx-conserto` | `#60A5FA` | `#1D63C0` ² | `--kx-conserto-fundo`/`--kx-conserto-texto` (novo — mockup só dava o ponto) |
-| `--kx-pronto` | `#34D399` | `#0A7D55` ² | reaproveita o par de `--kx-sucesso-*` (mesma cor no mockup) |
-| `--kx-entregue` | `#8B91FF` | `#4548C9` ² | `--kx-entregue-fundo`/`--kx-entregue-texto` (novo) |
+| `--kx-orcamento` | `#FBBF24` | `#92660A` | reaproveita o par de `--kx-alerta-*` (mesma cor no mockup) |
+| `--kx-conserto` | `#38BDF8` | `#0369A1` | `--kx-conserto-fundo`/`--kx-conserto-texto` (novo — mockup só dava o ponto) |
+| `--kx-pronto` | `#34D399` | `#0A7D55` | reaproveita o par de `--kx-sucesso-*` (mesma cor no mockup) |
+| `--kx-entregue` | `#94A3B8` | `#475569` | `--kx-entregue-fundo`/`--kx-entregue-texto` (novo) |
 | `--kx-garantia` | `#C2408F` | `#C2408F` | `--kx-garantia-pilula-fundo`/`--kx-garantia-pilula-texto` |
-| `--kx-sucesso` | `#34D399` | `#0A7D55` ² | `--kx-sucesso-fundo`/`--kx-sucesso-texto`/`--kx-sucesso-icone` |
-| `--kx-alerta` | `#FBBF24` | `#92660A` ² | `--kx-alerta-fundo`/`--kx-alerta-texto`/`--kx-alerta-icone` |
-| `--kx-erro` | `#F87171` | `#C0392B` ² | `--kx-erro-fundo`/`--kx-erro-texto`/`--kx-erro-icone`/`--kx-erro-borda` |
+| `--kx-sucesso` | `#34D399` | `#0A7D55` | `--kx-sucesso-fundo`/`--kx-sucesso-texto`/`--kx-sucesso-icone` |
+| `--kx-alerta` | `#FBBF24` | `#92660A` | `--kx-alerta-fundo`/`--kx-alerta-texto`/`--kx-alerta-icone` |
+| `--kx-erro` | `#F87171` | `#C0392B` | `--kx-erro-fundo`/`--kx-erro-texto`/`--kx-erro-icone`/`--kx-erro-borda` |
 | `--kx-erro-solido` | `#C0392B` | `#C0392B` | Só pra preenchimento sólido + texto branco (`--destructive`) — `--kx-erro` sozinho (`#F87171`) falha com branco em cima (2.77:1) |
 
 Mais dois tokens sem variação por tema (fazem sentido fixos nos dois):
@@ -155,6 +173,9 @@ Rodada com `node scripts/dev/auditar-contraste.mjs '[["rotulo","#fg","#bg"]]'`
 pra cada par texto/fundo real do sistema (4.5:1 texto normal, 3:1
 componente não-textual/WCAG 1.4.11). Dois valores do mockup original
 falharam e foram ajustados — o token mudou, nunca o uso:
+
+> Histórico da paleta roxa original (antes de 11/11/2026). A paleta atual
+> está nas tabelas da seção 2.
 
 | Par | Original | Resultado original | Ajustado | Resultado ajustado |
 |---|---|---|---|---|

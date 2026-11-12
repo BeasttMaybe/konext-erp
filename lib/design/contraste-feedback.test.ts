@@ -95,7 +95,58 @@ describe("contraste das famílias de feedback", () => {
     // genérico do Tailwind que não é o azul da marca. Se alguém remover a
     // família, este teste cai junto com a tela.
     const info = lerTokenPorTema("info");
-    expect(info.escuro).toBe("#8b91ff");
-    expect(info.claro).toBe("#4548c9");
+    // Fixa o SIGNIFICADO, nao o hex: "info" e o azul da marca, o mesmo
+    // `--kx-destaque`. Fixar o hex fazia este teste falhar a cada troca de
+    // tema sem que nada estivesse errado.
+    const destaque = lerTokenPorTema("destaque");
+    expect(info.escuro).toBe(destaque.escuro);
+    expect(info.claro).toBe(destaque.claro);
+  });
+});
+
+/**
+ * As etapas da OS e a marca nao podem ter a mesma cor.
+ *
+ * O quadro de OS e uma linha de colunas coloridas cercada de botoes da cor
+ * da marca. Se uma etapa tiver a cor da marca, ela deixa de ser distinguivel
+ * de um botao — foi o que aconteceria com "conserto" (azul) quando a marca
+ * trocou do roxo para o azul, e com "entregue", que era o roxo da marca.
+ */
+describe("etapas da OS x cor da marca", () => {
+  const ETAPAS = ["orcamento", "conserto", "pronto", "entregue", "garantia"] as const;
+
+  it.each(["escuro", "claro"] as const)("no tema %s, cada etapa tem cor propria e nenhuma e a da marca", (tema) => {
+    const marca = [lerTokenPorTema("primaria")[tema], lerTokenPorTema("destaque")[tema]];
+    const cores = ETAPAS.map((etapa) => lerTokenPorTema(etapa)[tema]);
+
+    expect(new Set(cores).size).toBe(ETAPAS.length);
+    for (const cor of cores) expect(marca).not.toContain(cor);
+  });
+});
+
+/**
+ * GUARDA: a cor primaria nao e cor de texto.
+ *
+ * `--kx-primaria` e feita para ser FUNDO de botao, com texto branco em cima.
+ * Como texto, no tema escuro ela fica abaixo do minimo de leitura sobre os
+ * paineis — o filtro "Hoje" do painel inicial estava em 2,89:1. Texto e icone
+ * na cor da marca usam `text-kx-destaque`, que existe exatamente para isso e
+ * tem contraste medido nos dois temas.
+ */
+describe("text-kx-primaria", () => {
+  it("nao aparece em nenhum componente", async () => {
+    const { readdirSync, statSync } = await import("node:fs");
+    const arquivos = (pasta: string): string[] =>
+      readdirSync(pasta).flatMap((nome) => {
+        const caminho = join(pasta, nome);
+        return statSync(caminho).isDirectory() ? arquivos(caminho) : /\.tsx?$/.test(nome) ? [caminho] : [];
+      });
+
+    const usos = ["app", "components"]
+      .flatMap((pasta) => arquivos(join(process.cwd(), pasta)))
+      .filter((caminho) => /\btext-kx-primaria\b/.test(readFileSync(caminho, "utf8")))
+      .map((caminho) => caminho.replace(`${process.cwd()}/`, ""));
+
+    expect(usos).toEqual([]);
   });
 });

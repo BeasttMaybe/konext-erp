@@ -118,14 +118,14 @@ const tipoPessoaLabelMap: Record<"FISICA" | "JURIDICA", string> = {
  *
  * O dono: "deixe cores opostas pra ficar mais facil de identificar".
  *
- * As duas etiquetas vinham de familias com nomes diferentes -- `info` e
- * `entregue` -- mas no tema escuro as duas valem A MESMA COR: `#8b91ff`, com
- * o mesmo texto `#c7caff`. So o fundo mudava de `#2e3168` para `#332f6b`,
- * diferenca que ninguem enxerga num badge. Eram dois rotulos pintados igual.
+ * As duas etiquetas ja foram pintadas igual uma vez: vinham de familias com
+ * nomes diferentes (`info` e `entregue`) que, no tema escuro, valiam a mesma
+ * cor. Eram dois rotulos indistinguiveis.
  *
- * Agora `info` (azul-violeta, matiz 237) contra `sucesso` (verde, matiz 156):
- * 81 graus de distancia, familias que divergem nos DOIS temas, e contraste
- * de 7,6:1 e 7,0:1 do texto sobre o proprio fundo.
+ * Agora `info` (o azul da marca) contra `sucesso` (verde): familias que
+ * divergem nos DOIS temas. O contraste de cada uma sobre o proprio fundo e
+ * guardado por lib/design/contraste-feedback.test.ts — os numeros nao ficam
+ * aqui porque mudam a cada ajuste de tema.
  *
  * Verde aqui nao quer dizer "aprovado" -- quer dizer apenas "a outra".
  */

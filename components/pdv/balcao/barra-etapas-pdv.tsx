@@ -69,8 +69,18 @@ export function BarraEtapasPdv({
             }`}
           >
             <span
-              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-extrabold text-primary-foreground ${
-                info.completa ? "bg-kx-sucesso" : ativa ? "bg-kx-primaria" : "bg-kx-painel-borda"
+              // Cada estado tem o SEU par fundo+texto. Antes os tres usavam
+              // texto branco: no estado "ainda nao feito" o fundo era a cor de
+              // borda, e no tema claro isso era branco sobre cinza-claro
+              // (1,26:1) — o numero da etapa simplesmente nao aparecia. No
+              // "completo", branco sobre o verde-claro de indicador tambem
+              // ficava abaixo do minimo de leitura.
+              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-extrabold ${
+                info.completa
+                  ? "bg-kx-sucesso-fundo text-kx-sucesso-texto"
+                  : ativa
+                    ? "bg-kx-primaria text-primary-foreground"
+                    : "border border-kx-campo-borda text-kx-legenda"
               }`}
             >
               {info.completa ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : info.numero}

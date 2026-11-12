@@ -241,7 +241,7 @@ function VistaResultado({ dados }: { dados: DadosResultadoPeriodo }) {
               key={linha.osId}
               className="grid grid-cols-1 gap-1.5 rounded-kx-botao bg-kx-superficie px-3 py-2 text-sm sm:grid-cols-[64px_minmax(0,1.3fr)_130px_110px_100px_100px_100px] sm:items-center sm:gap-2.5 sm:py-0 sm:min-h-[46px]"
             >
-              <span className="font-extrabold tabular-nums text-kx-primaria">#{linha.numeroOs}</span>
+              <span className="font-extrabold tabular-nums text-kx-destaque">#{linha.numeroOs}</span>
               <span className="min-w-0 truncate text-kx-texto">{linha.servico || "—"}</span>
               <span className="truncate text-[13px] text-kx-texto-2">{linha.tecnico ?? "—"}</span>
               <span className="text-right tabular-nums text-kx-texto">{formatarMoeda(linha.cobrado)}</span>

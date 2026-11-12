@@ -29,38 +29,45 @@
      escuro que --kx-fundo de propósito, pra o app inteiro (sidebar + barra
      superior + conteúdo) ler como um painel flutuando sobre um fundo mais
      escuro, não colado no viewport. Nunca aparece atrás de texto. */
-  --kx-fora: #101124;
-  --kx-fundo: #1b1d38;
-  --kx-painel: #2a2c50;
-  --kx-painel-borda: #353862;
-  --kx-campo-borda: #7b80bd; /* ajustado de #383B66 — fronteira de campo precisa de 3:1 (WCAG 1.4.11), divisor de painel nao */
-  --kx-superficie: #23254a;
-  --kx-cartao: #2e3158;
+  --kx-fora: #050a14;
+  --kx-fundo: #0c1424;
+  --kx-painel: #131e33;
+  --kx-painel-borda: #283a58;
+  --kx-campo-borda: #6b80a3; /* fronteira de campo precisa de 3:1 (WCAG 1.4.11); divisor de painel nao */
+  --kx-superficie: #101a2d;
+  --kx-cartao: #182641;
 
   /* ---- Cor: texto ---- */
-  --kx-texto: #eef0fb;
-  --kx-texto-2: #c3c6e4;
-  --kx-legenda: #a7aace;
-  --kx-placeholder: #9da0c4; /* ajustado de #8E91B8 — 4.06:1 no cartão, abaixo de AA */
+  --kx-texto: #eef3fb;
+  --kx-texto-2: #c6d1e3;
+  --kx-legenda: #9fb0c9;
+  --kx-placeholder: #94a6c1;
 
   /* ---- Cor: marca ---- */
-  --kx-primaria: #5a5fe0;
-  --kx-destaque: #8b91ff;
-  --kx-link: #a5aaff;
-  --kx-foco: #8b91ff;
+  --kx-primaria: #2563eb;
+  --kx-destaque: #60a5ff;
+  --kx-link: #93c2ff;
+  --kx-foco: #60a5ff;
 
   /* ---- Cor: etapas da OS (indicador — ponto/borda; a pílula usa os pares
      fundo/texto abaixo). "orçamento" reaproveita o par de --kx-alerta e
      "pronto" o de --kx-sucesso — são exatamente a mesma cor no mockup
-     (#FBBF24 e #34D399), então não duplicamos par nenhum pra eles. ---- */
+     (#FBBF24 e #34D399), então não duplicamos par nenhum pra eles.
+
+     Desde a troca do roxo pelo azul-marinho (11/11/2026), cada etapa tem uma
+     matiz própria e NENHUMA é a cor da marca:
+       orçamento âmbar · conserto CIANO · pronto verde · entregue ARDÓSIA
+     "Conserto" era azul; com a marca azul, botão e etapa ficariam iguais.
+     "Entregue" era o índigo da marca; virou neutro, que também diz o que a
+     etapa é — trabalho encerrado, que já não pede ação. ---- */
   --kx-orcamento: #fbbf24;
-  --kx-conserto: #60a5fa;
-  --kx-conserto-fundo: #1e3a5f;
-  --kx-conserto-texto: #bfdbfe;
+  --kx-conserto: #38bdf8;
+  --kx-conserto-fundo: #0c3049;
+  --kx-conserto-texto: #bae6fd;
   --kx-pronto: #34d399;
-  --kx-entregue: #8b91ff;
-  --kx-entregue-fundo: #332f6b;
-  --kx-entregue-texto: #c7caff;
+  --kx-entregue: #94a3b8;
+  --kx-entregue-fundo: #253246;
+  --kx-entregue-texto: #d5dde8;
 
   /* ---- Cor: garantia (indicador — a pílula abaixo é quem carrega texto) ----
      --kx-garantia-fundo/-texto (Fase 3-2A) reaproveitam o mesmo par da pílula —
@@ -85,16 +92,15 @@
   /* Família "info" (02/11/2026): o trio de KPI do PDV é Faturamento / Custo /
      Lucro, e Custo e Lucro já tinham par (alerta e sucesso). Faturamento usava
      `bg-blue-50 dark:bg-blue-950/30` solto, azul genérico do Tailwind que não
-     é o azul da marca. Esta família é o índigo da marca (o mesmo
-     --kx-destaque/--kx-entregue), com par fundo+texto de verdade em vez de
-     dois tons escolhidos a olho.
-     Contraste texto/fundo: 7.59:1 no escuro, 5.78:1 no claro — dentro da
-     faixa das outras famílias de feedback (6.58–10.16 escuro, 4.61–6.07
-     claro), não abaixo dela. */
-  --kx-info: #8b91ff;
-  --kx-info-fundo: #2e3168;
-  --kx-info-texto: #c7caff;
-  --kx-info-icone: #8b91ff;
+     é o azul da marca. Esta família É o azul da marca (o mesmo
+     --kx-destaque), com par fundo+texto de verdade em vez de dois tons
+     escolhidos a olho. Os números de contraste não ficam escritos aqui —
+     mudam a cada ajuste de tema e o comentário passaria a mentir; quem
+     guarda é lib/design/contraste-feedback.test.ts. */
+  --kx-info: #60a5ff;
+  --kx-info-fundo: #152c52;
+  --kx-info-texto: #cfe0ff;
+  --kx-info-icone: #60a5ff;
 
   --kx-erro: #f87171;
   --kx-erro-fundo: #4a2b35;
@@ -148,13 +154,13 @@
   --kx-raio-pilula: 999px;
 
   /* ---- Sombra (elevação sobre fundo escuro — sutil, sem preto puro) ---- */
-  --kx-sombra-cartao: 0 1px 2px rgba(8, 9, 20, 0.24), 0 1px 1px rgba(8, 9, 20, 0.16);
-  --kx-sombra-painel: 0 8px 24px rgba(8, 9, 20, 0.32);
-  --kx-sombra-flutuante: 0 16px 40px rgba(8, 9, 20, 0.44);
+  --kx-sombra-cartao: 0 1px 2px rgba(3, 8, 20, 0.24), 0 1px 1px rgba(3, 8, 20, 0.16);
+  --kx-sombra-painel: 0 8px 24px rgba(3, 8, 20, 0.32);
+  --kx-sombra-flutuante: 0 16px 40px rgba(3, 8, 20, 0.44);
 
   /* Fundo de dialogo/gaveta/popover — sempre escuro-translucido, nos dois
      temas (é o resto da TELA escurecendo, não uma superfície do app). */
-  --kx-sobreposicao: rgba(8, 9, 20, 0.7);
+  --kx-sobreposicao: rgba(3, 8, 20, 0.7);
 
   /* Bolinha de controles (switch) — sempre branca, nos dois temas: é uma
      peça física neutra, não texto nem superfície do app. */
@@ -191,36 +197,36 @@
 
 :root:not(.dark) {
   /* ---- Cor: superfícies ---- */
-  --kx-fora: #dfe1ee;
-  --kx-fundo: #f5f6fb;
+  --kx-fora: #c4cedc;
+  --kx-fundo: #e4e9f1;
   --kx-painel: #ffffff;
-  --kx-painel-borda: #e2e4f3;
-  --kx-campo-borda: #7b7fb8; /* mesma logica do escuro — 3:1 pra fronteira de campo */
-  --kx-superficie: #eef0fa;
+  --kx-painel-borda: #c3cddb;
+  --kx-campo-borda: #78869b; /* mesma logica do escuro — 3:1 pra fronteira de campo */
+  --kx-superficie: #eef2f7;
   --kx-cartao: #ffffff;
 
   /* ---- Cor: texto ---- */
-  --kx-texto: #1b1d38;
-  --kx-texto-2: #4b4e76;
-  --kx-legenda: #6b6e96;
-  --kx-placeholder: #5f639c;
+  --kx-texto: #0b1324;
+  --kx-texto-2: #2b3850;
+  --kx-legenda: #46536b;
+  --kx-placeholder: #55627a;
 
   /* ---- Cor: marca ---- */
-  --kx-primaria: #5a5fe0;
-  --kx-destaque: #4b50d6;
-  --kx-link: #4548c9;
-  --kx-foco: #4b50d6;
+  --kx-primaria: #1d5fd8;
+  --kx-destaque: #1a52bd;
+  --kx-link: #1a52bd;
+  --kx-foco: #1d5fd8;
 
   /* ---- Cor: etapas da OS — versões escurecidas pra manter 3:1 sobre branco;
      o par escuro (mais claro) fica pro fundo escuro, onde já funciona. ---- */
   --kx-orcamento: #92660a;
-  --kx-conserto: #1d63c0;
-  --kx-conserto-fundo: #dceafe;
-  --kx-conserto-texto: #1d63c0;
+  --kx-conserto: #0369a1;
+  --kx-conserto-fundo: #dff1fd;
+  --kx-conserto-texto: #075985;
   --kx-pronto: #0a7d55;
-  --kx-entregue: #4548c9;
-  --kx-entregue-fundo: #e4e4ff;
-  --kx-entregue-texto: #4548c9;
+  --kx-entregue: #475569;
+  --kx-entregue-fundo: #e2e8f0;
+  --kx-entregue-texto: #334155;
 
   /* ---- Cor: garantia ---- */
   --kx-garantia: #c2408f;
@@ -232,24 +238,24 @@
   /* ---- Cor: feedback ---- */
   --kx-sucesso: #0a7d55;
   --kx-sucesso-fundo: #e3f9ef;
-  --kx-sucesso-texto: #0a7d55;
+  --kx-sucesso-texto: #0a6e4b;
   --kx-sucesso-icone: #0a7d55;
 
   --kx-alerta: #92660a;
   --kx-alerta-fundo: #fef3d8;
-  --kx-alerta-texto: #92660a;
+  --kx-alerta-texto: #835a07;
   --kx-alerta-icone: #92660a;
 
   /* Ver a nota da família info no bloco escuro. No claro, `-texto` é a própria
      cor da família, como nas outras três. */
-  --kx-info: #4548c9;
-  --kx-info-fundo: #e8e9fb;
-  --kx-info-texto: #4548c9;
-  --kx-info-icone: #4548c9;
+  --kx-info: #1a52bd;
+  --kx-info-fundo: #dfe8fc;
+  --kx-info-texto: #1a45a0;
+  --kx-info-icone: #1a52bd;
 
   --kx-erro: #c0392b;
   --kx-erro-fundo: #fde8e6;
-  --kx-erro-texto: #c0392b;
+  --kx-erro-texto: #ad3123;
   --kx-erro-icone: #c0392b;
   --kx-erro-borda: #e8a8a0;
   --kx-erro-solido: #c0392b;

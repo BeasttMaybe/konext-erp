@@ -102,7 +102,7 @@ export function PainelAvisos() {
   return (
     <div className="flex flex-col gap-5">
       <div className="flex items-start gap-3">
-        <BellRing className="mt-0.5 h-5 w-5 shrink-0 text-kx-primaria" aria-hidden />
+        <BellRing className="mt-0.5 h-5 w-5 shrink-0 text-kx-destaque" aria-hidden />
         <div>
           <h3 className="text-base font-bold text-kx-texto">Avisos de vencimento</h3>
           <p className="mt-0.5 text-sm text-kx-legenda">

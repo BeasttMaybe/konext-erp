@@ -78,7 +78,7 @@ const CLASSE_GATILHO_PILL = (ativo: boolean) =>
   cn(
     "h-11 gap-1.5 rounded-kx-botao border-transparent bg-transparent px-3 text-sm font-medium",
     ativo
-      ? "bg-kx-primaria/15 text-kx-primaria"
+      ? "bg-kx-primaria/15 text-kx-destaque"
       : "text-kx-legenda hover:bg-transparent hover:text-kx-texto"
   );
 

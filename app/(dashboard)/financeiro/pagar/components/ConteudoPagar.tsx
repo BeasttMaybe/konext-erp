@@ -671,7 +671,7 @@ export function ConteudoPagar({ parcelas }: ConteudoPagarProps) {
                     <button
                       type="button"
                       onClick={() => abrirGerenciamento(parcela.despesaId)}
-                      className="flex min-w-0 flex-col text-left transition-colors hover:text-kx-primaria"
+                      className="flex min-w-0 flex-col text-left transition-colors hover:text-kx-destaque"
                     >
                       <span className="truncate font-bold text-kx-texto">
                         {parcela.despesa.cliente?.nomeRazaoSocial ?? parcela.despesa.fornecedor}
