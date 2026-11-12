@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { exigirPermissao } from "@/lib/auth/permissoes";
 import {
+  podeConcederPermissoes,
   podeDesativarUsuario,
   podeReceberPropriedade,
   podeRemoverAcessoAdminDoUsuario,
@@ -16,6 +17,15 @@ import { prismaCentral } from "@/lib/central/prisma-central";
 import { paraMensagemSegura } from "@/lib/erros";
 import { listarUsuariosComAcessoAdmin } from "@/lib/auth/usuarios-com-acesso-admin";
 import { permissoesEfetivasDoCargo } from "@/lib/auth/permissoes-efetivas-cargo";
+import { mapearCargoParaRoleLegado } from "@/lib/auth/mapear-cargo-legado";
+import type { Permissao } from "@/lib/auth/permissoes";
+import { gerarHashSenha } from "@/lib/auth/senha";
+import {
+  decidirNovoUsuario,
+  esquemaNovoUsuario,
+  ROLE_DA_LOJA_PELO_ROLE_DA_EMPRESA,
+  type DadosNovoUsuario,
+} from "@/lib/auth/novo-usuario";
 
 export type UsuarioListado = {
   usuarioEmpresaId: string;
@@ -311,6 +321,141 @@ export async function transferirPropriedade(
 
     revalidatePath("/configuracoes");
     return { sucesso: true };
+  } catch (erro) {
+    return { sucesso: false, erro: paraMensagemSegura(erro) };
+  }
+}
+
+export type ResultadoCriarUsuario =
+  | { sucesso: true; contaJaExistia: boolean }
+  | { sucesso: false; erro: string };
+
+/**
+ * Cadastra uma pessoa na loja: conta central (login), vinculo com a empresa
+ * (cargo) e o usuario operacional no banco da loja (quem aparece como autor
+ * de OS, caixa, fotos).
+ *
+ * ORDEM DAS ESCRITAS
+ *
+ * Sao dois bancos, sem transacao entre eles. O banco da LOJA e gravado
+ * primeiro, por e-mail e de forma idempotente: se o central falhar depois,
+ * sobra so uma linha inerte na loja (sem vinculo ninguem entra com ela), e
+ * cadastrar de novo a reaproveita. Na ordem inversa, uma falha deixaria
+ * alguem conseguindo entrar no sistema sem usuario operacional — e cada OS
+ * que ele abrisse ficaria sem autor.
+ */
+export async function criarUsuario(input: DadosNovoUsuario): Promise<ResultadoCriarUsuario> {
+  try {
+    const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "configuracoes.usuarios");
+
+    const analise = esquemaNovoUsuario.safeParse(input);
+    if (!analise.success) {
+      return { sucesso: false, erro: analise.error.issues[0]?.message ?? "Dados inválidos." };
+    }
+    const dados = analise.data;
+
+    const [cargo, contaExistente] = await Promise.all([
+      prismaCentral.cargo.findUnique({
+        where: { id: dados.cargoId },
+        select: { id: true, empresaId: true, fixo: true, arquivadoEm: true, permissoes: { select: { permissao: true } } },
+      }),
+      prismaCentral.usuarioCentral.findUnique({
+        where: { email: dados.email },
+        select: {
+          id: true,
+          nome: true,
+          empresas: { where: { empresaId: contexto.empresaId }, select: { ativo: true } },
+        },
+      }),
+    ]);
+
+    if (!cargo || cargo.empresaId !== contexto.empresaId) {
+      return { sucesso: false, erro: "Cargo não encontrado." };
+    }
+    if (cargo.arquivadoEm) {
+      return { sucesso: false, erro: "Este cargo está arquivado e não pode ser atribuído a ninguém." };
+    }
+
+    // Cadastrar alguem num cargo e conceder as permissoes dele: mesma regra
+    // de "ninguem concede o que nao tem" da troca de cargo.
+    const permissoesDoCargo = permissoesEfetivasDoCargo(cargo);
+    const checagemConcessao = podeConcederPermissoes({
+      permissoesDoAutor: contexto.permissoes ?? new Set<Permissao>(),
+      permissoesAlvo: permissoesDoCargo,
+    });
+    if (!checagemConcessao.permitido) {
+      return { sucesso: false, erro: checagemConcessao.motivo };
+    }
+
+    const decisao = decidirNovoUsuario({
+      contaExiste: Boolean(contaExistente),
+      vinculoNestaLoja: contaExistente?.empresas[0] ?? null,
+    });
+    if (decisao.tipo === "recusar") {
+      return { sucesso: false, erro: decisao.motivo };
+    }
+
+    const roleDaEmpresa = mapearCargoParaRoleLegado({ fixo: cargo.fixo, permissoes: new Set(permissoesDoCargo) });
+    const roleDaLoja = ROLE_DA_LOJA_PELO_ROLE_DA_EMPRESA[roleDaEmpresa];
+    // Conta existente mantem a senha dela; o hash so e gerado para conta nova.
+    const senhaHash = await gerarHashSenha(dados.senhaInicial);
+    const nome = contaExistente?.nome ?? dados.nome;
+
+    // 1) Banco da loja, por e-mail. O id segue o da conta central quando ela
+    //    ja existe (convencao do provisionamento); conta nova ganha o id aqui
+    //    e o reaproveita no central, para os dois baterem.
+    const usuarioDaLoja = await contexto.prisma.usuario.upsert({
+      where: { email: dados.email },
+      update: { nome, role: roleDaLoja },
+      create: {
+        ...(contaExistente ? { id: contaExistente.id } : {}),
+        nome,
+        email: dados.email,
+        senha: senhaHash,
+        role: roleDaLoja,
+      },
+      select: { id: true },
+    });
+
+    // 2) Banco central: conta (se nova) + vinculo com cargo, e o registro.
+    await prismaCentral.$transaction(async (tx) => {
+      const contaId =
+        contaExistente?.id ??
+        (
+          await tx.usuarioCentral.create({
+            data: { id: usuarioDaLoja.id, nome, email: dados.email, senha: senhaHash, ativo: true },
+            select: { id: true },
+          })
+        ).id;
+
+      const vinculo = await tx.usuarioEmpresa.create({
+        data: {
+          usuarioId: contaId,
+          empresaId: contexto.empresaId,
+          cargoId: cargo.id,
+          role: roleDaEmpresa,
+          ativo: true,
+        },
+        select: { id: true },
+      });
+
+      await registrarLogAuditoriaCentral(
+        tx,
+        contextoAuditoriaCentralDoUsuario({ id: contexto.usuarioCentralId }, contexto.empresaId, "app/actions/usuarios.ts:criarUsuario"),
+        {
+          acao: ACOES_AUDITORIA.CRIAR_USUARIO,
+          entidade: ENTIDADES_AUDITORIA.USUARIO_EMPRESA,
+          entidadeId: vinculo.id,
+          dadosAntes: null,
+          // Nunca a senha, nem o hash.
+          dadosDepois: { email: dados.email, nome, cargoId: cargo.id, contaJaExistia: Boolean(contaExistente) },
+        }
+      );
+    });
+
+    revalidatePath("/configuracoes");
+    return { sucesso: true, contaJaExistia: Boolean(contaExistente) };
   } catch (erro) {
     return { sucesso: false, erro: paraMensagemSegura(erro) };
   }

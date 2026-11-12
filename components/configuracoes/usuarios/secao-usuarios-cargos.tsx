@@ -16,11 +16,9 @@ const ABAS: { id: AbaId; rotulo: string }[] = [
 
 /**
  * Usuários e Cargos (Fase 3-2E, Parte 3) — referência: referencia-
- * configuracoes-usuarios.html. A referência mostra "Novo cargo" e
- * "Convidar usuário" numa barra compartilhada acima das abas — não existe
- * função de convidar usuário no sistema hoje, então esse botão não foi
- * inventado; "Criar cargo" continua só dentro da aba Cargos (único lugar
- * onde já existia e faz sentido aparecer).
+ * configuracoes-usuarios.html. "Novo usuário" fica dentro da aba Usuários e
+ * "Criar cargo" dentro da aba Cargos: cada botão junto da lista que ele
+ * altera.
  */
 export function SecaoUsuariosCargos() {
   const [visao, setVisao] = useState<Visao>({ tela: "abas" });
