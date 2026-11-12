@@ -17,6 +17,8 @@ import { TabuleiroKanban } from "@/components/os/tabuleiro-kanban";
 import { ModalReabrirOS, type ConfirmacaoReaberturaPayload } from "@/components/os/modal-reabrir-os";
 import type { PendenciaFinalizacao } from "@/lib/dominio/os/regras-finalizacao";
 import { ModalNovaOS } from "@/components/os/modal-nova-os";
+import { NovaOSRapida } from "@/components/os/nova-os/nova-os-rapida";
+import { CONSULTA_DE_TELA_DE_CELULAR } from "@/lib/dominio/os/os-rapida";
 import { PainelLinkDoCelular } from "@/components/os/fotos/painel-link-do-celular";
 import { ModalFinalizarOS, type ConfirmacaoFinalizacaoPayload } from "@/components/os/modal-finalizar-os";
 import {
@@ -103,6 +105,14 @@ export function DashboardOS({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [modalAberta, setModalAberta] = useState(Boolean(clienteIdInicial));
+  const [rapidaAberta, setRapidaAberta] = useState(false);
+
+  // Celular abre a tela rapida; computador, o assistente completo. Lido no
+  // clique (ver CONSULTA_DE_TELA_DE_CELULAR).
+  const abrirNovaOS = () => {
+    if (window.matchMedia(CONSULTA_DE_TELA_DE_CELULAR).matches) setRapidaAberta(true);
+    else setModalAberta(true);
+  };
   const [buscaTexto, setBuscaTexto] = useState("");
   // A aba segue o ENDERECO (ver lib/dominio/os/modo-da-tela.ts). O estado
   // local existe so para a aba trocar na hora do clique, sem esperar o
@@ -548,7 +558,7 @@ export function DashboardOS({
             onChange={(e) => setBuscaTexto(e.target.value)}
           />
         </div>
-        <Button onClick={() => setModalAberta(true)} className="h-10 px-6 whitespace-nowrap">
+        <Button onClick={abrirNovaOS} className="h-10 px-6 whitespace-nowrap">
           <Plus className="w-4 h-4 mr-2" />
           Nova Ordem de Serviço
         </Button>
@@ -883,6 +893,8 @@ export function DashboardOS({
         clienteIdInicial={clienteIdInicial ?? undefined}
         aoPedirLinkDeFotos={setOsParaLinkDeFotos}
       />
+
+      <NovaOSRapida aberta={rapidaAberta} onAbrirMudar={setRapidaAberta} onSalvar={handleSalvarNovaOS} />
 
       {osParaLinkDeFotos && (
         <PainelLinkDoCelular
