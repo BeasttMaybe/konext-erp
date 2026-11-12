@@ -11,7 +11,7 @@
     },
     {
       "path": "/api/cron/fechar-caixa",
-      "schedule": "5 * * * *"
+      "schedule": "5 3 * * *"
     }
   ]
 }

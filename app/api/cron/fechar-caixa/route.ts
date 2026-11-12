@@ -32,12 +32,18 @@ import {
  * o do servidor em UTC enquanto a loja está em São Paulo. Aqui fica só o que
  * precisa de banco: ler os caixas abertos, somar o esperado, gravar.
  *
- * DE HORA EM HORA, E NÃO UMA VEZ POR DIA
+ * UMA VEZ POR DIA, ÀS 00:05 DE BRASÍLIA (03:05 UTC)
  *
- * Uma execução diária só pegaria lojas cujo horário caísse naquele minuto.
- * De hora em hora, qualquer horário configurado é alcançado na primeira
- * execução seguinte — e a regra olha para trás, então o atraso de até uma
- * hora não deixa nada passar.
+ * A primeira versão rodava de hora em hora, e isso PAROU TODOS OS DEPLOYS:
+ * o plano Hobby da Vercel só aceita rotinas diárias e recusa o build inteiro
+ * quando uma não é — de 10/11 a 11/11 nenhuma publicação entrou no ar.
+ * Guardado por lib/cron/agenda-da-vercel.test.ts.
+ *
+ * Uma vez por dia basta porque a regra OLHA PARA TRÁS: fecha todo caixa
+ * aberto antes da última passagem pelo horário configurado, e grava como
+ * data de fechamento esse horário, não o da execução. Às 00:05, o horário de
+ * qualquer loja (padrão 23:59) já passou. No Hobby a Vercel pode disparar em
+ * qualquer minuto daquela hora — continua sendo depois da meia-noite.
  */
 
 type DecimalPrisma = { toString(): string };
