@@ -48,7 +48,7 @@ export function CabecalhoDashboard({ empresa, periodo, fusoHorario }: CabecalhoD
               aria-current={ativo ? "page" : undefined}
               className={cn(
                 "flex h-11 items-center rounded-kx-botao px-3 text-sm font-medium transition-colors",
-                ativo ? "bg-kx-primaria/15 text-kx-primaria" : "text-kx-legenda hover:text-kx-texto"
+                ativo ? "bg-kx-primaria/15 text-kx-destaque" : "text-kx-legenda hover:text-kx-texto"
               )}
             >
               {opcao.rotulo}

@@ -81,7 +81,7 @@ export function AbaUsuarios() {
               className="grid grid-cols-1 gap-2 rounded-kx-botao border border-kx-painel-borda bg-kx-cartao px-3 py-2.5 text-sm sm:grid-cols-[minmax(0,1.4fr)_130px_110px_85px_160px] sm:items-center sm:gap-3"
             >
               <div className="flex min-w-0 items-center gap-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-kx-primaria/15 text-xs font-extrabold text-kx-primaria">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-kx-primaria/15 text-xs font-extrabold text-kx-destaque">
                   {iniciaisDoNome(usuario.nome)}
                 </span>
                 <div className="flex min-w-0 flex-col">
