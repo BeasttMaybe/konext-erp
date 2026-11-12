@@ -78,7 +78,7 @@ export function PainelEmpresa({
           </div>
 
           <div className="flex flex-col gap-3 rounded-kx-botao bg-kx-superficie p-4 sm:flex-row sm:items-center">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-kx-botao border border-kx-painel-borda bg-kx-painel text-lg font-extrabold text-kx-texto">
+            <div className="flex h-16 w-32 shrink-0 items-center justify-center overflow-hidden rounded-kx-botao border border-kx-painel-borda bg-kx-papel text-lg font-extrabold text-kx-papel-texto">
               {configuracaoAtual.logoUrl ? (
                 <img src={configuracaoAtual.logoUrl} alt="Logo da empresa" className="h-full w-full object-contain p-1.5" />
               ) : (

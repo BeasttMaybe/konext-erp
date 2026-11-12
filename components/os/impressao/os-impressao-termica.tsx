@@ -50,7 +50,7 @@ export function OsImpressaoTermica({ dados, qrCodeSvg = null }: PropsOsImpressao
             <img
               src={empresa.logoUrl}
               alt={`Logo ${empresa.nomeExibicao}`}
-              style={{ maxHeight: "18mm", display: "block", margin: "0 auto 6px", objectFit: "contain" }}
+              style={{ maxHeight: "24mm", maxWidth: "60mm", display: "block", margin: "0 auto 6px", objectFit: "contain" }}
             />
           )}
 

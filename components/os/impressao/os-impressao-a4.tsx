@@ -59,7 +59,7 @@ export function OsImpressaoA4({ dados, qrCodeSvg = null }: PropsOsImpressaoA4) {
           <header className="flex items-start justify-between gap-6 pb-5 mb-6 border-b-2 border-kx-papel-borda-forte">
             <div className="flex items-center gap-4">
               {logoUrl ? (
-                <div className="relative h-14 w-24 flex-shrink-0">
+                <div className="relative h-20 w-40 flex-shrink-0">
                   <Image
                     src={logoUrl}
                     alt={`Logo ${nomeEmpresa}`}
@@ -69,7 +69,7 @@ export function OsImpressaoA4({ dados, qrCodeSvg = null }: PropsOsImpressaoA4) {
                   />
                 </div>
               ) : (
-                <div className="h-14 w-24 flex-shrink-0 bg-kx-papel-alternado rounded flex items-center justify-center print:hidden">
+                <div className="h-20 w-40 flex-shrink-0 bg-kx-papel-alternado rounded flex items-center justify-center print:hidden">
                   <span className="text-[10px] text-kx-papel-legenda text-center leading-tight px-1">
                     Sem logo
                   </span>
