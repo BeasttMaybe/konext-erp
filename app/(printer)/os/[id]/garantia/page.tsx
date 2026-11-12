@@ -1,3 +1,4 @@
+import { SELETOR_DO_QUE_NAO_IMPRIME } from "@/components/os/impressao/estilos-impressao";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { obterContextoGarantiaOS, obterTermoGarantiaOS } from "@/app/actions/garantias";
@@ -80,9 +81,7 @@ export default async function PaginaGarantiaOS({ params, searchParams }: PropsPa
         }
 
         @media print {
-          aside, nav, header, footer,
-          [role="banner"], [role="complementary"], [role="contentinfo"],
-          .print-hidden {
+          ${SELETOR_DO_QUE_NAO_IMPRIME} {
             display: none !important;
             visibility: hidden !important;
           }
@@ -118,7 +117,7 @@ export default async function PaginaGarantiaOS({ params, searchParams }: PropsPa
           <BotaoImprimirGarantia />
         </div>
 
-        <article className="garantia-folha w-[210mm] min-h-[297mm] mx-auto bg-kx-papel text-kx-papel-texto border border-kx-papel-borda shadow-sm rounded p-[14mm] print:rounded-none print:shadow-none print:border-0">
+        <article className="garantia-folha documento-impresso w-[210mm] min-h-[297mm] mx-auto bg-kx-papel text-kx-papel-texto border border-kx-papel-borda shadow-sm rounded p-[14mm] print:rounded-none print:shadow-none print:border-0">
           <TermoGarantiaDocumento termo={termo} />
         </article>
       </div>
