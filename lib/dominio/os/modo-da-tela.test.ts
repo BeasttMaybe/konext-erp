@@ -38,8 +38,8 @@ describe("submenu de Ordens de Servico", () => {
   });
 
   it.each([
-    ["/os", "", "Kanban"],
-    ["/os", "modo=kanban", "Kanban"],
+    ["/os", "", "Em andamento"],
+    ["/os", "modo=kanban", "Em andamento"],
     ["/os", "modo=lista", "Finalizadas"],
     ["/os", "modo=garantia", "Garantias"],
     ["/os/relatorio-pecas", "", "Relatório de peças"],

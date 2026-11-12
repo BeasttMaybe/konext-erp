@@ -133,6 +133,28 @@
   }
 }
 
+/*
+ * Cor padrao de TODA borda: a do tema.
+ *
+ * No Tailwind 4, uma borda sem cor declarada (`border`, `border-b`,
+ * `border-t`...) usa `currentColor` — a cor do TEXTO. A regra que o shadcn
+ * traz para corrigir isso nunca entrou neste projeto, entao 27 lugares do
+ * sistema, entre eles toda linha de tabela, eram desenhados em preto no tema
+ * claro e em branco no escuro, em vez de `--kx-painel-borda`. Achado
+ * olhando a lista de OS de perto, em 12/11/2026.
+ *
+ * Fica na camada `base`: qualquer classe que declare cor (`border-kx-*`,
+ * `border-transparent`...) continua vencendo.
+ */
+@layer base {
+  *,
+  ::before,
+  ::after,
+  ::backdrop {
+    border-color: var(--border);
+  }
+}
+
 @theme inline {
   /*
    * Sem hsl(...) aqui de proposito: --background etc. agora resolvem pra
