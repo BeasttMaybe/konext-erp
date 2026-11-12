@@ -18,7 +18,7 @@ import { ModalReabrirOS, type ConfirmacaoReaberturaPayload } from "@/components/
 import type { PendenciaFinalizacao } from "@/lib/dominio/os/regras-finalizacao";
 import { ModalNovaOS } from "@/components/os/modal-nova-os";
 import { NovaOSRapida } from "@/components/os/nova-os/nova-os-rapida";
-import { CONSULTA_DE_TELA_DE_CELULAR } from "@/lib/dominio/os/os-rapida";
+import { CONSULTA_DE_TELA_DE_CELULAR } from "@/lib/dispositivo/tela-de-celular";
 import { PainelLinkDoCelular } from "@/components/os/fotos/painel-link-do-celular";
 import { ModalFinalizarOS, type ConfirmacaoFinalizacaoPayload } from "@/components/os/modal-finalizar-os";
 import {
@@ -107,8 +107,8 @@ export function DashboardOS({
   const [modalAberta, setModalAberta] = useState(Boolean(clienteIdInicial));
   const [rapidaAberta, setRapidaAberta] = useState(false);
 
-  // Celular abre a tela rapida; computador, o assistente completo. Lido no
-  // clique (ver CONSULTA_DE_TELA_DE_CELULAR).
+  // Celular abre a tela rapida; computador, o assistente completo. A largura
+  // e lida no CLIQUE: assim o resto do quadro nao depende dela para desenhar.
   const abrirNovaOS = () => {
     if (window.matchMedia(CONSULTA_DE_TELA_DE_CELULAR).matches) setRapidaAberta(true);
     else setModalAberta(true);

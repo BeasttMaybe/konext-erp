@@ -41,6 +41,8 @@ import { EtapaProdutoPdv } from"@/components/pdv/balcao/etapa-produto-pdv";
 import { EtapaClientePdv } from"@/components/pdv/balcao/etapa-cliente-pdv";
 import { EtapaPagamentoPdv } from"@/components/pdv/balcao/etapa-pagamento-pdv";
 import { ModalVendaConcluidaPdv } from"@/components/pdv/balcao/modal-venda-concluida-pdv";
+import { PdvCelular } from"@/components/pdv/celular/pdv-celular";
+import { useTelaDeCelular } from"@/lib/dispositivo/tela-de-celular";
 import { useCartStore, ProdutoPDV } from"@/store/useCartStore";
 import { useTemPermissao } from"@/contextos/contexto-permissoes";
 import { calcularLimiteDesconto, converterDescontoEntreUnidades } from"@/lib/dominio/pdv/desconto-input";
@@ -126,6 +128,8 @@ function PDVPageConteudo() {
   const osIdNaUrl = searchParams.get("osId") ??"";
   const buscaProdutoRef = useRef<HTMLInputElement>(null);
   const buscaClienteRef = useRef<HTMLInputElement>(null);
+  // Celular: outra tela (components/pdv/celular), mesma logica de venda.
+  const telaDeCelular = useTelaDeCelular();
 
   const [etapaAtual, setEtapaAtual] = useState<EtapaPdv>("produto");
   // Incrementa a cada NOVA TENTATIVA de venda (nova venda após sucesso,
@@ -718,6 +722,80 @@ function PDVPageConteudo() {
     }
   };
 
+  const dialogoAbrirCaixa = (
+    <>
+      <Dialog open={modalAbrirCaixaAberto} onOpenChange={setModalAbrirCaixaAberto}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Abertura de Caixa</DialogTitle>
+            <DialogDescription>
+              Informe o valor inicial para troco e abertura da sessão.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            <label htmlFor="valor-abertura-caixa" className="text-sm font-medium text-kx-texto">
+              Valor Inicial/Troco (R$)
+            </label>
+            <Input
+              id="valor-abertura-caixa"
+              type="text"
+              inputMode="decimal"
+              value={valorAberturaCaixa}
+              onChange={(evento) => setValorAberturaCaixa(evento.target.value)}
+              placeholder="0,00"
+            />
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setModalAbrirCaixaAberto(false)}>
+              Cancelar
+            </Button>
+            <Button type="button" onClick={abrirCaixa} disabled={abrindoCaixa}>
+              {abrindoCaixa ?"Abrindo..." :"Confirmar Abertura"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+
+  // O servidor nao sabe a largura da tela: ate o navegador dizer, nada e
+  // desenhado — melhor um instante vazio que a tela do computador piscando
+  // no celular.
+  if (telaDeCelular === null) {
+    return <div className="h-full w-full" />;
+  }
+
+  if (telaDeCelular) {
+    return (
+      <>
+        <PdvCelular
+          caixaAberto={caixaAberto}
+          carregandoStatusCaixa={carregandoStatusCaixa}
+          onAbrirCaixa={() => setModalAbrirCaixaAberto(true)}
+          clientes={clientes}
+          carregandoClientes={carregandoClientes}
+          clienteSelecionado={clienteSelecionado}
+          onSelecionarCliente={aoSelecionarCliente}
+          onClienteCriado={aoClienteCriado}
+          produtosCatalogo={produtosCatalogo}
+          carregandoProdutos={carregandoProdutos}
+          itens={itens}
+          onAdicionarProduto={(produto) => onInserirItemProduto(produto, 1, 0, false)}
+          onAlterarQuantidade={alterarQuantidade}
+          onRemoverItem={removerItem}
+          pedidoOS={pedidoOS}
+          total={totalGeral}
+          pagamento={pagamento}
+          onFinalizar={tentarConfirmarVenda}
+          onNovaVenda={iniciarNovaTentativa}
+        />
+        {dialogoAbrirCaixa}
+      </>
+    );
+  }
+
   return (
     <div
       // Altura travada por viewport, nao por herança de `h-full` (Fase 3-2C):
@@ -890,39 +968,7 @@ function PDVPageConteudo() {
         aoNovaVenda={iniciarNovaTentativa}
       />
 
-      <Dialog open={modalAbrirCaixaAberto} onOpenChange={setModalAbrirCaixaAberto}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Abertura de Caixa</DialogTitle>
-            <DialogDescription>
-              Informe o valor inicial para troco e abertura da sessão.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-2">
-            <label htmlFor="valor-abertura-caixa" className="text-sm font-medium text-kx-texto">
-              Valor Inicial/Troco (R$)
-            </label>
-            <Input
-              id="valor-abertura-caixa"
-              type="text"
-              inputMode="decimal"
-              value={valorAberturaCaixa}
-              onChange={(evento) => setValorAberturaCaixa(evento.target.value)}
-              placeholder="0,00"
-            />
-          </div>
-
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setModalAbrirCaixaAberto(false)}>
-              Cancelar
-            </Button>
-            <Button type="button" onClick={abrirCaixa} disabled={abrindoCaixa}>
-              {abrindoCaixa ?"Abrindo..." :"Confirmar Abertura"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {dialogoAbrirCaixa}
 
       <AlertDialog open={confirmarCancelamentoVendaAberto} onOpenChange={setConfirmarCancelamentoVendaAberto}>
         <AlertDialogContent>

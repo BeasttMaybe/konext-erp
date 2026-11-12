@@ -139,10 +139,3 @@ export function montarDadosDaOSRapida(rascunho: RascunhoDaOSRapida): DadosDaOSRa
 export function totalDoPreOrcamento(itens: ItemDoPreOrcamento[]): number {
   return itens.reduce((total, item) => total + Math.max(0, item.valorCentavos), 0);
 }
-
-/**
- * A abertura rapida e a do celular. A largura e lida no CLIQUE, e nao na
- * renderizacao: o servidor nao sabe a largura da tela, e decidir no render
- * faria o HTML do servidor e o do navegador divergirem.
- */
-export const CONSULTA_DE_TELA_DE_CELULAR = "(max-width: 767px)";
