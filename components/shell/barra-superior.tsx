@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SinoNotificacoes } from "@/components/layout/sino-notificacoes";
 import { GavetaLateralMobile } from "./gaveta-lateral-mobile";
+import { BotaoLerQrDaOS } from "./botao-ler-qr-os";
 
 const PERMISSOES_CONFIGURACOES = ["configuracoes.empresa", "configuracoes.sistema", "configuracoes.usuarios"] as const;
 
@@ -62,7 +63,10 @@ export function BarraSuperior({ onAbrirBusca }: { onAbrirBusca: () => void }) {
   );
 
   return (
-    <header className="sticky top-0 z-kx-cabecalho flex h-[72px] shrink-0 items-center gap-3 border-b border-kx-painel-borda bg-kx-painel px-4 lg:px-6">
+    <header className="sticky top-0 z-kx-cabecalho flex h-[calc(72px+env(safe-area-inset-top))] shrink-0 items-center gap-3 border-b border-kx-painel-borda bg-kx-painel px-4 pt-[env(safe-area-inset-top)] lg:px-6">
+      {/* No iPhone instalado como app, o sistema ocupa tambem a area da barra
+          de status (ver `statusBarStyle` em app/layout.tsx). A altura e o
+          espacamento de cima somam essa area — no navegador comum ela vale 0. */}
       <GavetaLateralMobile />
 
       {/* Sem marca/nome da empresa aqui — a empresa já é identificada pelo
@@ -71,16 +75,20 @@ export function BarraSuperior({ onAbrirBusca }: { onAbrirBusca: () => void }) {
       <button
         type="button"
         onClick={onAbrirBusca}
-        className="flex h-10 flex-1 max-w-[460px] items-center gap-2 rounded-kx-botao border border-kx-campo-borda bg-kx-superficie px-3 text-sm text-kx-placeholder transition-colors hover:border-kx-foco"
+        aria-label="Buscar OS, cliente..."
+        // No celular vira so a lupa: o texto quebrava em duas linhas e
+        // espremia os botoes ao lado (leitor de QR, tema, avisos).
+        className="flex h-10 w-10 shrink-0 items-center justify-center gap-2 rounded-kx-botao border border-kx-campo-borda bg-kx-superficie text-sm text-kx-placeholder transition-colors hover:border-kx-foco sm:w-auto sm:max-w-[460px] sm:flex-1 sm:shrink sm:justify-start sm:px-3"
       >
         <Search className="h-4 w-4 shrink-0" aria-hidden="true" />
-        <span className="flex-1 text-left">Buscar OS, cliente...</span>
+        <span className="hidden flex-1 text-left sm:inline">Buscar OS, cliente...</span>
         <kbd className="hidden shrink-0 rounded border border-kx-campo-borda bg-kx-cartao px-1.5 py-0.5 text-[10px] font-medium text-kx-legenda sm:block">
           Ctrl K
         </kbd>
       </button>
 
       <div className="ml-auto flex shrink-0 items-center gap-1">
+        <BotaoLerQrDaOS />
         {montado && (
           <Button
             variant="ghost"

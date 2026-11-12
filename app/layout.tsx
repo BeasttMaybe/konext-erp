@@ -1,7 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { ProvedoresLayout } from "@/components/provedores/provedores-layout";
+import { CORES_DO_APP } from "@/lib/design/cores-do-app";
 
 /**
  * Fonte da marca (Fase 3-1) — antes só carregada em app/(auth)/layout.tsx;
@@ -29,6 +30,31 @@ const plusJakartaSans = localFont({
 export const metadata: Metadata = {
   title: "Konext ERP",
   description: "Sistema ERP com Dashboard, Financeiro, PDV e OS",
+  // iPhone instalado como app (Compartilhar → Adicionar a Tela de Inicio).
+  // O manifesto (app/manifest.ts) cobre o Android; o iOS ainda le estas
+  // metatags proprias para nome, tela cheia e cor da barra de status.
+  appleWebApp: {
+    capable: true,
+    title: "Konext",
+    // Translucida: o sistema desenha por baixo da barra de status, e a
+    // moldura compensa com `env(safe-area-inset-top)` (barra-superior.tsx).
+    // As outras opcoes poem uma faixa branca ou preta fixa em cima,
+    // destoando do tema.
+    statusBarStyle: "black-translucent",
+  },
+  formatDetection: { telephone: false },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  // Ocupa a tela inteira do iPhone, inclusive a area do notch e da barra de
+  // gestos — cada borda que encosta nelas desconta a area segura.
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: dark)", color: CORES_DO_APP.fundoEscuro },
+    { media: "(prefers-color-scheme: light)", color: CORES_DO_APP.fundoClaro },
+  ],
 };
 
 export default function RootLayout({
