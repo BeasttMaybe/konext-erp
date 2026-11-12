@@ -2,7 +2,10 @@
 
 import { lerEntradaMonetaria, paraMoeda } from "@/lib/dinheiro";
 import { useMemo, useState, type KeyboardEvent, type RefObject } from "react";
-import { Percent, Search, Wrench } from "lucide-react";
+import { Percent, ScanBarcode, Search, Wrench } from "lucide-react";
+import { toast } from "sonner";
+import { LeitorCamera } from "@/components/ui/leitor-camera";
+import { produtoPeloCodigoLido } from "@/lib/dominio/estoque/codigo-lido";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ListaProdutosPdv } from "@/components/pdv/balcao/lista-produtos-pdv";
@@ -34,6 +37,13 @@ interface PropsEtapaProdutoPdv {
   onBuscaChange: (valor: string) => void;
   buscaProdutoRef: RefObject<HTMLInputElement | null>;
   produtosFiltrados: ProdutoPDV[];
+  /**
+   * O catalogo INTEIRO, para reconhecer um codigo lido. Nao da para usar
+   * `produtosFiltrados`: ele filtra por "contem o texto", e o EAN-13 lido de
+   * um cadastro de 12 digitos nao "contem" o cadastro — o produto sumia antes
+   * da comparacao. Ver lib/dominio/estoque/codigo-lido.ts.
+   */
+  produtosCatalogo: ProdutoPDV[];
   carregandoProdutos: boolean;
   itens: ItemCarrinho[];
   /** Insere/atualiza um item do pedido. `modoEdicao` true sobrescreve a quantidade da linha (veio de "Editar"); false soma à quantidade já existente (nova adição ou leitor de código de barras). */
@@ -82,6 +92,7 @@ export function EtapaProdutoPdv({
   onBuscaChange,
   buscaProdutoRef,
   produtosFiltrados,
+  produtosCatalogo,
   carregandoProdutos,
   itens,
   onInserirItem,
@@ -156,6 +167,27 @@ export function EtapaProdutoPdv({
     limparPainel();
   };
 
+  const [leitorAberto, setLeitorAberto] = useState(false);
+
+  /**
+   * Codigo lido pela camera: mesma regra do leitor USB — produto reconhecido
+   * entra direto com quantidade 1 (ler de novo soma). Nao reconhecido, o
+   * texto vai para a busca, que e o que aconteceria se alguem o digitasse.
+   */
+  const aoLerPelaCamera = (texto: string) => {
+    const produto = produtoPeloCodigoLido(produtosCatalogo, texto);
+    if (produto) {
+      onInserirItem(produto, 1, 0, false);
+      toast.success(`${produto.nome} adicionado`);
+      return;
+    }
+    // O catalogo do PDV so traz o que esta A VENDA (com estoque, ou liberado
+    // para vender sem). "Nao encontrado" sozinho faria a pessoa procurar um
+    // cadastro que existe — a mensagem diz as duas causas possiveis.
+    toast.error(`Código ${texto}: produto não cadastrado ou sem estoque.`);
+    onBuscaChange(texto);
+  };
+
   const aoTeclarBusca = (evento: KeyboardEvent<HTMLInputElement>) => {
     if (evento.key === "ArrowDown") {
       if (resultados.length === 0) return;
@@ -191,9 +223,7 @@ export function EtapaProdutoPdv({
       // catálogo insere direto no pedido (qtd. 1), sem passar pelo painel —
       // escanear o mesmo código de novo incrementa a linha já existente
       // (onInserirItem soma à quantidade quando o produto já está no pedido).
-      const produtoPorCodigo = produtosFiltrados.find(
-        (produto) => produto.codigoBarras && produto.codigoBarras.toLowerCase() === termo.toLowerCase()
-      );
+      const produtoPorCodigo = produtoPeloCodigoLido(produtosCatalogo, termo);
       if (produtoPorCodigo) {
         onInserirItem(produtoPorCodigo, 1, 0, false);
         onBuscaChange("");
@@ -229,8 +259,27 @@ export function EtapaProdutoPdv({
             onKeyDown={aoTeclarBusca}
             className="min-w-0 flex-1 bg-transparent text-[15px] text-kx-texto outline-none placeholder:text-kx-placeholder"
           />
-          <span className="shrink-0 rounded-md border border-kx-campo-borda px-2 py-0.5 text-xs text-kx-legenda">F2</span>
+          <span className="hidden shrink-0 rounded-md border border-kx-campo-borda px-2 py-0.5 text-xs text-kx-legenda sm:inline">F2</span>
+          {/* Camera do celular como leitor. Fica dentro do campo de busca
+              porque e outra forma de fazer a MESMA coisa que ele. */}
+          <button
+            type="button"
+            onClick={() => setLeitorAberto(true)}
+            aria-label="Ler etiqueta com a câmera"
+            className="-mr-1.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-kx-botao text-kx-destaque hover:bg-kx-primaria/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kx-foco"
+          >
+            <ScanBarcode className="h-5 w-5" aria-hidden />
+          </button>
         </label>
+
+        <LeitorCamera
+          aberto={leitorAberto}
+          onFechar={() => setLeitorAberto(false)}
+          continuo
+          titulo="Ler etiqueta"
+          instrucao="Aponte para o código de barras. Cada produto lido entra no pedido; o leitor continua aberto para o próximo."
+          onLido={aoLerPelaCamera}
+        />
 
         {mostrarResultados && (
           <>

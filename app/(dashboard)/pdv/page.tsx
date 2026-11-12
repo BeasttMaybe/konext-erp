@@ -808,6 +808,7 @@ function PDVPageConteudo() {
             onBuscaChange={setBusca}
             buscaProdutoRef={buscaProdutoRef}
             produtosFiltrados={produtosFiltrados}
+            produtosCatalogo={produtosCatalogo}
             carregandoProdutos={carregandoProdutos}
             itens={itens}
             onInserirItem={onInserirItemProduto}

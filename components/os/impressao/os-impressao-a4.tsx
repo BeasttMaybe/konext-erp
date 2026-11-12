@@ -1,13 +1,16 @@
 import Image from "next/image";
+import { QrDaOS } from "./qr-da-os";
 import { BotaoImprimirPagina } from "@/components/os/botao-imprimir-pagina";
 import { formatarMoedaImpressao, type DadosImpressaoOS } from "@/lib/impressao/obter-dados-impressao-os";
 import { ESTILO_IMPRESSAO_A4 } from "./estilos-impressao";
 
 type PropsOsImpressaoA4 = {
   dados: DadosImpressaoOS;
+  /** QR que abre a OS no celular — ver `QrDaOS`. */
+  qrCodeSvg?: string | null;
 };
 
-export function OsImpressaoA4({ dados }: PropsOsImpressaoA4) {
+export function OsImpressaoA4({ dados, qrCodeSvg = null }: PropsOsImpressaoA4) {
   const {
     numeroOs,
     statusLabel,
@@ -85,7 +88,8 @@ export function OsImpressaoA4({ dados }: PropsOsImpressaoA4) {
               </div>
             </div>
 
-            <div className="text-right flex-shrink-0">
+            <div className="flex flex-shrink-0 items-start gap-4 text-right">
+              <div>
               <p className="text-2xl font-black text-kx-papel-texto leading-none">OS #{numeroOs}</p>
               <div className="mt-2 space-y-0.5">
                 <p className="text-xs text-kx-papel-texto-2">
@@ -95,6 +99,8 @@ export function OsImpressaoA4({ dados }: PropsOsImpressaoA4) {
                   <span className="font-semibold">Emissão:</span> {dataEmissao}
                 </p>
               </div>
+              </div>
+              <QrDaOS svg={qrCodeSvg} tamanho="22mm" />
             </div>
           </header>
 

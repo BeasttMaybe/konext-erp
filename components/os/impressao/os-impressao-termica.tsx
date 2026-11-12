@@ -1,12 +1,15 @@
 import { BotaoImprimirPagina } from "@/components/os/botao-imprimir-pagina";
+import { QrDaOS } from "./qr-da-os";
 import { formatarMoedaImpressao, type DadosImpressaoOS } from "@/lib/impressao/obter-dados-impressao-os";
 import { ESTILO_IMPRESSAO_TERMICA } from "./estilos-impressao";
 
 type PropsOsImpressaoTermica = {
   dados: DadosImpressaoOS;
+  /** QR que abre a OS no celular — ver `QrDaOS`. */
+  qrCodeSvg?: string | null;
 };
 
-export function OsImpressaoTermica({ dados }: PropsOsImpressaoTermica) {
+export function OsImpressaoTermica({ dados, qrCodeSvg = null }: PropsOsImpressaoTermica) {
   const {
     numeroOs,
     statusLabel,
@@ -61,6 +64,11 @@ export function OsImpressaoTermica({ dados }: PropsOsImpressaoTermica) {
           <p className="termica-centro termica-negrito">ORDEM DE SERVIÇO Nº {numeroOs}</p>
           <p className="termica-centro">Emissão: {dataEmissao}</p>
           <p className="termica-centro">Status: {statusLabel}</p>
+          {qrCodeSvg ? (
+            <div className="termica-centro" style={{ marginTop: "2mm" }}>
+              <QrDaOS svg={qrCodeSvg} tamanho="28mm" legenda="Aponte o celular para abrir a OS" />
+            </div>
+          ) : null}
 
           <hr className="termica-separador" />
 
