@@ -1,3 +1,4 @@
+import { ehCaminhoDaLogoEnviada } from "@/lib/dominio/empresa/logo-enviada";
 import type { DadosConfiguracoes } from "@/app/actions/configuracoes";
 
 export type ConfiguracaoEmpresaDocumentos = Pick<
@@ -55,6 +56,11 @@ function normalizarLogoUrl(valor: string | null | undefined): string {
 
   if (!url) {
     return "";
+  }
+
+  // Logo enviada como arquivo: servida pelo proprio sistema, caminho relativo.
+  if (ehCaminhoDaLogoEnviada(url)) {
+    return url;
   }
 
   try {

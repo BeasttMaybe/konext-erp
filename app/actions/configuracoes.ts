@@ -1,5 +1,7 @@
 "use server";
 
+import { ehCaminhoDaLogoEnviada } from "@/lib/dominio/empresa/logo-enviada";
+
 import { lerEntradaMonetaria, paraMoeda } from "@/lib/dinheiro";
 
 import { revalidatePath } from "next/cache";
@@ -336,11 +338,21 @@ const schemaDadosConfiguracoes = z.object({
   }
 });
 
-function normalizarUrlImagem(url: string | null | undefined, nomeCampo: string): string | null {
+function normalizarUrlImagem(
+  url: string | null | undefined,
+  nomeCampo: string,
+  opcoes: { aceitarLogoEnviada?: boolean } = {}
+): string | null {
   const valor = String(url ?? "").trim();
 
   if (!valor) {
     return null;
+  }
+
+  // A logo enviada como arquivo e servida pelo proprio sistema, num caminho
+  // relativo (ver lib/dominio/empresa/logo-enviada.ts).
+  if (opcoes.aceitarLogoEnviada && ehCaminhoDaLogoEnviada(valor)) {
+    return valor;
   }
 
   if (valor.length > 4096) {
@@ -559,7 +571,7 @@ function normalizarConfiguracoesEntrada(data: DadosConfiguracoes): DadosConfigur
     ...configuracaoPdvNormalizada,
     nomeFantasia: resultado.data.nomeFantasia || "Konext",
     estado: resultado.data.estado.toUpperCase(),
-    logoUrl: normalizarUrlImagem(resultado.data.logoUrl, "URL da logo da empresa") ?? "",
+    logoUrl: normalizarUrlImagem(resultado.data.logoUrl, "URL da logo da empresa", { aceitarLogoEnviada: true }) ?? "",
     textoCoberturaGarantia: resultado.data.textoCoberturaGarantia || TEXTO_COBERTURA_GARANTIA_PADRAO,
     textoExclusoesGarantia: resultado.data.textoExclusoesGarantia || TEXTO_EXCLUSOES_GARANTIA_PADRAO,
     textoResponsabilidadeDados:
@@ -1453,7 +1465,7 @@ export async function atualizarLogoEmpresa(
       };
     }
 
-    const logoUrlNormalizada = normalizarUrlImagem(logoUrl, "URL da logo da empresa");
+    const logoUrlNormalizada = normalizarUrlImagem(logoUrl, "URL da logo da empresa", { aceitarLogoEnviada: true });
 
     // F-03 (IDOR): a Configuracao alvo é SEMPRE a linha única do tenant (é
     // singleton, ver F-31), nunca um id vindo do cliente.

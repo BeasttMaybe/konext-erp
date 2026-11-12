@@ -68,6 +68,18 @@ enum ModeloImpressaoOS {
   TERMICA_80MM
 }
 
+/// Arquivo da logo enviada pela tela Empresa (Configuracoes). Tabela propria,
+/// e nao uma coluna em Configuracao: a Configuracao e lida em quase toda
+/// requisicao, e carregar os bytes da logo junto seria peso morto em todas.
+/// Linha unica por loja (id fixo "principal").
+model LogoEmpresa {
+  id            String   @id @default("principal")
+  conteudo      Bytes
+  tipoConteudo  String
+  tamanhoBytes  Int
+  atualizadoEm  DateTime @updatedAt @db.Timestamptz(3)
+}
+
 model Configuracao {
   id                        String   @id @default(uuid())
   razaoSocial               String   @default("")
