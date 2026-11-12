@@ -53,7 +53,7 @@ export function OsImpressaoA4({ dados, qrCodeSvg = null }: PropsOsImpressaoA4) {
 
         {/* Documento A4 */}
         <div
-          className="os-folha w-[210mm] min-h-[297mm] p-[15mm] flex flex-col mx-auto bg-kx-papel text-kx-papel-texto border border-kx-papel-borda shadow-sm rounded print:rounded-none print:shadow-none print:border-0"
+          className="os-folha documento-impresso w-[210mm] min-h-[297mm] p-[15mm] flex flex-col mx-auto bg-kx-papel text-kx-papel-texto border border-kx-papel-borda shadow-sm rounded print:rounded-none print:shadow-none print:border-0"
         >
           {/* ── CABEÇALHO ─────────────────────────────────────────────── */}
           <header className="flex items-start justify-between gap-6 pb-5 mb-6 border-b-2 border-kx-papel-borda-forte">

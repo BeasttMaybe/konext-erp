@@ -44,7 +44,7 @@ export function OsImpressaoTermica({ dados, qrCodeSvg = null }: PropsOsImpressao
       </div>
 
       <div className="os-termica-wrapper">
-        <div className="os-termica">
+        <div className="os-termica documento-impresso">
           {mostrarLogo && (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img

@@ -1,3 +1,19 @@
+/**
+ * O que some na impressao: a moldura do sistema (menu, barra de cima) e o
+ * que estiver marcado como so-de-tela.
+ *
+ * O `:not(.documento-impresso *)` e o que importa. A regra antiga escondia
+ * TODO `header` e `footer` da pagina — inclusive os do proprio documento. O
+ * cabecalho da OS (logo, numero, QR code) e o do termo de garantia sumiam
+ * do papel e do PDF, e na tela pareciam normais. Agora a regra vale so fora
+ * do elemento com a classe `documento-impresso`.
+ */
+export const CLASSE_DO_DOCUMENTO_IMPRESSO = "documento-impresso";
+
+export const SELETOR_DO_QUE_NAO_IMPRIME =
+  ':is(aside, nav, header, footer, [role="banner"], [role="complementary"], [role="contentinfo"])' +
+  `:not(.${CLASSE_DO_DOCUMENTO_IMPRESSO} *), .print\\:hidden, .print-hidden`;
+
 export const ESTILO_IMPRESSAO_A4 = `
   *, *::before, *::after { box-sizing: border-box; }
 
@@ -23,9 +39,7 @@ export const ESTILO_IMPRESSAO_A4 = `
   }
 
   @media print {
-    aside, nav, header, footer,
-    [role="banner"], [role="complementary"], [role="contentinfo"],
-    .print\\:hidden {
+    ${SELETOR_DO_QUE_NAO_IMPRIME} {
       display: none !important;
       visibility: hidden !important;
     }
@@ -122,9 +136,7 @@ export const ESTILO_IMPRESSAO_TERMICA = `
   }
 
   @media print {
-    aside, nav, header, footer,
-    [role="banner"], [role="complementary"], [role="contentinfo"],
-    .print\\:hidden {
+    ${SELETOR_DO_QUE_NAO_IMPRIME} {
       display: none !important;
       visibility: hidden !important;
     }
