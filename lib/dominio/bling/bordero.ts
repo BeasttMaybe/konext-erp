@@ -84,3 +84,27 @@ export function lerBordero(resposta: unknown): BorderoLido | null {
 
   return { data, valorPagoReais };
 }
+
+/**
+ * A data de baixa que ja esta gravada pode ser reaproveitada?
+ *
+ * POR QUE ISTO EXISTE
+ *
+ * Descobrir a data custa duas chamadas ao Bling por conta (detalhe + bordero),
+ * no ritmo de 3 por segundo. A sincronizacao fazia isso para TODA conta
+ * recebida, TODA vez — quase todas as contas da loja estao recebidas, entao
+ * cada sincronizacao repetia minutos de chamadas para descobrir datas que ja
+ * estavam no banco.
+ *
+ * Um pagamento nao muda de data depois que aconteceu. So se busca de novo
+ * quando a conta nao tinha data, ou quando nao estava recebida da ultima vez
+ * — o caso de uma baixa estornada e refeita, em que a data pode ser outra.
+ */
+export function dataDeBaixaJaConhecida(
+  statusNoBling: string,
+  gravada: { status: string | null; dataRecebimento: Date | null } | null
+): Date | null {
+  if (statusNoBling !== "RECEBIDO") return null;
+  if (!gravada || gravada.status !== "RECEBIDO") return null;
+  return gravada.dataRecebimento ?? null;
+}
