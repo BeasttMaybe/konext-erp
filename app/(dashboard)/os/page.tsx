@@ -1,4 +1,5 @@
 import { DashboardOS } from"@/components/os/dashboard-os";
+import { modoDaTelaPeloParametro } from "@/lib/dominio/os/modo-da-tela";
 import { obterDadosDashboardOS } from"@/app/actions/os";
 import { obterConfiguracoes } from"@/app/actions/configuracoes";
 import { listarGarantiasOS, obterDashboardGarantiasOS, type DashboardGarantiasOS, type LinhaGarantiaOS } from"@/app/actions/garantias";
@@ -36,16 +37,8 @@ export default async function OSPage({
 }) {
   const params = await searchParams;
   const clienteIdInicial = params.clienteId ?? null;
-  const modoParam = String(params.modo ??"").toLowerCase();
-  //"excluidas" e o link antigo de uma aba propria — vira o filtro de
-  // excluidas ja ligado dentro da aba Finalizadas (Fase 1C-3, Parte 5).
-  const modoInicial =
-    modoParam ==="lista" || modoParam ==="excluidas"
-      ?"LISTA_FINALIZADAS"
-      : modoParam ==="garantia"
-        ?"GARANTIA"
-        :"KANBAN";
-  const mostrarExcluidasInicial = modoParam ==="excluidas";
+  const modoInicial = modoDaTelaPeloParametro(params.modo);
+  const mostrarExcluidasInicial = String(params.modo ??"").toLowerCase() ==="excluidas";
 
   const [contexto, dadosDashboard, configuracoes, dashboardGarantias, listagemGarantias] = await Promise.all([
     exigirContextoTenant(),

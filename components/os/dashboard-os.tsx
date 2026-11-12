@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { modoDaTelaPeloParametro, parametroDoModo, type ModoDaTelaOS } from "@/lib/dominio/os/modo-da-tela";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -62,7 +63,7 @@ interface DashboardOSProps {
   deletedOrderServices: OrdemServicoExcluida[];
   /** Quando fornecido, abre o modal de nova OS automaticamente e pré-seleciona o cliente. */
   clienteIdInicial?: string | null;
-  modoInicial?: "KANBAN" | "LISTA_FINALIZADAS" | "GARANTIA";
+  modoInicial?: ModoDaTelaOS;
   /** Liga o filtro de excluidas ja na primeira renderizacao (link antigo /os?modo=excluidas). */
   mostrarExcluidasInicial?: boolean;
   prazoGarantiaPadraoDias?: number;
@@ -97,7 +98,34 @@ export function DashboardOS({
   const searchParams = useSearchParams();
   const [modalAberta, setModalAberta] = useState(Boolean(clienteIdInicial));
   const [buscaTexto, setBuscaTexto] = useState("");
-  const [modoVisualizacao, setModoVisualizacao] = useState<"KANBAN" | "LISTA_FINALIZADAS" | "GARANTIA">(modoInicial);
+  // A aba segue o ENDERECO (ver lib/dominio/os/modo-da-tela.ts). O estado
+  // local existe so para a aba trocar na hora do clique, sem esperar o
+  // servidor; quando o endereco muda por fora — um item do menu lateral —
+  // a aba se realinha a ele durante a renderizacao. E o padrao do React
+  // para "ajustar estado quando a entrada muda", sem efeito.
+  const modoDoEndereco = searchParams.has("modo")
+    ? modoDaTelaPeloParametro(searchParams.get("modo"))
+    : modoInicial;
+  const [modoVisualizacao, setModoLocal] = useState<ModoDaTelaOS>(modoDoEndereco);
+  const [enderecoVisto, setEnderecoVisto] = useState<ModoDaTelaOS>(modoDoEndereco);
+  if (enderecoVisto !== modoDoEndereco) {
+    setEnderecoVisto(modoDoEndereco);
+    setModoLocal(modoDoEndereco);
+  }
+
+  /**
+   * Troca de aba: muda na tela na hora E grava no endereco, preservando os
+   * demais parametros (inclusive inicio/fim do filtro de Finalizadas).
+   * Gravar no endereco e o que permite voltar, recarregar e compartilhar o
+   * link caindo na mesma aba.
+   */
+  const setModoVisualizacao = (modo: ModoDaTelaOS) => {
+    setModoLocal(modo);
+    if (modoDoEndereco === modo && searchParams.has("modo")) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("modo", parametroDoModo(modo));
+    router.push(`/os?${params.toString()}`, { scroll: false });
+  };
   const [mostrarExcluidas, setMostrarExcluidas] = useState(mostrarExcluidasInicial);
   const [osParaFinalizar, setOsParaFinalizar] = useState<OrdemServico | null>(null);
   const [termoGerado, setTermoGerado] = useState<TermoGeradoNaFinalizacao | null>(null);
@@ -513,14 +541,7 @@ export function DashboardOS({
       <Tabs
         value={modoVisualizacao}
         onValueChange={(valor) => {
-          const modo = valor as "KANBAN" | "LISTA_FINALIZADAS" | "GARANTIA";
-          setModoVisualizacao(modo);
-          // Preserva os demais params (inclusive inicio/fim do FiltroPeriodo
-          // da lista de Finalizadas) — trocar de aba e voltar não pode
-          // resetar um filtro que o usuário já tinha escolhido.
-          const params = new URLSearchParams(searchParams.toString());
-          params.set("modo", modo === "KANBAN" ? "kanban" : modo === "LISTA_FINALIZADAS" ? "lista" : "garantia");
-          router.push(`/os?${params.toString()}`);
+          setModoVisualizacao(valor as ModoDaTelaOS);
         }}
       >
         <TabsList>
@@ -619,7 +640,6 @@ export function DashboardOS({
                     className="underline underline-offset-2 hover:opacity-80"
                     onClick={() => {
                       setModoVisualizacao("KANBAN");
-                      router.push("/os?modo=kanban");
                     }}
                   >
                     veja no quadro
