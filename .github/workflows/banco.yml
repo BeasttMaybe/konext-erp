@@ -36,6 +36,7 @@ on:
           - central-aplicar
           - cifrar-senhas-dry-run
           - cifrar-senhas-aplicar
+          - ensaio-restauracao
           - relatorio-os
           - verificar-datas
           - verificar-dinheiro
@@ -183,6 +184,8 @@ jobs:
           PONTO_RESTAURACAO: ${{ steps.restauracao.outputs.ponto }}
           CONFIRMAR: ${{ endsWith(inputs.comando, '-aplicar') && 'SIM' || '' }}
           AUTORIZAR_DESTRUTIVO: ${{ inputs.autorizar_destrutivo && 'SIM' || '' }}
+          # So o ensaio-restauracao usa (cria e apaga um branch temporario).
+          NEON_API_KEY: ${{ inputs.comando == 'ensaio-restauracao' && secrets.NEON_API_KEY || '' }}
         run: |
           set -o pipefail
           ALVO_TENANT=""
@@ -205,6 +208,7 @@ jobs:
               central-aplicar)      node scripts/migracao/migrar-central.mjs --aplicar ;;
               cifrar-senhas-dry-run) npm run db:cifrar-senhas -- --dry-run $ALVO_TENANT ;;
               cifrar-senhas-aplicar) npm run db:cifrar-senhas -- --aplicar $ALVO_TENANT ;;
+              ensaio-restauracao)   node scripts/neon/ensaio-de-restauracao.mjs --ambiente "${{ inputs.ambiente }}" ;;
               relatorio-os)         npm run db:relatorio-os ;;
               verificar-datas)      npm run db:verificar-datas -- --${{ inputs.modo_verificacao || 'antes' }} ;;
               verificar-dinheiro)   npm run db:verificar-dinheiro -- --${{ inputs.modo_verificacao || 'antes' }} ;;
