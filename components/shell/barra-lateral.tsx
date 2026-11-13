@@ -8,6 +8,7 @@ import {
   DollarSign,
   CalendarDays,
   Flag,
+  Hammer,
   LayoutDashboard,
   LifeBuoy,
   LogOut,
@@ -41,6 +42,7 @@ const ICONES: Record<string, LucideIcon> = {
   Financeiro: DollarSign,
   Agenda: CalendarDays,
   Metas: Flag,
+  Ferramentas: Hammer,
   Ajuda: LifeBuoy,
 };
 

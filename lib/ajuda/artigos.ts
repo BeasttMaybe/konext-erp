@@ -530,6 +530,34 @@ export const ARTIGOS_AJUDA: readonly ArtigoAjuda[] = [
     palavrasChave: ["meta", "objetivo", "alvo"],
   },
 
+  // ── Ferramentas ─────────────────────────────────────────────────────
+  {
+    slug: "remocao-de-virus",
+    titulo: "Remover vírus e anúncios de um Android",
+    categoria: "Ordens de Serviço",
+    resumo: "Conectar o celular pelo cabo, achar os apps de anúncio e remover pelo sistema.",
+    secoes: [
+      {
+        passos: [
+          "No celular: Configurações → Sobre o telefone → toque 7 vezes em \"Número de compilação\" (Samsung: Informações do software).",
+          "Em Opções do desenvolvedor, ligue a \"Depuração USB\" e ligue o celular no computador com cabo de dados.",
+          "No computador, abra o TechOS no Chrome ou no Edge e vá em Ferramentas → Remoção de Vírus.",
+          "Clique em \"Selecionar celular\", escolha o aparelho e toque em \"Permitir\" no celular.",
+          "Clique em \"Verificar apps\". Os suspeitos aparecem primeiro, com o motivo de cada um.",
+          "Use \"Remover\" (apaga o app) ou \"Bloquear\" (desativa sem apagar). Ao final, \"Copiar relatório\" e cole na OS.",
+        ],
+      },
+    ],
+    dicas: [
+      "Não sabe qual app abre o anúncio? Espere o anúncio aparecer e clique em \"Qual app está na tela?\".",
+      "Se o app for administrador do dispositivo, o sistema bloqueia ele e abre no celular a tela de administradores: desative ali e clique em Remover de novo.",
+      "Ao terminar, desligue a Depuração USB do cliente.",
+      "Só Android. iPhone não permite remover apps pelo cabo.",
+    ],
+    destino: { rotulo: "Abrir a Remoção de Vírus", href: "/ferramentas/remocao-de-virus" },
+    palavrasChave: ["vírus", "virus", "anúncio", "propaganda", "adware", "malware", "limpar", "usb", "adb", "ferramentas"],
+  },
+
   // ── Equipe e configurações ──────────────────────────────────────────
   {
     slug: "novo-usuario",
