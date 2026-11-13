@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { listarCargos, type CargoListado } from "@/app/actions/cargos";
 import { criarUsuario } from "@/app/actions/usuarios";
+import { gerarSenhaSugerida } from "@/lib/auth/senha-sugerida";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -13,20 +14,6 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const CAMPO = "h-11 border-kx-campo-borda bg-kx-superficie text-kx-texto placeholder:text-kx-placeholder";
-
-/**
- * Senha inicial facil de ditar: sem letras que se confundem (l/1, O/0) e
- * sempre com letra e numero, para passar na regra de senha nova.
- */
-function gerarSenhaInicial(): string {
-  const letras = "abcdefghjkmnpqrstuvwxyz";
-  const numeros = "23456789";
-  const sorteio = new Uint32Array(8);
-  crypto.getRandomValues(sorteio);
-  const parte = (alfabeto: string, de: number, ate: number) =>
-    Array.from(sorteio.slice(de, ate), (n) => alfabeto[n % alfabeto.length]).join("");
-  return `${parte(letras, 0, 5)}${parte(numeros, 5, 8)}`;
-}
 
 type Criado = { nome: string; email: string; senha: string | null };
 
@@ -43,7 +30,7 @@ export function ModalNovoUsuario({
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [cargoId, setCargoId] = useState("");
-  const [senha, setSenha] = useState(gerarSenhaInicial);
+  const [senha, setSenha] = useState(gerarSenhaSugerida);
   const [mostrarSenha, setMostrarSenha] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -210,7 +197,7 @@ export function ModalNovoUsuario({
                       {mostrarSenha ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
-                  <Button type="button" variant="outline" className="h-11" onClick={() => setSenha(gerarSenhaInicial())}>
+                  <Button type="button" variant="outline" className="h-11" onClick={() => setSenha(gerarSenhaSugerida())}>
                     <RefreshCw className="h-4 w-4" />
                     Gerar
                   </Button>

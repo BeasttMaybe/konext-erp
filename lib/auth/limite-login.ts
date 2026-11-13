@@ -55,7 +55,7 @@ export function mensagemDeBloqueio(liberaEm: Date, agora: Date): string {
   const minutos = Math.max(1, Math.ceil((liberaEm.getTime() - agora.getTime()) / 60000));
   return `Muitas tentativas erradas. Por segurança, o acesso fica pausado por ${minutos} ${
     minutos === 1 ? "minuto" : "minutos"
-  }. Se esqueceu a senha, peça uma nova ao administrador da loja.`;
+  }. Se esqueceu a senha, toque em "Esqueci minha senha".`;
 }
 
 /** Primeiro IP de x-forwarded-for (o do cliente, na Vercel), ou x-real-ip. */

@@ -35,6 +35,9 @@ export const ACOES_AUDITORIA = {
   DEFINIR_TECNICOS_OS: "DEFINIR_TECNICOS_OS",
   // Fase 1D-3 — tela de Usuarios e Cargos.
   CRIAR_USUARIO: "CRIAR_USUARIO",
+  // Recuperacao de senha: pelo administrador e pelo link do e-mail.
+  GERAR_NOVA_SENHA_USUARIO: "GERAR_NOVA_SENHA_USUARIO",
+  REDEFINIR_SENHA_PELO_LINK: "REDEFINIR_SENHA_PELO_LINK",
   // Logo enviada como arquivo (tela Empresa).
   ATUALIZAR_LOGO_EMPRESA: "ATUALIZAR_LOGO_EMPRESA",
   DESATIVAR_USUARIO: "DESATIVAR_USUARIO",

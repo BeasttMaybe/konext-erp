@@ -39,6 +39,8 @@ const CONFERE_QUEM_CHAMA =
 const SEM_SESSAO_DE_PROPOSITO: Record<string, string> = {
   "auth.ts:login": "e a porta de entrada: confere e-mail e senha",
   "auth.ts:logout": "so revoga a sessao do proprio cookie; sem cookie nao faz nada",
+  "recuperar-senha.ts:pedirLinkDeRecuperacao": "so manda link para o e-mail da propria conta; resposta igual com ou sem conta",
+  "recuperar-senha.ts:redefinirSenhaPeloLink": "autorizada pelo token do link (hash, 30 min, uso unico)",
   "foto-pelo-celular.ts:abrirLinkDeFoto": "autorizada pelo segredo do link (hash, validade, revogacao)",
   "foto-pelo-celular.ts:enviarFotoPeloCelular": "autorizada pelo segredo do link (hash, validade, revogacao)",
 };
