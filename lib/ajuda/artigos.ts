@@ -446,6 +446,27 @@ export const ARTIGOS_AJUDA: readonly ArtigoAjuda[] = [
     palavrasChave: ["pagar", "despesa", "boleto", "conta"],
   },
   {
+    slug: "taxas-de-cartao",
+    titulo: "Ver quanto foi gasto em taxas de cartão",
+    categoria: "Financeiro",
+    resumo: "A taxa da maquininha de cada venda já sai das saídas e do resultado do mês.",
+    secoes: [
+      {
+        passos: [
+          "Vá em Financeiro → Fluxo e relatórios → \"Taxas de cartão\".",
+          "Veja o total gasto no mês, quanto foi vendido no cartão e a taxa média.",
+          "A tabela separa por débito, crédito à vista e crédito parcelado (2x, 3x…).",
+        ],
+      },
+    ],
+    dicas: [
+      "As taxas vêm de Configurações → PDV e Caixa → Taxas e vencimentos. Se a maquininha mudar de preço, atualize lá.",
+      "Venda estornada não conta taxa.",
+    ],
+    destino: { rotulo: "Ir para Fluxo e relatórios", href: "/financeiro/fluxo" },
+    palavrasChave: ["taxa", "cartão", "maquininha", "débito", "crédito", "parcelado", "desconto"],
+  },
+  {
     slug: "metas",
     titulo: "Criar metas",
     categoria: "Financeiro",
