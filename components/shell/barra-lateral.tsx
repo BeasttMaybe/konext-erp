@@ -8,6 +8,7 @@ import {
   DollarSign,
   Flag,
   LayoutDashboard,
+  LifeBuoy,
   LogOut,
   Package,
   ShoppingCart,
@@ -38,6 +39,7 @@ const ICONES: Record<string, LucideIcon> = {
   OS: Wrench,
   Financeiro: DollarSign,
   Metas: Flag,
+  Ajuda: LifeBuoy,
 };
 
 // useLayoutEffect avisa no console durante SSR (não existe DOM lá pra medir) —

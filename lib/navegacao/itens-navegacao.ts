@@ -85,6 +85,8 @@ export const ITENS_NAVEGACAO: readonly ItemNavegacao[] = [
     ],
   },
   { label: "Metas", path: "/metas", iconKey: "Metas" },
+  // Guias passo a passo das tarefas do sistema (lib/ajuda/artigos.ts).
+  { label: "Ajuda", path: "/ajuda", iconKey: "Ajuda" },
 ];
 
 type LeituraParametros = Pick<URLSearchParams, "get">;
