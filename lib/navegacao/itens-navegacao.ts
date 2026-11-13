@@ -1,4 +1,5 @@
 import type { Permissao } from "@/lib/auth/permissoes";
+import { moduloDaRota, type IdModulo } from "@/lib/modulos/catalogo";
 
 export type SubItemNavegacao = {
   label: string;
@@ -203,4 +204,18 @@ export function caminhoDoItem(item: ItemNavegacao, filhosFiltrados: readonly Sub
   if (!item.filhos?.length) return item.path;
   if (filhosFiltrados.some((filho) => filho.path === item.path)) return item.path;
   return filhosFiltrados[0]?.path ?? item.path;
+}
+
+/**
+ * O menu da loja: sem os itens (e submenus) de modulos nao contratados
+ * (lib/modulos/catalogo.ts). O modulo de cada link vem da propria rota.
+ */
+export function itensDaNavegacao(modulosAtivos: ReadonlySet<IdModulo>): readonly ItemNavegacao[] {
+  const liberado = (path: string) => {
+    const modulo = moduloDaRota(path.split("?")[0] ?? path);
+    return modulo === null || modulosAtivos.has(modulo);
+  };
+  return ITENS_NAVEGACAO.filter((item) => liberado(item.path)).map((item) =>
+    item.filhos ? { ...item, filhos: item.filhos.filter((filho) => liberado(filho.path)) } : item
+  );
 }

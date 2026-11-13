@@ -2,6 +2,7 @@ import { CircleAlert, ShieldAlert, ShieldCheck } from "lucide-react";
 
 import type { EstadoDoSistema as Estado } from "@/lib/sistema/estado";
 import type { ErroRecente } from "@/lib/sistema/registrar-erro";
+import { MODULOS, type IdModulo } from "@/lib/modulos/catalogo";
 import { FUSO_HORARIO_PADRAO } from "@/lib/datas";
 
 function quando(iso: string): string {
@@ -36,9 +37,12 @@ const ROTULO_DO_AMBIENTE: Record<string, string> = {
 export function EstadoDoSistema({
   estado,
   erros,
+  modulosAtivos,
 }: {
   estado: Estado;
   erros?: { total24h: number; ultimos: ErroRecente[] } | null;
+  /** Modulos contratados (lib/modulos/catalogo.ts); ausente = nao mostra. */
+  modulosAtivos?: readonly IdModulo[];
 }) {
   const ambiente = estado.ambiente ? (ROTULO_DO_AMBIENTE[estado.ambiente] ?? estado.ambiente) : null;
 
@@ -77,6 +81,30 @@ export function EstadoDoSistema({
           </p>
         ) : null}
       </div>
+
+      {modulosAtivos ? (
+        <div className="flex flex-col gap-1.5 text-xs text-kx-legenda">
+          <span className="font-semibold text-kx-texto-2">
+            Módulos do seu plano ({MODULOS.filter((m) => modulosAtivos.includes(m.id)).length} de {MODULOS.length})
+          </span>
+          <ul className="flex flex-wrap gap-1.5" aria-label="Módulos do plano">
+            {MODULOS.map((modulo) => {
+              const ativo = modulosAtivos.includes(modulo.id);
+              return (
+                <li
+                  key={modulo.id}
+                  className={`rounded-full border px-2.5 py-0.5 ${
+                    ativo ? "border-kx-painel-borda bg-kx-painel text-kx-texto" : "border-dashed border-kx-campo-borda text-kx-legenda line-through"
+                  }`}
+                  title={ativo ? modulo.descricao : `${modulo.nome}: não contratado`}
+                >
+                  {modulo.nome}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
 
       {erros && erros.ultimos.length > 0 ? (
         <details className="text-xs text-kx-legenda">

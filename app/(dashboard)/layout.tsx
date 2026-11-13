@@ -57,7 +57,7 @@ export default async function LayoutDashboard({
   const perfil = await carregarPerfilDaMoldura();
 
   return (
-    <ProvedorPermissoes papel={papel} permissoes={permissoes}>
+    <ProvedorPermissoes papel={papel} permissoes={permissoes} modulos={contexto.modulosAtivos ? [...contexto.modulosAtivos] : undefined}>
       {/* O slug sai do contexto que já foi resolvido acima — nenhuma consulta
           a mais. É o que permite os botões de link público montarem o
           endereço de rastreio sem ir ao servidor a cada clique. */}

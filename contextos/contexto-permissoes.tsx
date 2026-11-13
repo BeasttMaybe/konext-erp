@@ -2,10 +2,13 @@
 
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import type { PapelEmpresa, Permissao } from "@/lib/auth/permissoes";
+import { IDS_DE_MODULO, type IdModulo } from "@/lib/modulos/catalogo";
 
 type ContextoPermissoesValor = {
   papel: PapelEmpresa;
   permissoes: ReadonlySet<Permissao>;
+  /** Modulos contratados pela loja — para o menu (lib/modulos/catalogo.ts). */
+  modulos: ReadonlySet<IdModulo>;
 };
 
 const ContextoPermissoes = createContext<ContextoPermissoesValor | undefined>(undefined);
@@ -18,15 +21,17 @@ const ContextoPermissoes = createContext<ContextoPermissoesValor | undefined>(un
 export function ProvedorPermissoes({
   papel,
   permissoes,
+  modulos = IDS_DE_MODULO,
   children,
 }: {
   papel: PapelEmpresa;
   permissoes: readonly Permissao[];
+  modulos?: readonly IdModulo[];
   children: ReactNode;
 }) {
   const valor = useMemo<ContextoPermissoesValor>(
-    () => ({ papel, permissoes: new Set(permissoes) }),
-    [papel, permissoes]
+    () => ({ papel, permissoes: new Set(permissoes), modulos: new Set(modulos) }),
+    [papel, permissoes, modulos]
   );
 
   return <ContextoPermissoes.Provider value={valor}>{children}</ContextoPermissoes.Provider>;

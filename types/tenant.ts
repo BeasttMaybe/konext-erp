@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import type { PapelEmpresa, Permissao } from "@/lib/auth/permissoes";
+import type { IdModulo } from "@/lib/modulos/catalogo";
 
 export type UsuarioOperacionalTenant = {
   id: string;
@@ -35,6 +36,11 @@ export type ContextoTenantSeguro = {
    * real de exigirContextoTenant sempre preenche.
    */
   permissoes?: ReadonlySet<Permissao>;
+  /**
+   * Modulos contratados pela loja (lib/modulos/catalogo.ts). `permissoes`
+   * acima ja vem sem as dos modulos desligados.
+   */
+  modulosAtivos?: ReadonlySet<IdModulo>;
   /**
    * Fuso horário da loja (`Configuracao.fusoHorario`, Fase 2A-1), resolvido
    * uma vez por requisicao em exigirContextoTenant — ver lib/datas.ts, o

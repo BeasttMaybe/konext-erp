@@ -23,7 +23,7 @@ import {
   caminhoDoItem,
   filhosVisiveis,
   indiceFilhoAtivo,
-  ITENS_NAVEGACAO,
+  itensDaNavegacao,
   itemEstaAtivo,
 } from "@/lib/navegacao/itens-navegacao";
 import { logout } from "@/app/actions/auth";
@@ -101,7 +101,7 @@ const useEfeitoDeLayout = typeof window !== "undefined" ? useLayoutEffect : useE
 export function BarraLateral() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { permissoes } = usePermissoes();
+  const { permissoes, modulos } = usePermissoes();
   // Vem pronto do servidor (ver contextos/contexto-perfil.tsx). Antes esta
   // barra buscava o logo num efeito, depois de montada: uma requisicao a mais
   // por tela, e a marca "K" piscando antes de o logo aparecer.
@@ -117,7 +117,7 @@ export function BarraLateral() {
   // Só os itens de fato renderizados (filtro de permissão já aplicado) —
   // o índice do ativo tem que vir DAQUI, nunca do array bruto, senão um
   // item escondido por permissão desalinha o indicador de uma posição.
-  const itensRenderizados = ITENS_NAVEGACAO.map((item) => ({
+  const itensRenderizados = itensDaNavegacao(modulos).map((item) => ({
     item,
     filhos: filhosVisiveis(item, temAlgumaPermissao),
   })).filter(({ item, filhos }) => !(item.filhos?.length && filhos.length === 0));

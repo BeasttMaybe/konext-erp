@@ -26,7 +26,10 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/contextos/contexto-permissoes", () => ({
-  usePermissoes: () => ({ permissoes: new Set(["financeiro.ver", "dashboard.financeiro", "estoque.editar"]) }),
+  usePermissoes: () => ({
+    permissoes: new Set(["financeiro.ver", "dashboard.financeiro", "estoque.editar"]),
+    modulos: new Set(["os", "estoque", "pdv", "vendas", "propostas", "financeiro", "fiscal", "metas"]),
+  }),
 }));
 
 vi.mock("@/app/actions/auth", () => ({ logout: vi.fn() }));
