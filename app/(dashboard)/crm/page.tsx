@@ -12,6 +12,7 @@ import {
   Search,
   SquarePen,
   Trash2,
+  UserX,
   UserPlus,
   Users,
 } from "lucide-react";
@@ -61,6 +62,7 @@ import {
   atualizarCliente,
   criarCliente,
   excluirCliente,
+  anonimizarCliente,
   listarClientesPaginado,
 } from "@/app/actions/crm";
 import type { FormCliente } from "@/lib/validations/crm";
@@ -229,6 +231,8 @@ function ContactsPageContent() {
   const [editingClient, setEditingClient] = useState<ClientRecord | null>(null);
   const [profileClient, setProfileClient] = useState<ClientRecord | null>(null);
   const [clientToDelete, setClientToDelete] = useState<ClientRecord | null>(null);
+  const [clienteParaAnonimizar, setClienteParaAnonimizar] = useState<ClientRecord | null>(null);
+  const [anonimizando, setAnonimizando] = useState(false);
   const podeExcluirCliente = useTemPermissao("crm.excluir");
   const podeEditarCliente = useTemPermissao("crm.editar");
 
@@ -368,6 +372,19 @@ function ContactsPageContent() {
     toast.success("Contato excluído com sucesso!");
   };
 
+  const confirmarAnonimizacao = async (clientId: string) => {
+    setAnonimizando(true);
+    const result = await anonimizarCliente(clientId);
+    setAnonimizando(false);
+    if (!result.sucesso) {
+      toast.error(result.mensagem);
+      return;
+    }
+    setClienteParaAnonimizar(null);
+    setReloadToken((previous) => previous + 1);
+    toast.success(result.mensagem);
+  };
+
   const openNewContact = () => {
     setEditingClient(null);
     setIsClientModalOpen(true);
@@ -414,6 +431,10 @@ function ContactsPageContent() {
             >
               <Trash2 className="h-4 w-4 mr-2" />
               Excluir
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setClienteParaAnonimizar(client)}>
+              <UserX className="h-4 w-4 mr-2" />
+              Apagar dados pessoais (LGPD)
             </DropdownMenuItem>
           </>
         ) : null}
@@ -819,6 +840,46 @@ function ContactsPageContent() {
               onClick={() => clientToDelete && handleDeleteClient(clientToDelete.id)}
             >
               {deletingClientId ? "Excluindo..." : "Confirmar exclusão"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={Boolean(clienteParaAnonimizar)}
+        onOpenChange={(open) => {
+          if (!open && !anonimizando) setClienteParaAnonimizar(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Apagar os dados pessoais deste cliente?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>
+                  Use quando <span className="font-semibold">{clienteParaAnonimizar?.nomeRazaoSocial}</span> pedir para
+                  apagar os dados dele (LGPD).
+                </p>
+                <p>
+                  Nome, CPF/CNPJ, telefone, e-mail, endereço e observações são apagados, e a senha dos aparelhos nas OS
+                  dele também. O histórico de OS, vendas e notas fiscais continua, sem identificar a pessoa — a loja
+                  precisa guardá-lo por garantia e por obrigação fiscal.
+                </p>
+                <p className="font-semibold text-foreground">Não tem como desfazer.</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={anonimizando}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={anonimizando}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(evento) => {
+                evento.preventDefault();
+                if (clienteParaAnonimizar) void confirmarAnonimizacao(clienteParaAnonimizar.id);
+              }}
+            >
+              {anonimizando ? "Apagando..." : "Apagar dados pessoais"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

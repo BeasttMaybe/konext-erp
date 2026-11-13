@@ -24,7 +24,8 @@ import { COOKIE_SESSAO_CENTRAL, COOKIE_SESSAO_LEGADA } from "@/lib/auth/cookies"
 // O que NAO entra aqui: "/rastreio/<id>", a rota antiga. Ela nao sabe de que
 // loja e a OS e hoje so redireciona quem esta logado para "/r" (ver
 // app/rastreio/[id]/page.tsx).
-const ROTAS_PUBLICAS = ["/login", "/foto", "/r"] as const;
+// "/termos" e "/privacidade": documentos legais, linkados da tela de login.
+const ROTAS_PUBLICAS = ["/login", "/foto", "/r", "/termos", "/privacidade"] as const;
 
 function rotaPublica(pathname: string): boolean {
   return ROTAS_PUBLICAS.some((rota) => pathname === rota || pathname.startsWith(`${rota}/`));
