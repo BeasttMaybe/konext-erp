@@ -1,6 +1,6 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { prismaCentral } from "@/lib/central/prisma-central";
@@ -11,6 +11,8 @@ import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { paraMensagemSegura } from "@/lib/erros";
+import { ipDaRequisicao, mensagemDeBloqueio } from "@/lib/auth/limite-login";
+import { bloqueioDoLogin, registrarFalhaDeLogin, zerarFalhasDoEmail } from "@/lib/auth/tentativas-login";
 
 type LoginState = {
   erro: string | null;
@@ -153,15 +155,28 @@ export async function login(
     return { erro: "Informe e-mail e senha." };
   }
 
+  // Limite de tentativas (lib/auth/limite-login.ts): conferido ANTES da
+  // senha, para que um e-mail travado nao sirva nem para testar senhas.
+  const ip = ipDaRequisicao(await headers());
+  const bloqueio = await bloqueioDoLogin(email, ip);
+  if (bloqueio.bloqueado) {
+    console.error("[auth] login pausado por excesso de tentativas");
+    return { erro: mensagemDeBloqueio(bloqueio.liberaEm, new Date()) };
+  }
+
   const resultado = await autenticarCentral(email, senha, manterConectado);
 
   if (!resultado.autenticado) {
+    if (resultado.motivo === "usuario_inexistente" || resultado.motivo === "senha_invalida") {
+      await registrarFalhaDeLogin(email, ip);
+    }
     // Log so com o motivo — nunca e-mail ou senha — para investigar sem
     // guardar credencial nenhuma no log do servidor.
     console.error("[auth] falha de login", { motivo: resultado.motivo });
     return { erro: ERRO_CREDENCIAIS };
   }
 
+  await zerarFalhasDoEmail(email);
   redirect("/");
 }
 
