@@ -8,7 +8,6 @@ import { Label } from "@/components/ui/label";
 import { PilulaStatus } from "@/components/ui/pilula-status";
 import type { UseFormRegister, UseFormSetValue } from "react-hook-form";
 import {
-  CAMPOS_EMPRESA_PLANEJADOS,
   formatarCepVisual,
   formatarCnpjVisual,
   formatarTelefoneVisual,
@@ -30,7 +29,7 @@ type PropsPainelEmpresa = {
  * Empresa (Fase 3-2E, Parte 2) — referência: referencia-configuracoes-
  * empresa.html. Três campos que a referência mostra não existem no
  * modelo real e por isso NÃO foram inventados aqui: "E-mail de contato"
- * (já sinalizado como planejado — CAMPOS_EMPRESA_PLANEJADOS.contato),
+ * (ainda sem campo proprio),
  * "Mostrar endereço no link de rastreio" (nenhum campo correspondente em
  * DadosConfiguracoes). A logo é enviada como arquivo (EnvioDaLogo), com o
  * link de imagem como alternativa.
@@ -133,18 +132,6 @@ export function PainelEmpresa({
             </div>
           </div>
 
-          {CAMPOS_EMPRESA_PLANEJADOS.contato.length > 0 && (
-            <div className="rounded-kx-botao border border-dashed border-kx-campo-borda p-3">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-kx-legenda">Planejado para próxima etapa</p>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {CAMPOS_EMPRESA_PLANEJADOS.contato.map((campo) => (
-                  <PilulaStatus key={campo} variante="neutro">
-                    {campo}
-                  </PilulaStatus>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
 
         <div className="flex flex-col gap-5 rounded-kx-cartao border border-kx-painel-borda bg-kx-cartao p-4 md:p-5">
@@ -208,18 +195,6 @@ export function PainelEmpresa({
               `montarEnderecoEmpresa`): tirar da tela para de criar trabalho
               dobrado sem encolher o endereço de ninguém. */}
 
-          {CAMPOS_EMPRESA_PLANEJADOS.endereco.length > 0 && (
-            <div className="rounded-kx-botao border border-dashed border-kx-campo-borda p-3">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-kx-legenda">Planejado para próxima etapa</p>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {CAMPOS_EMPRESA_PLANEJADOS.endereco.map((campo) => (
-                  <PilulaStatus key={campo} variante="neutro">
-                    {campo}
-                  </PilulaStatus>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
 
         <PreviewIdentidadeEmpresa

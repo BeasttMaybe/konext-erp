@@ -9,7 +9,7 @@ export function DocumentoLegal({ titulo, secoes }: { titulo: string; secoes: Sec
       <article className="mx-auto flex w-full max-w-3xl flex-col gap-6">
         <header className="flex flex-col gap-2">
           <Link href="/login" className="text-sm font-semibold" style={{ color: "var(--kx-link)" }}>
-            ← Konext ERP
+            ← TechOS ERP
           </Link>
           <h1 className="text-3xl font-extrabold tracking-tight">{titulo}</h1>
           <p className="text-sm" style={{ color: "var(--kx-legenda)" }}>

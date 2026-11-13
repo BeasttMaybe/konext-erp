@@ -13,7 +13,7 @@ import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { temPermissao } from "@/lib/auth/permissoes";
 import { AcessoNegado } from "@/components/ui/acesso-negado";
 
-export const metadata = { title: "Contas a Receber | Konext" };
+export const metadata = { title: "Contas a Receber | TechOS" };
 
 interface PageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;

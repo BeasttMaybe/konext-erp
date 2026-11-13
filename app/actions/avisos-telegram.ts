@@ -240,7 +240,7 @@ export async function enviarAvisoDeTeste(): Promise<ResultadoDeAvisos> {
     const resultado = await enviarMensagemNoTelegram({
       chatId,
       texto:
-        "Konext — teste de aviso\n\nSe você está lendo isto, os avisos de vencimento vão chegar aqui: 3 dias antes, 2, 1 e no dia.",
+        "TechOS — teste de aviso\n\nSe você está lendo isto, os avisos de vencimento vão chegar aqui: 3 dias antes, 2, 1 e no dia.",
     });
 
     return resultado.enviado

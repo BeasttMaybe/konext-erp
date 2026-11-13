@@ -66,7 +66,7 @@ export const SECOES_CONFIGURACOES: ItemSecaoConfiguracoes[] = [
   {
     id: "bling",
     rotulo: "Bling",
-    descricao: "Trazer para o Konext as notas emitidas no Bling. Somente leitura.",
+    descricao: "Trazer para o TechOS as notas emitidas no Bling. Somente leitura.",
   },
   {
     id: "usuarios",

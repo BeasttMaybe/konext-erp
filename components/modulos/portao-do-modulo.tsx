@@ -22,7 +22,7 @@ export async function PortaoDoModulo({ modulo, children }: { modulo: IdModulo; c
       </div>
       <h1 className="text-lg font-bold text-kx-texto">{dados?.nome ?? "Este módulo"} não está no seu plano</h1>
       <p className="max-w-md text-sm text-kx-texto-2">
-        {dados?.descricao} Para liberar, fale com a Konext.
+        {dados?.descricao} Para liberar, fale com o suporte do TechOS.
       </p>
     </div>
   );

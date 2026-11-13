@@ -1,7 +1,7 @@
 import { DocumentoLegal } from "../documento-legal";
 import { POLITICA_DE_PRIVACIDADE } from "@/lib/legal/documentos";
 
-export const metadata = { title: "Política de Privacidade - Konext ERP" };
+export const metadata = { title: "Política de Privacidade - TechOS ERP" };
 
 /** Pagina publica (proxy.ts). Texto em lib/legal/documentos.ts. */
 export default function PrivacidadePage() {

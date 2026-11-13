@@ -105,8 +105,10 @@ export function BarraLateral() {
   // Vem pronto do servidor (ver contextos/contexto-perfil.tsx). Antes esta
   // barra buscava o logo num efeito, depois de montada: uma requisicao a mais
   // por tela, e a marca "K" piscando antes de o logo aparecer.
-  const { logoUrl } = usePerfilDaMoldura();
+  const { logoUrl, nomeDaLoja } = usePerfilDaMoldura();
   const [falhaLogo, setFalhaLogo] = useState(false);
+  // Descoberto quando a imagem carrega: horizontal ganha a largura da barra.
+  const [logoLarga, setLogoLarga] = useState(false);
   const [topoIndicador, setTopoIndicador] = useState<number | null>(null);
   const refsItens = useRef<Array<HTMLAnchorElement | null>>([]);
   const temAlgumaPermissao = useMemo(
@@ -159,30 +161,53 @@ export function BarraLateral() {
     <aside className="relative z-kx-barra-lateral hidden w-[72px] shrink-0 flex-col bg-kx-painel lg:flex xl:w-[248px]">
       <div className="flex h-16 shrink-0 items-center justify-center gap-2.5 px-2 xl:h-20 xl:justify-start xl:px-4">
         {logoUrl && !falhaLogo ? (
-          // A logo ocupa a largura da barra, numa placa clara. Antes era um
-          // quadrado de 36px com respiro interno: uma logo horizontal (o
-          // formato mais comum) virava um risco ilegivel. A placa clara e
-          // porque logo e desenhada para fundo branco — logo escura sumia
-          // no fundo escuro do sistema. Com logo, o nome "Konext" sai: a
-          // marca na barra passa a ser a da loja.
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-kx-botao bg-kx-papel p-1 xl:h-14 xl:w-full xl:max-w-[212px] xl:px-3 xl:py-1.5">
-            {/* eslint-disable-next-line @next/next/no-img-element -- URL de logo enviada pelo tenant, fora do domínio otimizado pelo next/image. */}
-            <img
-              src={logoUrl}
-              alt="Logo da empresa"
-              className="h-full w-full object-contain"
-              onError={() => setFalhaLogo(true)}
-            />
-          </span>
+          logoLarga ? (
+            // Logo horizontal (mais que ~1,6x mais larga que alta): ocupa a
+            // largura da barra numa placa clara, sem texto ao lado — o
+            // proprio desenho ja traz o nome.
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-kx-botao bg-kx-papel p-1 xl:h-12 xl:w-full xl:max-w-[212px] xl:px-3 xl:py-1">
+              {/* eslint-disable-next-line @next/next/no-img-element -- URL de logo enviada pelo tenant, fora do domínio otimizado pelo next/image. */}
+              <img src={logoUrl} alt="Logo da empresa" className="h-full w-full object-contain" onError={() => setFalhaLogo(true)} />
+            </span>
+          ) : (
+            // Logo quadrada ou vertical (foto, simbolo): um quadrado que ela
+            // preenche, com o nome da loja ao lado. Antes ia numa placa larga
+            // e ficava minuscula no meio de um retangulo branco.
+            <>
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-kx-botao bg-kx-papel xl:h-12 xl:w-12">
+                {/* eslint-disable-next-line @next/next/no-img-element -- URL de logo enviada pelo tenant, fora do domínio otimizado pelo next/image. */}
+                <img
+                  src={logoUrl}
+                  alt="Logo da empresa"
+                  className="h-full w-full object-contain"
+                  onError={() => setFalhaLogo(true)}
+                  onLoad={(evento) => {
+                    const { naturalWidth, naturalHeight } = evento.currentTarget;
+                    if (naturalHeight > 0 && naturalWidth / naturalHeight > 1.6) setLogoLarga(true);
+                  }}
+                />
+              </span>
+              <span className="hidden min-w-0 flex-col xl:flex">
+                <span className="truncate text-sm font-extrabold leading-tight tracking-tight text-kx-texto">
+                  {nomeDaLoja || "Minha loja"}
+                </span>
+                <span className="text-[11px] leading-tight text-kx-legenda">TechOS ERP</span>
+              </span>
+            </>
+          )
         ) : (
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-kx-botao bg-kx-primaria text-base font-extrabold text-primary-foreground">
-            K
-          </div>
+          <>
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-kx-botao bg-kx-primaria text-base font-extrabold text-primary-foreground">
+              T
+            </div>
+            <span className="hidden min-w-0 flex-col xl:flex">
+              <span className="truncate text-base font-extrabold leading-tight tracking-tight text-kx-texto">
+                {nomeDaLoja || "TechOS"}
+              </span>
+              <span className="text-[11px] leading-tight text-kx-legenda">{nomeDaLoja ? "TechOS ERP" : "Assistência técnica"}</span>
+            </span>
+          </>
         )}
-        <span className={logoUrl && !falhaLogo ? "hidden" : "hidden flex-col xl:flex"}>
-          <span className="text-base font-extrabold leading-tight tracking-tight text-kx-texto">Konext</span>
-          <span className="text-[11px] leading-tight text-kx-legenda">Assistência técnica</span>
-        </span>
       </div>
 
       <nav aria-label="Navegação principal" className="relative flex-1 overflow-y-auto pb-kx-5 pl-3 pt-kx-5">

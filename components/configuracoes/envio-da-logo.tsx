@@ -101,7 +101,7 @@ export function EnvioDaLogo({
           // eslint-disable-next-line @next/next/no-img-element -- logo da propria loja (enviada ou link externo).
           <img src={logoUrl} alt="Logo da empresa" className="h-full w-full object-contain p-1.5" onError={() => setFalhaPrevia(logoUrl)} />
         ) : (
-          (nomeFantasia || "K").charAt(0).toUpperCase()
+          (nomeFantasia || "T").charAt(0).toUpperCase()
         )}
       </div>
 

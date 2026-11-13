@@ -29,7 +29,7 @@ import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes
 export type ResultadoPedido = { ok: true; mensagem: string } | { ok: false; erro: string };
 
 const RESPOSTA_PADRAO =
-  "Se este e-mail tiver conta no Konext, enviamos um link para criar uma senha nova. Confira a caixa de entrada e o spam — o link vale 30 minutos.";
+  "Se este e-mail tiver conta no TechOS, enviamos um link para criar uma senha nova. Confira a caixa de entrada e o spam — o link vale 30 minutos.";
 
 /**
  * Responde SEMPRE a mesma coisa, com ou sem conta, para nao revelar quais
@@ -79,9 +79,9 @@ export async function pedirLinkDeRecuperacao(emailInformado: string): Promise<Re
       const nome = usuario.nome.split(" ")[0] ?? usuario.nome;
       await enviarEmail({
         para: email,
-        assunto: "Konext ERP — criar uma senha nova",
-        texto: `Olá, ${nome}.\n\nRecebemos um pedido para criar uma senha nova no Konext ERP. Use o link abaixo (vale 30 minutos, uma vez só):\n\n${link}\n\nSe não foi você, ignore este e-mail: sua senha continua a mesma.`,
-        html: `<p>Olá, ${escaparHtml(nome)}.</p><p>Recebemos um pedido para criar uma senha nova no Konext ERP.</p><p><a href="${escaparHtml(link)}">Criar minha senha nova</a></p><p>O link vale 30 minutos e funciona uma vez só.</p><p>Se não foi você, ignore este e-mail: sua senha continua a mesma.</p>`,
+        assunto: "TechOS ERP — criar uma senha nova",
+        texto: `Olá, ${nome}.\n\nRecebemos um pedido para criar uma senha nova no TechOS ERP. Use o link abaixo (vale 30 minutos, uma vez só):\n\n${link}\n\nSe não foi você, ignore este e-mail: sua senha continua a mesma.`,
+        html: `<p>Olá, ${escaparHtml(nome)}.</p><p>Recebemos um pedido para criar uma senha nova no TechOS ERP.</p><p><a href="${escaparHtml(link)}">Criar minha senha nova</a></p><p>O link vale 30 minutos e funciona uma vez só.</p><p>Se não foi você, ignore este e-mail: sua senha continua a mesma.</p>`,
       });
     } catch (erro) {
       console.error("[recuperar-senha] falha no pedido", erro instanceof Error ? erro.message : erro);

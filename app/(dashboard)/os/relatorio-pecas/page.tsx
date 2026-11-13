@@ -6,7 +6,7 @@ import { deSearchParams } from "@/lib/filtro-periodo";
 import { AcessoNegado } from "@/components/ui/acesso-negado";
 import { FiltroPeriodoPagina } from "@/components/ui/filtro-periodo-pagina";
 
-export const metadata = { title: "Relatório de peças | Konext" };
+export const metadata = { title: "Relatório de peças | TechOS" };
 
 function formatarPercentual(valor: number | null): string {
   if (valor === null) return "—";

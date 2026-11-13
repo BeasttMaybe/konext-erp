@@ -16,7 +16,7 @@ function getSingleParam(
 }
 
 export const metadata = {
-  title: "Novo Pedido de Venda - Konext ERP",
+  title: "Novo Pedido de Venda - TechOS ERP",
   description: "Layout estático para criação de pedido de venda.",
 };
 

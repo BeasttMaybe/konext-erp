@@ -30,19 +30,6 @@ export type ResumoEmpresaDocumentos = {
   status: "completa" | "parcial" | "pendente";
 };
 
-export const CAMPOS_EMPRESA_PLANEJADOS = {
-  contato: ["WhatsApp", "E-mail", "Site"],
-  endereco: ["Complemento"],
-} as const;
-
-export const CAMPOS_DOCUMENTOS_PLANEJADOS = [
-  "Mensagem padrão da proposta",
-  "Mensagem padrão da OS",
-  "Mensagem padrão do termo de garantia",
-  "Rodapé padrão dos documentos",
-  "Cabeçalho padrão dos documentos",
-] as const;
-
 function limparTexto(valor: string | null | undefined): string {
   return String(valor ?? "").trim();
 }

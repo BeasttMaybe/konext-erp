@@ -20,7 +20,7 @@ export default async function LoginPage() {
             <ShieldCheck className="h-5 w-5" aria-hidden />
           </span>
           <div>
-            <h1 className="text-lg font-extrabold">Konext Master</h1>
+            <h1 className="text-lg font-extrabold">TechOS Master</h1>
             <p className="text-xs text-legenda">{primeiroAcesso ? "Primeiro acesso" : "Acesso restrito"}</p>
           </div>
         </div>

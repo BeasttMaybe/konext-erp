@@ -18,7 +18,7 @@ import { EnvioPeloCelular } from "@/components/os/fotos/envio-pelo-celular";
  * acesso; um proxy que o guarde entrega o acesso depois de revogado.
  */
 export const metadata: Metadata = {
-  title: "Enviar fotos | Konext",
+  title: "Enviar fotos | TechOS",
   robots: { index: false, follow: false, nocache: true },
 };
 

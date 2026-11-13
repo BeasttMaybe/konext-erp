@@ -12,7 +12,7 @@ export function mensagemDeErroDaCamera(erro: unknown): string {
   switch (nome) {
     case "NotAllowedError":
     case "SecurityError":
-      return "O acesso à câmera foi negado. No iPhone: Ajustes → Safari → Câmera → Permitir (ou, com o app instalado, Ajustes → Konext → Câmera). Depois, abra o leitor de novo.";
+      return "O acesso à câmera foi negado. No iPhone: Ajustes → Safari → Câmera → Permitir (ou, com o app instalado, Ajustes → TechOS → Câmera). Depois, abra o leitor de novo.";
     case "NotFoundError":
     case "OverconstrainedError":
       return "Nenhuma câmera foi encontrada neste aparelho.";

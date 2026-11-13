@@ -350,7 +350,7 @@ function getSingleParam(
 }
 
 export const metadata = {
- title: "Vendas - Konext ERP",
+ title: "Vendas - TechOS ERP",
  description: "Todas as vendas da loja, do balcão ao pedido.",
 };
 

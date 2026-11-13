@@ -45,7 +45,7 @@ export const ARTIGOS_AJUDA: readonly ArtigoAjuda[] = [
   // ── Primeiros passos ────────────────────────────────────────────────
   {
     slug: "instalar-no-celular",
-    titulo: "Instalar o Konext no celular",
+    titulo: "Instalar o TechOS no celular",
     categoria: "Primeiros passos",
     resumo: "Deixe o sistema como um aplicativo na tela inicial do iPhone ou do Android.",
     secoes: [
@@ -55,7 +55,7 @@ export const ARTIGOS_AJUDA: readonly ArtigoAjuda[] = [
           "Abra o endereço do sistema no Safari (precisa ser o Safari).",
           "Toque no botão Compartilhar (o quadrado com a seta para cima).",
           "Escolha \"Adicionar à Tela de Início\" e confirme em \"Adicionar\".",
-          "Abra o Konext pelo ícone novo: ele abre em tela cheia, como um aplicativo.",
+          "Abra o TechOS pelo ícone novo: ele abre em tela cheia, como um aplicativo.",
         ],
       },
       {

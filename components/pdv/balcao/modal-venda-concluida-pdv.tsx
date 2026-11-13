@@ -1,7 +1,6 @@
 "use client";
 
-import { CheckCircle, FileText, MessageCircle, Printer } from "lucide-react";
-import { toast } from "sonner";
+import { CheckCircle, MessageCircle, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { formatarMoeda } from "@/lib/pdv/formatacao-pagamento-pdv";
@@ -83,7 +82,7 @@ export function ModalVendaConcluidaPdv({
               onClick={() =>
                 window.open(
                   `https://wa.me/?text=${encodeURIComponent(
-                    `Ola! Segue o comprovante da sua compra na Konext. Total: ${formatarMoeda(totalVendaFinalizada)}${
+                    `Olá! Segue o comprovante da sua compra. Total: ${formatarMoeda(totalVendaFinalizada)}${
                       vendaIdGerada ? ` | Venda: #${vendaIdGerada.slice(0, 8)}` : ""
                     }`
                   )}`,
@@ -95,10 +94,6 @@ export function ModalVendaConcluidaPdv({
               Enviar pelo WhatsApp
             </Button>
 
-            <Button type="button" variant="secondary" className="w-full" onClick={() => toast("Módulo Fiscal (NF-e) em desenvolvimento.")}>
-              <FileText className="h-4 w-4 mr-2" />
-              Gerar Nota Fiscal
-            </Button>
           </div>
 
           <div className="w-full border-t border-kx-painel-borda pt-4">

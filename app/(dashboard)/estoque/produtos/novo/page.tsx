@@ -7,7 +7,7 @@ import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 type Props = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
 export const metadata = {
-  title: "Novo produto | Konext ERP",
+  title: "Novo produto | TechOS ERP",
 };
 
 /**

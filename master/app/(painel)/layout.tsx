@@ -14,7 +14,7 @@ export default async function PainelLayout({ children }: { children: React.React
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4">
           <Link href="/" className="flex items-center gap-2 font-extrabold">
             <ShieldCheck className="h-5 w-5 text-destaque" aria-hidden />
-            Konext Master
+            TechOS Master
           </Link>
           <div className="flex min-w-0 items-center gap-3 text-sm">
             <span className="hidden truncate text-texto-2 sm:inline">{administrador.nome}</span>

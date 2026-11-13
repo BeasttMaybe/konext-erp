@@ -6,7 +6,7 @@ import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { temPermissao } from "@/lib/auth/permissoes";
 
 export const metadata = {
-  title: "Entrada de nota - Konext ERP",
+  title: "Entrada de nota - TechOS ERP",
   description: "Lançar a nota do fornecedor no estoque.",
 };
 

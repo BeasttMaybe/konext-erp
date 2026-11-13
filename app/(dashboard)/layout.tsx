@@ -39,6 +39,7 @@ async function carregarPerfilDaMoldura(): Promise<PerfilDaMoldura> {
       email: dados.usuario.email ?? "",
       fotoPerfilUrl: dados.usuario.fotoPerfilUrl,
       logoUrl: dados.configuracao.logoUrl,
+      nomeDaLoja: dados.configuracao.nomeFantasia ?? "",
     };
   } catch (erro) {
     // O redirecionamento de sessao expirada chega aqui como erro: precisa subir.
