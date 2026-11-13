@@ -71,7 +71,15 @@ export async function listarLojas(): Promise<LojaResumo[]> {
   });
 }
 
-export type ModuloDaLoja = { id: IdModulo; nome: string; descricao: string; ativo: boolean; motivo: "padrao" | "gravado" | "dependencia" };
+export type ModuloDaLoja = {
+  id: IdModulo;
+  nome: string;
+  descricao: string;
+  ativo: boolean;
+  motivo: "padrao" | "gravado" | "dependencia";
+  /** O master gravou "desligado" para este modulo (o interruptor). */
+  desligadoPeloMaster: boolean;
+};
 
 export async function detalheDaLoja(empresaId: string) {
   const db = central();
@@ -89,7 +97,7 @@ export async function detalheDaLoja(empresaId: string) {
   });
   if (!empresa) return null;
 
-  const [vinculos, gravados, erros, auditoria, sessoes] = await Promise.all([
+  const [vinculos, gravados, erros, auditoria, sessoes, historico] = await Promise.all([
     db.usuarioEmpresa.findMany({
       where: { empresaId },
       orderBy: { criadoEm: "asc" },
@@ -115,18 +123,25 @@ export async function detalheDaLoja(empresaId: string) {
       select: { id: true, acao: true, entidade: true, criadoEm: true },
     }),
     db.sessaoCentral.groupBy({ by: ["usuarioCentralId"], where: { empresaId }, _max: { ultimoUsoEm: true, criadoEm: true } }),
+    db.registroMaster.findMany({
+      where: { empresaId },
+      orderBy: { criadoEm: "desc" },
+      take: 20,
+      select: { id: true, acao: true, detalhes: true, criadoEm: true, administrador: { select: { nome: true } } },
+    }),
   ]);
 
   const ativos = resolverModulosAtivos(gravados);
   const modulos: ModuloDaLoja[] = MODULOS.map((m) => {
-    const gravado = gravados.find((g) => g.modulo === m.id);
+    const desligadoPeloMaster = gravados.some((g) => g.modulo === m.id && !g.ativo);
     const ativo = ativos.has(m.id);
     return {
       id: m.id,
       nome: m.nome,
       descricao: m.descricao,
       ativo,
-      motivo: gravado ? "gravado" : ativo ? "padrao" : "dependencia",
+      motivo: desligadoPeloMaster ? "gravado" : ativo ? "padrao" : "dependencia",
+      desligadoPeloMaster,
     };
   });
 
@@ -144,5 +159,5 @@ export async function detalheDaLoja(empresaId: string) {
     };
   });
 
-  return { empresa, usuarios, modulos, totalDeModulos: IDS_DE_MODULO.length, erros, auditoria };
+  return { empresa, usuarios, modulos, totalDeModulos: IDS_DE_MODULO.length, erros, auditoria, historico };
 }

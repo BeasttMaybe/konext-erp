@@ -283,6 +283,7 @@ model AdministradorMaster {
   ativo     Boolean       @default(true)
   criadoEm  DateTime      @default(now()) @db.Timestamptz(3)
   sessoes   SessaoMaster[]
+  registros RegistroMaster[]
 }
 
 /** Sessao do master: o cookie leva o token; aqui fica so o hash dele. */
@@ -296,4 +297,21 @@ model SessaoMaster {
   criadoEm        DateTime            @default(now()) @db.Timestamptz(3)
 
   @@index([administradorId])
+}
+
+/**
+ * Tudo o que um administrador faz pelo master (ligar/desligar modulo,
+ * suspender/reativar loja...): quem, o que, em qual loja e quando.
+ */
+model RegistroMaster {
+  id              String              @id @default(uuid())
+  administradorId String
+  administrador   AdministradorMaster @relation(fields: [administradorId], references: [id], onDelete: Restrict)
+  empresaId       String?
+  acao            String
+  detalhes        Json?
+  criadoEm        DateTime            @default(now()) @db.Timestamptz(3)
+
+  @@index([empresaId, criadoEm])
+  @@index([criadoEm])
 }

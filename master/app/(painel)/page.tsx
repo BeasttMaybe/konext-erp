@@ -18,7 +18,7 @@ export default async function LojasPage() {
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-extrabold">Lojas</h1>
-        <p className="text-sm text-legenda">Todas as lojas que usam o Konext ERP. Só visualização, por enquanto.</p>
+        <p className="text-sm text-legenda">Todas as lojas que usam o Konext ERP. Toque numa loja para ver detalhes, ligar ou desligar módulos e suspender ou reativar.</p>
       </div>
 
       <dl className="grid grid-cols-2 gap-3 md:grid-cols-4">

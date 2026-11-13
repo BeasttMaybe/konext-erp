@@ -173,6 +173,11 @@ export async function login(
     // Log so com o motivo — nunca e-mail ou senha — para investigar sem
     // guardar credencial nenhuma no log do servidor.
     console.error("[auth] falha de login", { motivo: resultado.motivo });
+    // So chega aqui com e-mail e senha CERTOS (a senha e conferida antes da
+    // loja), entao dizer o motivo nao ajuda quem esta adivinhando senha.
+    if (resultado.motivo === "sem_empresa_ativa") {
+      return { erro: "O acesso desta loja está suspenso. Fale com o responsável pela loja ou com a Konext." };
+    }
     return { erro: ERRO_CREDENCIAIS };
   }
 
