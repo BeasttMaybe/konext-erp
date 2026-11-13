@@ -8,6 +8,7 @@ import {
   DollarSign,
   Flag,
   LayoutDashboard,
+  LifeBuoy,
   LogOut,
   Menu,
   Package,
@@ -34,6 +35,7 @@ const ICONES: Record<string, LucideIcon> = {
   OS: Wrench,
   Financeiro: DollarSign,
   Metas: Flag,
+  Ajuda: LifeBuoy,
 };
 
 /** Gaveta de navegação abaixo de 1024px (Fase 3-1, Parte 3) — mesma fonte de itens/permissão da barra lateral fixa. */
