@@ -6,6 +6,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import {
   Briefcase,
   DollarSign,
+  CalendarDays,
   Flag,
   LayoutDashboard,
   LifeBuoy,
@@ -38,6 +39,7 @@ const ICONES: Record<string, LucideIcon> = {
   Estoque: Package,
   OS: Wrench,
   Financeiro: DollarSign,
+  Agenda: CalendarDays,
   Metas: Flag,
   Ajuda: LifeBuoy,
 };

@@ -1,6 +1,8 @@
 "use server";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import type { ContextoTenantServidor } from "@/types/tenant";
+import { gerarAvisosDeCompromissos } from "@/lib/agenda/avisos-de-compromissos";
+import { FUSO_HORARIO_PADRAO } from "@/lib/datas";
 
 type NotificacaoRegistro = {
   id: string | number;
@@ -61,6 +63,14 @@ export async function listarNotificacoes(): Promise<NotificacaoItem[]> {
  * Conta somente as notificações não lidas do tenant — usado para o indicador vermelho.
  */
 export async function contarNaoLidas(): Promise<number> {
+  // O sininho conta a cada tela: e o momento de virar aviso o compromisso
+  // da agenda que chegou na hora. Falha aqui nunca derruba o sininho.
+  try {
+    const contexto = await exigirContextoTenant();
+    await gerarAvisosDeCompromissos(contexto.prisma, contexto.fusoHorario ?? FUSO_HORARIO_PADRAO);
+  } catch (erro) {
+    console.error("[agenda] falha ao gerar avisos", erro instanceof Error ? erro.message : erro);
+  }
   const delegate = await obterDelegateNotificacaoTenant();
   if (!delegate?.count) return 0;
 

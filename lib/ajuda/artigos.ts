@@ -446,6 +446,28 @@ export const ARTIGOS_AJUDA: readonly ArtigoAjuda[] = [
     palavrasChave: ["pagar", "despesa", "boleto", "conta"],
   },
   {
+    slug: "agenda",
+    titulo: "Agendar um compromisso",
+    categoria: "Financeiro",
+    resumo: "Marcar compromissos da loja, ver vencimentos e prazos de meta no mesmo calendário.",
+    secoes: [
+      {
+        passos: [
+          "Abra a Agenda no menu.",
+          "Clique em \"Novo compromisso\", dê um título, escolha a data e o horário (ou marque \"Dia inteiro\").",
+          "Escolha quando avisar no sininho (por exemplo, 1 hora antes) e clique em \"Agendar\".",
+          "No dia, use ✓ para marcar como feito, o lápis para editar ou a lixeira para remover.",
+        ],
+      },
+    ],
+    dicas: [
+      "Contas a receber e a pagar pendentes e os prazos das metas aparecem sozinhos na agenda, com cores diferentes.",
+      "Os próximos 7 dias aparecem também no Dashboard.",
+    ],
+    destino: { rotulo: "Ir para a Agenda", href: "/agenda" },
+    palavrasChave: ["agenda", "compromisso", "agendar", "calendário", "lembrete", "aviso", "reunião", "horário"],
+  },
+  {
     slug: "taxas-de-cartao",
     titulo: "Ver quanto foi gasto em taxas de cartão",
     categoria: "Financeiro",
