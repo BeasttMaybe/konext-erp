@@ -1,11 +1,27 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CircleCheck, CircleSlash } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 
 import { Selo, tomDoStatus } from "~/components/selo";
 import { data, dataHora, haQuanto, ROTULO_STATUS } from "~/lib/formatar";
 import { detalheDaLoja } from "~/lib/painel";
 import { exigirAdministrador } from "~/lib/sessao";
+import { MODULOS } from "@erp/lib/modulos/catalogo";
+
+import { ModulosDaLoja, SituacaoDaLoja } from "./controles";
+
+const ROTULO_DA_ACAO: Record<string, string> = {
+  LIGAR_MODULO: "Ligou o módulo",
+  DESLIGAR_MODULO: "Desligou o módulo",
+  SUSPENDER_LOJA: "Suspendeu a loja",
+  REATIVAR_LOJA: "Reativou a loja",
+};
+
+function descreverRegistro(acao: string, detalhes: unknown): string {
+  const modulo = (detalhes as { modulo?: string } | null)?.modulo;
+  const nome = modulo ? MODULOS.find((m) => m.id === modulo)?.nome ?? modulo : null;
+  return `${ROTULO_DA_ACAO[acao] ?? acao}${nome ? ` ${nome}` : ""}`;
+}
 
 function Secao({ titulo, children, extra }: { titulo: string; children: React.ReactNode; extra?: React.ReactNode }) {
   return (
@@ -24,7 +40,7 @@ export default async function LojaPage({ params }: { params: Promise<{ id: strin
   const { id } = await params;
   const detalhe = await detalheDaLoja(id);
   if (!detalhe) notFound();
-  const { empresa, usuarios, modulos, erros, auditoria } = detalhe;
+  const { empresa, usuarios, modulos, erros, auditoria, historico } = detalhe;
   const ativos = modulos.filter((m) => m.ativo).length;
 
   return (
@@ -44,23 +60,7 @@ export default async function LojaPage({ params }: { params: Promise<{ id: strin
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Secao titulo="Módulos do plano" extra={<span className="text-xs text-legenda">{ativos} de {modulos.length} ligados</span>}>
-          <ul className="flex flex-col gap-2">
-            {modulos.map((m) => (
-              <li key={m.id} className="flex items-start gap-2.5">
-                {m.ativo ? (
-                  <CircleCheck className="mt-0.5 h-4 w-4 shrink-0 text-ok" aria-label="Ligado" />
-                ) : (
-                  <CircleSlash className="mt-0.5 h-4 w-4 shrink-0 text-legenda" aria-label="Desligado" />
-                )}
-                <span className="min-w-0">
-                  <span className={`block text-sm font-semibold ${m.ativo ? "" : "text-legenda"}`}>{m.nome}</span>
-                  <span className="block text-xs text-legenda">
-                    {m.motivo === "padrao" ? "Ligado (padrão)" : m.motivo === "dependencia" ? "Desligado porque depende de outro módulo" : m.ativo ? "Ligado pelo master" : "Desligado pelo master"}
-                  </span>
-                </span>
-              </li>
-            ))}
-          </ul>
+          <ModulosDaLoja empresaId={empresa.id} modulos={modulos} />
         </Secao>
 
         <Secao titulo="Banco de dados">
@@ -75,6 +75,28 @@ export default async function LojaPage({ params }: { params: Promise<{ id: strin
               </li>
             ))}
           </ul>
+        </Secao>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Secao titulo="Situação da loja">
+          <SituacaoDaLoja empresaId={empresa.id} slug={empresa.slug} status={empresa.status} />
+        </Secao>
+        <Secao titulo="Histórico do master" extra={<span className="text-xs text-legenda">últimas 20</span>}>
+          {historico.length === 0 ? (
+            <p className="text-sm text-legenda">Nenhuma ação do master nesta loja.</p>
+          ) : (
+            <ul className="flex flex-col gap-1.5 text-xs">
+              {historico.map((h) => (
+                <li key={h.id} className="flex justify-between gap-3 border-b border-borda pb-1.5 last:border-0">
+                  <span className="text-texto-2">
+                    {descreverRegistro(h.acao, h.detalhes)} <span className="text-legenda">· {h.administrador.nome}</span>
+                  </span>
+                  <span className="shrink-0 text-legenda">{dataHora(h.criadoEm)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </Secao>
       </div>
 
