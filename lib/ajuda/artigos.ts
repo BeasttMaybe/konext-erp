@@ -551,6 +551,8 @@ export const ARTIGOS_AJUDA: readonly ArtigoAjuda[] = [
     dicas: [
       "Não sabe qual app abre o anúncio? Espere o anúncio aparecer e clique em \"Qual app está na tela?\".",
       "Se o app for administrador do dispositivo, o sistema bloqueia ele e abre no celular a tela de administradores: desative ali e clique em Remover de novo.",
+      "Anúncio não deixa entrar nas Configurações? Reinicie no Modo de Segurança (segure \"Desligar\" no menu de energia; Samsung e Xiaomi: ligue segurando volume para baixo). Lá o vírus não roda.",
+      "Atalho: na lupa das Configurações, busque \"compilação\" (toque 7 vezes) e depois \"depuração\".",
       "Ao terminar, desligue a Depuração USB do cliente.",
       "Só Android. iPhone não permite remover apps pelo cabo.",
     ],
