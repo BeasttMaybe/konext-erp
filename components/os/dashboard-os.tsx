@@ -574,16 +574,16 @@ export function DashboardOS({
         {/* No celular as tres abas dividem a largura, com rotulo curto: antes a
             segunda saia cortada da tela. */}
         <TabsList className="grid w-full grid-cols-3 sm:inline-flex sm:w-auto">
-          <TabsTrigger value="KANBAN">
+          <TabsTrigger value="KANBAN" className="px-1 text-[13px] sm:px-3 sm:text-sm">
             <KanbanSquare className="mr-2 hidden h-4 w-4 sm:block" />
             Em andamento
           </TabsTrigger>
-          <TabsTrigger value="LISTA_FINALIZADAS">
+          <TabsTrigger value="LISTA_FINALIZADAS" className="px-1 text-[13px] sm:px-3 sm:text-sm">
             <ListChecks className="mr-2 hidden h-4 w-4 sm:block" />
             <span className="sm:hidden">Finalizadas</span>
             <span className="hidden sm:inline">Finalizadas e Entregues (Lista)</span>
           </TabsTrigger>
-          <TabsTrigger value="GARANTIA">Garantia</TabsTrigger>
+          <TabsTrigger value="GARANTIA" className="px-1 text-[13px] sm:px-3 sm:text-sm">Garantia</TabsTrigger>
         </TabsList>
 
         {/* Statistics Cards - segue as 4 etapas (Fase 1C-3, Parte 4). No celular

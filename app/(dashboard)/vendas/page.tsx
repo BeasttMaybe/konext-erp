@@ -447,6 +447,40 @@ export default async function SalesHistoryPage({ searchParams }: PageProps) {
  return queryString ? `/vendas?${queryString}` : "/vendas";
  };
 
+ // Os dados que a folha de detalhes do pedido recebe — usados pela tabela
+ // (computador) e pelos cartoes (celular).
+ const pagamentosDoPedido = (order: (typeof orders)[number]) =>
+ (order.venda?.pagamentos ?? []).map((payment) => ({
+ formaPagamento: payment.formaPagamento,
+ valorBruto: payment.valorBruto,
+ }));
+ const paraFolhaDoPedido = (
+ order: (typeof orders)[number],
+ orderPayments: ReturnType<typeof pagamentosDoPedido>
+ ) => ({
+ id: order.id,
+ numeroPedido: order.numeroPedido,
+ status: order.status,
+ origem: order.origem,
+ total: paraMoeda(deDecimal(order.total)),
+ vendedor: order.vendedor,
+ formaPagamento: order.formaPagamento,
+ pagamentos: orderPayments,
+ clienteNome:
+ order.cliente?.nomeFantasia?.trim() ||
+ order.cliente?.nomeRazaoSocial ||
+ "Cliente não informado",
+ itens: order.itens.map((item) => ({
+ ...item,
+ precoUnitario: paraMoeda(deDecimal(item.precoUnitario)),
+ })),
+ parcelas: order.parcelas.map((installment) => ({
+ ...installment,
+ valor: paraMoeda(deDecimal(installment.valor)),
+ dataVencimento: installment.dataVencimento.toISOString(),
+ })),
+ });
+
  return (
  <div className="w-full flex flex-col bg-transparent">
  <div className="px-6 py-6 lg:px-8">
@@ -474,7 +508,7 @@ export default async function SalesHistoryPage({ searchParams }: PageProps) {
  }
  />
 
- <dl className="grid gap-4 sm:grid-cols-3">
+ <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-4">
  {[
  { rotulo: "Vendido no período", valor: formatarReais(vendidoCentavos) },
  {
@@ -482,20 +516,21 @@ export default async function SalesHistoryPage({ searchParams }: PageProps) {
  valor: String(vendasAprovadas),
  },
  { rotulo: "Ticket médio", valor: formatarReais(ticketMedioCentavos) },
- ].map((indicador) => (
+ ].map((indicador, indice) => (
  <div
  key={indicador.rotulo}
- className="rounded-kx-painel border border-kx-painel-borda bg-kx-cartao p-kx-4"
+ // No celular o total vendido ocupa a linha toda; os outros dois, meia.
+ className={`${indice === 0 ? "col-span-2 sm:col-span-1 " : ""}min-w-0 rounded-kx-painel border border-kx-painel-borda bg-kx-cartao p-3 sm:p-kx-4`}
  >
- <dt className="text-xs text-kx-legenda">{indicador.rotulo}</dt>
- <dd className="mt-1 text-2xl font-semibold tabular-nums text-kx-texto">
+ <dt className="truncate text-xs text-kx-legenda">{indicador.rotulo}</dt>
+ <dd className="mt-1 truncate text-base font-semibold tabular-nums text-kx-texto sm:text-2xl">
  {indicador.valor}
  </dd>
  </div>
  ))}
  </dl>
- <Card className="rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5 shadow-kx-painel">
- <form className="grid gap-3 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1.1fr)_180px_auto_auto_auto] xl:items-end">
+ <Card className="rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-3 shadow-kx-painel sm:p-5">
+ <form className="grid grid-cols-2 gap-3 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1.1fr)_180px_auto_auto_auto] xl:items-end">
  {/*
  O submit nativo (GET, sem JS) reconstrói a query string SÓ com
  os campos NOMEADOS deste form — sem estes dois hidden, aplicar
@@ -557,7 +592,7 @@ export default async function SalesHistoryPage({ searchParams }: PageProps) {
  dd/mm/aaaa..."). `campos` abaixo corrige isso: o rótulo passa
  a fazer parte do botão, como em toda outra tela.
  */}
- <div className="space-y-2 xl:mt-1.5">
+ <div className="col-span-2 space-y-2 xl:col-span-1 xl:mt-1.5">
  <FiltroPeriodoPagina
  campos={[{ valor: "emitido-em", rotulo: "Emitido em" }]}
  fusoHorario={fusoHorario}
@@ -575,26 +610,67 @@ export default async function SalesHistoryPage({ searchParams }: PageProps) {
  </Card>
 
  <Card className="overflow-hidden rounded-kx-painel border border-kx-painel-borda bg-kx-painel shadow-kx-painel">
- <div className="border-b border-kx-painel-borda px-5 py-4">
+ <div className="border-b border-kx-painel-borda px-4 py-4 sm:px-5">
  <div className="flex items-center justify-between gap-3">
- <div>
+ <div className="min-w-0">
  {/* "Pedidos Emitidos" descrevia metade do conteúdo: a coluna Origem
  separa o que foi fechado no balcão (PDV) do que foi digitado como
  pedido, e a maior parte das linhas de uma assistência técnica é a
  primeira. Chamar tudo de pedido faz a pessoa procurar a venda do
  balcão em outro lugar — que não existe. */}
  <h2 className="text-lg font-semibold text-kx-texto">Vendas do período</h2>
- <p className="mt-1 text-sm text-kx-legenda">
+ <p className="mt-1 hidden text-sm text-kx-legenda sm:block">
  Balcão e pedidos, na mesma lista. A coluna Origem diz de onde veio cada uma.
  </p>
  </div>
- <div className="rounded-full border border-kx-painel-borda bg-kx-cartao px-3 py-1 text-xs font-medium uppercase tracking-[0.2em] text-kx-texto-2">
+ <div className="shrink-0 rounded-full border border-kx-painel-borda bg-kx-cartao px-3 py-1 text-xs font-medium uppercase tracking-wide text-kx-texto-2 sm:tracking-[0.2em]">
  {totalOrders} registros
  </div>
  </div>
  </div>
 
- <div className="overflow-x-auto">
+ {/* Celular: um cartao por venda; o toque abre os detalhes. A tabela tem
+ nove colunas e nao cabe numa tela de telefone. */}
+ <ul className="flex flex-col divide-y divide-kx-painel-borda md:hidden" aria-label="Vendas do período">
+ {orders.length === 0 ? (
+ <li className="py-10 text-center text-sm text-kx-legenda">Nenhuma venda para os filtros informados.</li>
+ ) : (
+ orders.map((order) => (
+ <li key={order.id}>
+ <SalesHistoryOrderSheet
+ trigger={
+ <button
+ type="button"
+ className="flex w-full items-center gap-3 px-4 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-kx-foco"
+ >
+ <span className="min-w-0 flex-1">
+ <span className="flex items-center gap-2">
+ <span className="font-semibold text-kx-texto">#{order.numeroPedido}</span>
+ <Badge variant="outline" className={originClassNames[order.origem]}>
+ {originLabelMap[order.origem]}
+ </Badge>
+ </span>
+ <span className="mt-0.5 block truncate text-sm text-kx-texto-2">
+ {order.cliente?.nomeFantasia?.trim() || order.cliente?.nomeRazaoSocial || "Cliente não informado"}
+ </span>
+ <span className="block text-xs text-kx-legenda">{order.dataCriacao.toLocaleDateString("pt-BR")}</span>
+ </span>
+ <span className="flex shrink-0 flex-col items-end gap-1">
+ <span className="font-semibold tabular-nums text-kx-texto">{formatCurrency(order.total)}</span>
+ <Badge variant="outline" className={statusClassNames[order.status]}>
+ {statusLabelMap[order.status]}
+ </Badge>
+ </span>
+ </button>
+ }
+ order={paraFolhaDoPedido(order, pagamentosDoPedido(order))}
+ />
+ </li>
+ ))
+ )}
+ </ul>
+
+ <div className="hidden overflow-x-auto md:block">
  <Table>
  <TableHeader className="sticky top-0 z-kx-sticky border-kx-painel-borda bg-kx-fundo">
  <TableRow className="border-kx-painel-borda hover:bg-transparent">
@@ -618,10 +694,7 @@ export default async function SalesHistoryPage({ searchParams }: PageProps) {
  </TableRow>
  ) : (
  orders.map((order) => {
- const orderPayments = (order.venda?.pagamentos ?? []).map((payment) => ({
- formaPagamento: payment.formaPagamento,
- valorBruto: payment.valorBruto,
- }));
+ const orderPayments = pagamentosDoPedido(order);
 
  const paymentSummaryLabel = orderPayments.length > 0
  ? orderPayments
@@ -659,29 +732,7 @@ export default async function SalesHistoryPage({ searchParams }: PageProps) {
  <Eye className="h-4 w-4" />
  </Button>
  }
- order={{
- id: order.id,
- numeroPedido: order.numeroPedido,
- status: order.status,
- origem: order.origem,
- total: paraMoeda(deDecimal(order.total)),
- vendedor: order.vendedor,
- formaPagamento: order.formaPagamento,
- pagamentos: orderPayments,
- clienteNome:
- order.cliente?.nomeFantasia?.trim() ||
- order.cliente?.nomeRazaoSocial ||
- "Cliente não informado",
- itens: order.itens.map((item) => ({
- ...item,
- precoUnitario: paraMoeda(deDecimal(item.precoUnitario)),
- })),
- parcelas: order.parcelas.map((installment) => ({
- ...installment,
- valor: paraMoeda(deDecimal(installment.valor)),
- dataVencimento: installment.dataVencimento.toISOString(),
- })),
- }}
+ order={paraFolhaDoPedido(order, orderPayments)}
  />
  </div>
  </TableCell>

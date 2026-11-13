@@ -23,7 +23,8 @@ export function NavFinanceiro() {
   return (
     <nav
       aria-label="Seções do financeiro"
-      className="flex w-fit gap-1 rounded-kx-painel border border-kx-painel-borda bg-kx-superficie p-1"
+      // No celular rola de lado por dentro (cinco secoes nao cabem em 360px).
+      className="flex w-fit max-w-full gap-1 overflow-x-auto rounded-kx-painel border border-kx-painel-borda bg-kx-superficie p-1"
     >
       {ABAS_FINANCEIRO.map((aba) => {
         const ativa = aba.href === "/financeiro" ? pathname === "/financeiro" : pathname.startsWith(aba.href);
@@ -34,7 +35,7 @@ export function NavFinanceiro() {
             href={aba.href}
             aria-current={ativa ? "page" : undefined}
             className={cn(
-              "flex h-10 items-center rounded-kx-botao px-4 text-sm font-bold transition-colors",
+              "flex h-10 shrink-0 items-center whitespace-nowrap rounded-kx-botao px-3 text-sm font-bold transition-colors sm:px-4",
               ativa ? "bg-kx-primaria text-primary-foreground" : "text-kx-texto-2 hover:bg-kx-cartao"
             )}
           >

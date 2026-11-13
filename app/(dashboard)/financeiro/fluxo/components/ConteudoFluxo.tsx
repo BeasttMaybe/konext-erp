@@ -52,7 +52,7 @@ export function ConteudoFluxo({ dadosFluxo, dadosResultado }: ConteudoFluxoProps
 
   return (
     <>
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="flex shrink-0 flex-wrap items-center gap-2">
         {VISTAS.map((item) => (
           <button
             key={item.chave}
@@ -85,7 +85,7 @@ function VistaFluxo({ dados }: { dados: DadosFluxoDeCaixa }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid shrink-0 grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
+      <div className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-[repeat(auto-fit,minmax(220px,1fr))] sm:gap-3">
         <CartaoIndicador
           variante="primaria"
           titulo="Saldo em caixa hoje"
@@ -179,7 +179,7 @@ function VistaResultado({ dados }: { dados: DadosResultadoPeriodo }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid shrink-0 grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
+      <div className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-[repeat(auto-fit,minmax(220px,1fr))] sm:gap-3">
         <CartaoIndicador
           variante="sucesso"
           titulo="Entradas"

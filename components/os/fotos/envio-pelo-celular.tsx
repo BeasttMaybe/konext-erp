@@ -40,6 +40,7 @@ export function EnvioPeloCelular({
   const [envios, setEnvios] = useState<Envio[]>([]);
   const [totalNaOrdem, setTotalNaOrdem] = useState(ordem.fotosEnviadas);
   const campo = useRef<HTMLInputElement>(null);
+  const campoDaGaleria = useRef<HTMLInputElement>(null);
 
   const restantes = Math.max(0, ordem.limiteDeFotos - totalNaOrdem);
 
@@ -125,6 +126,18 @@ export function EnvioPeloCelular({
         </fieldset>
 
         <input
+          ref={campoDaGaleria}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          multiple
+          className="sr-only"
+          onChange={(evento) => {
+            const arquivos = evento.target.files;
+            if (arquivos && arquivos.length > 0) void mandar(arquivos);
+            evento.target.value = "";
+          }}
+        />
+        <input
           ref={campo}
           type="file"
           accept="image/jpeg,image/png,image/webp"
@@ -145,14 +158,26 @@ export function EnvioPeloCelular({
             antes de mandar mais.
           </p>
         ) : (
-          <button
-            type="button"
-            onClick={() => campo.current?.click()}
-            className="flex w-full items-center justify-center gap-3 rounded-kx-botao bg-kx-primaria px-5 py-5 text-base font-semibold text-primary-foreground"
-          >
-            <Camera className="h-6 w-6" aria-hidden />
-            Tirar foto
-          </button>
+          <div className="flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={() => campo.current?.click()}
+              className="flex w-full items-center justify-center gap-3 rounded-kx-botao bg-kx-primaria px-5 py-5 text-base font-semibold text-primary-foreground"
+            >
+              <Camera className="h-6 w-6" aria-hidden />
+              Tirar foto
+            </button>
+            {/* A camera direta esconde a galeria; esta e a porta para a foto
+                que ja foi tirada antes. */}
+            <button
+              type="button"
+              onClick={() => campoDaGaleria.current?.click()}
+              className="flex w-full items-center justify-center gap-3 rounded-kx-botao border border-kx-painel-borda px-5 py-4 text-base font-medium text-kx-texto"
+            >
+              <ImagePlus className="h-5 w-5" aria-hidden />
+              Escolher da galeria
+            </button>
+          </div>
         )}
 
         <p className="text-center text-xs text-kx-legenda">

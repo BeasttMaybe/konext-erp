@@ -46,7 +46,7 @@ export function PainelCaixaAberto({
   const totalGeral = resumo.totalDinheiroSessao + resumo.totalCartaoPixSessao;
 
   return (
-    <section className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_420px]">
+    <section className="grid grid-cols-1 gap-4 md:min-h-0 md:flex-1 lg:grid-cols-[minmax(0,1fr)_420px]">
       <div className="flex min-h-0 flex-col gap-3.5">
         {/* grid-cols por breakpoint de VIEWPORT (sm:/lg:) fica errado aqui:
             esta coluna divide a largura com o painel "Entradas por forma" de
@@ -55,10 +55,10 @@ export function PainelCaixaAberto({
             produtos no balcão, ver lista-produtos-pdv.tsx). Largura mínima
             por coluna com auto-fit deixa o número de colunas seguir o
             espaço real disponível aqui, não o viewport inteiro. */}
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3.5">
-          <div className="flex flex-col gap-1.5 rounded-kx-cartao bg-kx-cartao p-5">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-[repeat(auto-fit,minmax(180px,1fr))] sm:gap-3.5">
+          <div className="flex flex-col gap-1.5 rounded-kx-cartao bg-kx-cartao p-3 sm:p-5">
             <span className="text-[13px] font-semibold text-kx-texto-2">Vendas do dia</span>
-            <span className="text-2xl font-extrabold tabular-nums text-kx-texto">
+            <span className="text-lg font-extrabold tabular-nums text-kx-texto sm:text-2xl">
               {formatarMoeda(resumo.totalVendasSessao)}
             </span>
             <span className="text-xs tabular-nums text-kx-legenda">
@@ -67,9 +67,9 @@ export function PainelCaixaAberto({
             </span>
           </div>
 
-          <div className="flex flex-col gap-1.5 rounded-kx-cartao bg-kx-sucesso-fundo p-5">
+          <div className="flex flex-col gap-1.5 rounded-kx-cartao bg-kx-sucesso-fundo p-3 sm:p-5">
             <span className="text-[13px] font-semibold text-kx-texto-2">Dinheiro esperado na gaveta</span>
-            <span className="text-2xl font-extrabold tabular-nums text-kx-texto">
+            <span className="text-lg font-extrabold tabular-nums text-kx-texto sm:text-2xl">
               {formatarMoeda(resumo.dinheiroEsperadoGaveta)}
             </span>
             <span className="text-xs tabular-nums text-kx-legenda">
@@ -77,19 +77,21 @@ export function PainelCaixaAberto({
             </span>
           </div>
 
-          <div className="flex flex-col gap-1.5 rounded-kx-cartao bg-kx-conserto-fundo p-5">
+          <div className="flex flex-col gap-1.5 col-span-2 rounded-kx-cartao bg-kx-conserto-fundo p-3 sm:col-span-1 sm:p-5">
             <span className="text-[13px] font-semibold text-kx-texto-2">Cartão e PIX</span>
-            <span className="text-2xl font-extrabold tabular-nums text-kx-texto">
+            <span className="text-lg font-extrabold tabular-nums text-kx-texto sm:text-2xl">
               {formatarMoeda(resumo.totalCartaoPixSessao)}
             </span>
             <span className="text-xs text-kx-conserto-texto">Não está na gaveta · cai na conta</span>
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5">
-          <div className="flex items-center justify-between">
+        <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-4 sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-base font-bold text-kx-texto">Movimentações do caixa</span>
-            <div className="flex gap-2">
+            {/* Ainda desabilitados ("chega com a reconstrucao do caixa"): no
+                celular so ocupariam espaco. */}
+            <div className="hidden gap-2 sm:flex">
               <Button
                 type="button"
                 variant="outline"
@@ -140,7 +142,7 @@ export function PainelCaixaAberto({
         </div>
       </div>
 
-      <aside className="flex min-h-0 flex-col gap-3 overflow-hidden rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5">
+      <aside className="flex min-h-0 flex-col gap-3 overflow-hidden rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-4 sm:p-5">
         <span className="text-base font-bold text-kx-texto">Entradas por forma</span>
 
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">

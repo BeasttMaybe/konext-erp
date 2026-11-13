@@ -52,9 +52,9 @@ export function CartoesResumoOS({
   const sobra = custoTotal === null ? null : totalOS - custoTotal;
 
   return (
-    <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-kx-4">
-      <div className={`p-kx-4 rounded-kx-painel flex flex-col gap-1 ${FUNDO_POR_ETAPA[etapa]}`}>
-        <span className="text-xs font-semibold opacity-80">Etapa</span>
+    <section className="grid grid-cols-2 gap-2 sm:gap-kx-4 lg:grid-cols-4">
+      <div className={`p-3 sm:p-kx-4 rounded-kx-painel flex flex-col gap-1 ${FUNDO_POR_ETAPA[etapa]}`}>
+        <span className="text-xs font-semibold">Etapa</span>
         <span className="text-lg font-extrabold">{ROTULOS_ETAPA_OS[etapa]}</span>
         {situacao && (
           <span className="text-xs font-semibold">
@@ -64,8 +64,8 @@ export function CartoesResumoOS({
         )}
       </div>
 
-      <div className="p-kx-4 rounded-kx-painel bg-kx-entregue-fundo text-kx-entregue-texto flex flex-col gap-1">
-        <span className="text-xs font-semibold opacity-80">Total da OS</span>
+      <div className="p-3 sm:p-kx-4 rounded-kx-painel bg-kx-entregue-fundo text-kx-entregue-texto flex flex-col gap-1">
+        <span className="text-xs font-semibold">Total da OS</span>
         <span className="text-lg font-extrabold tabular-nums">{formatarMoeda(totalOS)}</span>
         {custoTotal !== null && sobra !== null && (
           <span className="text-xs tabular-nums opacity-90">
@@ -74,8 +74,8 @@ export function CartoesResumoOS({
         )}
       </div>
 
-      <div className="p-kx-4 rounded-kx-painel bg-kx-garantia-fundo text-kx-garantia-texto flex flex-col gap-1">
-        <span className="text-xs font-semibold opacity-80">Garantia</span>
+      <div className="p-3 sm:p-kx-4 rounded-kx-painel bg-kx-garantia-fundo text-kx-garantia-texto flex flex-col gap-1">
+        <span className="text-xs font-semibold">Garantia</span>
         <span className="text-lg font-extrabold">{garantiaDias} dias</span>
         <span className="text-xs opacity-90">
           {garantiaAtiva ? "Conta a partir da entrega" : "Prazo padrão — gerada na entrega"}
@@ -83,11 +83,11 @@ export function CartoesResumoOS({
       </div>
 
       <div
-        className={`p-kx-4 rounded-kx-painel flex flex-col gap-1 ${
+        className={`p-3 sm:p-kx-4 rounded-kx-painel flex flex-col gap-1 ${
           pagamentoConcluido ? "bg-kx-sucesso-fundo text-kx-sucesso-texto" : "bg-kx-alerta-fundo text-kx-alerta-texto"
         }`}
       >
-        <span className="text-xs font-semibold opacity-80">Pagamento</span>
+        <span className="text-xs font-semibold">Pagamento</span>
         <span className="text-lg font-extrabold">{pagamentoConcluido ? "Concluído" : "Em aberto"}</span>
         <span className="text-xs tabular-nums opacity-90">
           {pagamentoConcluido && valorPago !== null

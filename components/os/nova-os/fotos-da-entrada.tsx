@@ -1,10 +1,11 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, ImageOff, Loader2, Smartphone, Trash2 } from "lucide-react";
+import { ImageOff, Smartphone, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { enviarFotoDaOS } from "@/app/actions/fotos-os";
+import { BotoesDeFoto } from "@/components/os/fotos/botoes-de-foto";
 import { Button } from "@/components/ui/button";
 import { MAXIMO_DE_FOTOS_POR_OS, formatarTamanho } from "@/lib/dominio/os/fotos";
 import { reduzirImagem } from "@/lib/fotos/reduzir-imagem";
@@ -193,7 +194,6 @@ export function ProvedorFotosPendentes({
  */
 export function PainelFotosDaEntrada() {
   const pendentes = useContext(Contexto);
-  const entradaDeArquivo = useRef<HTMLInputElement>(null);
 
   if (!pendentes) return null;
 
@@ -228,33 +228,14 @@ export function PainelFotosDaEntrada() {
           </Button>
         )}
 
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
+        <BotoesDeFoto
           className={pendentes.salvarEPedirLinkDoCelular ? undefined : "ml-auto"}
-          disabled={pendentes.preparando || cheia}
-          onClick={() => entradaDeArquivo.current?.click()}
-        >
-          {pendentes.preparando ? (
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-          ) : (
-            <Camera className="h-4 w-4" />
-          )}
-          {pendentes.preparando ? "Preparando..." : "Adicionar"}
-        </Button>
+          desabilitado={cheia}
+          ocupado={pendentes.preparando}
+          textoOcupado="Preparando..."
+          onArquivos={(arquivos) => void pendentes.adicionar(arquivos)}
+        />
       </div>
-
-      {/* `capture` não é usado de propósito: no celular ele força a câmera e
-          esconde a galeria, e boa parte das fotos já foi tirada antes. */}
-      <input
-        ref={entradaDeArquivo}
-        type="file"
-        accept="image/*"
-        multiple
-        hidden
-        onChange={(evento) => void pendentes.adicionar(evento.target.files)}
-      />
 
       {pendentes.fotos.length === 0 ? (
         <div className="flex flex-col items-center gap-2 rounded-kx-botao border border-dashed border-kx-campo-borda bg-kx-cartao px-4 py-8 text-center">

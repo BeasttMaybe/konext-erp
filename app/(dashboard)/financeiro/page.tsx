@@ -44,7 +44,7 @@ export default async function FinanceiroPage() {
   const maiorValorBarras = Math.max(1, ...maiorCategoria.map((c) => c.valor), ...maiorForma.map((f) => f.valor));
 
   return (
-    <div className="flex w-full flex-col gap-4 bg-kx-fundo p-5 pb-8 lg:p-6">
+    <div className="flex w-full flex-col gap-4 bg-kx-fundo p-4 pb-8 sm:p-5 lg:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-col gap-0.5">
           <span className="text-xs text-kx-legenda">Visão geral do mês</span>
@@ -70,7 +70,7 @@ export default async function FinanceiroPage() {
       {/* min-[1400px], nao xl (1280px): com 4 colunas a essa largura o valor
           de "-R$ 1.993,48" nao cabe numa linha (transborda ~25px, medido) —
           precisa de mais fôlego que o breakpoint padrão do Tailwind dá. */}
-      <div className="grid shrink-0 grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
+      <div className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-[repeat(auto-fit,minmax(220px,1fr))] sm:gap-3">
         <CartaoIndicador
           variante="primaria"
           titulo="Saldo em caixa hoje"

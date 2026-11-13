@@ -274,17 +274,17 @@ function ConteudoEstoque() {
 
   return (
     <div className="w-full flex flex-col bg-transparent">
-      <div className="border-b border-kx-painel-borda/70 bg-kx-painel/75 px-6 py-6 backdrop-blur-sm lg:px-8">
+      <div className="border-b border-kx-painel-borda/70 bg-kx-painel/75 px-4 py-4 backdrop-blur-sm sm:px-6 sm:py-6 lg:px-8">
         <div className="max-w-7xl mx-auto w-full">
-          <h1 className="text-3xl font-bold text-foreground">Estoque & Produtos</h1>
-          <p className="text-muted-foreground mt-2 text-sm">
+          <h1 className="text-2xl font-bold text-foreground sm:text-3xl">Estoque & Produtos</h1>
+          <p className="mt-2 hidden text-sm text-muted-foreground sm:block">
             Gerencie catalogo, custos, precos e alertas de estoque minimo.
           </p>
         </div>
       </div>
 
-      <div className="px-6 lg:px-8 py-6">
-          <div className="max-w-7xl mx-auto space-y-6">
+      <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+          <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6">
             {indicadores !== null && <CartoesIndicadores dados={indicadores} />}
 
             <div className="flex items-center gap-2" role="tablist" aria-label="Visão do estoque">
@@ -312,9 +312,10 @@ function ConteudoEstoque() {
             {aba === "relatorios" && <RelatoriosEstoque />}
 
             {aba === "produtos" && (
-            <Card className="border-border bg-card p-4 sm:p-5 space-y-4">
-              <div className="flex flex-col lg:flex-row lg:items-center gap-3">
-                <div className="relative flex-1">
+            <Card className="border-border bg-card p-3 sm:p-5 space-y-4">
+              {/* Celular: busca na linha toda, filtros e botoes dois a dois. */}
+              <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-row lg:items-center lg:gap-3">
+                <div className="relative col-span-2 flex-1">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     value={busca}
@@ -375,7 +376,46 @@ function ConteudoEstoque() {
                 ) : null}
               </div>
 
-              <div className="rounded-lg border border-border overflow-hidden">
+              {/* Celular: um cartao por produto, com foto, codigo, preco e saldo;
+                  toque abre o produto. A tabela de sete colunas nao cabia. */}
+              <ul className="flex flex-col gap-2 md:hidden" aria-label="Produtos">
+                {produtosFiltrados.map((produto) => {
+                  const estoqueBaixo = produto.quantidadeEstoque <= produto.estoqueMinimo;
+                  return (
+                    <li key={produto.id}>
+                      <Link
+                        href={`/estoque/produtos/${produto.id}`}
+                        className="flex items-center gap-3 rounded-kx-cartao border border-kx-painel-borda bg-kx-superficie p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kx-foco"
+                      >
+                        {produto.imagemUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element -- foto do cadastro, de qualquer endereco.
+                          <img src={produto.imagemUrl} alt="" className="h-12 w-12 shrink-0 rounded-kx-botao object-cover" />
+                        ) : (
+                          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-kx-botao border border-kx-painel-borda bg-kx-cartao">
+                            <Package className="h-5 w-5 text-kx-legenda" aria-hidden />
+                          </span>
+                        )}
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-base font-semibold text-kx-texto">{produto.nome}</span>
+                          <span className="block truncate text-xs text-kx-legenda">
+                            {[produto.sku, produto.categoria].filter(Boolean).join(" · ")}
+                          </span>
+                        </span>
+                        <span className="flex shrink-0 flex-col items-end gap-1">
+                          <span className="text-base font-bold tabular-nums text-kx-texto">{formatarMoeda(produto.precoVenda)}</span>
+                          <Badge variant={estoqueBaixo ? "destructive" : "outline"}>{produto.quantidadeEstoque} un.</Badge>
+                        </span>
+                      </Link>
+                    </li>
+                  );
+                })}
+                {!carregando && produtosFiltrados.length === 0 && (
+                  <li className="py-8 text-center text-sm text-muted-foreground">Nenhum produto encontrado.</li>
+                )}
+                {carregando && <li className="py-8 text-center text-sm text-muted-foreground">Carregando produtos...</li>}
+              </ul>
+
+              <div className="hidden rounded-lg border border-border overflow-hidden md:block">
                 <Table>
                   <TableHeader className="sticky top-0 z-kx-sticky bg-card">
                     <TableRow>

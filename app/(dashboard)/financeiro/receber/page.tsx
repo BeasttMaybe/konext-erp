@@ -67,7 +67,7 @@ export default async function FinanceiroReceberPage({ searchParams }: PageProps)
   ]);
 
   return (
-    <div className="flex w-full flex-col gap-4 bg-kx-fundo p-5 pb-8 lg:p-6">
+    <div className="flex w-full flex-col gap-4 bg-kx-fundo p-4 pb-8 sm:p-5 lg:p-6">
       <div className="flex flex-col gap-0.5">
         <span className="text-xs text-kx-legenda">Financeiro</span>
         <span className="text-[22px] font-extrabold tracking-tight text-kx-texto">Contas a Receber</span>
@@ -75,7 +75,7 @@ export default async function FinanceiroReceberPage({ searchParams }: PageProps)
 
       <NavFinanceiro />
 
-      <div className="grid shrink-0 grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
+      <div className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-[repeat(auto-fit,minmax(220px,1fr))] sm:gap-3">
         <CartaoIndicador variante="alerta" titulo="Pendente" valor={formatarMoeda(resumo.totalPendente)} icone={<Wallet />} />
         <CartaoIndicador variante="erro" titulo="Atrasado" valor={formatarMoeda(resumo.totalAtrasado)} icone={<AlertTriangle />} />
         <CartaoIndicador variante="sucesso" titulo="Recebido" valor={formatarMoeda(resumo.totalRecebido)} icone={<CheckCircle2 />} />

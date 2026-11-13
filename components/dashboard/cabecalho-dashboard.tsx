@@ -37,7 +37,9 @@ export function CabecalhoDashboard({ empresa, periodo, fusoHorario }: CabecalhoD
         <p className="text-sm text-kx-legenda">{dataHoje}</p>
       </div>
 
-      <nav aria-label="Período" className="flex items-center gap-1 rounded-kx-botao bg-kx-superficie p-1">
+      {/* No celular os cinco periodos nao cabem numa linha: a barra rola de
+          lado por dentro, sem empurrar a pagina. */}
+      <nav aria-label="Período" className="flex max-w-full items-center gap-1 overflow-x-auto rounded-kx-botao bg-kx-superficie p-1">
         {OPCOES_PERIODO.map((opcao) => {
           const ativo = opcao.valor === periodo;
 
@@ -47,7 +49,7 @@ export function CabecalhoDashboard({ empresa, periodo, fusoHorario }: CabecalhoD
               href={`/?periodo=${opcao.valor}`}
               aria-current={ativo ? "page" : undefined}
               className={cn(
-                "flex h-11 items-center rounded-kx-botao px-3 text-sm font-medium transition-colors",
+                "flex h-11 shrink-0 items-center whitespace-nowrap rounded-kx-botao px-3 text-sm font-medium transition-colors",
                 ativo ? "bg-kx-primaria/15 text-kx-destaque" : "text-kx-legenda hover:text-kx-texto"
               )}
             >

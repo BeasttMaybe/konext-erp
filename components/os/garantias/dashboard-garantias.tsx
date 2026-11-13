@@ -20,7 +20,7 @@ type DashboardGarantiasProps = {
 export function DashboardGarantias({ dados }: DashboardGarantiasProps) {
   return (
     <div className="space-y-kx-4">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-kx-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-kx-4">
         <CartaoIndicador
           variante="garantia"
           titulo="Garantias ativas"
