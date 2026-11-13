@@ -7,6 +7,7 @@ import { UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PilulaStatus } from "@/components/ui/pilula-status";
 import { ModalEditarUsuario } from "./modal-editar-usuario";
+import { ModalNovaSenhaUsuario } from "./modal-nova-senha-usuario";
 import { ModalNovoUsuario } from "./modal-novo-usuario";
 import { ModalTransferirPropriedade } from "./modal-transferir-propriedade";
 
@@ -52,6 +53,7 @@ export function AbaUsuarios() {
   const [usuarioEmEdicao, setUsuarioEmEdicao] = useState<UsuarioListado | null>(null);
   const [transferenciaAberta, setTransferenciaAberta] = useState(false);
   const [novoUsuarioAberto, setNovoUsuarioAberto] = useState(false);
+  const [senhaNovaPara, setSenhaNovaPara] = useState<UsuarioListado | null>(null);
 
   const recarregar = () => {
     setCarregando(true);
@@ -136,9 +138,16 @@ export function AbaUsuarios() {
                     </Button>
                   )
                 ) : (
-                  <Button type="button" variant="outline" size="sm" className="rounded-kx-botao" onClick={() => setUsuarioEmEdicao(usuario)}>
-                    Editar
-                  </Button>
+                  <span className="flex flex-wrap justify-end gap-2">
+                    {!usuario.souEu && usuario.ativo && (
+                      <Button type="button" variant="outline" size="sm" className="rounded-kx-botao" onClick={() => setSenhaNovaPara(usuario)}>
+                        Nova senha
+                      </Button>
+                    )}
+                    <Button type="button" variant="outline" size="sm" className="rounded-kx-botao" onClick={() => setUsuarioEmEdicao(usuario)}>
+                      Editar
+                    </Button>
+                  </span>
                 )}
               </span>
             </div>
@@ -157,6 +166,8 @@ export function AbaUsuarios() {
           }}
         />
       )}
+
+      {senhaNovaPara && <ModalNovaSenhaUsuario usuario={senhaNovaPara} onFechar={() => setSenhaNovaPara(null)} />}
 
       {transferenciaAberta && usuarios && (
         <ModalTransferirPropriedade

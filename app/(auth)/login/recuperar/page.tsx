@@ -1,19 +1,23 @@
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { connection } from "next/server";
+
+import { Aviso, FormularioPedirLink, VoltarAoLogin } from "@/components/auth/formularios-recuperacao";
+import { envioDeEmailConfigurado } from "@/lib/email/enviar-email";
 
 export const metadata = {
   title: "Recuperar senha - Konext ERP",
 };
 
 /**
- * Sem self-service de recuperacao de senha ainda: quem reseta e o
- * administrador da loja, via /perfil de outro usuario. Autoatendimento por
- * e-mail fica para a Fase 1C. Rota publica (proxy.ts).
+ * "Esqueci minha senha". Com o envio de e-mail configurado (RESEND_API_KEY +
+ * EMAIL_REMETENTE na Vercel), a pessoa pede um link para o proprio e-mail.
+ * Sem isso, a tela manda falar com o administrador — que gera uma senha nova
+ * em Configuracoes -> Usuarios e Cargos. Rota publica (proxy.ts).
  */
-const classeFoco =
-  "outline-none focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2";
+export default async function RecuperarSenhaPage() {
+  // Le a configuracao na hora, nao no build.
+  await connection();
+  const porEmail = envioDeEmailConfigurado();
 
-export default function RecuperarSenhaPage() {
   return (
     <div className="flex flex-col gap-7">
       <div className="flex flex-col gap-2">
@@ -25,22 +29,24 @@ export default function RecuperarSenhaPage() {
         </h2>
       </div>
 
-      <p
-        className="rounded-[14px] px-4 py-3.5 text-sm leading-[1.5]"
-        style={{ backgroundColor: "var(--kx-painel)", border: "1px solid var(--kx-campo-borda)", color: "var(--kx-texto-2)" }}
-      >
-        Por enquanto, a troca de senha é feita pelo administrador da sua loja. Fale com quem administra o Konext
-        ERP na sua empresa para receber uma nova senha. O autoatendimento chega em uma fase futura.
-      </p>
+      {porEmail ? (
+        <>
+          <p className="m-0 text-sm leading-[1.5]" style={{ color: "var(--kx-texto-2)" }}>
+            Informe o e-mail com que você entra no Konext. Enviamos um link para você criar uma senha nova.
+          </p>
+          <FormularioPedirLink />
+          <p className="m-0 text-[13px] leading-[1.5]" style={{ color: "var(--kx-legenda)" }}>
+            Não chegou? O administrador da sua loja também pode gerar uma senha nova para você.
+          </p>
+        </>
+      ) : (
+        <Aviso tipo="info">
+          Fale com o administrador da sua loja: em Configurações → Usuários e Cargos, ele toca em &quot;Nova senha&quot; ao
+          lado do seu nome e passa a senha nova para você.
+        </Aviso>
+      )}
 
-      <Link
-        href="/login"
-        className={`inline-flex items-center gap-2 text-sm font-semibold hover:text-kx-link ${classeFoco}`}
-        style={{ color: "var(--kx-link)", outlineColor: "var(--kx-foco)" }}
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden />
-        Voltar para o login
-      </Link>
+      <VoltarAoLogin />
     </div>
   );
 }

@@ -19,7 +19,9 @@ import { listarUsuariosComAcessoAdmin } from "@/lib/auth/usuarios-com-acesso-adm
 import { permissoesEfetivasDoCargo } from "@/lib/auth/permissoes-efetivas-cargo";
 import { mapearCargoParaRoleLegado } from "@/lib/auth/mapear-cargo-legado";
 import type { Permissao } from "@/lib/auth/permissoes";
-import { gerarHashSenha } from "@/lib/auth/senha";
+import { gerarHashSenha, validarNovaSenha } from "@/lib/auth/senha";
+import { decidirNovaSenhaPeloAdmin } from "@/lib/auth/recuperacao-de-senha";
+import { zerarFalhasDoEmail } from "@/lib/auth/tentativas-login";
 import {
   decidirNovoUsuario,
   esquemaNovoUsuario,
@@ -456,6 +458,101 @@ export async function criarUsuario(input: DadosNovoUsuario): Promise<ResultadoCr
 
     revalidatePath("/configuracoes");
     return { sucesso: true, contaJaExistia: Boolean(contaExistente) };
+  } catch (erro) {
+    return { sucesso: false, erro: paraMensagemSegura(erro) };
+  }
+}
+
+const schemaNovaSenhaDoUsuario = z.object({
+  usuarioEmpresaId: z.string().min(1, "Informe o usuário."),
+  novaSenha: z.string(),
+});
+
+/**
+ * O administrador gera uma senha nova para alguem da loja que esqueceu a
+ * dele. Regras em decidirNovaSenhaPeloAdmin: nunca a propria (Meu perfil),
+ * nunca a do responsavel pela loja, nunca conta usada tambem em outra loja
+ * (a senha e da conta, e valeria la tambem).
+ *
+ * Derruba todas as sessoes abertas da pessoa e zera o limite de tentativas.
+ * A senha nova so volta para a tela que a gerou; a auditoria guarda que
+ * houve a troca, nunca o valor.
+ */
+export async function gerarNovaSenhaDoUsuario(
+  input: z.infer<typeof schemaNovaSenhaDoUsuario>
+): Promise<ResultadoAcaoUsuario> {
+  try {
+    const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "configuracoes.usuarios");
+
+    const analise = schemaNovaSenhaDoUsuario.safeParse(input);
+    if (!analise.success) {
+      return { sucesso: false, erro: analise.error.issues[0]?.message ?? "Dados inválidos." };
+    }
+    const validacao = validarNovaSenha(analise.data.novaSenha);
+    if (!validacao.valida) {
+      return { sucesso: false, erro: validacao.motivo.replace("A nova senha", "A senha") };
+    }
+
+    const [empresa, vinculo] = await Promise.all([
+      prismaCentral.empresa.findUnique({
+        where: { id: contexto.empresaId },
+        select: { proprietarioUsuarioEmpresaId: true },
+      }),
+      prismaCentral.usuarioEmpresa.findUnique({
+        where: { id: analise.data.usuarioEmpresaId },
+        select: { id: true, usuarioId: true, empresaId: true, ativo: true, usuario: { select: { email: true } } },
+      }),
+    ]);
+    if (!vinculo || vinculo.empresaId !== contexto.empresaId) {
+      return { sucesso: false, erro: "Usuário não encontrado nesta empresa." };
+    }
+
+    const outrasLojas = await prismaCentral.usuarioEmpresa.count({
+      where: { usuarioId: vinculo.usuarioId, empresaId: { not: contexto.empresaId } },
+    });
+
+    const decisao = decidirNovaSenhaPeloAdmin({
+      ehVoceMesmo: vinculo.usuarioId === contexto.usuarioCentralId,
+      ehResponsavelPelaLoja: vinculo.id === empresa?.proprietarioUsuarioEmpresaId,
+      ativo: vinculo.ativo,
+      usadoEmOutraLoja: outrasLojas > 0,
+    });
+    if (!decisao.permitido) {
+      return { sucesso: false, erro: decisao.motivo };
+    }
+
+    const novoHash = await gerarHashSenha(analise.data.novaSenha);
+
+    await prismaCentral.$transaction(async (tx) => {
+      await tx.usuarioCentral.update({ where: { id: vinculo.usuarioId }, data: { senha: novoHash }, select: { id: true } });
+      await tx.sessaoCentral.updateMany({
+        where: { usuarioCentralId: vinculo.usuarioId, revogadaEm: null },
+        data: { revogadaEm: new Date() },
+      });
+      await tx.tokenRecuperacaoSenha.updateMany({
+        where: { usuarioId: vinculo.usuarioId, usadoEm: null },
+        data: { usadoEm: new Date() },
+      });
+      await registrarLogAuditoriaCentral(
+        tx,
+        contextoAuditoriaCentralDoUsuario(
+          { id: contexto.usuarioCentralId },
+          contexto.empresaId,
+          "app/actions/usuarios.ts:gerarNovaSenhaDoUsuario"
+        ),
+        {
+          acao: ACOES_AUDITORIA.GERAR_NOVA_SENHA_USUARIO,
+          entidade: ENTIDADES_AUDITORIA.USUARIO_EMPRESA,
+          entidadeId: vinculo.id,
+          // Nunca a senha, nem o hash.
+          dadosDepois: { sessoesEncerradas: true },
+        }
+      );
+    });
+
+    await zerarFalhasDoEmail(vinculo.usuario.email);
+    return { sucesso: true };
   } catch (erro) {
     return { sucesso: false, erro: paraMensagemSegura(erro) };
   }

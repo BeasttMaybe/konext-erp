@@ -538,6 +538,33 @@ export const ARTIGOS_AJUDA: readonly ArtigoAjuda[] = [
     destino: { rotulo: "Ir para Meu Perfil", href: "/perfil" },
     palavrasChave: ["senha", "password", "acesso", "trocar"],
   },
+  {
+    slug: "esqueci-a-senha",
+    titulo: "Alguém esqueceu a senha",
+    categoria: "Equipe e configurações",
+    resumo: "Gerar uma senha nova para um funcionário, ou pedir o link por e-mail.",
+    secoes: [
+      {
+        titulo: "Pelo administrador",
+        passos: [
+          "Vá em Configurações → Usuários e Cargos.",
+          "Na linha da pessoa, toque em \"Nova senha\". A senha já vem sugerida — pode trocar se quiser.",
+          "Toque em \"Gerar nova senha\" e use \"Copiar acesso\" para mandar o e-mail e a senha para ela.",
+          "Os acessos que a pessoa tinha abertos são encerrados; ela entra de novo com a senha nova.",
+        ],
+      },
+      {
+        titulo: "Pela própria pessoa",
+        passos: [
+          "Na tela de login, toque em \"Esqueci minha senha\" e informe o e-mail.",
+          "Chega um link (vale 30 minutos). Ele abre a tela para criar a senha nova.",
+          "Só funciona depois que o envio de e-mail do sistema estiver configurado; até lá, a tela orienta a falar com o administrador.",
+        ],
+      },
+    ],
+    destino: { rotulo: "Ir para Configurações", href: "/configuracoes" },
+    palavrasChave: ["senha", "esqueci", "recuperar", "nova senha", "bloqueado", "acesso"],
+  },
 ];
 
 /** Minusculo e sem acento, para a busca achar "orcamento" e "orçamento". */
