@@ -1,5 +1,7 @@
 "use server";
 
+import { formatarNumeroOS } from "@/lib/dominio/os/numero-da-os";
+
 import { CHAMADA_INTERNA } from "@/lib/auth/chamada-interna";
 import { revalidatePath } from "next/cache";
 import type { StatusOS, TipoPeca } from "@prisma/client";
@@ -102,7 +104,7 @@ type RawOrdemServico = {
   situacao?: unknown;
   ehRetornoGarantia?: unknown;
   osOrigemGarantiaId?: unknown;
-  osOrigemGarantia?: { numeroOs?: unknown } | null;
+  osOrigemGarantia?: { numeroOs?: unknown; criadoEm?: Date | string | null } | null;
   retornoGarantiaId?: unknown;
   retornoGarantia?: { finalizadoEm?: unknown } | null;
   observacoes?: unknown;
@@ -129,9 +131,6 @@ export type DadosDashboardOS = {
   ordensExcluidas: OrdemServicoExcluida[];
 };
 
-function formatarNumeroOS(numero: number): string {
-  return `OS-${String(new Date().getFullYear())}-${String(numero).padStart(3, "0")}`;
-}
 
 function normalizarDataISO(valor: unknown): string {
   if (valor instanceof Date) return valor.toISOString();
@@ -159,7 +158,7 @@ function mapearOrdemServicoDashboard(order: RawOrdemServico, podeVerCustos: bool
 
   return {
     id: String(order.id),
-    numeroOS: formatarNumeroOS(Number(order.numeroOs ?? 0)),
+    numeroOS: formatarNumeroOS(Number(order.numeroOs ?? 0), order.criadoEm as Date | string | null | undefined),
     clienteId: String(order.clienteId),
     nomeCliente: String(order.cliente?.nomeRazaoSocial ?? "Cliente nao informado"),
     equipamento: String(order.equipamento ?? "Nao informado"),
@@ -182,7 +181,7 @@ function mapearOrdemServicoDashboard(order: RawOrdemServico, podeVerCustos: bool
     osOrigemGarantiaId: order.osOrigemGarantiaId ? String(order.osOrigemGarantiaId) : undefined,
     numeroOSOrigemGarantia:
       order.osOrigemGarantia?.numeroOs !== undefined && order.osOrigemGarantia?.numeroOs !== null
-        ? formatarNumeroOS(Number(order.osOrigemGarantia.numeroOs))
+        ? formatarNumeroOS(Number(order.osOrigemGarantia.numeroOs), order.osOrigemGarantia.criadoEm)
         : undefined,
     retornoGarantiaId: order.retornoGarantiaId ? String(order.retornoGarantiaId) : undefined,
     retornoGarantiaFinalizadoEm: order.retornoGarantia?.finalizadoEm
@@ -437,6 +436,7 @@ export async function obterDadosDashboardOS(): Promise<DadosDashboardOS> {
     osOrigemGarantia: {
       select: {
         numeroOs: true,
+        criadoEm: true,
       },
     },
     retornoGarantia: {
@@ -497,7 +497,7 @@ export async function obterDadosDashboardOS(): Promise<DadosDashboardOS> {
     ordensArquivadasBrutas = arquivadas;
     ordensExcluidas = excluidas.map((item) => ({
       id: item.id,
-      numeroOS: formatarNumeroOS(item.numeroOs),
+      numeroOS: formatarNumeroOS(item.numeroOs, item.criadoEm),
       nomeCliente: item.clienteNome,
       equipamento: item.equipamento,
       totalOrcamento: item.totalOrcamento,
@@ -538,7 +538,7 @@ export async function obterDadosDashboardOS(): Promise<DadosDashboardOS> {
     );
     ordensExcluidas = excluidas.map((item) => ({
       id: item.id,
-      numeroOS: formatarNumeroOS(item.numeroOs),
+      numeroOS: formatarNumeroOS(item.numeroOs, item.criadoEm),
       nomeCliente: item.clienteNome,
       equipamento: item.equipamento,
       totalOrcamento: item.totalOrcamento,
@@ -1716,6 +1716,7 @@ export type DadosOrdemServicoExcluida = {
   motivoExclusao: string;
   excluidaEm: Date;
   excluidaPorNome: string;
+  criadoEm: Date;
 };
 
 export type EntradaExcluirOrdemServico = {
@@ -1895,6 +1896,7 @@ async function listarOrdensServicoExcluidas(): Promise<DadosOrdemServicoExcluida
       statusAtual: string | null;
       motivoExclusao: string | null;
       excluidaEm: Date;
+      criadoEm: Date;
       clienteNome: string | null;
       excluidaPorNome: string | null;
       totalOrcamento: number | null;
@@ -1907,6 +1909,7 @@ async function listarOrdensServicoExcluidas(): Promise<DadosOrdemServicoExcluida
         os.status::text AS "statusAtual",
         os."motivoExclusao",
         os."excluidaEm",
+        os."criadoEm",
         c."nomeRazaoSocial" AS "clienteNome",
         u.nome AS "excluidaPorNome",
         COALESCE(SUM(i."valorCobrado"), 0) AS "totalOrcamento"
@@ -1923,6 +1926,7 @@ async function listarOrdensServicoExcluidas(): Promise<DadosOrdemServicoExcluida
         os.status,
         os."motivoExclusao",
         os."excluidaEm",
+        os."criadoEm",
         c."nomeRazaoSocial",
         u.nome
       ORDER BY os."excluidaEm" DESC
@@ -1938,6 +1942,7 @@ async function listarOrdensServicoExcluidas(): Promise<DadosOrdemServicoExcluida
       motivoExclusao: String(os.motivoExclusao ?? "Nao informado"),
       excluidaEm: new Date(os.excluidaEm),
       excluidaPorNome: String(os.excluidaPorNome ?? "Usuário não identificado"),
+      criadoEm: new Date(os.criadoEm),
     }));
   } catch {
     return [];

@@ -1,5 +1,7 @@
 "use server";
 
+import { formatarNumeroOS } from "@/lib/dominio/os/numero-da-os";
+
 import { exigirChamadaInterna, type MarcaDeChamadaInterna } from "@/lib/auth/chamada-interna";
 import { revalidatePath } from "next/cache";
 import { Prisma, type ResultadoRetornoGarantia } from "@prisma/client";
@@ -236,10 +238,6 @@ function validarPrazoGarantiaDias(valor: unknown): number {
   return numero;
 }
 
-function formatarNumeroOS(numero: number): string {
-  const ano = new Date().getFullYear();
-  return `OS-${ano}-${String(numero).padStart(3, "0")}`;
-}
 
 function calcularStatusGarantia(parametros: {
   cancelada: boolean;
@@ -338,6 +336,7 @@ type ClienteTransacional = {
 type OsTransacional = {
   id: string;
   numeroOs: number;
+  criadoEm: Date;
   status: string;
   equipamento: string;
   marca: string | null;
@@ -559,6 +558,7 @@ export async function garantirTermoGarantiaPorOS(
     select: {
       id: true,
       numeroOs: true,
+      criadoEm: true,
       status: true,
       equipamento: true,
       marca: true,
@@ -671,7 +671,7 @@ export async function garantirTermoGarantiaPorOS(
   const prazoGarantiaDias = validarPrazoGarantiaConfigurado(input.prazoGarantiaDias, regrasGarantia, os.prazoGarantiaDias);
   const dataInicioGarantia = new Date(input.dataInicioGarantia);
   const dataFimGarantia = somarDias(dataInicioGarantia, prazoGarantiaDias, input.fusoHorario ?? FUSO_HORARIO_PADRAO);
-  const numeroOS = formatarNumeroOS(os.numeroOs);
+  const numeroOS = formatarNumeroOS(os.numeroOs, os.criadoEm);
 
   const servicosExecutados = montarServicosExecutados(
     os.itens.map((item) => ({ descricao: item.descricao, tipoPeca: String(item.tipoPeca) }))
@@ -784,6 +784,7 @@ export async function obterPreviaTermoGarantiaOS(
     select: {
       id: true,
       numeroOs: true,
+      criadoEm: true,
       status: true,
       excluidaEm: true,
       prazoGarantiaDias: true,
@@ -805,7 +806,7 @@ export async function obterPreviaTermoGarantiaOS(
 
   return {
     osId: os.id,
-    numeroOS: formatarNumeroOS(os.numeroOs),
+    numeroOS: formatarNumeroOS(os.numeroOs, os.criadoEm),
     statusOS: String(os.status),
     prazoPrevistoDias: prazoPrevisto,
     prazoMinimoDias: regras.prazoMinimo,
@@ -828,6 +829,7 @@ export async function obterContextoGarantiaOS(osId: string): Promise<ContextoGar
     select: {
       id: true,
       numeroOs: true,
+      criadoEm: true,
       status: true,
       excluidaEm: true,
       termoGarantia: {
@@ -847,7 +849,7 @@ export async function obterContextoGarantiaOS(osId: string): Promise<ContextoGar
 
   return {
     osId: os.id,
-    numeroOS: formatarNumeroOS(os.numeroOs),
+    numeroOS: formatarNumeroOS(os.numeroOs, os.criadoEm),
     statusOS: String(os.status),
     possuiTermoGarantia: Boolean(os.termoGarantia),
     possuiItens: Number(os._count?.itens ?? 0) > 0,
@@ -873,6 +875,7 @@ export async function obterTermoGarantiaOS(osId: string): Promise<DadosTermoGara
         select: {
           id: true,
           numeroOs: true,
+          criadoEm: true,
           equipamento: true,
           marca: true,
           modelo: true,
@@ -977,7 +980,7 @@ export async function obterTermoGarantiaOS(osId: string): Promise<DadosTermoGara
   return {
     termoGarantiaId: termo.id,
     osId: termo.os.id,
-    numeroOS: formatarNumeroOS(termo.os.numeroOs),
+    numeroOS: formatarNumeroOS(termo.os.numeroOs, termo.os.criadoEm),
     dataFinalizacao: termo.dataInicioGarantia.toISOString(),
     clienteNome: termo.os.cliente.nomeRazaoSocial,
     clienteTelefone: termo.os.cliente.telefone,
@@ -1155,6 +1158,7 @@ export async function listarGarantiasOS(filtros: FiltrosGarantiaInput = {}): Pro
             select: {
               id: true,
               numeroOs: true,
+              criadoEm: true,
               equipamento: true,
               marca: true,
               modelo: true,
@@ -1187,6 +1191,7 @@ export async function listarGarantiasOS(filtros: FiltrosGarantiaInput = {}): Pro
                 select: {
                   id: true,
                   numeroOs: true,
+                  criadoEm: true,
                 },
               },
             },
@@ -1222,7 +1227,7 @@ export async function listarGarantiasOS(filtros: FiltrosGarantiaInput = {}): Pro
       return {
         termoGarantiaId: termo.id,
         osId: termo.os.id,
-        numeroOS: formatarNumeroOS(termo.os.numeroOs),
+        numeroOS: formatarNumeroOS(termo.os.numeroOs, termo.os.criadoEm),
         clienteNome: termo.os.cliente.nomeRazaoSocial,
         clienteTelefone: termo.os.cliente.telefone,
         clienteDocumento: termo.os.cliente.documento,
@@ -1244,7 +1249,7 @@ export async function listarGarantiasOS(filtros: FiltrosGarantiaInput = {}): Pro
         ultimoMotivoRetorno: ultimoRetorno ? ultimoRetorno.motivo : null,
         ultimoResultadoRetorno: ultimoRetorno?.resultado ?? null,
         osRetornoId: ultimoRetorno?.osRetorno?.id ?? null,
-        numeroOSRetorno: ultimoRetorno?.osRetorno ? formatarNumeroOS(ultimoRetorno.osRetorno.numeroOs) : null,
+        numeroOSRetorno: ultimoRetorno?.osRetorno ? formatarNumeroOS(ultimoRetorno.osRetorno.numeroOs, ultimoRetorno.osRetorno.criadoEm) : null,
       };
     });
 
@@ -1437,6 +1442,7 @@ export async function registrarRetornoGarantiaOS(input: RegistrarRetornoGarantia
             select: {
               id: true,
               numeroOs: true,
+              criadoEm: true,
               clienteId: true,
               equipamento: true,
               marca: true,
@@ -1487,7 +1493,7 @@ export async function registrarRetornoGarantiaOS(input: RegistrarRetornoGarantia
           imei: termo.os.imei,
           senha: termo.os.senha,
           senhaDesenho: termo.os.senhaDesenho,
-          relatoCliente: `Retorno de garantia da ${formatarNumeroOS(termo.os.numeroOs)}: ${descricao}`,
+          relatoCliente: `Retorno de garantia da ${formatarNumeroOS(termo.os.numeroOs, termo.os.criadoEm)}: ${descricao}`,
           condicaoFisica: termo.os.condicaoFisica,
           acessorios: termo.os.acessorios,
           status: "GARANTIA_RETORNO",
@@ -1500,6 +1506,7 @@ export async function registrarRetornoGarantiaOS(input: RegistrarRetornoGarantia
         select: {
           id: true,
           numeroOs: true,
+          criadoEm: true,
         },
       });
 
@@ -1600,7 +1607,7 @@ export async function registrarRetornoGarantiaOS(input: RegistrarRetornoGarantia
 
     return {
       sucesso: true,
-      mensagem: `Retorno registrado com sucesso. Nova OS de retorno criada: ${formatarNumeroOS(transacao.numeroOsRetorno)}.`,
+      mensagem: `Retorno registrado com sucesso. Nova OS de retorno criada: ${formatarNumeroOS(transacao.numeroOsRetorno, new Date())}.`,
     };
   } catch (erro) {
     if (erro instanceof ErroPermissao) {
@@ -1690,6 +1697,7 @@ export async function finalizarRetornoGarantiaOS(input: FinalizarRetornoGarantia
             select: {
               id: true,
               numeroOs: true,
+              criadoEm: true,
               archivedAt: true,
               status: true,
             },
@@ -1952,7 +1960,7 @@ export async function obterHistoricoConsertosCliente(input: {
 
     return {
       osId: os.id,
-      numeroOS: formatarNumeroOS(os.numeroOs),
+      numeroOS: formatarNumeroOS(os.numeroOs, os.criadoEm),
       data: os.criadoEm.toISOString(),
       equipamento: os.equipamento,
       defeitoRelatado: os.relatoCliente,
