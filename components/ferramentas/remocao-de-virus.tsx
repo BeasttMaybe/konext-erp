@@ -280,6 +280,7 @@ export function RemocaoDeVirus() {
             <p>Nada é apagado sozinho: o sistema aponta os suspeitos e o técnico decide o que remover.</p>
             <p>A lista de apps não sai do computador — tudo roda no navegador.</p>
           </section>
+          <AjudaSemConfiguracoes />
         </div>
       ) : null}
 
@@ -495,4 +496,65 @@ function LinhaDoApp({
 
 function Etiqueta({ texto, classe }: { texto: string; classe: string }) {
   return <span className={cn("text-[11px] font-bold", classe)}>{texto}</span>;
+}
+
+/**
+ * O anuncio nao deixa entrar nas Configuracoes. A Depuracao USB so liga pela
+ * tela do celular (trava de seguranca do Android, nao ha comando pelo cabo):
+ * o caminho e o Modo de Seguranca, em que so os apps de fabrica rodam.
+ */
+function AjudaSemConfiguracoes() {
+  return (
+    <details className="group rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5 lg:col-span-2">
+      <summary className="cursor-pointer list-none text-[17px] font-bold text-kx-texto marker:hidden">
+        <span className="mr-2 inline-block transition-transform group-open:rotate-90" aria-hidden>
+          ›
+        </span>
+        O celular não deixa entrar nas Configurações?
+      </summary>
+      <div className="mt-4 grid grid-cols-1 gap-5 text-sm text-kx-texto-2 lg:grid-cols-2">
+        <div className="flex flex-col gap-2">
+          <h3 className="font-bold text-kx-texto">1. Reinicie no Modo de Segurança</h3>
+          <p>Nele só os apps de fábrica rodam: o vírus não abre anúncio e as Configurações ficam livres.</p>
+          <ul className="flex list-disc flex-col gap-1.5 pl-5">
+            <li>
+              <strong className="text-kx-texto">Motorola e a maioria:</strong> segure o botão de ligar, depois segure o dedo em{" "}
+              <em>Desligar</em> até aparecer <em>Reiniciar no modo de segurança</em> e confirme.
+            </li>
+            <li>
+              <strong className="text-kx-texto">Samsung:</strong> o mesmo (se o botão lateral abrir a Bixby, segure lateral + volume
+              para baixo para ver o menu). Se não aparecer, desligue e ligue segurando <em>volume para baixo</em> até terminar de ligar.
+            </li>
+            <li>
+              <strong className="text-kx-texto">Xiaomi / Redmi / Poco:</strong> desligue e ligue; quando aparecer o logo, segure{" "}
+              <em>volume para baixo</em> até terminar de ligar.
+            </li>
+          </ul>
+          <p>Aparece &quot;Modo de segurança&quot; no canto da tela. Para sair, é só reiniciar normal.</p>
+        </div>
+        <div className="flex flex-col gap-2">
+          <h3 className="font-bold text-kx-texto">2. Ligue a Depuração USB pelo atalho</h3>
+          <ol className="flex list-decimal flex-col gap-1.5 pl-5">
+            <li>
+              Abra as Configurações e toque na <strong className="text-kx-texto">lupa</strong> lá em cima.
+            </li>
+            <li>
+              Digite <strong className="text-kx-texto">compilação</strong> e toque 7 vezes em <em>Número de compilação</em> (só na
+              primeira vez em cada aparelho).
+            </li>
+            <li>
+              Volte à lupa, digite <strong className="text-kx-texto">depuração</strong> e ligue a <em>Depuração USB</em>.
+            </li>
+          </ol>
+          <p>
+            Depois: reinicie normal e use esta ferramenta. Ou, se já souber qual é o app, desinstale ali mesmo no Modo de Segurança
+            (Configurações → Aplicativos; se for administrador, desative antes em Segurança → Apps de administração do dispositivo).
+          </p>
+          <p className="text-xs text-kx-legenda">
+            Sem Modo de Segurança? Desligue Wi-Fi e dados pelo atalho de cima da tela: sem internet o anúncio quase não carrega.
+          </p>
+        </div>
+      </div>
+    </details>
+  );
 }
