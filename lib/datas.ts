@@ -152,6 +152,33 @@ export function hojeComoDataDeCalendario(fusoHorario: string = FUSO_HORARIO_PADR
 }
 
 /**
+ * O instante de "dia `anoMesDiaIso` às `horaMinuto`" no relógio da loja
+ * (ex.: "2026-11-20", "09:30" em São Paulo -> 12:30 UTC). Sem hora, a
+ * meia-noite daquele dia na loja.
+ */
+export function instanteNaLoja(
+  anoMesDiaIso: string,
+  horaMinuto: string | null,
+  fusoHorario: string = FUSO_HORARIO_PADRAO
+): Date {
+  const [ano, mes, dia] = anoMesDiaIso.split("-").map(Number) as [number, number, number];
+  const [hora, minuto] = (horaMinuto ?? "00:00").split(":").map(Number) as [number, number];
+  return new Date(new TZDate(ano, mes - 1, dia, hora, minuto, 0, 0, fusoHorario).getTime());
+}
+
+/** "AAAA-MM-DD" do dia de `data` no relógio da loja. */
+export function chaveDoDiaNaLoja(data: EntradaData, fusoHorario: string = FUSO_HORARIO_PADRAO): string {
+  const d = paraDataNaLoja(data, fusoHorario);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** "HH:MM" de `data` no relógio da loja. */
+export function horaNaLoja(data: EntradaData, fusoHorario: string = FUSO_HORARIO_PADRAO): string {
+  const d = paraDataNaLoja(data, fusoHorario);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+/**
  * Um INSTANTE que cai dentro do dia de calendário `data` (meia-noite UTC) em
  * qualquer fuso de UTC−11 a UTC+11: o meio-dia UTC daquele dia. Para passar
  * uma data de calendário a funções que esperam instante (`inicioDoMes`,

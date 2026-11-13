@@ -10,7 +10,7 @@
  * - tira o modulo do menu;
  * - troca as telas dele por um aviso de "modulo nao contratado".
  *
- * NUCLEO (sempre ligado, nao esta no catalogo): Dashboard, Clientes,
+ * NUCLEO (sempre ligado, nao esta no catalogo): Dashboard, Clientes, Agenda,
  * Configuracoes, Ajuda e Meu perfil — o minimo para qualquer plano funcionar.
  *
  * QUEM LIGA E DESLIGA: o sistema master, gravando em ModuloEmpresa (banco

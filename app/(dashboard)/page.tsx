@@ -16,6 +16,8 @@ import { MovimentacoesHome } from "@/components/dashboard/movimentacoes-home";
 import { MetasHome } from "@/components/dashboard/metas-home";
 import { PendenciasHome } from "@/components/dashboard/pendencias-home";
 import { PrimeirosPassos } from "@/components/dashboard/primeiros-passos";
+import { AgendaHome } from "@/components/dashboard/agenda-home";
+import { obterProximosDaAgenda } from "@/app/actions/agenda";
 import { primeirosPassosDaLoja } from "@/lib/primeiros-passos-da-loja";
 
 export const dynamic = "force-dynamic";
@@ -66,10 +68,15 @@ export default async function PaginaDashboard({ searchParams }: PropsPaginaDashb
       ? { inicio: inicioCustom, fim: fimCustom }
       : undefined;
 
-  const [resultadoOperacional, resultadoFaturamento, configuracoes] = await Promise.all([
+  const [resultadoOperacional, resultadoFaturamento, configuracoes, agenda] = await Promise.all([
     obterPainelOperacionalHomeSeguro(periodo, intervaloCustom),
     temFinanceiro ? obterFaturamentoHomeSeguro(periodo, intervaloCustom) : Promise.resolve(null),
     obterConfiguracoes(),
+    // A agenda nunca derruba a home.
+    obterProximosDaAgenda(6).catch((erro) => {
+      console.error("[dashboard] agenda", erro instanceof Error ? erro.message : erro);
+      return null;
+    }),
   ]);
 
   if (!resultadoOperacional.sucesso) {
@@ -127,14 +134,13 @@ export default async function PaginaDashboard({ searchParams }: PropsPaginaDashb
         <FluxoOs fluxoEtapas={painel.fluxoEtapas} />
       )}
 
-      {painel.metasResumo ? (
-        <div className="grid grid-cols-1 items-start gap-kx-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-          <MovimentacoesHome itens={painel.ultimasMovimentacoes} />
-          <MetasHome resumo={painel.metasResumo} />
-        </div>
-      ) : (
+      <div className="grid grid-cols-1 items-start gap-kx-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <MovimentacoesHome itens={painel.ultimasMovimentacoes} />
-      )}
+        <div className="flex flex-col gap-kx-4">
+          {agenda ? <AgendaHome hoje={agenda.hoje} eventos={agenda.eventos} /> : null}
+          {painel.metasResumo ? <MetasHome resumo={painel.metasResumo} /> : null}
+        </div>
+      </div>
     </div>
   );
 }

@@ -85,6 +85,8 @@ export const ITENS_NAVEGACAO: readonly ItemNavegacao[] = [
       { label: "Notas Fiscais", path: "/financeiro/notas-fiscais", permissoesRequeridas: ["financeiro.ver"] },
     ],
   },
+  // Compromissos da equipe + vencimentos do financeiro + prazos de meta.
+  { label: "Agenda", path: "/agenda", iconKey: "Agenda" },
   { label: "Metas", path: "/metas", iconKey: "Metas" },
   // Guias passo a passo das tarefas do sistema (lib/ajuda/artigos.ts).
   { label: "Ajuda", path: "/ajuda", iconKey: "Ajuda" },

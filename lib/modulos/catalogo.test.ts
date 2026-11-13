@@ -66,7 +66,7 @@ describe("catalogo de modulos", () => {
   });
 
   it("todo item do menu fora do nucleo pertence a um modulo", () => {
-    const nucleo = new Set(["/", "/crm", "/ajuda"]);
+    const nucleo = new Set(["/", "/crm", "/agenda", "/ajuda"]);
     for (const item of ITENS_NAVEGACAO) {
       if (nucleo.has(item.path)) continue;
       expect(moduloDaRota(item.path), item.path).not.toBeNull();

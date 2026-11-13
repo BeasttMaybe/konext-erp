@@ -22,6 +22,7 @@ model Usuario {
   termosGarantiaCriados TermoGarantiaOS[] @relation("TermoGarantiaCriadoPor")
   retornosGarantiaCriados RetornoGarantiaOS[] @relation("RetornoGarantiaCriadoPor")
   metasCriadas Meta[] @relation("MetasCriadasPor")
+  compromissosCriados Compromisso[] @relation("CompromissosCriadosPor")
   caixaSessionsAbertas CaixaSession[] @relation("CaixaSessionAbertaPor")
   contasReceberCriadas ContaReceber[] @relation("ContaReceberCriadaPor")
   despesasCriadas Despesa[] @relation("DespesaCriadaPor")
@@ -301,6 +302,7 @@ model Cliente {
   ordensServico OrdemServico[]
   contasReceber ContaReceber[]
   despesas      Despesa[]
+  compromissos  Compromisso[]
   vendas        Venda[]
   pedidosVenda  PedidoVenda[]
   notasFiscais  NotaFiscal[]
@@ -1342,6 +1344,37 @@ model Notificacao {
   mensagem String
   lida     Boolean  @default(false)
   criadoEm DateTime @default(now()) @db.Timestamptz(3)
+}
+
+// ==========================================
+// AGENDA
+// ==========================================
+/// Compromisso marcado pela equipe. Regras em lib/dominio/agenda/agenda.ts.
+/// `inicio` e INSTANTE; no dia inteiro, e a meia-noite do dia no fuso da loja.
+model Compromisso {
+  id                 String    @id @default(uuid())
+  titulo             String
+  descricao          String?
+  inicio             DateTime  @db.Timestamptz(3)
+  fim                DateTime? @db.Timestamptz(3)
+  diaInteiro         Boolean   @default(false)
+  /// Minutos antes do inicio para avisar no sininho; nulo = sem aviso.
+  avisarMinutosAntes Int?
+  avisadoEm          DateTime? @db.Timestamptz(3)
+  concluidoEm        DateTime? @db.Timestamptz(3)
+  canceladoEm        DateTime? @db.Timestamptz(3)
+
+  clienteId String?
+  cliente   Cliente? @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+
+  criadoPorId String?
+  criadoPor   Usuario? @relation("CompromissosCriadosPor", fields: [criadoPorId], references: [id], onDelete: SetNull)
+
+  criadoEm     DateTime @default(now()) @db.Timestamptz(3)
+  atualizadoEm DateTime @updatedAt @db.Timestamptz(3)
+
+  @@index([inicio])
+  @@index([clienteId])
 }
 
 // ==========================================

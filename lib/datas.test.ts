@@ -257,3 +257,14 @@ describe("instanteDentroDaDataDeCalendario", () => {
     expect(inicioDoMes(dia1, "America/Sao_Paulo").getTime()).toBe(Date.parse("2026-10-01T03:00:00.000Z"));
   });
 });
+
+describe("instanteNaLoja / chaveDoDiaNaLoja / horaNaLoja", () => {
+  it("ida e volta no relogio da loja", async () => {
+    const { instanteNaLoja, chaveDoDiaNaLoja, horaNaLoja } = await import("./datas");
+    const t = instanteNaLoja("2026-11-20", "21:30", "America/Sao_Paulo");
+    expect(t.toISOString()).toBe("2026-11-21T00:30:00.000Z");
+    expect(chaveDoDiaNaLoja(t, "America/Sao_Paulo")).toBe("2026-11-20");
+    expect(horaNaLoja(t, "America/Sao_Paulo")).toBe("21:30");
+    expect(instanteNaLoja("2026-11-20", null, "America/Sao_Paulo").toISOString()).toBe("2026-11-20T03:00:00.000Z");
+  });
+});
