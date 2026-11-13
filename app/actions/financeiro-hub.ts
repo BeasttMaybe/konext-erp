@@ -18,6 +18,7 @@ import {
 import { deDecimal, paraMoeda, somar, subtrair } from "@/lib/dinheiro";
 import { calcularAbertoDoMes } from "@/lib/dominio/financeiro/aberto-do-mes";
 import { categoriaDaDespesa } from "@/lib/dominio/financeiro/categoria-de-despesa";
+import { taxasDoPeriodo } from "@/lib/financeiro/taxas-do-periodo";
 
 /** Nome que `os-itens.ts` grava em `Despesa.fornecedor` pra custo de peça vindo de uma OS — não existe campo de origem no schema, então é este texto exato que distingue "peça de OS" de despesa de loja de verdade (Fase 3-2D). */
 // A classificação mora em lib/dominio/financeiro/categoria-de-despesa.ts:
@@ -218,6 +219,8 @@ async function obterPagarEmAberto(): Promise<AbertoComAtraso> {
  * Saídas = parcelas de despesa já PAGAS com pagamento dentro do mês
  * (`dataPagamento`, não `dataVencimento` — o que ainda não foi pago não é
  * saída, é o "A pagar em aberto" de cima).
+ * Taxas de cartão das vendas do mês também são saída: as entradas contam o
+ * valor BRUTO da venda, e a maquininha fica com a taxa.
  */
 export interface ResultadoDoMes {
   entradas: number;
@@ -231,15 +234,19 @@ async function obterResultadoDoMes(): Promise<ResultadoDoMes> {
   const { prisma } = contexto;
   const { inicio, fim } = inicioFimDoMes(new Date(), contexto.fusoHorario);
 
-  const [entradas, saidasBrutas] = await Promise.all([
+  const [entradas, saidasBrutas, taxas] = await Promise.all([
     obterReceitaTotalPadrao(inicio, fim, prisma),
     prisma.parcelaDespesa.findMany({
       where: { status: "PAGO", dataPagamento: { gte: inicio, lte: fim } },
       select: { valorPago: true, valor: true },
     }),
+    taxasDoPeriodo(prisma, inicio, fim),
   ]);
 
-  const saidasCentavos = somar(...saidasBrutas.map((parcela) => deDecimal(parcela.valorPago ?? parcela.valor ?? 0)));
+  const saidasCentavos = somar(
+    ...saidasBrutas.map((parcela) => deDecimal(parcela.valorPago ?? parcela.valor ?? 0)),
+    deDecimal(taxas.totalTaxa)
+  );
   const entradasCentavos = deDecimal(entradas);
 
   return {
@@ -303,7 +310,7 @@ async function obterFluxoDeCaixaSemanal(): Promise<SemanaFluxoCaixa[]> {
   const resultados = await Promise.all(
     semanas.map(async (semana) => {
       if (!semana.projetado) {
-        const [vendas, pagas] = await Promise.all([
+        const [vendas, pagas, taxas] = await Promise.all([
           prisma.venda.findMany({
             where: { criadoEm: { gte: semana.inicio, lte: semana.fim } },
             select: { valorTotal: true },
@@ -312,9 +319,13 @@ async function obterFluxoDeCaixaSemanal(): Promise<SemanaFluxoCaixa[]> {
             where: { status: "PAGO", dataPagamento: { gte: semana.inicio, lte: semana.fim } },
             select: { valorPago: true, valor: true },
           }),
+          taxasDoPeriodo(prisma, semana.inicio, semana.fim),
         ]);
         const entradasCentavos = somar(...vendas.map((v) => deDecimal(v.valorTotal ?? 0)));
-        const saidasCentavos = somar(...pagas.map((p) => deDecimal(p.valorPago ?? p.valor ?? 0)));
+        const saidasCentavos = somar(
+          ...pagas.map((p) => deDecimal(p.valorPago ?? p.valor ?? 0)),
+          deDecimal(taxas.totalTaxa)
+        );
         return { entradas: paraMoeda(entradasCentavos), saidas: paraMoeda(saidasCentavos) };
       }
 
@@ -367,10 +378,13 @@ async function obterSaidasPorCategoria(): Promise<FatiaCategoria[]> {
   const { prisma } = contexto;
   const { inicio, fim } = inicioFimDoMes(new Date(), contexto.fusoHorario);
 
-  const pagas = await prisma.parcelaDespesa.findMany({
-    where: { status: "PAGO", dataPagamento: { gte: inicio, lte: fim } },
-    select: { valorPago: true, valor: true, despesa: { select: { fornecedor: true } } },
-  });
+  const [pagas, taxas] = await Promise.all([
+    prisma.parcelaDespesa.findMany({
+      where: { status: "PAGO", dataPagamento: { gte: inicio, lte: fim } },
+      select: { valorPago: true, valor: true, despesa: { select: { fornecedor: true } } },
+    }),
+    taxasDoPeriodo(prisma, inicio, fim),
+  ]);
 
   let pecaOsCentavos = 0;
   let lojaCentavos = 0;
@@ -386,6 +400,7 @@ async function obterSaidasPorCategoria(): Promise<FatiaCategoria[]> {
   return [
     { nome: "Peça de OS", valor: paraMoeda(pecaOsCentavos) },
     { nome: "Despesas da loja", valor: paraMoeda(lojaCentavos) },
+    { nome: "Taxas de cartão", valor: paraMoeda(deDecimal(taxas.totalTaxa)) },
   ].filter((fatia) => fatia.valor > 0);
 }
 

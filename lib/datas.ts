@@ -152,6 +152,17 @@ export function hojeComoDataDeCalendario(fusoHorario: string = FUSO_HORARIO_PADR
 }
 
 /**
+ * Um INSTANTE que cai dentro do dia de calendário `data` (meia-noite UTC) em
+ * qualquer fuso de UTC−11 a UTC+11: o meio-dia UTC daquele dia. Para passar
+ * uma data de calendário a funções que esperam instante (`inicioDoMes`,
+ * `fimDoMes`): a meia-noite UTC do dia 1, lida em UTC−3, ainda é o último
+ * dia do mês ANTERIOR.
+ */
+export function instanteDentroDaDataDeCalendario(data: Date): Date {
+  return new Date(Date.UTC(data.getUTCFullYear(), data.getUTCMonth(), data.getUTCDate(), 12));
+}
+
+/**
  * Soma (ou subtrai) dias corridos a uma DATA DE CALENDÁRIO (meia-noite UTC —
  * `comoDataDeCalendario`/`dataDeCalendario`). Aritmética pura em UTC, nunca
  * via `TZDate`/`somarDias`: um dia UTC tem sempre exatamente 86 400 000 ms

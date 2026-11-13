@@ -246,3 +246,14 @@ describe("somarMesesEmDataDeCalendario", () => {
     ]);
   });
 });
+
+describe("instanteDentroDaDataDeCalendario", () => {
+  it("dia 1 em UTC-3 continua no mesmo mes", async () => {
+    const { instanteDentroDaDataDeCalendario, inicioDoMes, dataDeCalendario } = await import("./datas");
+    const dia1 = dataDeCalendario("2026-11-01")!;
+    const inicio = inicioDoMes(instanteDentroDaDataDeCalendario(dia1), "America/Sao_Paulo");
+    expect(inicio.getTime()).toBe(Date.parse("2026-11-01T03:00:00.000Z"));
+    // sem o ajuste, a meia-noite UTC cai em outubro
+    expect(inicioDoMes(dia1, "America/Sao_Paulo").getTime()).toBe(Date.parse("2026-10-01T03:00:00.000Z"));
+  });
+});

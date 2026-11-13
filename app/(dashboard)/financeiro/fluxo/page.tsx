@@ -4,7 +4,7 @@ import { NavFinanceiro } from "@/components/financeiro/nav-financeiro";
 import { ConteudoFluxo } from "./components/ConteudoFluxo";
 import { FiltroPeriodoPagina } from "@/components/ui/filtro-periodo-pagina";
 import { calcularPresetEsteMes, validarIntervalo } from "@/lib/filtro-periodo";
-import { dataDeCalendario } from "@/lib/datas";
+import { dataDeCalendario, instanteDentroDaDataDeCalendario } from "@/lib/datas";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { temPermissao } from "@/lib/auth/permissoes";
 import { AcessoNegado } from "@/components/ui/acesso-negado";
@@ -58,7 +58,8 @@ export default async function FinanceiroFluxoPage({ searchParams }: PageProps) {
 
   const [dadosFluxo, dadosResultado] = await Promise.all([
     obterDadosFluxoDeCaixa(),
-    obterDadosResultadoPeriodo(referencia),
+    // `referencia` e data de calendario; o resumo do mes espera instante.
+    obterDadosResultadoPeriodo(instanteDentroDaDataDeCalendario(referencia)),
   ]);
 
   return (

@@ -5,23 +5,19 @@ import Link from "next/link";
 import {
   AlertTriangle,
   CalendarClock,
-  FileSpreadsheet,
-  FileText,
   Percent,
   Wallet,
 } from "lucide-react";
 import type { DadosFluxoDeCaixa, DadosResultadoPeriodo } from "@/app/actions/financeiro-fluxo";
 import { CartaoIndicador } from "@/components/ui/cartao-indicador";
-import { PilulaStatus } from "@/components/ui/pilula-status";
-import { Button } from "@/components/ui/button";
 import { GraficoProjecaoSaldo } from "@/components/financeiro/grafico-projecao-saldo";
 
-type Vista = "FLUXO" | "RESULTADO" | "RELATORIOS";
+type Vista = "FLUXO" | "RESULTADO" | "TAXAS";
 
 const VISTAS: { chave: Vista; rotulo: string }[] = [
   { chave: "FLUXO", rotulo: "Fluxo de caixa" },
   { chave: "RESULTADO", rotulo: "Resultado do período" },
-  { chave: "RELATORIOS", rotulo: "Relatórios" },
+  { chave: "TAXAS", rotulo: "Taxas de cartão" },
 ];
 
 const formatarMoeda = (valor: number) =>
@@ -29,23 +25,14 @@ const formatarMoeda = (valor: number) =>
 
 const formatarData = (data: Date) => new Date(data).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
 
-const RELATORIOS = [
-  { nome: "Contas a receber do período", descricao: "Títulos, status e datas de vencimento" },
-  { nome: "Contas a pagar do período", descricao: "Despesas e parcelas do período" },
-  { nome: "Fluxo de caixa", descricao: "Entradas e saídas dia a dia" },
-  { nome: "Resultado do período", descricao: "Entradas, saídas e sobra — DRE simplificado" },
-  { nome: "Ordens de serviço entregues", descricao: "OS entregues no período, com valores" },
-];
-
 interface ConteudoFluxoProps {
   dadosFluxo: DadosFluxoDeCaixa;
   dadosResultado: DadosResultadoPeriodo;
 }
 
 /**
- * Fluxo e relatórios (Fase 3-2D, Parte 4) — três vistas por pílula, dados das
- * duas primeiras já carregados no servidor (mesmo padrão de A pagar); a de
- * Relatórios não depende de dado nenhum ainda (exportação não existe).
+ * Fluxo e relatórios — três vistas por pílula, todas com os dados já
+ * carregados no servidor (mesmo padrão de A pagar).
  */
 export function ConteudoFluxo({ dadosFluxo, dadosResultado }: ConteudoFluxoProps) {
   const [vista, setVista] = useState<Vista>("FLUXO");
@@ -72,7 +59,7 @@ export function ConteudoFluxo({ dadosFluxo, dadosResultado }: ConteudoFluxoProps
 
       {vista === "FLUXO" && <VistaFluxo dados={dadosFluxo} />}
       {vista === "RESULTADO" && <VistaResultado dados={dadosResultado} />}
-      {vista === "RELATORIOS" && <VistaRelatorios />}
+      {vista === "TAXAS" && <VistaTaxas dados={dadosResultado} />}
     </>
   );
 }
@@ -191,11 +178,14 @@ function VistaResultado({ dados }: { dados: DadosResultadoPeriodo }) {
           variante="erro"
           titulo="Saídas"
           valor={formatarMoeda(resultado.saidas)}
-          descricao={
+          descricao={[
+            resultado.taxasDeCartao > 0 ? `Inclui ${formatarMoeda(resultado.taxasDeCartao)} de taxa de cartão` : null,
             resultado.variacaoSaidasPercentual === null
               ? "Sem mês anterior pra comparar"
-              : `${resultado.variacaoSaidasPercentual >= 0 ? "+" : ""}${resultado.variacaoSaidasPercentual}% vs. mês anterior`
-          }
+              : `${resultado.variacaoSaidasPercentual >= 0 ? "+" : ""}${resultado.variacaoSaidasPercentual}% vs. mês anterior`,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
         />
         <CartaoIndicador
           variante="primaria"
@@ -217,9 +207,6 @@ function VistaResultado({ dados }: { dados: DadosResultadoPeriodo }) {
             <span className="text-[17px] font-bold text-kx-texto">Quanto sobrou por OS</span>
             <span className="text-xs text-kx-legenda">Valor cobrado menos peça e taxa do cartão</span>
           </div>
-          <PilulaStatus variante="neutro" className="shrink-0">
-            Comissão: não há esse dado no sistema
-          </PilulaStatus>
         </div>
 
         <div className="sticky top-0 z-kx-sticky hidden grid-cols-[64px_minmax(0,1.3fr)_130px_110px_100px_100px_100px] gap-2.5 bg-kx-painel px-2 pb-1.5 pt-1 text-[11px] font-bold uppercase tracking-wide text-kx-legenda sm:grid">
@@ -265,48 +252,65 @@ function VistaResultado({ dados }: { dados: DadosResultadoPeriodo }) {
   );
 }
 
-// ── Vista: Relatórios ─────────────────────────────────────────────────────────
+// ── Vista: Taxas de cartão ───────────────────────────────────────────────────
 
-function VistaRelatorios() {
+function VistaTaxas({ dados }: { dados: DadosResultadoPeriodo }) {
+  const { taxas } = dados;
   return (
-    <div className="grid grid-cols-1 gap-4 min-[1400px]:grid-cols-[1.25fr_1fr] min-[1400px]:items-start">
-      <div className="flex flex-col gap-3 rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5">
-        <span className="shrink-0 text-[17px] font-bold text-kx-texto">Relatórios</span>
-        <div className="flex flex-col gap-2">
-          {RELATORIOS.map((relatorio) => (
-            <div key={relatorio.nome} className="flex min-h-[64px] items-center gap-3 rounded-kx-botao bg-kx-superficie px-3.5 py-2">
-              <div className="min-w-0 flex-1 space-y-0.5">
-                <p className="truncate text-sm font-bold text-kx-texto">{relatorio.nome}</p>
-                <p className="truncate text-xs text-kx-legenda">{relatorio.descricao}</p>
-              </div>
-              <Button type="button" variant="outline" size="sm" disabled className="shrink-0 gap-1.5">
-                <FileSpreadsheet className="h-3.5 w-3.5" />
-                Excel
-              </Button>
-              <Button type="button" variant="outline" size="sm" disabled className="shrink-0 gap-1.5">
-                <FileText className="h-3.5 w-3.5" />
-                PDF
-              </Button>
-            </div>
-          ))}
-        </div>
-        <p className="shrink-0 text-xs leading-snug text-kx-legenda">
-          Exportação em Excel e PDF ainda não foi implementada nesta fase — os números acima já existem no sistema, falta só gerar o
-          arquivo pra baixar.
-        </p>
+    <div className="flex flex-col gap-4">
+      <div className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-[repeat(auto-fit,minmax(220px,1fr))] sm:gap-3">
+        <CartaoIndicador
+          variante="erro"
+          titulo="Gasto com taxas no mês"
+          valor={formatarMoeda(taxas.totalTaxa)}
+          descricao="Já descontado nas saídas e no resultado"
+        />
+        <CartaoIndicador
+          variante="azul"
+          titulo="Vendido no cartão"
+          valor={formatarMoeda(taxas.totalBrutoNoCartao)}
+          descricao={`${taxas.quantidade} ${taxas.quantidade === 1 ? "pagamento" : "pagamentos"} com taxa`}
+        />
+        <CartaoIndicador
+          variante="primaria"
+          titulo="Taxa média"
+          valor={`${taxas.percentualMedio.toLocaleString("pt-BR")}%`}
+          descricao="Do valor vendido no cartão"
+        />
       </div>
 
-      <div className="flex flex-col gap-3 rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5">
-        <div className="flex shrink-0 items-center justify-between gap-2">
-          <span className="text-[17px] font-bold text-kx-texto">Comissões do mês</span>
-          <PilulaStatus variante="neutro">Indisponível</PilulaStatus>
+      <div className="flex flex-col gap-2 rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5">
+        <div className="flex shrink-0 flex-col gap-0.5">
+          <span className="text-[17px] font-bold text-kx-texto">Taxas por forma de pagamento</span>
+          <span className="text-xs text-kx-legenda">
+            Calculadas pela tabela de taxas das Configurações, na data da venda. Vendas estornadas não entram.
+          </span>
         </div>
-        <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded-kx-botao bg-kx-superficie p-6 text-center">
-          <p className="text-sm font-bold text-kx-texto">Não existe cálculo de comissão no sistema hoje</p>
-          <p className="max-w-xs text-xs leading-relaxed text-kx-legenda">
-            Não há regra de comissão por técnico nem valor calculado em nenhuma OS — nada aqui pra mostrar sem inventar um número.
-            Chega com a reconstrução do financeiro.
-          </p>
+
+        <div className="hidden grid-cols-[minmax(0,1.2fr)_90px_130px_120px_90px] gap-2.5 px-2 pb-1.5 pt-1 text-[11px] font-bold uppercase tracking-wide text-kx-legenda sm:grid">
+          <span>Forma</span>
+          <span className="text-right">Pagamentos</span>
+          <span className="text-right">Vendido</span>
+          <span className="text-right">Taxa</span>
+          <span className="text-right">%</span>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          {taxas.grupos.length === 0 && (
+            <p className="py-10 text-center text-sm text-kx-legenda">Nenhuma venda com taxa de cartão neste mês.</p>
+          )}
+          {taxas.grupos.map((grupo) => (
+            <div
+              key={grupo.rotulo}
+              className="grid grid-cols-2 gap-1.5 rounded-kx-botao bg-kx-superficie px-3 py-2 text-sm sm:grid-cols-[minmax(0,1.2fr)_90px_130px_120px_90px] sm:items-center sm:gap-2.5 sm:py-0 sm:min-h-[46px]"
+            >
+              <span className="col-span-2 font-bold text-kx-texto sm:col-span-1">{grupo.rotulo}</span>
+              <span className="tabular-nums text-kx-texto-2 sm:text-right">{grupo.quantidade}x</span>
+              <span className="text-right tabular-nums text-kx-texto">{formatarMoeda(grupo.bruto)}</span>
+              <span className="tabular-nums text-kx-erro-texto sm:text-right">−{formatarMoeda(grupo.taxa)}</span>
+              <span className="text-right tabular-nums text-kx-texto-2">{grupo.percentual.toLocaleString("pt-BR")}%</span>
+            </div>
+          ))}
         </div>
       </div>
     </div>

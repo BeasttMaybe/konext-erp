@@ -14,6 +14,8 @@ import {
   somarDiasEmDataDeCalendario,
 } from "@/lib/datas";
 import { deDecimal, paraMoeda, somar, subtrair } from "@/lib/dinheiro";
+import { taxasDoPeriodo } from "@/lib/financeiro/taxas-do-periodo";
+import type { RelatorioDeTaxas } from "@/lib/dominio/financeiro/taxas-de-cartao";
 
 /** Chave "yyyy-MM-dd" de uma DATA DE CALENDÁRIO (meia-noite UTC) — sempre lida em UTC, nunca no fuso do processo. */
 function chaveDiaCalendario(data: Date): string {
@@ -205,7 +207,10 @@ async function obterPrevistoXRecebido(): Promise<PrevistoXRecebido> {
 
 export interface ResultadoPeriodo {
   entradas: number;
+  /** Despesas pagas + taxas de cartao das vendas do periodo. */
   saidas: number;
+  /** A parte de `saidas` que e taxa de cartao (lib/dominio/financeiro/taxas-de-cartao.ts). */
+  taxasDeCartao: number;
   sobrou: number;
   margemPercentual: number;
   variacaoEntradasPercentual: number | null;
@@ -215,15 +220,21 @@ export interface ResultadoPeriodo {
 type PrismaTenant = Awaited<ReturnType<typeof exigirContextoTenant>>["prisma"];
 
 async function calcularEntradasSaidas(inicio: Date, fim: Date, prisma: PrismaTenant) {
-  const [entradas, saidasBrutas] = await Promise.all([
+  const [entradas, saidasBrutas, taxas] = await Promise.all([
     obterReceitaTotalPadrao(inicio, fim, prisma),
     prisma.parcelaDespesa.findMany({
       where: { status: "PAGO", dataPagamento: { gte: inicio, lte: fim } },
       select: { valorPago: true, valor: true },
     }),
+    taxasDoPeriodo(prisma, inicio, fim),
   ]);
-  const saidasCentavos = somar(...saidasBrutas.map((p) => deDecimal(p.valorPago ?? p.valor ?? 0)));
-  return { entradas, saidas: paraMoeda(saidasCentavos) };
+  // Entradas sao o valor bruto das vendas: a taxa da maquininha sai daqui
+  // como saida, senao o resultado mostraria dinheiro que nunca entrou.
+  const saidasCentavos = somar(
+    ...saidasBrutas.map((p) => deDecimal(p.valorPago ?? p.valor ?? 0)),
+    deDecimal(taxas.totalTaxa)
+  );
+  return { entradas, saidas: paraMoeda(saidasCentavos), taxas };
 }
 
 function variacaoPercentual(atual: number, anterior: number): number | null {
@@ -254,6 +265,7 @@ async function obterResultadoDoPeriodo(referencia: Date = new Date()): Promise<R
   return {
     entradas: atual.entradas,
     saidas: atual.saidas,
+    taxasDeCartao: atual.taxas.totalTaxa,
     sobrou: paraMoeda(sobrouCentavos),
     margemPercentual: entradasCentavos > 0 ? Math.round((sobrouCentavos / entradasCentavos) * 100) : 0,
     variacaoEntradasPercentual: variacaoPercentual(atual.entradas, anterior.entradas),
@@ -460,6 +472,8 @@ export async function obterDadosFluxoDeCaixa(): Promise<DadosFluxoDeCaixa> {
 
 export interface DadosResultadoPeriodo {
   resultado: ResultadoPeriodo;
+  /** Relatorio de taxas de cartao do mes. */
+  taxas: RelatorioDeTaxas;
   servicoXProduto: ServicoXProduto;
   sobraPorOS: QuantoSobrouPorOS;
 }
@@ -476,11 +490,19 @@ export interface DadosResultadoPeriodo {
 export async function obterDadosResultadoPeriodo(
   referencia: Date = new Date()
 ): Promise<DadosResultadoPeriodo> {
-  const [resultado, servicoXProduto, sobraPorOS] = await Promise.all([
+  const [resultado, servicoXProduto, sobraPorOS, taxas] = await Promise.all([
     obterResultadoDoPeriodo(referencia),
     obterServicoXProduto(referencia),
     obterQuantoSobrouPorOS(referencia),
+    obterTaxasDoMes(referencia),
   ]);
 
-  return { resultado, servicoXProduto, sobraPorOS };
+  return { resultado, servicoXProduto, sobraPorOS, taxas };
+}
+
+async function obterTaxasDoMes(referencia: Date): Promise<RelatorioDeTaxas> {
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "financeiro.ver");
+  const { inicio, fim } = inicioFimDoMes(referencia, contexto.fusoHorario);
+  return taxasDoPeriodo(contexto.prisma, inicio, fim);
 }
