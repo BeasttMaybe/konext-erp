@@ -18,8 +18,9 @@ import type { NextConfig } from "next";
  * - Strict-Transport-Security: depois da primeira visita o navegador recusa
  *   falar http com o dominio, mesmo que alguem na rede tente rebaixar.
  * - Permissions-Policy: a camera fica so para a propria origem (envio de
- *   foto); microfone, localizacao e pagamento, que o sistema nao usa, ficam
- *   desligados para qualquer script.
+ *   foto), e o USB tambem (Ferramentas → Remocao de Virus conversa com o
+ *   celular pelo cabo via WebUSB); microfone, localizacao e pagamento, que o
+ *   sistema nao usa, ficam desligados para qualquer script.
  *
  * O QUE FICOU DE FORA, DE PROPOSITO
  *
@@ -36,7 +37,7 @@ const CABECALHOS_DE_SEGURANCA = [
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
   {
     key: "Permissions-Policy",
-    value: "camera=(self), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()",
+    value: "camera=(self), microphone=(), geolocation=(), payment=(), usb=(self), browsing-topics=()",
   },
 ];
 

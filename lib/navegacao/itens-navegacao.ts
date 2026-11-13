@@ -88,6 +88,9 @@ export const ITENS_NAVEGACAO: readonly ItemNavegacao[] = [
   // Compromissos da equipe + vencimentos do financeiro + prazos de meta.
   { label: "Agenda", path: "/agenda", iconKey: "Agenda" },
   { label: "Metas", path: "/metas", iconKey: "Metas" },
+  // Ferramentas de bancada (hoje: Remoção de Vírus). Vira submenu quando
+  // houver a segunda ferramenta; ate la a pagina lista as ferramentas.
+  { label: "Ferramentas", path: "/ferramentas", iconKey: "Ferramentas" },
   // Guias passo a passo das tarefas do sistema (lib/ajuda/artigos.ts).
   { label: "Ajuda", path: "/ajuda", iconKey: "Ajuda" },
 ];

@@ -23,7 +23,7 @@
  * desligado (ex.: PDV sem Estoque nao teria o que vender).
  */
 
-export const IDS_DE_MODULO = ["os", "estoque", "pdv", "vendas", "propostas", "financeiro", "fiscal", "metas"] as const;
+export const IDS_DE_MODULO = ["os", "estoque", "pdv", "vendas", "propostas", "financeiro", "fiscal", "metas", "ferramentas"] as const;
 export type IdModulo = (typeof IDS_DE_MODULO)[number];
 
 export type Modulo = {
@@ -96,6 +96,15 @@ export const MODULOS: readonly Modulo[] = [
     descricao: "Metas da loja e da equipe, com acompanhamento automático.",
     rotas: ["/metas"],
     permissoes: ["metas"],
+  },
+  {
+    id: "ferramentas",
+    nome: "Ferramentas",
+    descricao: "Ferramentas de bancada pelo cabo USB, como a Remoção de Vírus do Android.",
+    rotas: ["/ferramentas"],
+    // Roda no navegador do tecnico, sem dado da loja: nao tem permissao
+    // propria. Quem tem acesso a loja e o modulo ligado, usa.
+    permissoes: [],
   },
 ];
 
