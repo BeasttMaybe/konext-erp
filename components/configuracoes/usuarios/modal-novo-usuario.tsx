@@ -62,7 +62,7 @@ export function ModalNovoUsuario({
   const copiarAcesso = async () => {
     if (!criado?.senha) return;
     try {
-      await navigator.clipboard.writeText(`Acesso ao Konext\nE-mail: ${criado.email}\nSenha: ${criado.senha}`);
+      await navigator.clipboard.writeText(`Acesso ao TechOS ERP\nE-mail: ${criado.email}\nSenha: ${criado.senha}`);
       toast.success("Acesso copiado.");
     } catch {
       toast.error("Não foi possível copiar. Anote os dados na tela.");
@@ -79,7 +79,7 @@ export function ModalNovoUsuario({
               <DialogDescription>
                 {criado.senha
                   ? `Passe estes dados para ${criado.nome}. A senha pode ser trocada depois em "Meu perfil".`
-                  : `${criado.nome} já tinha conta no Konext e entra com a senha que já usa.`}
+                  : `${criado.nome} já tinha conta no TechOS e entra com a senha que já usa.`}
               </DialogDescription>
             </DialogHeader>
             <div className="flex flex-col gap-2 rounded-kx-botao border border-kx-campo-borda bg-kx-superficie p-3 text-sm">

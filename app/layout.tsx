@@ -28,14 +28,14 @@ const plusJakartaSans = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Konext ERP",
+  title: "TechOS ERP",
   description: "Sistema ERP com Dashboard, Financeiro, PDV e OS",
   // iPhone instalado como app (Compartilhar → Adicionar a Tela de Inicio).
   // O manifesto (app/manifest.ts) cobre o Android; o iOS ainda le estas
   // metatags proprias para nome, tela cheia e cor da barra de status.
   appleWebApp: {
     capable: true,
-    title: "Konext",
+    title: "TechOS",
     // Translucida: o sistema desenha por baixo da barra de status, e a
     // moldura compensa com `env(safe-area-inset-top)` (barra-superior.tsx).
     // As outras opcoes poem uma faixa branca ou preta fixa em cima,

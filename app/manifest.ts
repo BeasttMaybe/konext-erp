@@ -3,7 +3,7 @@ import type { MetadataRoute } from "next";
 import { CORES_DO_APP } from "@/lib/design/cores-do-app";
 
 /**
- * O que faz o Konext ser instalavel como app: no iPhone, Safari →
+ * O que faz o TechOS ser instalavel como app: no iPhone, Safari →
  * Compartilhar → "Adicionar a Tela de Inicio".
  *
  * `display: "standalone"` abre sem a barra do navegador. `start_url` e a
@@ -15,8 +15,8 @@ import { CORES_DO_APP } from "@/lib/design/cores-do-app";
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Konext",
-    short_name: "Konext",
+    name: "TechOS ERP",
+    short_name: "TechOS",
     description: "Ordens de serviço, PDV e financeiro da assistência técnica.",
     lang: "pt-BR",
     start_url: "/",

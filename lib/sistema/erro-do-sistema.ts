@@ -75,7 +75,7 @@ export function deveAvisar(params: {
 
 export function textoDoAviso(params: { origem: string; mensagem: string; loja: string | null; ambiente: string | null }): string {
   return [
-    `⚠️ Erro no Konext${params.ambiente && params.ambiente !== "production" ? ` (${params.ambiente})` : ""}`,
+    `⚠️ Erro no TechOS${params.ambiente && params.ambiente !== "production" ? ` (${params.ambiente})` : ""}`,
     `Onde: ${params.origem}`,
     params.loja ? `Loja: ${params.loja}` : null,
     `Erro: ${params.mensagem}`,

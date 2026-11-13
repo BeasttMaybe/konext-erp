@@ -9,7 +9,7 @@ import { listarGarantiasOS, obterDashboardGarantiasOS, type DashboardGarantiasOS
 import { exigirContextoTenant } from"@/lib/tenant/exigir-contexto-tenant";
 
 export const metadata = {
-  title:"Ordem de Serviço - Konext ERP",
+  title:"Ordem de Serviço - TechOS ERP",
   description:"Gerenciar ordens de serviço e manutenção",
 };
 

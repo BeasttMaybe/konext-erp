@@ -17,10 +17,10 @@ export function ResultadoDaCriacao({
 }) {
   const [copiado, setCopiado] = useState(false);
   const texto = [
-    "Seu acesso ao Konext ERP",
+    "Seu acesso ao TechOS ERP",
     enderecoDoErp ? `Endereço: ${enderecoDoErp}` : null,
     `E-mail: ${email}`,
-    senha ? `Senha: ${senha}` : "Senha: a mesma que você já usa no Konext",
+    senha ? `Senha: ${senha}` : "Senha: a mesma que você já usa no TechOS",
     senha ? "Troque a senha em Meu perfil no primeiro acesso." : null,
   ]
     .filter(Boolean)

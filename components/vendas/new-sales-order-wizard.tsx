@@ -55,7 +55,6 @@ import { deDecimal, dividirEmParcelas, lerEntradaMonetaria, paraMoeda } from "@/
 const tabValues = [
  "dados-gerais",
  "itens-pedido",
- "logistica-frete",
  "pagamento-impostos",
 ] as const;
 
@@ -628,15 +627,12 @@ export function NewSalesOrderWizard({
  <div className="mx-auto max-w-7xl">
  <form onSubmit={handleSubmit(handleFormSubmit, handleFormInvalid)} noValidate>
  <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabValue)} className="space-y-6">
- <TabsList className="grid h-auto grid-cols-2 gap-2 rounded-kx-cartao border border-kx-painel-borda bg-kx-painel p-2 text-kx-legenda lg:grid-cols-4">
+ <TabsList className="grid h-auto grid-cols-2 gap-2 rounded-kx-cartao border border-kx-painel-borda bg-kx-painel p-2 text-kx-legenda lg:grid-cols-3">
  <TabsTrigger value="dados-gerais" className="rounded-xl py-3 data-[state=active]:bg-kx-superficie data-[state=active]:text-kx-texto">
  Dados Gerais
  </TabsTrigger>
  <TabsTrigger value="itens-pedido" className="rounded-xl py-3 data-[state=active]:bg-kx-superficie data-[state=active]:text-kx-texto">
  Itens do Pedido
- </TabsTrigger>
- <TabsTrigger value="logistica-frete" className="rounded-xl py-3 data-[state=active]:bg-kx-superficie data-[state=active]:text-kx-texto">
- Logística e Frete
  </TabsTrigger>
  <TabsTrigger value="pagamento-impostos" className="rounded-xl py-3 data-[state=active]:bg-kx-superficie data-[state=active]:text-kx-texto">
  Pagamento e Impostos
@@ -1001,28 +997,6 @@ export function NewSalesOrderWizard({
  <p className="text-xs uppercase tracking-[0.18em] text-kx-legenda">Total dos Itens</p>
  <p className="mt-2 text-2xl font-semibold text-kx-sucesso-texto">{formatCurrency(productSubtotal)}</p>
  </div>
- </div>
- </div>
- </Card>
-
- <TabFooter isFirst={false} onBack={goToPreviousTab} onNext={goToNextTab} />
- </TabsContent>
-
- <TabsContent value="logistica-frete" className="mt-0">
- <Card className="rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-6 shadow-kx-painel">
- <div className="space-y-8">
- <SectionHeader
- icon={Truck}
- title="Logística e Frete"
- description="Organize a entrega, os custos de transporte e o endereço de destino."
- />
-
- <div className="flex flex-col items-center justify-center rounded-kx-painel border border-dashed border-kx-painel-borda bg-kx-superficie px-8 py-12 text-center">
- <Truck className="h-14 w-14 text-kx-legenda/60" />
- <h3 className="mt-6 text-2xl font-semibold text-kx-texto">Módulo em Manutenção</h3>
- <p className="mt-3 max-w-2xl text-sm leading-7 text-kx-legenda">
- A gestão avançada de logística e fretes está sendo estruturada e será liberada em breve. O faturamento atual não exige o preenchimento destes dados.
- </p>
  </div>
  </div>
  </Card>

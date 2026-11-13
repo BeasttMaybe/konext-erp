@@ -197,7 +197,7 @@ export function PaginaNotasFiscais({ notasIniciais, periodo, totalGeral }: Props
           exatamente o que aconteceu. */}
       {totalGeral > notasIniciais.length && (
         <p className="text-xs text-kx-legenda">
-          {totalGeral} notas no Konext no total — a lista mostra as{" "}
+          {totalGeral} notas no TechOS no total — a lista mostra as{" "}
           {notasIniciais.length} do período escolhido. Amplie o período acima para ver as
           outras.
         </p>

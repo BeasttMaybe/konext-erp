@@ -19,7 +19,7 @@ export default async function LojasPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-extrabold">Lojas</h1>
-          <p className="text-sm text-legenda">Todas as lojas que usam o Konext ERP. Toque numa loja para ver detalhes, ligar ou desligar módulos e suspender ou reativar.</p>
+          <p className="text-sm text-legenda">Todas as lojas que usam o TechOS ERP. Toque numa loja para ver detalhes, ligar ou desligar módulos e suspender ou reativar.</p>
         </div>
         <Link href="/lojas/nova" className="flex h-10 items-center gap-2 rounded-lg bg-destaque px-4 text-sm font-bold text-fundo">
           <Plus className="h-4 w-4" aria-hidden />

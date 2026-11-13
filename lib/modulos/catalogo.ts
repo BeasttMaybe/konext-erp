@@ -85,7 +85,7 @@ export const MODULOS: readonly Modulo[] = [
   {
     id: "fiscal",
     nome: "Notas fiscais (Bling)",
-    descricao: "Notas emitidas no Bling, trazidas para o Konext.",
+    descricao: "Notas emitidas no Bling, trazidas para o TechOS.",
     rotas: ["/financeiro/notas-fiscais"],
     permissoes: [],
     dependeDe: ["financeiro"],

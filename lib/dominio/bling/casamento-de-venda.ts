@@ -119,8 +119,8 @@ export function explicarNaoCasamento(motivo: MotivoDeNaoCasar): string {
     case "NOTA_SEM_DATA":
       return "A nota veio sem data de emissão.";
     case "NENHUM_CANDIDATO":
-      return "Nenhuma venda do Konext bate com este cliente, valor e data.";
+      return "Nenhuma venda do TechOS bate com este cliente, valor e data.";
     case "MAIS_DE_UM_CANDIDATO":
-      return "Mais de uma venda do Konext bate. Vincule à mão para não arriscar a errada.";
+      return "Mais de uma venda do TechOS bate. Vincule à mão para não arriscar a errada.";
   }
 }

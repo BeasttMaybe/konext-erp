@@ -15,7 +15,7 @@ function getSingleParam(
 }
 
 export const metadata = {
-  title: "Nova Ordem de Serviço - Konext ERP",
+  title: "Nova Ordem de Serviço - TechOS ERP",
   description: "Criação de ordem de serviço com suporte a pré-preenchimento por proposta.",
 };
 

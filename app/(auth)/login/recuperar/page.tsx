@@ -4,7 +4,7 @@ import { Aviso, FormularioPedirLink, VoltarAoLogin } from "@/components/auth/for
 import { envioDeEmailConfigurado } from "@/lib/email/enviar-email";
 
 export const metadata = {
-  title: "Recuperar senha - Konext ERP",
+  title: "Recuperar senha - TechOS ERP",
 };
 
 /**
@@ -32,7 +32,7 @@ export default async function RecuperarSenhaPage() {
       {porEmail ? (
         <>
           <p className="m-0 text-sm leading-[1.5]" style={{ color: "var(--kx-texto-2)" }}>
-            Informe o e-mail com que você entra no Konext. Enviamos um link para você criar uma senha nova.
+            Informe o e-mail com que você entra no TechOS. Enviamos um link para você criar uma senha nova.
           </p>
           <FormularioPedirLink />
           <p className="m-0 text-[13px] leading-[1.5]" style={{ color: "var(--kx-legenda)" }}>

@@ -1,7 +1,7 @@
 import { PaginaMetas } from "@/components/metas/pagina-metas";
 
 export const metadata = {
-  title: "Metas - Konext ERP",
+  title: "Metas - TechOS ERP",
   description: "Acompanhe objetivos financeiros, operacionais e estratégicos da empresa.",
 };
 

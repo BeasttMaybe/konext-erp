@@ -10,7 +10,6 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { CAMPOS_DOCUMENTOS_PLANEJADOS } from "@/lib/configuracoes-documentos";
 import { PreviewIdentidadeEmpresa } from "./preview-identidade-empresa";
 import { SecaoConfiguracoes } from "./secao-configuracoes";
 
@@ -19,7 +18,7 @@ const itensDocumentos = [
     titulo: "Proposta Comercial",
     descricao: "Usa logo, nome fantasia, razão social, CNPJ, telefone e endereço da empresa.",
     status: "Prévia disponível",
-    aviso: "Mensagens próprias de proposta seguem planejadas para a próxima etapa do modelo.",
+    aviso: "Prévia ao lado mostra exatamente o cabeçalho que sai no PDF.",
   },
   {
     titulo: "Ordem de Serviço Impressa",
@@ -199,16 +198,6 @@ export function PainelDocumentos({ register, control, configuracaoAtual, salvand
             />
           </div>
 
-          <div className="grid gap-3 md:grid-cols-2">
-            {CAMPOS_DOCUMENTOS_PLANEJADOS.map((campo) => (
-              <div key={campo} className="rounded-kx-botao border border-dashed border-kx-campo-borda bg-kx-superficie p-4">
-                <p className="text-sm font-medium text-kx-texto">{campo}</p>
-                <p className="mt-1 text-xs text-kx-legenda">
-                  Disponível na próxima etapa. Esta configuração exigirá extensão segura do modelo Configuracao.
-                </p>
-              </div>
-            ))}
-          </div>
         </div>
 
         <PreviewIdentidadeEmpresa

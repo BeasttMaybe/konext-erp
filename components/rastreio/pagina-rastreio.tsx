@@ -274,7 +274,7 @@ function EtapaTimeline({
  * descobrem a loja de formas diferentes: a nova pelo slug na URL, a antiga
  * pelo banco do tenant principal. A tela é a mesma nos dois casos.
  */
-export function PaginaRastreio({ os }: { os: OsPublica | null }) {
+export function PaginaRastreio({ os }: { os: (OsPublica & { nomeDaLoja?: string }) | null }) {
   // OS não encontrada — exibe estado amigável sem expor detalhes internos.
   if (!os) {
     return (
@@ -283,7 +283,7 @@ export function PaginaRastreio({ os }: { os: OsPublica | null }) {
           {/* Logotipo */}
           <div className="flex justify-center mb-6">
             <div className="w-12 h-12 bg-kx-primaria rounded-xl flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-lg">K</span>
+              <span className="text-primary-foreground font-bold text-lg">T</span>
             </div>
           </div>
 
@@ -308,7 +308,7 @@ export function PaginaRastreio({ os }: { os: OsPublica | null }) {
           {/* Logotipo */}
           <div className="flex justify-center mb-6">
             <div className="w-12 h-12 bg-kx-primaria rounded-xl flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-lg">K</span>
+              <span className="text-primary-foreground font-bold text-lg">T</span>
             </div>
           </div>
 
@@ -335,12 +335,13 @@ export function PaginaRastreio({ os }: { os: OsPublica | null }) {
 
         {/* Cabeçalho da página — logotipo + título */}
         <div className="flex flex-col items-center text-center gap-2">
-          {/* Placeholder do logotipo — substituir por <Image> com o logo real */}
           <div className="w-12 h-12 bg-kx-primaria rounded-xl flex items-center justify-center shadow">
-            <span className="text-primary-foreground font-bold text-lg select-none">K</span>
+            <span className="text-primary-foreground font-bold text-lg select-none">
+              {(os.nomeDaLoja?.trim()[0] ?? "T").toUpperCase()}
+            </span>
           </div>
           <p className="text-xs text-kx-legenda uppercase tracking-widest font-medium">
-            Konext — Rastreio de Reparo
+            {os.nomeDaLoja ? `${os.nomeDaLoja} — Rastreio de Reparo` : "Rastreio de Reparo"}
           </p>
         </div>
 

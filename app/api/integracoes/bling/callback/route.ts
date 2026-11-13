@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
   if (!estado) {
     return paginaDeResposta(
       "Não reconheci esta autorização",
-      "O identificador desta tentativa não confere. Comece de novo pelas configurações do Konext.",
+      "O identificador desta tentativa não confere. Comece de novo pelas configurações do TechOS.",
       false
     );
   }
@@ -99,7 +99,7 @@ export async function GET(request: NextRequest) {
   if (!pendente?.estadoPendente || pendente.estadoPendente !== estado.nonce) {
     return paginaDeResposta(
       "Esta autorização já foi usada",
-      "Comece de novo pelas configurações do Konext. Isso também acontece quando o link fica aberto por muito tempo.",
+      "Comece de novo pelas configurações do TechOS. Isso também acontece quando o link fica aberto por muito tempo.",
       false
     );
   }
@@ -107,7 +107,7 @@ export async function GET(request: NextRequest) {
   if (!pendente.estadoPendenteEm || estadoExpirou(pendente.estadoPendenteEm)) {
     return paginaDeResposta(
       "A autorização demorou demais",
-      "Por segurança, a tentativa expirou. Comece de novo pelas configurações do Konext.",
+      "Por segurança, a tentativa expirou. Comece de novo pelas configurações do TechOS.",
       false
     );
   }
@@ -127,7 +127,7 @@ export async function GET(request: NextRequest) {
 
     return paginaDeResposta(
       "Bling conectado",
-      "As notas emitidas no Bling vão aparecer no Konext. Nada é emitido ou alterado lá — a conexão é só de leitura.",
+      "As notas emitidas no Bling vão aparecer no TechOS. Nada é emitido ou alterado lá — a conexão é só de leitura.",
       true
     );
   } catch (erro) {

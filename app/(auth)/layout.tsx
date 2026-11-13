@@ -71,9 +71,9 @@ export default function AuthGroupLayout({
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] text-base font-extrabold text-primary-foreground"
           style={{ backgroundColor: "var(--kx-primaria)" }}
         >
-          K
+          T
         </div>
-        <span className="text-base font-extrabold tracking-tight">Konext</span>
+        <span className="text-base font-extrabold tracking-tight">TechOS</span>
       </div>
 
       {/* Painel de marca — só a partir de 1024px */}
@@ -86,10 +86,10 @@ export default function AuthGroupLayout({
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[22px] font-extrabold text-primary-foreground"
             style={{ backgroundColor: "var(--kx-primaria)" }}
           >
-            K
+            T
           </div>
           <div className="flex flex-col">
-            <span className="text-[22px] font-extrabold tracking-tight">Konext</span>
+            <span className="text-[22px] font-extrabold tracking-tight">TechOS</span>
             <span className="text-xs" style={{ color: "var(--kx-legenda)" }}>
               Gestão para assistências técnicas
             </span>
@@ -141,7 +141,7 @@ export default function AuthGroupLayout({
         </div>
 
         <div className="flex items-center justify-between text-[13px]" style={{ color: "var(--kx-legenda)" }}>
-          <span>© {anoAtual} Konext</span>
+          <span>© {anoAtual} TechOS ERP</span>
           <span>
             Dúvidas?{" "}
             <a

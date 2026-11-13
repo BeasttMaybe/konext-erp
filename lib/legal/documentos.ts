@@ -1,9 +1,9 @@
 /**
- * Termos de Uso e Politica de Privacidade do Konext ERP.
+ * Termos de Uso e Politica de Privacidade do TechOS ERP.
  *
  * ATENCAO: texto-modelo escrito para a realidade do produto (assistencias
  * tecnicas que usam o Konext para atender os proprios clientes). Precisa da
- * revisao de um advogado antes de o Konext ser vendido para outras lojas —
+ * revisao de um advogado antes de o TechOS ser vendido para outras lojas —
  * em especial os dados da empresa responsavel e o canal de contato, que
  * devem ser completados com os dados oficiais.
  */
@@ -14,9 +14,9 @@ export type SecaoLegal = { titulo: string; paragrafos: string[] };
 
 export const TERMOS_DE_USO: SecaoLegal[] = [
   {
-    titulo: "1. O que é o Konext",
+    titulo: "1. O que é o TechOS ERP",
     paragrafos: [
-      "O Konext ERP é um sistema de gestão para assistências técnicas, oferecido pela Konext Tech, usado pela internet. Ele organiza ordens de serviço, garantias, vendas, estoque, financeiro e o cadastro de clientes da loja que o contrata.",
+      "O TechOS ERP é um sistema de gestão para assistências técnicas, oferecido pela Konext Tech, usado pela internet. Ele organiza ordens de serviço, garantias, vendas, estoque, financeiro e o cadastro de clientes da loja que o contrata.",
     ],
   },
   {

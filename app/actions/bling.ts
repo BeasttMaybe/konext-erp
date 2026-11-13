@@ -92,7 +92,7 @@ export async function desconectarBling(): Promise<ResultadoBling> {
 
     return {
       sucesso: true,
-      mensagem: "Desconectado. As notas já importadas continuam no Konext.",
+      mensagem: "Desconectado. As notas já importadas continuam no TechOS.",
     };
   } catch (erro) {
     return { sucesso: false, mensagem: paraMensagemSegura(erro) };

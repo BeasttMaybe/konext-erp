@@ -176,7 +176,7 @@ export async function login(
     // So chega aqui com e-mail e senha CERTOS (a senha e conferida antes da
     // loja), entao dizer o motivo nao ajuda quem esta adivinhando senha.
     if (resultado.motivo === "sem_empresa_ativa") {
-      return { erro: "O acesso desta loja está suspenso. Fale com o responsável pela loja ou com a Konext." };
+      return { erro: "O acesso desta loja está suspenso. Fale com o responsável pela loja ou com o suporte do TechOS." };
     }
     return { erro: ERRO_CREDENCIAIS };
   }

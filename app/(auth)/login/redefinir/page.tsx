@@ -5,7 +5,7 @@ import { prismaCentral } from "@/lib/central/prisma-central";
 import { hashDoToken, MENSAGEM_LINK_INVALIDO, situacaoDoToken, tokenTemFormatoValido } from "@/lib/auth/recuperacao-de-senha";
 
 export const metadata = {
-  title: "Criar senha nova - Konext ERP",
+  title: "Criar senha nova - TechOS ERP",
 };
 
 /**

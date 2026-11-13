@@ -1,9 +1,11 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Building2,
+  CalendarPlus,
   ChevronRight,
   Eye,
   Filter,
@@ -390,12 +392,6 @@ function ContactsPageContent() {
     setIsClientModalOpen(true);
   };
 
-  const openPlaceholderAction = (message: string) => {
-    toast.info(message, {
-      description: "Este fluxo será integrado em uma próxima etapa do CRM.",
-    });
-  };
-
   const renderMenuDoContato = (client: ClientRecord) => (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -688,12 +684,6 @@ function ContactsPageContent() {
                     </button>
                   </div>
 
-                  <div className="mt-4 hidden rounded-lg border border-dashed border-border bg-muted/30 p-4 sm:block">
-                    <p className="text-sm font-medium text-foreground">Registro com distinção visual</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      O formulário usa a mesma base do CRM e permite registrar o contato com perfil de cliente ou fornecedor.
-                    </p>
-                  </div>
                 </Card>
 
                 {renderMainContent()}
@@ -708,21 +698,12 @@ function ContactsPageContent() {
                       <UserPlus className="h-4 w-4 mr-2" />
                       Novo Contato
                     </Button>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start"
-                      onClick={() => openPlaceholderAction("Nova tarefa em preparação")}
-                    >
-                      <ChevronRight className="h-4 w-4 mr-2" />
-                      Nova Tarefa
+                    <Button variant="outline" className="w-full justify-start" asChild>
+                      <Link href="/agenda?novo=1">
+                        <CalendarPlus className="h-4 w-4 mr-2" />
+                        Agendar compromisso
+                      </Link>
                     </Button>
-                  </div>
-
-                  <div className="mt-4 rounded-lg border border-dashed border-border p-3 bg-muted/30">
-                    <p className="text-sm font-medium text-foreground">Fluxo dedicado</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Esta página abre separadamente para concentrar o trabalho de contatos e fornecedores.
-                    </p>
                   </div>
                 </Card>
               </div>

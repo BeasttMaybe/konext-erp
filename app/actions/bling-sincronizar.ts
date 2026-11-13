@@ -599,7 +599,7 @@ export async function sincronizarNotasDoBling(): Promise<ResumoDaSincronizacao> 
       mensagem:
         faltamDetalhes > 0
           ? `${totalNoKonext} notas e ${contasCriadas} contas novas. Faltam ${faltamDetalhes} valores — clique de novo para continuar.`
-          : `${totalNoKonext} notas no Konext, tudo em dia. ${contasCriadas} contas a receber novas.`,
+          : `${totalNoKonext} notas no TechOS, tudo em dia. ${contasCriadas} contas a receber novas.`,
       notasLidas: lidas,
       notasNovas: novas,
       detalhesBuscados,

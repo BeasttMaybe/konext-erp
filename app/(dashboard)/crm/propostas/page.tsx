@@ -3,7 +3,7 @@ import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { hojeComoDataDeCalendario } from "@/lib/datas";
 
 export const metadata = {
-  title: "Propostas | Konext ERP",
+  title: "Propostas | TechOS ERP",
   description: "Orçamentos enviados, o que vence e quanto dos seus orçamentos fecha.",
 };
 

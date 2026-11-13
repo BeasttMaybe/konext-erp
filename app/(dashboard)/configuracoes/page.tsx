@@ -9,7 +9,7 @@ import { EstadoDoSistema } from "@/components/configuracoes/estado-do-sistema";
 import { lerEstadoDoSistema } from "@/lib/sistema/estado";
 import { errosRecentesDaLoja } from "@/lib/sistema/registrar-erro";
 
-export const metadata = { title: "Configurações | Konext" };
+export const metadata = { title: "Configurações | TechOS" };
 
 /**
  * Configurações (Fase 3-2E) — shell no design system. O cabeçalho

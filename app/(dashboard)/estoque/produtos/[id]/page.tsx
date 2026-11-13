@@ -13,7 +13,7 @@ import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 type Props = { params: Promise<{ id: string }> };
 
 export const metadata = {
-  title: "Produto | Konext ERP",
+  title: "Produto | TechOS ERP",
 };
 
 /** Quantas movimentações a página mostra. O resto fica no sheet do estoque. */

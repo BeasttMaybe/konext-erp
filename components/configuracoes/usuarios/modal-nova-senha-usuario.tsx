@@ -49,7 +49,7 @@ export function ModalNovaSenhaUsuario({
 
   const copiar = async () => {
     try {
-      await navigator.clipboard.writeText(`Acesso ao Konext\nE-mail: ${usuario.email}\nSenha: ${senha}`);
+      await navigator.clipboard.writeText(`Acesso ao TechOS ERP\nE-mail: ${usuario.email}\nSenha: ${senha}`);
       toast.success("Acesso copiado.");
     } catch {
       toast.error("Não foi possível copiar. Anote os dados na tela.");

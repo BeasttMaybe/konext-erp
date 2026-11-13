@@ -126,7 +126,7 @@ async function lerConfiguracao(prisma: PrismaDoTenant) {
  */
 function montarMensagemDoDia(avisos: AvisoDeVencimento[]): string {
   const cabecalho =
-    avisos.length === 1 ? "Konext — 1 conta no radar" : `Konext — ${avisos.length} contas no radar`;
+    avisos.length === 1 ? "TechOS — 1 conta no radar" : `TechOS — ${avisos.length} contas no radar`;
 
   return [cabecalho, "", ...avisos.map((aviso) => aviso.mensagem)].join("\n\n");
 }

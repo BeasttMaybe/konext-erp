@@ -34,7 +34,8 @@ async function carregar(slug: string, id: string) {
   const loja = await abrirTenantPorSlug(slug);
   if (!loja) return null;
 
-  return buscarOsPublica(loja.prisma, id);
+  const os = await buscarOsPublica(loja.prisma, id);
+  return os ? { ...os, nomeDaLoja: loja.empresaNome } : null;
 }
 
 export async function generateMetadata({
@@ -49,10 +50,10 @@ export async function generateMetadata({
   // pessoa, e não tem nada que deva aparecer em busca.
   const robots = { index: false, follow: false } as const;
 
-  if (!os) return { title: "OS não encontrada | Konext", robots };
+  if (!os) return { title: "OS não encontrada | TechOS", robots };
 
   return {
-    title: `Rastreio OS #${os.numeroOs} | Konext`,
+    title: `Rastreio OS #${os.numeroOs} | ${os.nomeDaLoja}`,
     description: "Acompanhe o status do reparo do seu equipamento.",
     robots,
   };

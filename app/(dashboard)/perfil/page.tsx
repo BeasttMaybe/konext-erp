@@ -152,7 +152,7 @@ export default function PerfilPage() {
             </Avatar>
 
             <div>
-              <p className="text-lg font-semibold text-foreground">{nomeCompleto || "Usuario Konext"}</p>
+              <p className="text-lg font-semibold text-foreground">{nomeCompleto || "Usuário"}</p>
               <p className="text-sm text-muted-foreground">{email || "usuario@konext.local"}</p>
             </div>
 

@@ -91,7 +91,7 @@ export function PainelBling() {
         <div>
           <h3 className="text-base font-bold text-kx-texto">Bling</h3>
           <p className="mt-0.5 text-sm text-kx-legenda">
-            Você continua emitindo as notas no Bling. O Konext apenas lê o que foi emitido e
+            Você continua emitindo as notas no Bling. O TechOS apenas lê o que foi emitido e
             traz para cá. <strong className="text-kx-texto-2">Nada é emitido, cancelado ou
             alterado no Bling</strong> — a autorização pedida é só de leitura.
           </p>

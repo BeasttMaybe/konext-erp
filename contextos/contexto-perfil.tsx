@@ -29,6 +29,8 @@ export type PerfilDaMoldura = {
   email: string;
   fotoPerfilUrl: string | null;
   logoUrl: string | null;
+  /** Nome fantasia da loja — sai ao lado da logo na barra lateral. */
+  nomeDaLoja: string;
 };
 
 export const PERFIL_VAZIO: PerfilDaMoldura = {
@@ -36,6 +38,7 @@ export const PERFIL_VAZIO: PerfilDaMoldura = {
   email: "",
   fotoPerfilUrl: null,
   logoUrl: null,
+  nomeDaLoja: "",
 };
 
 const ContextoPerfil = createContext<PerfilDaMoldura>(PERFIL_VAZIO);

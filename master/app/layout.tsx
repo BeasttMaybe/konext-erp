@@ -3,8 +3,8 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Konext Master",
-  description: "Administração das lojas que usam o Konext ERP.",
+  title: "TechOS Master",
+  description: "Administração das lojas que usam o TechOS ERP.",
   robots: { index: false, follow: false },
 };
 
