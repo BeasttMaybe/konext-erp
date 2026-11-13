@@ -7,6 +7,8 @@ import { AutoImprimir } from "@/components/os/impressao/auto-imprimir";
 import { BotaoImprimirGarantia } from "@/components/os/garantias/botao-imprimir-garantia";
 import { TermoGarantiaDocumento } from "@/components/os/garantias/termo-garantia-documento";
 import { Button } from "@/components/ui/button";
+import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
+import { assinaturaDaOS } from "@/lib/usuarios/assinaturas";
 
 type PropsPaginaGarantia = {
   params: Promise<{ id: string }>;
@@ -66,6 +68,10 @@ export default async function PaginaGarantiaOS({ params, searchParams }: PropsPa
     );
   }
 
+  // Assinatura da loja: a do tecnico principal da OS (Meu Perfil).
+  const { prisma } = await exigirContextoTenant();
+  const assinatura = await assinaturaDaOS(prisma, termo.osId);
+
   return (
     <>
       <style>{`
@@ -118,7 +124,7 @@ export default async function PaginaGarantiaOS({ params, searchParams }: PropsPa
         </div>
 
         <article className="garantia-folha documento-impresso w-[210mm] min-h-[297mm] mx-auto bg-kx-papel text-kx-papel-texto border border-kx-papel-borda shadow-sm rounded p-[14mm] print:rounded-none print:shadow-none print:border-0">
-          <TermoGarantiaDocumento termo={termo} />
+          <TermoGarantiaDocumento termo={termo} assinatura={assinatura} />
         </article>
       </div>
     </>

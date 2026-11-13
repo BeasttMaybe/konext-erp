@@ -1,7 +1,10 @@
+import type { AssinaturaDoDocumento } from "@/lib/dominio/usuarios/assinatura";
 import type { DadosTermoGarantia } from "@/app/actions/garantias";
 
 type TermoGarantiaDocumentoProps = {
   termo: DadosTermoGarantia;
+  /** Assinatura da loja (tecnico principal), ja assinada; sem ela, linha em branco. */
+  assinatura?: AssinaturaDoDocumento | null;
 };
 
 const tituloDocumento = "Termo de Garantia";
@@ -21,7 +24,7 @@ function formatarMoeda(valor: number): string {
   }).format(valor);
 }
 
-export function TermoGarantiaDocumento({ termo }: TermoGarantiaDocumentoProps) {
+export function TermoGarantiaDocumento({ termo, assinatura = null }: TermoGarantiaDocumentoProps) {
   const marcaModelo = termo.marcaModelo?.trim() || "Nao informado";
   const imeiSerie = termo.imeiOuSerial?.trim() || "Nao informado";
   const diagnostico = termo.diagnosticoTecnico?.trim() || "Nao informado";
@@ -143,8 +146,12 @@ export function TermoGarantiaDocumento({ termo }: TermoGarantiaDocumentoProps) {
           <p className="text-center text-[10px] text-kx-papel-legenda">Nome legivel e documento</p>
         </div>
         <div>
-          <p className="mb-8 border-b border-kx-papel-borda-forte pb-1 text-center font-medium">Assinatura da Loja / Tecnico</p>
-          <p className="text-center text-[10px] text-kx-papel-legenda">Carimbo e responsavel tecnico</p>
+          {assinatura?.url ? (
+            // eslint-disable-next-line @next/next/no-img-element -- imagem do proprio sistema; o print nao espera o otimizador.
+            <img src={assinatura.url} alt={`Assinatura de ${assinatura.nome}`} className="mx-auto -mb-2 h-10 max-w-[70%] object-contain" />
+          ) : null}
+          <p className={`${assinatura?.url ? "" : "mb-8 "}border-b border-kx-papel-borda-forte pb-1 text-center font-medium`}>Assinatura da Loja / Tecnico</p>
+          <p className="text-center text-[10px] text-kx-papel-legenda">{assinatura?.nome ?? "Carimbo e responsavel tecnico"}</p>
         </div>
       </section>
 

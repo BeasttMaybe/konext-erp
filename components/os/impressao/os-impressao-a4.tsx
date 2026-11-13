@@ -222,15 +222,30 @@ export function OsImpressaoA4({ dados, qrCodeSvg = null }: PropsOsImpressaoA4) {
           <div className="mt-auto pt-8 break-inside-avoid">
             <div className="grid grid-cols-2 gap-12 border-t border-kx-papel-borda pt-6">
               <div className="flex flex-col items-center gap-1.5">
-                <div className="h-10" aria-hidden="true" />
+                {/* Assinatura ja assinada do tecnico principal (Meu Perfil), em
+                    cima da linha; sem ela, o espaco para assinar a caneta. */}
+                {/* Mesma altura dos dois lados (h-14), com a assinatura assentada
+                    no fundo: as duas linhas ficam na mesma altura. */}
+                <div className="flex h-14 w-full items-end justify-center">
+                  {dados.assinaturaTecnico?.url ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- imagem do proprio sistema; o print nao pode esperar o otimizador.
+                    <img
+                      src={dados.assinaturaTecnico.url}
+                      alt={`Assinatura de ${dados.assinaturaTecnico.nome}`}
+                      className="-mb-1 max-h-full max-w-[70%] object-contain"
+                    />
+                  ) : null}
+                </div>
                 <div className="border-t border-kx-papel-borda-forte w-full" />
                 <p className="text-xs font-semibold text-kx-papel-texto-2 text-center mt-1">
                   Assinatura do Técnico
                 </p>
-                <p className="text-[10px] text-kx-papel-legenda italic text-center">Nome legível</p>
+                <p className="text-[10px] text-kx-papel-legenda italic text-center">
+                  {dados.assinaturaTecnico?.nome ?? "Nome legível"}
+                </p>
               </div>
               <div className="flex flex-col items-center gap-1.5">
-                <div className="h-10" aria-hidden="true" />
+                <div className="h-14" aria-hidden="true" />
                 <div className="border-t border-kx-papel-borda-forte w-full" />
                 <p className="text-xs font-semibold text-kx-papel-texto-2 text-center mt-1">
                   Assinatura do Cliente

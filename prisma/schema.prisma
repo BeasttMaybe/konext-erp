@@ -18,6 +18,7 @@ model Usuario {
   ordensServicoExcluidas OrdemServico[] @relation("OrdemServicoExcluidaPor")
   ordensServicoCriadas OrdemServico[] @relation("OrdemServicoCriadaPor")
   ordensServicoTecnico TecnicoOS[] @relation("TecnicosDaOS")
+  assinatura           AssinaturaUsuario?
   termosGarantiaCriados TermoGarantiaOS[] @relation("TermoGarantiaCriadoPor")
   retornosGarantiaCriados RetornoGarantiaOS[] @relation("RetornoGarantiaCriadoPor")
   metasCriadas Meta[] @relation("MetasCriadasPor")
@@ -72,6 +73,18 @@ enum ModeloImpressaoOS {
 /// e nao uma coluna em Configuracao: a Configuracao e lida em quase toda
 /// requisicao, e carregar os bytes da logo junto seria peso morto em todas.
 /// Linha unica por loja (id fixo "principal").
+/// Assinatura de cada usuario, ja assinada, que sai na linha de assinatura
+/// da OS, do termo de garantia e da proposta. Tabela propria (como a logo):
+/// os bytes so sao lidos pela rota que serve a imagem.
+model AssinaturaUsuario {
+  usuarioId     String   @id
+  usuario       Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  conteudo      Bytes
+  tipoConteudo  String
+  tamanhoBytes  Int
+  atualizadoEm  DateTime @updatedAt @db.Timestamptz(3)
+}
+
 model LogoEmpresa {
   id            String   @id @default("principal")
   conteudo      Bytes

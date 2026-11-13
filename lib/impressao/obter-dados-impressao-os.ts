@@ -1,3 +1,5 @@
+import { assinanteDaOS, type AssinaturaDoDocumento } from "@/lib/dominio/usuarios/assinatura";
+import { assinaturaDoDocumento } from "@/lib/usuarios/assinaturas";
 import type { ModeloImpressaoOS } from "@prisma/client";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { obterConfiguracoes } from "@/app/actions/configuracoes";
@@ -23,6 +25,8 @@ type OrdemServicoImpressao = {
     dataFimGarantia: Date | string;
     canceladaEm: Date | string | null;
   } | null;
+  tecnicos?: Array<{ principal: boolean; usuario: { id: string; nome: string } }>;
+  criadoPor?: { id: string; nome: string } | null;
 };
 
 type OrdemServicoImpressaoDelegate = {
@@ -98,6 +102,8 @@ export type DadosImpressaoOS = {
   imprimirLogoTermica: boolean;
   mensagemRodapeImpressaoOS: string;
   modeloImpressaoOSPadrao: ModeloImpressaoOS;
+  /** Quem assina pela loja (tecnico principal) e a assinatura dele, se tiver. */
+  assinaturaTecnico: AssinaturaDoDocumento | null;
 };
 
 export async function obterDadosImpressaoOS(id: string): Promise<DadosImpressaoOS | null> {
@@ -117,6 +123,8 @@ export async function obterDadosImpressaoOS(id: string): Promise<DadosImpressaoO
     cliente: { select: { nomeRazaoSocial: true, documento: true, telefone: true } },
     itens: true,
     termoGarantia: { select: { prazoGarantiaDias: true, dataFimGarantia: true, canceladaEm: true } },
+    tecnicos: { select: { principal: true, usuario: { select: { id: true, nome: true } } }, orderBy: { criadoEm: "asc" } },
+    criadoPor: { select: { id: true, nome: true } },
   };
 
   const [osRaw, config] = await Promise.all([
@@ -169,6 +177,11 @@ export async function obterDadosImpressaoOS(id: string): Promise<DadosImpressaoO
         origem: "PADRAO",
       };
 
+  const assinaturaTecnico = await assinaturaDoDocumento(
+    prisma,
+    assinanteDaOS({ tecnicos: os.tecnicos ?? [], criadoPor: os.criadoPor ?? null })
+  );
+
   return {
     numeroOs: String(os.numeroOs ?? "-"),
     statusLabel: mapaStatusLabel[String(os.status)] ?? String(os.status).replaceAll("_", " "),
@@ -193,5 +206,6 @@ export async function obterDadosImpressaoOS(id: string): Promise<DadosImpressaoO
     imprimirLogoTermica: config.imprimirLogoTermica,
     mensagemRodapeImpressaoOS: config.mensagemRodapeImpressaoOS,
     modeloImpressaoOSPadrao: config.modeloImpressaoOSPadrao,
+    assinaturaTecnico,
   };
 }
