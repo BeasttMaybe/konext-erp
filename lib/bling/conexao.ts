@@ -3,6 +3,36 @@ import "server-only";
 import type { PrismaClient } from "@prisma/client";
 
 import { ErroDoBling, renovarTokens, type TokensDoBling } from "./api";
+import { chaveDaEmpresa } from "@/lib/seguranca/chave-da-empresa";
+import {
+  abrir,
+  cifrar,
+  CONTEXTO_TOKEN_DE_ACESSO_BLING,
+  CONTEXTO_TOKEN_DE_RENOVACAO_BLING,
+} from "@/lib/seguranca/cifra";
+
+/**
+ * Os dois tokens ficam CIFRADOS no banco da loja, com a chave dela (banco
+ * central — lib/seguranca/chave-da-empresa.ts): quem tiver uma copia do banco
+ * nao leva junto o acesso ao Bling. Leitura dupla: um token gravado antes da
+ * cifra continua valendo, e a proxima renovacao (a cada ~6h) ja o grava cifrado.
+ */
+async function cifrarTokens(empresaId: string, tokens: { accessToken: string; refreshToken: string }) {
+  const chave = await chaveDaEmpresa(empresaId);
+  return {
+    accessToken: tokens.accessToken ? cifrar(tokens.accessToken, chave, CONTEXTO_TOKEN_DE_ACESSO_BLING) : "",
+    refreshToken: tokens.refreshToken ? cifrar(tokens.refreshToken, chave, CONTEXTO_TOKEN_DE_RENOVACAO_BLING) : "",
+  };
+}
+
+async function abrirToken(empresaId: string, valor: string, contexto: string): Promise<string> {
+  if (!valor) return valor;
+  const aberto = abrir(valor, await chaveDaEmpresa(empresaId), contexto);
+  if (aberto === null) {
+    throw new ErroDoBling("Não foi possível ler a conexão com o Bling. Conecte de novo nas configurações.", null, true);
+  }
+  return aberto;
+}
 
 /**
  * Guarda os tokens do Bling e entrega sempre um access token válido.
@@ -82,20 +112,23 @@ export async function lerConexao(prisma: PrismaClient): Promise<ConexaoBling | n
  */
 export async function salvarConexaoNova({
   prisma,
+  empresaId,
   tokens,
   conectadoPor,
 }: {
   prisma: PrismaClient;
+  empresaId: string;
   tokens: TokensDoBling;
   conectadoPor: string | null;
 }): Promise<void> {
   const integracao = delegate(prisma);
+  const cifrados = await cifrarTokens(empresaId, tokens);
 
   await integracao.deleteMany({ where: {} });
   await integracao.create({
     data: {
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken,
+      accessToken: cifrados.accessToken,
+      refreshToken: cifrados.refreshToken,
       expiraEm: tokens.expiraEm,
       conectadoPor,
     },
@@ -143,7 +176,7 @@ function precisaRenovar(conexao: ConexaoBling): boolean {
  * Quem não consegue a trava ESPERA o outro terminar e relê, em vez de renovar
  * também — esperar um segundo é melhor que derrubar a conexão da loja.
  */
-export async function obterAccessTokenValido(prisma: PrismaClient): Promise<string> {
+export async function obterAccessTokenValido(prisma: PrismaClient, empresaId: string): Promise<string> {
   const integracao = delegate(prisma);
   const conexao = await lerConexao(prisma);
 
@@ -151,7 +184,7 @@ export async function obterAccessTokenValido(prisma: PrismaClient): Promise<stri
     throw new ErroDoBling("Esta loja ainda não conectou a conta do Bling.", null, true);
   }
 
-  if (!precisaRenovar(conexao)) return conexao.accessToken;
+  if (!precisaRenovar(conexao)) return abrirToken(empresaId, conexao.accessToken, CONTEXTO_TOKEN_DE_ACESSO_BLING);
 
   if (!(await tentarTravar(prisma, conexao.id))) {
     for (let tentativa = 0; tentativa < TENTATIVAS_DE_ESPERA; tentativa += 1) {
@@ -162,7 +195,7 @@ export async function obterAccessTokenValido(prisma: PrismaClient): Promise<stri
         throw new ErroDoBling("A conexão com o Bling foi removida.", null, true);
       }
 
-      if (!precisaRenovar(atualizada)) return atualizada.accessToken;
+      if (!precisaRenovar(atualizada)) return abrirToken(empresaId, atualizada.accessToken, CONTEXTO_TOKEN_DE_ACESSO_BLING);
     }
 
     throw new ErroDoBling(
@@ -172,13 +205,16 @@ export async function obterAccessTokenValido(prisma: PrismaClient): Promise<stri
   }
 
   try {
-    const tokens = await renovarTokens(conexao.refreshToken);
+    const tokens = await renovarTokens(
+      await abrirToken(empresaId, conexao.refreshToken, CONTEXTO_TOKEN_DE_RENOVACAO_BLING)
+    );
+    const cifrados = await cifrarTokens(empresaId, tokens);
 
     await integracao.update({
       where: { id: conexao.id },
       data: {
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
+        accessToken: cifrados.accessToken,
+        refreshToken: cifrados.refreshToken,
         expiraEm: tokens.expiraEm,
         renovandoDesde: null,
         ultimoErro: null,

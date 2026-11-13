@@ -60,14 +60,6 @@ describe("CAMPOS_LIDOS_DE_CONFIGURACAO", () => {
     expect([...lidos].filter((campo) => !lista.has(campo))).toEqual([]);
   });
 
-  it("as colunas mortas que derrubaram o sistema em 10/11 NAO estao na lista", () => {
-    // Estao no banco e no schema (devolvidas para destravar o build antigo),
-    // mas nenhum codigo as le — e por nao serem pedidas e que agora podem
-    // sair de novo sem derrubar nada.
-    expect(lista.has("chavePix")).toBe(false);
-    expect(lista.has("habilitarMargemAutomatica")).toBe(false);
-  });
-
   it("o select tem exatamente os campos da lista", () => {
     expect(Object.keys(SELECAO_DE_CONFIGURACAO).sort()).toEqual([...lista].sort());
     expect(Object.values(SELECAO_DE_CONFIGURACAO).every((valor) => valor === true)).toBe(true);

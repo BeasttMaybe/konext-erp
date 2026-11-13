@@ -141,7 +141,7 @@ export async function espiarRespostaDoBling(
     const contexto = await exigirContextoTenant();
     exigirPermissao(contexto, "configuracoes.sistema");
 
-    const accessToken = await obterAccessTokenValido(contexto.prisma);
+    const accessToken = await obterAccessTokenValido(contexto.prisma, contexto.empresaId);
 
     // O detalhe precisa de um id, e o id vem da listagem. Duas chamadas, com
     // a pausa da vazão entre elas: o Bling aceita 3 por segundo.

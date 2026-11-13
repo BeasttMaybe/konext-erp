@@ -80,3 +80,5 @@ export function abrir(valor: string | null | undefined, chave: Buffer, contexto:
 /** Campos cifrados conhecidos — o contexto de cada um. */
 export const CONTEXTO_SENHA_DO_APARELHO = "os.senha";
 export const CONTEXTO_DESENHO_DO_APARELHO = "os.senhaDesenho";
+export const CONTEXTO_TOKEN_DE_ACESSO_BLING = "bling.accessToken";
+export const CONTEXTO_TOKEN_DE_RENOVACAO_BLING = "bling.refreshToken";
