@@ -143,6 +143,26 @@ jobs:
           && echo "sem divergência" \
           || { echo "::error::As migrations do central não reproduzem prisma/central/schema.prisma. SQL faltante:"; cat /tmp/diff-central.sql; exit 1; }
 
+      # O master cria o banco de cada loja nova aplicando as migrations com
+      # codigo proprio (lib/provisionamento/migracoes-da-loja.ts), sem o binario
+      # do Prisma. Aqui se prova que o resultado e IGUAL ao do Prisma: o
+      # `migrate status` reconhece tudo como aplicado (mesmo formato de
+      # _prisma_migrations, mesmos checksums) e o diff contra o schema sai vazio.
+      - name: Banco de loja criado pelo master = banco do Prisma
+        env:
+          BANCO_DA_LOJA_URL: postgresql://postgres:sombra@127.0.0.1:5432/loja_do_master
+        run: |
+          PGPASSWORD=sombra psql -h 127.0.0.1 -U postgres -d postgres -c 'CREATE DATABASE loja_do_master;'
+          node scripts/provisionamento/aplicar-migracoes-da-loja.mjs
+          DATABASE_URL="$BANCO_DA_LOJA_URL" npx prisma migrate status
+          DATABASE_URL="$BANCO_DA_LOJA_URL" npx prisma migrate diff \
+            --from-config-datasource \
+            --to-schema prisma/schema.prisma \
+            --script --exit-code > /tmp/diff-loja.sql \
+          && echo "igual ao schema" \
+          || { echo "::error::O banco criado pelo codigo do master diverge do schema:"; cat /tmp/diff-loja.sql; exit 1; }
+          node scripts/provisionamento/aplicar-migracoes-da-loja.mjs | grep -q "aplicadas 0" && echo "segunda vez: nada a aplicar"
+
       # O SQL cru do projeto só é validado quando um banco recebe a consulta:
       # erro de sintaxe, nome de coluna errado ou cast impossível não aparecem
       # em `tsc` nem em teste de unidade — aparecem quando alguém abre a tela.

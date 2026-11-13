@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Plus } from "lucide-react";
 
 import { Selo, tomDoStatus } from "~/components/selo";
 import { data, haQuanto, ROTULO_STATUS } from "~/lib/formatar";
@@ -16,9 +16,15 @@ export default async function LojasPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-extrabold">Lojas</h1>
-        <p className="text-sm text-legenda">Todas as lojas que usam o Konext ERP. Toque numa loja para ver detalhes, ligar ou desligar módulos e suspender ou reativar.</p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-extrabold">Lojas</h1>
+          <p className="text-sm text-legenda">Todas as lojas que usam o Konext ERP. Toque numa loja para ver detalhes, ligar ou desligar módulos e suspender ou reativar.</p>
+        </div>
+        <Link href="/lojas/nova" className="flex h-10 items-center gap-2 rounded-lg bg-destaque px-4 text-sm font-bold text-fundo">
+          <Plus className="h-4 w-4" aria-hidden />
+          Nova loja
+        </Link>
       </div>
 
       <dl className="grid grid-cols-2 gap-3 md:grid-cols-4">

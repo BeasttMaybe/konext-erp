@@ -255,6 +255,19 @@ async function principal() {
     if (id) endpoints.add(id);
   }
 
+  // Lojas criadas pelo master (connectionRef "COFRE"): o endereco esta no
+  // banco central, cifrado — abre com CHAVE_DAS_CONEXOES. Varias lojas moram no
+  // mesmo branch do Neon, entao o Set junta tudo num ponto so.
+  if (process.env.CENTRAL_DATABASE_URL && process.env.CHAVE_DAS_CONEXOES) {
+    const { listarTenantsAtivos } = await import("../lib/tenants-centrais.mjs");
+    const { resolvidos } = await listarTenantsAtivos(process.env.CENTRAL_DATABASE_URL);
+    for (const tenant of resolvidos) {
+      if (tenant.connectionRef !== "COFRE") continue;
+      const id = extrairIdDoEndpoint(tenant.connectionString);
+      if (id) endpoints.add(id);
+    }
+  }
+
   if (endpoints.size === 0) {
     erro("nenhuma connection string valida encontrada no ambiente.");
   }

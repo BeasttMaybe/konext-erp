@@ -178,12 +178,15 @@ jobs:
           echo "ponto=$PONTO" >> "$GITHUB_OUTPUT"
         env:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          # Abre o endereco das lojas criadas pelo master (cofre no banco central).
+          CHAVE_DAS_CONEXOES: ${{ secrets.CHAVE_DAS_CONEXOES }}
 
       - name: Rodar
         env:
           PONTO_RESTAURACAO: ${{ steps.restauracao.outputs.ponto }}
           CONFIRMAR: ${{ endsWith(inputs.comando, '-aplicar') && 'SIM' || '' }}
           AUTORIZAR_DESTRUTIVO: ${{ inputs.autorizar_destrutivo && 'SIM' || '' }}
+          CHAVE_DAS_CONEXOES: ${{ secrets.CHAVE_DAS_CONEXOES }}
           # So o ensaio-restauracao usa (cria e apaga um branch temporario).
           NEON_API_KEY: ${{ inputs.comando == 'ensaio-restauracao' && secrets.NEON_API_KEY || '' }}
         run: |

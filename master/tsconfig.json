@@ -28,8 +28,15 @@
       ],
       "@erp/*": [
         "../*"
+      ],
+      "@/*": [
+        "../*"
+      ],
+      "@prisma/client": [
+        "./node_modules/@prisma/client"
       ]
-    }
+    },
+    "allowImportingTsExtensions": true
   },
   "include": [
     "next-env.d.ts",

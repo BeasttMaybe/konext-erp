@@ -8,12 +8,18 @@ import { detalheDaLoja } from "~/lib/painel";
 import { exigirAdministrador } from "~/lib/sessao";
 import { MODULOS } from "@erp/lib/modulos/catalogo";
 
-import { ModulosDaLoja, SituacaoDaLoja } from "./controles";
+import { ContinuarCriacao, ModulosDaLoja, SituacaoDaLoja } from "./controles";
+
+// "Continuar criacao" pode levar ate 1 minuto (banco no Neon + migrations).
+export const maxDuration = 300;
 
 const ROTULO_DA_ACAO: Record<string, string> = {
   LIGAR_MODULO: "Ligou o módulo",
   DESLIGAR_MODULO: "Desligou o módulo",
   SUSPENDER_LOJA: "Suspendeu a loja",
+  CRIAR_LOJA_INICIO: "Começou a criar a loja",
+  CRIAR_LOJA: "Concluiu a criação da loja",
+  CRIAR_LOJA_FALHOU: "A criação da loja parou",
   REATIVAR_LOJA: "Reativou a loja",
 };
 
@@ -57,6 +63,10 @@ export default async function LojaPage({ params }: { params: Promise<{ id: strin
       <p className="-mt-2 text-sm text-legenda">
         {empresa.slug} · cadastrada em {data(empresa.criadoEm)}
       </p>
+
+      {empresa.tenants.some((t) => t.status === "PROVISIONANDO") ? (
+        <ContinuarCriacao empresaId={empresa.id} enderecoDoErp={process.env.URL_DO_ERP?.trim() || null} />
+      ) : null}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Secao titulo="Módulos do plano" extra={<span className="text-xs text-legenda">{ativos} de {modulos.length} ligados</span>}>
