@@ -65,6 +65,7 @@ import {
 } from "@/app/actions/crm";
 import type { FormCliente } from "@/lib/validations/crm";
 import { useTemPermissao } from "@/contextos/contexto-permissoes";
+import { BotaoImportarClientes } from "@/components/importacao/importar-cadastros";
 
 const PAGE_SIZE = 20;
 
@@ -229,6 +230,7 @@ function ContactsPageContent() {
   const [profileClient, setProfileClient] = useState<ClientRecord | null>(null);
   const [clientToDelete, setClientToDelete] = useState<ClientRecord | null>(null);
   const podeExcluirCliente = useTemPermissao("crm.excluir");
+  const podeEditarCliente = useTemPermissao("crm.editar");
 
   const goToPage = useCallback(
     (page: number) => {
@@ -571,10 +573,17 @@ function ContactsPageContent() {
 
           {/* Saiu o "Voltar ao Hub": o hub do CRM foi removido, e o botão
               navegava pra /crm — esta própria página. */}
-          <Button onClick={openNewContact}>
-            <Plus className="h-4 w-4 mr-2" />
-            Novo Contato
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {podeEditarCliente && (
+              <span className="hidden sm:inline-flex">
+                <BotaoImportarClientes />
+              </span>
+            )}
+            <Button onClick={openNewContact}>
+              <Plus className="h-4 w-4 mr-2" />
+              Novo Contato
+            </Button>
+          </div>
         </div>
       </div>
 

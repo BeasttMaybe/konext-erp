@@ -43,6 +43,7 @@ import {
 import { PaginationControls } from "@/components/ui/pagination-controls";
 import { listarCategoriasAtivas } from "@/app/actions/categorias-produto";
 import { useTemPermissao } from "@/contextos/contexto-permissoes";
+import { BotaoImportarProdutos } from "@/components/importacao/importar-cadastros";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -365,6 +366,10 @@ function ConteudoEstoque() {
                         Entrada de nota
                       </Link>
                     </Button>
+
+                    <span className="hidden sm:inline-flex">
+                      <BotaoImportarProdutos />
+                    </span>
 
                     <Button asChild>
                       <Link href="/estoque/produtos/novo">
