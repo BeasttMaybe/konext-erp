@@ -4,7 +4,7 @@ import type { PrismaClient } from "@prisma/client";
 
 import { prismaCentral } from "@/lib/central/prisma-central";
 import { obterPrismaTenant } from "@/lib/tenant/prisma-tenant";
-import { resolverConexaoTenant } from "@/lib/tenant/resolver-conexao-tenant";
+import { conexaoDoTenant } from "@/lib/tenant/resolver-conexao-tenant";
 
 /**
  * Abre o banco de uma loja a partir do slug, SEM sessão.
@@ -58,11 +58,11 @@ export async function abrirTenantPorSlug(slug: string): Promise<TenantPublico | 
       empresaNome: tenant.empresa.nome,
       prisma: obterPrismaTenant({
         tenantId: tenant.id,
-        connectionString: resolverConexaoTenant(tenant.connectionRef),
+        connectionString: await conexaoDoTenant(tenant),
       }),
     };
   } catch {
-    // `resolverConexaoTenant` recusa connectionRef fora do padrão e variável
+    // `conexaoDoTenant` recusa connectionRef fora do padrão e variável
     // de ambiente ausente. Numa rota pública isso vira "link inválido", nunca
     // uma página de erro que conta como o sistema está configurado por dentro.
     return null;

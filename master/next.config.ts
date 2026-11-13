@@ -23,6 +23,12 @@ const config: NextConfig = {
   turbopack: { root: raizDoRepositorio },
   outputFileTracingRoot: raizDoRepositorio,
   poweredByHeader: false,
+  // As migrations da loja (pasta do ERP) vao junto com as funcoes que criam
+  // lojas — lib/provisionar.ts as le do disco em tempo de execucao.
+  outputFileTracingIncludes: {
+    "/lojas/nova": ["../prisma/migrations/**/*"],
+    "/lojas/[id]": ["../prisma/migrations/**/*"],
+  },
   // Mesmo motivo do ERP: Prisma, ws e o driver do Neon ficam como require()
   // externos no Node, nunca empacotados.
   serverExternalPackages: ["@prisma/client", "@prisma/client-central", "prisma", "ws", "@prisma/adapter-neon", "@neondatabase/serverless", "bcryptjs"],

@@ -2,7 +2,7 @@ import { cache } from "react";
 
 import { exigirSessaoCentral } from "@/lib/auth/sessao-central";
 import { obterPrismaTenant } from "@/lib/tenant/prisma-tenant";
-import { resolverConexaoTenant } from "@/lib/tenant/resolver-conexao-tenant";
+import { conexaoDoTenant } from "@/lib/tenant/resolver-conexao-tenant";
 import { ehPapelEmpresa, type PapelEmpresa } from "@/lib/auth/permissoes";
 import { resolverPermissoesEfetivas } from "@/lib/auth/resolver-permissoes";
 import { FUSO_HORARIO_PADRAO } from "@/lib/datas";
@@ -131,7 +131,7 @@ export async function exigirContextoTenant(): Promise<ContextoTenantServidor> {
 const resolverContextoDaRequisicao = cache(async (): Promise<ContextoTenantServidor> => {
   const sessaoCentral = await exigirSessaoCentral();
 
-  const connectionString = resolverConexaoTenant(sessaoCentral.connectionRef);
+  const connectionString = await conexaoDoTenant({ id: sessaoCentral.tenantId, connectionRef: sessaoCentral.connectionRef });
   const prisma = obterPrismaTenant({
     tenantId: sessaoCentral.tenantId,
     connectionString,

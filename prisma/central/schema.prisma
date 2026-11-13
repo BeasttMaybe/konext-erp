@@ -53,6 +53,7 @@ model Empresa {
 
 model Tenant {
   id            String       @id @default(uuid())
+  conexao       ConexaoTenant?
   empresaId     String
   empresa       Empresa      @relation(fields: [empresaId], references: [id], onDelete: Cascade)
   slug          String       @unique
@@ -314,4 +315,20 @@ model RegistroMaster {
 
   @@index([empresaId, criadoEm])
   @@index([criadoEm])
+}
+
+/**
+ * Endereco do banco de uma loja criada pelo master (Tenant.connectionRef =
+ * "COFRE"), CIFRADO com CHAVE_DAS_CONEXOES — lib/tenant/cofre-de-conexoes.ts.
+ * neonProjetoId/neonBancoNome/neonPapel: onde o banco mora no Neon, para o
+ * master conseguir conferir ou limpar.
+ */
+model ConexaoTenant {
+  tenantId       String   @id
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conexaoCifrada String
+  neonProjetoId  String?
+  neonBancoNome  String?
+  neonPapel      String?
+  criadoEm       DateTime @default(now()) @db.Timestamptz(3)
 }

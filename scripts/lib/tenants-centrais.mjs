@@ -1,6 +1,7 @@
 // Descoberta de tenants ativos a partir do banco central, somente-leitura.
 // Compartilhado por `db:backup` e `db:diagnostico`.
 import { comConexaoSomenteLeitura, mascararConnectionString } from "./conexao-somente-leitura.mjs";
+import { abrirConexao, chaveDoCofre, REF_DO_COFRE } from "../../lib/tenant/cofre-de-conexoes.ts";
 
 // Mesmas regras de lib/tenant/resolver-conexao-tenant.ts. Duplicado aqui de
 // proposito: os scripts sao .mjs e nao passam pelo bundler/paths do Next.
@@ -48,7 +49,13 @@ export function lerCentralDatabaseUrl() {
 }
 
 /**
- * Lista os tenants ATIVOS de empresas ATIVAS e resolve a URL de cada um.
+ * Lista os tenants ATIVOS de empresas ATIVAS ou SUSPENSAS e resolve a URL de
+ * cada um. Suspensa entra de proposito: a loja reativada tem que voltar com o
+ * banco em dia — pular a migracao enquanto ela esta suspensa a deixaria
+ * quebrada no dia da reativacao.
+ *
+ * connectionRef "COFRE" (lojas criadas pelo master): a URL vem cifrada de
+ * ConexaoTenant e abre com CHAVE_DAS_CONEXOES (lib/tenant/cofre-de-conexoes.ts).
  *
  * Tenant sem connectionRef, com ref invalida ou com a variavel de ambiente
  * ausente e PULADO com aviso — nunca derruba a execucao inteira.
@@ -66,11 +73,13 @@ export async function listarTenantsAtivos(centralDatabaseUrl) {
                 t."connectionRef",
                 e.id   AS "empresaId",
                 e.slug AS "empresaSlug",
-                e.status AS "empresaStatus"
+                e.status AS "empresaStatus",
+                c."conexaoCifrada"
            FROM "Tenant" t
            JOIN "Empresa" e ON e.id = t."empresaId"
+           LEFT JOIN "ConexaoTenant" c ON c."tenantId" = t.id
           WHERE t.status = 'ATIVO'
-            AND e.status = 'ATIVA'
+            AND e.status IN ('ATIVA', 'SUSPENSA')
           ORDER BY e.slug, t.slug`
       );
 
@@ -81,7 +90,24 @@ export async function listarTenantsAtivos(centralDatabaseUrl) {
   const resolvidos = [];
   const pulados = [];
 
-  for (const tenant of tenants) {
+  for (const { conexaoCifrada, ...tenant } of tenants) {
+    if (String(tenant.connectionRef ?? "").trim() === REF_DO_COFRE) {
+      try {
+        if (!conexaoCifrada) throw new Error("tenant do cofre sem ConexaoTenant");
+        const conexao = abrirConexao(conexaoCifrada, tenant.id, chaveDoCofre(process.env.CHAVE_DAS_CONEXOES));
+        resolvidos.push({
+          ...tenant,
+          connectionRef: REF_DO_COFRE,
+          connectionString: conexao,
+          connectionStringMascarada: mascararConnectionString(conexao),
+          slugArquivo: normalizarSlugParaArquivo(tenant.slug),
+        });
+      } catch (erro) {
+        pulados.push({ slug: tenant.slug, motivo: `cofre: ${erro instanceof Error ? erro.message : String(erro)}` });
+      }
+      continue;
+    }
+
     let connectionRef;
 
     try {

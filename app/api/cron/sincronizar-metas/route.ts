@@ -4,7 +4,7 @@ import { CHAMADA_INTERNA } from "@/lib/auth/chamada-interna";
 
 import { prismaCentral } from "@/lib/central/prisma-central";
 import { obterPrismaTenant } from "@/lib/tenant/prisma-tenant";
-import { resolverConexaoTenant } from "@/lib/tenant/resolver-conexao-tenant";
+import { conexaoDoTenant } from "@/lib/tenant/resolver-conexao-tenant";
 import { sincronizarMetasAutomaticasDoTenant } from "@/app/actions/metas";
 import { FUSO_HORARIO_PADRAO } from "@/lib/datas";
 import type { PrismaClient } from "@prisma/client";
@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
       }
 
       try {
-        const connectionString = resolverConexaoTenant(tenant.connectionRef);
+        const connectionString = await conexaoDoTenant(tenant);
         const prismaTenant = obterPrismaTenant({
           tenantId: tenant.id,
           connectionString,

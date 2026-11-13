@@ -3,7 +3,7 @@ import { decidirAutorizacaoDoCron } from "@/lib/cron/autorizacao";
 
 import { prismaCentral } from "@/lib/central/prisma-central";
 import { obterPrismaTenant } from "@/lib/tenant/prisma-tenant";
-import { resolverConexaoTenant } from "@/lib/tenant/resolver-conexao-tenant";
+import { conexaoDoTenant } from "@/lib/tenant/resolver-conexao-tenant";
 import {
   FUSO_HORARIO_PADRAO,
   hojeComoDataDeCalendario,
@@ -319,7 +319,7 @@ export async function GET(request: NextRequest) {
       try {
         const prismaTenant = obterPrismaTenant({
           tenantId: tenant.id,
-          connectionString: resolverConexaoTenant(tenant.connectionRef),
+          connectionString: await conexaoDoTenant(tenant),
         }) as unknown as PrismaDoTenant;
 
         const resumo = await processarTenant(prismaTenant);

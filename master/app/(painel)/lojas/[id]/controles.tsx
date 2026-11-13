@@ -3,6 +3,9 @@
 import { useState, useTransition } from "react";
 import { CircleCheck, CircleSlash, Loader2 } from "lucide-react";
 
+import { ResultadoDaCriacao } from "~/components/resultado-da-criacao";
+
+import { continuarCriacao } from "../nova/acoes";
 import { definirModulo, definirSituacaoDaLoja } from "./acoes";
 
 type Modulo = { id: string; nome: string; ativo: boolean; motivo: "padrao" | "gravado" | "dependencia"; desligadoPeloMaster: boolean };
@@ -135,6 +138,38 @@ export function SituacaoDaLoja({ empresaId, slug, status }: { empresaId: string;
           Suspender loja…
         </button>
       )}
+    </div>
+  );
+}
+
+export function ContinuarCriacao({ empresaId, enderecoDoErp }: { empresaId: string; enderecoDoErp: string | null }) {
+  const [pendente, iniciar] = useTransition();
+  const [erro, setErro] = useState<string | null>(null);
+  const [pronto, setPronto] = useState<{ email: string; senha: string | null } | null>(null);
+
+  if (pronto) return <ResultadoDaCriacao empresaId={empresaId} email={pronto.email} senha={pronto.senha} enderecoDoErp={enderecoDoErp} />;
+
+  return (
+    <div className="flex flex-col gap-2 rounded-xl border border-alerta/40 bg-alerta/5 p-4">
+      <p className="text-sm font-semibold text-alerta">A criação desta loja não terminou.</p>
+      <p className="text-sm text-texto-2">Ninguém da loja consegue entrar ainda. Continuar refaz só o que falta — nada é duplicado.</p>
+      {erro ? <p role="alert" className="text-sm text-erro">{erro}</p> : null}
+      <button
+        type="button"
+        disabled={pendente}
+        onClick={() =>
+          iniciar(async () => {
+            setErro(null);
+            const r = await continuarCriacao(empresaId).catch(() => ({ ok: false as const, erro: "A conexão caiu. Tente de novo." }));
+            if (r.ok) setPronto({ email: r.email, senha: r.senhaTemporaria });
+            else setErro(r.erro);
+          })
+        }
+        className="flex h-10 w-fit items-center gap-2 rounded-lg bg-alerta px-4 text-sm font-bold text-fundo disabled:opacity-60"
+      >
+        {pendente ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
+        {pendente ? "Continuando…" : "Continuar criação"}
+      </button>
     </div>
   );
 }
