@@ -14,6 +14,7 @@ import {
   obterDadosPerfilConfiguracao,
 } from "@/app/actions/configuracoes";
 import { alterarMinhaSenha } from "@/app/actions/auth";
+import { MinhaAssinatura } from "@/components/perfil/minha-assinatura";
 import { useTemPermissao } from "@/contextos/contexto-permissoes";
 
 export default function PerfilPage() {
@@ -226,6 +227,8 @@ export default function PerfilPage() {
           </form>
         </Card>
       </div>
+
+      <MinhaAssinatura />
 
       <Card className="border-border bg-card p-6">
         <div className="space-y-1 pb-4">

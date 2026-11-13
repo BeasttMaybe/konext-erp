@@ -40,6 +40,8 @@ export type CompanyPdfInfo = {
 };
 
 type PropostaPdfProps = {
+  /** Quem gera a proposta e a assinatura dele; sem ela, linha em branco. */
+  assinatura?: { nome: string; url: string | null } | null;
   proposal: ProposalPdfData;
   company?: CompanyPdfInfo;
 };
@@ -342,6 +344,12 @@ const styles = StyleSheet.create({
     display: "flex",
     alignItems: "center",
   },
+  signatureImage: {
+    height: 42,
+    maxWidth: 180,
+    objectFit: "contain",
+    marginBottom: -4,
+  },
   signatureLine: {
     width: 220,
     borderTopWidth: 1,
@@ -386,7 +394,7 @@ function getRowTotal(item: ProposalPdfItem): number {
   return Number(item.quantidade) * Number(item.precoUnitario);
 }
 
-export function PropostaPDF({ proposal, company }: PropostaPdfProps) {
+export function PropostaPDF({ proposal, company, assinatura = null }: PropostaPdfProps) {
   const normalizeText = (value?: string | null) => {
     const normalized = String(value ?? "").trim();
     return normalized.length > 0 ? normalized : null;
@@ -564,8 +572,11 @@ export function PropostaPDF({ proposal, company }: PropostaPdfProps) {
           </Text>
 
           <View style={styles.signatureWrap}>
+            {/* Assinatura ja assinada de quem gera a proposta (Meu Perfil). */}
+            {assinatura?.url ? <Image src={assinatura.url} style={styles.signatureImage} /> : null}
             <View style={styles.signatureLine} />
             <Text style={styles.signatureText}>Assinatura do Responsável</Text>
+            {assinatura?.nome ? <Text style={styles.signatureText}>{assinatura.nome}</Text> : null}
           </View>
         </View>
       </Page>

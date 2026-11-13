@@ -5,6 +5,7 @@ import type { CompanyPdfInfo, ProposalPdfData } from "@/components/pdf/PropostaP
 import { montarResumoEmpresaDocumentos } from "@/lib/configuracoes-documentos";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { deDecimal, paraMoeda } from "@/lib/dinheiro";
+import { assinaturaDoDocumento } from "@/lib/usuarios/assinaturas";
 
 type ProposalPrintPageProps = {
   params: Promise<{ id: string }>;
@@ -82,5 +83,12 @@ export default async function ProposalPrintPage({ params }: ProposalPrintPagePro
     })),
   };
 
-  return <PropostaPdfViewer proposal={proposalData} company={company} />;
+  // Quem gera o PDF e quem assina: a proposta nao guarda autor, e quem a
+  // envia ao cliente responde por ela.
+  const { usuarioOperacional } = contextoTenant;
+  const assinatura = usuarioOperacional.id
+    ? await assinaturaDoDocumento(contextoTenant.prisma, { usuarioId: usuarioOperacional.id, nome: usuarioOperacional.nome })
+    : null;
+
+  return <PropostaPdfViewer proposal={proposalData} company={company} assinatura={assinatura} />;
 }
