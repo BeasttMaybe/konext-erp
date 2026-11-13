@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTemPermissao } from "@/contextos/contexto-permissoes";
 import { obterResumoCaixaAbertoAtual, verificarStatusCaixa, type ResumoCaixaAbertoAtual } from "@/app/actions/caixa-pdv";
 
 type Estado =
@@ -34,8 +35,12 @@ function formatarMoeda(valor: number): string {
  */
 export function StatusCaixa({ expandido }: { expandido?: boolean } = {}) {
   const [estado, setEstado] = useState<Estado>({ tela: "carregando" });
+  // Sem pdv.vender (perfil sem PDV, ou modulo PDV nao contratado) nem pergunta:
+  // a action recusaria, e cada recusa vira um erro registrado no servidor.
+  const podeVerCaixa = useTemPermissao("pdv.vender");
 
   useEffect(() => {
+    if (!podeVerCaixa) return;
     verificarStatusCaixa()
       .then((aberto) => {
         if (!aberto) {
@@ -47,9 +52,9 @@ export function StatusCaixa({ expandido }: { expandido?: boolean } = {}) {
           .catch(() => setEstado({ tela: "fechado" }));
       })
       .catch(() => setEstado({ tela: "sem-permissao" }));
-  }, []);
+  }, [podeVerCaixa]);
 
-  if (estado.tela === "carregando" || estado.tela === "sem-permissao") {
+  if (!podeVerCaixa || estado.tela === "carregando" || estado.tela === "sem-permissao") {
     return null;
   }
 

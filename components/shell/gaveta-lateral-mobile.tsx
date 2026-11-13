@@ -20,7 +20,7 @@ import {
 import { cn } from "@/lib/utils";
 import { usePermissoes } from "@/contextos/contexto-permissoes";
 import type { Permissao } from "@/lib/auth/permissoes";
-import { caminhoDoItem, filhosVisiveis, ITENS_NAVEGACAO, itemEstaAtivo } from "@/lib/navegacao/itens-navegacao";
+import { caminhoDoItem, filhosVisiveis, itensDaNavegacao, itemEstaAtivo } from "@/lib/navegacao/itens-navegacao";
 import { logout } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -42,7 +42,7 @@ const ICONES: Record<string, LucideIcon> = {
 export function GavetaLateralMobile() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { permissoes } = usePermissoes();
+  const { permissoes, modulos } = usePermissoes();
   const [aberta, setAberta] = useState(false);
   // Ajusta estado durante a renderização (nunca em useEffect — setState
   // sincrono num efeito dispara render em cascata) pra fechar a gaveta
@@ -69,7 +69,7 @@ export function GavetaLateralMobile() {
         </SheetTitle>
 
         <nav aria-label="Navegação principal" className="flex-1 space-y-1 overflow-y-auto p-3">
-          {ITENS_NAVEGACAO.map((item) => {
+          {itensDaNavegacao(modulos).map((item) => {
             const filhos = filhosVisiveis(item, temAlgumaPermissao);
             if (item.filhos?.length && filhos.length === 0) return null;
 

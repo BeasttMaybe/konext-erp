@@ -6,6 +6,8 @@ import { resolverConexaoTenant } from "@/lib/tenant/resolver-conexao-tenant";
 import { ehPapelEmpresa, type PapelEmpresa } from "@/lib/auth/permissoes";
 import { resolverPermissoesEfetivas } from "@/lib/auth/resolver-permissoes";
 import { FUSO_HORARIO_PADRAO } from "@/lib/datas";
+import { filtrarPermissoesPorModulo } from "@/lib/modulos/catalogo";
+import { modulosAtivosDaEmpresa } from "@/lib/modulos/modulos-da-empresa";
 import type { ContextoTenantServidor } from "@/types/tenant";
 
 type UsuarioOperacionalMapeado = {
@@ -146,11 +148,13 @@ const resolverContextoDaRequisicao = cache(async (): Promise<ContextoTenantServi
   // o comentario em lib/auth/resolver-permissoes.ts sobre por que isso
   // garante efeito imediato de qualquer mudanca de cargo/permissao, sem
   // relogar.
-  const permissoes = await resolverPermissoesEfetivas(
-    sessaoCentral.usuarioCentralId,
-    sessaoCentral.empresaId,
-    papelEmpresa
-  );
+  const [permissoesDoCargo, modulosAtivos] = await Promise.all([
+    resolverPermissoesEfetivas(sessaoCentral.usuarioCentralId, sessaoCentral.empresaId, papelEmpresa),
+    modulosAtivosDaEmpresa(sessaoCentral.empresaId),
+  ]);
+  // Modulo nao contratado = ninguem da loja tem as permissoes dele. Como toda
+  // action confere permissao, o servidor recusa sozinho (lib/modulos/catalogo.ts).
+  const permissoes = filtrarPermissoesPorModulo(permissoesDoCargo, modulosAtivos);
 
   const fusoHorario = await resolverFusoHorarioTenant(prisma);
 
@@ -165,6 +169,7 @@ const resolverContextoDaRequisicao = cache(async (): Promise<ContextoTenantServi
     // Direto da sessao central, nunca contaminado pelo Usuario.role do tenant.
     papelEmpresa,
     permissoes,
+    modulosAtivos,
     fusoHorario,
     prisma,
   };

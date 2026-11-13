@@ -41,7 +41,10 @@ export default async function ConfiguracoesPage() {
   // `listarCategoriasProduto` pede `estoque.ver`, mas renomear e desativar
   // pedem `configuracoes.sistema` — mostrar a lista a quem não pode mexer
   // nela seria oferecer controles que falham no clique.
-  const categoriasProduto = podeGerirCadastros ? await listarCategoriasProduto() : null;
+  // E sem o modulo Estoque contratado nao ha categoria de produto a gerir
+  // (estoque.ver some junto com o modulo — lib/modulos/catalogo.ts).
+  const categoriasProduto =
+    podeGerirCadastros && temPermissao(contexto, "estoque.ver") ? await listarCategoriasProduto() : null;
   const erros = podeGerirCadastros ? await errosRecentesDaLoja(contexto.empresaId) : null;
 
   return (
@@ -54,7 +57,7 @@ export default async function ConfiguracoesPage() {
 
       {/* So para quem administra o sistema: e informacao de operacao, e o
           aviso pede uma acao na hospedagem que so o dono pode tomar. */}
-      {podeGerirCadastros ? <EstadoDoSistema estado={lerEstadoDoSistema(process.env)} erros={erros} /> : null}
+      {podeGerirCadastros ? <EstadoDoSistema estado={lerEstadoDoSistema(process.env)} erros={erros} modulosAtivos={contexto.modulosAtivos ? [...contexto.modulosAtivos] : undefined} /> : null}
     </div>
   );
 }
