@@ -29,6 +29,7 @@ import { resolverConexaoTenant } from "@/lib/tenant/resolver-conexao-tenant";
  */
 export type TenantPublico = {
   tenantId: string;
+  empresaId: string;
   empresaNome: string;
   prisma: PrismaClient;
 };
@@ -40,7 +41,7 @@ export async function abrirTenantPorSlug(slug: string): Promise<TenantPublico | 
       id: true,
       status: true,
       connectionRef: true,
-      empresa: { select: { nome: true, status: true } },
+      empresa: { select: { id: true, nome: true, status: true } },
     },
   });
 
@@ -53,6 +54,7 @@ export async function abrirTenantPorSlug(slug: string): Promise<TenantPublico | 
   try {
     return {
       tenantId: tenant.id,
+      empresaId: tenant.empresa.id,
       empresaNome: tenant.empresa.nome,
       prisma: obterPrismaTenant({
         tenantId: tenant.id,

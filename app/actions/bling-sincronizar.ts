@@ -452,7 +452,7 @@ export async function sincronizarNotasDoBling(): Promise<ResumoDaSincronizacao> 
     const notaFiscal = delegado(prisma, "notaFiscal", "NotaFiscal");
     const contaReceber = delegado(prisma, "contaReceber", "ContaReceber");
 
-    const accessToken = await obterAccessTokenValido(prisma);
+    const accessToken = await obterAccessTokenValido(prisma, contexto.empresaId);
 
     const hoje = hojeComoDataDeCalendario(contexto.fusoHorario ?? FUSO_HORARIO_PADRAO);
     const comoData = (data: Date) => data.toISOString().slice(0, 10);

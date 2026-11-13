@@ -123,7 +123,7 @@ export async function GET(request: NextRequest) {
     const urlBase = await urlBaseDaRequisicao();
     const tokens = await trocarCodigoPorTokens({ codigo, urlBase });
 
-    await salvarConexaoNova({ prisma: tenant.prisma, tokens, conectadoPor: null });
+    await salvarConexaoNova({ prisma: tenant.prisma, empresaId: tenant.empresaId, tokens, conectadoPor: null });
 
     return paginaDeResposta(
       "Bling conectado",
