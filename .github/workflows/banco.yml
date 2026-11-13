@@ -32,6 +32,8 @@ on:
           - diagnostico
           - migrar-dry-run
           - migrar-aplicar
+          - central-dry-run
+          - central-aplicar
           - relatorio-os
           - verificar-datas
           - verificar-dinheiro
@@ -133,7 +135,7 @@ jobs:
       # privado): nao impede quem dispara, impede o disparo por engano e deixa a
       # intencao registrada no historico do run.
       - name: Confirmar intenção de escrever em produção
-        if: inputs.ambiente == 'producao' && inputs.comando == 'migrar-aplicar'
+        if: inputs.ambiente == 'producao' && (inputs.comando == 'migrar-aplicar' || inputs.comando == 'central-aplicar')
         run: |
           if [ "${{ inputs.confirmo_producao }}" != "APLICAR EM PRODUCAO" ]; then
             echo "::error::Para aplicar em producao, confirmo_producao precisa ser exatamente: APLICAR EM PRODUCAO"
@@ -142,7 +144,7 @@ jobs:
 
       - name: Criar ponto de restauração no Neon
         id: restauracao
-        if: inputs.comando == 'migrar-aplicar'
+        if: inputs.comando == 'migrar-aplicar' || inputs.comando == 'central-aplicar'
         run: |
           set -o pipefail
 
@@ -177,7 +179,7 @@ jobs:
       - name: Rodar
         env:
           PONTO_RESTAURACAO: ${{ steps.restauracao.outputs.ponto }}
-          CONFIRMAR: ${{ inputs.comando == 'migrar-aplicar' && 'SIM' || '' }}
+          CONFIRMAR: ${{ (inputs.comando == 'migrar-aplicar' || inputs.comando == 'central-aplicar') && 'SIM' || '' }}
           AUTORIZAR_DESTRUTIVO: ${{ inputs.autorizar_destrutivo && 'SIM' || '' }}
         run: |
           set -o pipefail
@@ -197,6 +199,8 @@ jobs:
               diagnostico)          npm run db:diagnostico ;;
               migrar-dry-run)       npm run db:migrar -- --dry-run $ALVO_TENANT ;;
               migrar-aplicar)       npm run db:migrar -- --aplicar $ALVO_TENANT ;;
+              central-dry-run)      node scripts/migracao/migrar-central.mjs --dry-run ;;
+              central-aplicar)      node scripts/migracao/migrar-central.mjs --aplicar ;;
               relatorio-os)         npm run db:relatorio-os ;;
               verificar-datas)      npm run db:verificar-datas -- --${{ inputs.modo_verificacao || 'antes' }} ;;
               verificar-dinheiro)   npm run db:verificar-dinheiro -- --${{ inputs.modo_verificacao || 'antes' }} ;;
