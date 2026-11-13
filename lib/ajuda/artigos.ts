@@ -539,6 +539,26 @@ export const ARTIGOS_AJUDA: readonly ArtigoAjuda[] = [
     palavrasChave: ["senha", "password", "acesso", "trocar"],
   },
   {
+    slug: "importar-planilha",
+    titulo: "Importar clientes ou produtos de uma planilha",
+    categoria: "Equipe e configurações",
+    resumo: "Trazer sua lista do Excel ou do Google Planilhas de uma vez, sem digitar um por um.",
+    secoes: [
+      {
+        passos: [
+          "Em Clientes (CRM) ou em Estoque, no computador, clique em \"Importar planilha\".",
+          "Baixe a planilha-modelo e preencha uma linha por cliente ou produto (pode colar da sua planilha atual).",
+          "Salve como CSV: no Excel, Arquivo → Salvar como → CSV; no Google Planilhas, Arquivo → Fazer download → CSV.",
+          "Escolha o arquivo. A tela mostra cada linha: as prontas e as com problema, com o número da linha na planilha.",
+          "Clique em \"Importar\". O que já existia é pulado, então pode importar a mesma planilha de novo depois de corrigir.",
+          "Produtos: categorias que não existem são criadas, o SKU é gerado e a quantidade entra como saldo inicial.",
+        ],
+      },
+    ],
+    destino: { rotulo: "Ir para Clientes", href: "/crm" },
+    palavrasChave: ["importar", "planilha", "excel", "csv", "lista", "migrar", "cadastro em massa"],
+  },
+  {
     slug: "esqueci-a-senha",
     titulo: "Alguém esqueceu a senha",
     categoria: "Equipe e configurações",
