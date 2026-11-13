@@ -268,3 +268,32 @@ model ModuloEmpresa {
 
   @@id([empresaId, modulo])
 }
+
+/**
+ * Quem administra o Konext pelo sistema master (pasta master/). Separado dos
+ * usuarios das lojas de proposito: uma conta de loja nunca vira acesso ao
+ * master, e vice-versa. O primeiro administrador so pode ser criado com o
+ * codigo MASTER_CODIGO_DE_CRIACAO (variavel de ambiente do projeto master).
+ */
+model AdministradorMaster {
+  id        String        @id @default(uuid())
+  nome      String
+  email     String        @unique
+  senhaHash String
+  ativo     Boolean       @default(true)
+  criadoEm  DateTime      @default(now()) @db.Timestamptz(3)
+  sessoes   SessaoMaster[]
+}
+
+/** Sessao do master: o cookie leva o token; aqui fica so o hash dele. */
+model SessaoMaster {
+  id              String              @id @default(uuid())
+  administradorId String
+  administrador   AdministradorMaster @relation(fields: [administradorId], references: [id], onDelete: Cascade)
+  tokenHash       String              @unique
+  expiraEm        DateTime            @db.Timestamptz(3)
+  revogadaEm      DateTime?           @db.Timestamptz(3)
+  criadoEm        DateTime            @default(now()) @db.Timestamptz(3)
+
+  @@index([administradorId])
+}

@@ -148,6 +148,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Sistema master: projeto proprio (master/), com as proprias ferramentas.
+    "master/**",
   ]),
 ]);
 

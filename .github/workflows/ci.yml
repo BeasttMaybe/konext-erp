@@ -178,3 +178,32 @@ jobs:
       # tipos, dos testes e do build.
       - name: ESLint
         run: npm run lint
+
+  master:
+    name: Sistema master
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: master
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: master/package-lock.json
+
+      # O master gera o cliente do banco central a partir do schema do ERP
+      # (master/scripts/gerar-cliente-central.mjs): este job tambem pega uma
+      # mudanca no schema central que quebre o master.
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Testes
+        run: npm test
+
+      # O build do Next confere os tipos.
+      - name: Build
+        run: npm run build

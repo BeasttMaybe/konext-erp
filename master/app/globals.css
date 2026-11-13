@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+/* Paleta propria do master: sobria, para nao ser confundido com o ERP das lojas. */
+@theme {
+  --color-fundo: #0f1115;
+  --color-painel: #171a21;
+  --color-borda: #262b36;
+  --color-texto: #e8eaf0;
+  --color-texto-2: #b4bac8;
+  --color-legenda: #8a91a3;
+  --color-destaque: #7c9cff;
+  --color-ok: #4ccf8a;
+  --color-alerta: #f2b84b;
+  --color-erro: #ff6b6b;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+html,
+body {
+  background: var(--color-fundo);
+  color: var(--color-texto);
+}
