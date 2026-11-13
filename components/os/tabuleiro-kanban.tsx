@@ -24,17 +24,6 @@ import { useTelaDeCelular } from "@/lib/dispositivo/tela-de-celular";
 import { CartaoOS } from "./cartao-os";
 import { ListaColunaKanban } from "./lista-coluna-kanban";
 
-/** "Hoje" pro contador de entregas — mesmo fuso do navegador, só compara ano/mês/dia. */
-function ehHoje(dataISO: string): boolean {
-  const data = new Date(dataISO);
-  const agora = new Date();
-  return (
-    data.getFullYear() === agora.getFullYear() &&
-    data.getMonth() === agora.getMonth() &&
-    data.getDate() === agora.getDate()
-  );
-}
-
 interface TabuleiroKanbanProps {
   ordensServico: OrdemServico[];
   onCartaoClick?: (os: OrdemServico) => void;
@@ -68,6 +57,18 @@ type AcaoOtimistaOS =
 
 // Sequencia, rotulos e cores vem do dominio (fonte unica).
 const ETAPA_SEQUENCIA = ETAPA_OS_SEQUENCIA;
+/**
+ * Colunas do quadro. ENTREGUE nao e coluna: entregar ja finaliza e arquiva a
+ * OS (ela vai para "Finalizadas"), entao a coluna ficava sempre vazia. A
+ * entrega sai pelo botao "Entregar" do cartao. A OS entregue que ainda falta
+ * arquivar (resgate, ver ehResgatePendente) aparece no fim da coluna PRONTO.
+ */
+const COLUNAS_DO_QUADRO = ETAPA_SEQUENCIA.filter((etapa) => etapa !== "ENTREGUE");
+
+function ordensDaColuna(agrupadas: Record<EtapaKanban, OrdemServico[]>, etapa: EtapaKanban): OrdemServico[] {
+  return etapa === "PRONTO" ? [...agrupadas.PRONTO, ...agrupadas.ENTREGUE] : agrupadas[etapa];
+}
+
 /** Quantos cartoes o celular mostra por vez, antes de "Mostrar mais". */
 const LOTE_NO_CELULAR = 20;
 
@@ -212,7 +213,7 @@ export function TabuleiroKanban({
   // cartoes mudam de etapa pelos botoes deles.
   const telaDeCelular = useTelaDeCelular();
   const [etapaNoCelular, setEtapaNoCelular] = useState<EtapaKanban>(
-    () => ETAPA_SEQUENCIA.find((etapa) => ordensServico.some((os) => os.etapa === etapa)) ?? ETAPA_SEQUENCIA[0]
+    () => COLUNAS_DO_QUADRO.find((etapa) => ordensServico.some((os) => os.etapa === etapa)) ?? COLUNAS_DO_QUADRO[0]!
   );
   const [limiteNoCelular, setLimiteNoCelular] = useState(LOTE_NO_CELULAR);
   // Guarda a OS em arraste para bloquear colunas invalidas em tempo real.
@@ -234,21 +235,12 @@ export function TabuleiroKanban({
 
   /**
    * Colunas validas para a OS que esta sendo arrastada agora.
-   * ENTREGUE entra na lista porque a entrega e permitida pela UI — ela apenas
-   * nao passa pela mudanca generica de etapa, e sim pelo dialogo de
-   * finalizacao (ver aoFinalizarDrag).
    */
   const destinosDoArraste = useMemo<ReadonlySet<EtapaOS> | null>(() => {
     if (!osEmArraste || !isEtapaKanban(osEmArraste.etapa)) return null;
 
     const contexto = { ehRetornoGarantia: Boolean(osEmArraste.ehRetornoGarantia) };
-    const permitidos = new Set<EtapaOS>(destinosPermitidosEtapa(osEmArraste.etapa, contexto));
-
-    if (osEmArraste.etapa !== "ENTREGUE") {
-      permitidos.add("ENTREGUE");
-    }
-
-    return permitidos;
+    return new Set<EtapaOS>(destinosPermitidosEtapa(osEmArraste.etapa, contexto));
   }, [osEmArraste]);
 
   const colunaBloqueada = (etapa: EtapaKanban): boolean => {
@@ -398,28 +390,9 @@ export function TabuleiroKanban({
       return;
     }
 
-    // Soltar em ENTREGUE NAO muda etapa: abre o dialogo de finalizacao, que
-    // emite a garantia e arquiva na mesma transacao. Antes da Fase 1A este drop
-    // chamava a mudanca generica de status e produzia OS entregue porem nao
-    // arquivada (AUDIT_REPORT 16.7-e).
-    if (preVisualizacao.etapaDestino === "ENTREGUE") {
-      const osAlvo = snapshotAnterior.find((item) => item.id === preVisualizacao.osMovida?.id);
-      if (!osAlvo || !onEntregarOS) return;
-
-      startTransition(() => {
-        setOrdensEstado({ tipo: "REORGANIZAR", movimento });
-      });
-
-      const entregue = await onEntregarOS(osAlvo);
-
-      if (!entregue) {
-        startTransition(() => {
-          setOrdensEstado({ tipo: "SUBSTITUIR", ordens: snapshotAnterior });
-        });
-      }
-
-      return;
-    }
+    // Sem coluna ENTREGUE (ver COLUNAS_DO_QUADRO): a entrega so sai pelo
+    // botao do cartao, que abre o dialogo de finalizacao.
+    if (preVisualizacao.etapaDestino === "ENTREGUE") return;
 
     startTransition(() => {
       setOrdensEstado({ tipo: "REORGANIZAR", movimento });
@@ -531,12 +504,12 @@ export function TabuleiroKanban({
   }
 
   if (telaDeCelular) {
-    const ordensDaEtapa = ordensPorEtapa[etapaNoCelular];
+    const ordensDaEtapa = ordensDaColuna(ordensPorEtapa, etapaNoCelular);
     const visiveis = ordensDaEtapa.slice(0, limiteNoCelular);
     return (
       <div className="flex flex-col gap-3">
-        <div role="tablist" aria-label="Etapa do quadro" className="grid grid-cols-2 gap-2 min-[400px]:grid-cols-4">
-          {ETAPA_SEQUENCIA.map((etapa) => {
+        <div role="tablist" aria-label="Etapa do quadro" className="grid grid-cols-3 gap-2">
+          {COLUNAS_DO_QUADRO.map((etapa) => {
             const ativa = etapa === etapaNoCelular;
             return (
               <button
@@ -554,7 +527,7 @@ export function TabuleiroKanban({
                     : "border-kx-painel-borda bg-kx-superficie text-kx-texto-2"
                 }`}
               >
-                <span className="text-lg font-extrabold leading-none tabular-nums">{ordensPorEtapa[etapa].length}</span>
+                <span className="text-lg font-extrabold leading-none tabular-nums">{ordensDaColuna(ordensPorEtapa, etapa).length}</span>
                 <span className="mt-1 leading-none">{configuracaoEtapa[etapa].titulo}</span>
               </button>
             );
@@ -591,22 +564,15 @@ export function TabuleiroKanban({
   return (
       <DragDropContext onDragStart={aoIniciarDrag} onDragEnd={aoFinalizarDrag}>
         <div className="flex min-h-[420px] gap-4 overflow-x-auto pb-4">
-        {ETAPA_SEQUENCIA.map((etapa) => {
-          const ordensFiltradas = ordensPorEtapa[etapa];
+        {COLUNAS_DO_QUADRO.map((etapa) => {
+          const ordensFiltradas = ordensDaColuna(ordensPorEtapa, etapa);
           const configuracao = configuracaoEtapa[etapa];
-          const ehColunaEntregue = etapa === "ENTREGUE";
-          // ENTREGUE está sempre em destinosDoArraste (ver comentário acima) e cartão
-          // entregue nunca é arrastável — essa coluna nunca aparece bloqueada de verdade,
-          // então o rótulo de "solte aqui" pode ficar fixo, sem alternar com o de bloqueio.
-          const entreguesHoje = ehColunaEntregue
-            ? ordensFiltradas.filter((os) => os.archivedAt && ehHoje(os.archivedAt)).length
-            : 0;
 
           return (
             <Droppable key={etapa} droppableId={etapa} isDropDisabled={colunaBloqueada(etapa)}>
               {(dropProvided, dropSnapshot) => (
                 <div
-                  className={`flex max-h-[640px] w-[320px] shrink-0 flex-col overflow-hidden rounded-kx-cartao border-x border-b border-x-kx-painel-borda border-b-kx-painel-borda bg-kx-painel shadow-sm transition-all ${configuracao.faixaTopo} ${
+                  className={`flex max-h-[640px] min-w-[300px] flex-1 flex-col overflow-hidden rounded-kx-cartao border-x border-b border-x-kx-painel-borda border-b-kx-painel-borda bg-kx-painel shadow-sm transition-all ${configuracao.faixaTopo} ${
                     dropSnapshot.isDraggingOver ? "ring-2 ring-primary/30 shadow-lg" : ""
                   } ${colunaBloqueada(etapa) ? "opacity-40 saturate-50" : ""}`}
                 >
@@ -623,22 +589,9 @@ export function TabuleiroKanban({
                     <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
                       <span>{ordensFiltradas.length === 1 ? "1 OS" : `${ordensFiltradas.length} OS`}</span>
                       <span>
-                        {ehColunaEntregue
-                          ? "Solte aqui para entregar"
-                          : colunaBloqueada(etapa)
-                            ? "Etapa indisponível para esta OS"
-                            : "Arraste para esta etapa"}
+                        {colunaBloqueada(etapa) ? "Etapa indisponível para esta OS" : "Arraste para esta etapa"}
                       </span>
                     </div>
-                    {ehColunaEntregue && (
-                      <p className="mt-1 text-xs font-medium text-kx-entregue-texto">
-                        {entreguesHoje === 0
-                          ? "Nenhuma entrega hoje ainda"
-                          : entreguesHoje === 1
-                            ? "1 entregue hoje"
-                            : `${entreguesHoje} entregues hoje`}
-                      </p>
-                    )}
                   </div>
 
                   <ListaColunaKanban

@@ -147,7 +147,7 @@ export const ARTIGOS_AJUDA: readonly ArtigoAjuda[] = [
     slug: "acompanhar-os",
     titulo: "Acompanhar e mover as OS de etapa",
     categoria: "Ordens de Serviço",
-    resumo: "Ver em que pé está cada OS e passá-la de Orçamento para Conserto, Pronto e Entregue.",
+    resumo: "Ver em que pé está cada OS e passá-la de Orçamento para Conserto e Pronto.",
     secoes: [
       {
         passos: [
@@ -155,6 +155,7 @@ export const ARTIGOS_AJUDA: readonly ArtigoAjuda[] = [
           "Para mudar de etapa, use os botões do cartão: eles dizem para onde a OS vai (\"Conserto →\", \"← Orçamento\").",
           "No computador também dá para arrastar o cartão de uma coluna para outra.",
           "No celular, toque na etapa no topo do quadro para ver as OS dela.",
+          "Para entregar, use \"Entregar e finalizar\" no cartão: a OS sai do quadro e vai para \"Finalizadas\".",
         ],
       },
     ],
@@ -390,6 +391,29 @@ export const ARTIGOS_AJUDA: readonly ArtigoAjuda[] = [
     dicas: ["Para cadastrar muitos produtos de uma vez, com o custo certo, use a Entrada de nota."],
     destino: { rotulo: "Ir para Estoque", href: "/estoque" },
     palavrasChave: ["produto", "cadastro", "estoque", "código de barras", "preço"],
+  },
+  {
+    slug: "estoque-em-massa",
+    titulo: "Alterar vários produtos de uma vez",
+    categoria: "Estoque",
+    resumo: "Imprimir etiquetas, mudar preço, categoria ou estoque mínimo de muitos produtos juntos.",
+    secoes: [
+      {
+        passos: [
+          "Em Estoque, marque a caixinha ao lado de cada produto (ou a do topo da tabela, para marcar a página toda).",
+          "Dá para trocar de página ou de filtro e continuar marcando: a seleção fica guardada.",
+          "Na barra que aparece embaixo, escolha: Etiquetas, Preço, Categoria, Estoque mínimo ou Desativar.",
+          "No preço, confira a prévia (preço atual → novo) antes de clicar em \"Aplicar\".",
+        ],
+      },
+    ],
+    dicas: [
+      "Preço por % aceita número negativo para baixar (ex.: -10).",
+      "\"Arredondar para ,90\" deixa os preços com final ,90 (37,12 vira 37,90).",
+      "Nas etiquetas, \"Uma por unidade em estoque\" imprime a quantidade certa para etiquetar tudo que está na prateleira.",
+    ],
+    destino: { rotulo: "Ir para Estoque", href: "/estoque" },
+    palavrasChave: ["massa", "vários", "lote", "etiquetas", "reajuste", "preço", "aumentar", "categoria", "selecionar"],
   },
   {
     slug: "entrada-de-nota",

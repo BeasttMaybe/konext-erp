@@ -44,6 +44,9 @@ import { PaginationControls } from "@/components/ui/pagination-controls";
 import { listarCategoriasAtivas } from "@/app/actions/categorias-produto";
 import { useTemPermissao } from "@/contextos/contexto-permissoes";
 import { BotaoImportarProdutos } from "@/components/importacao/importar-cadastros";
+import { AcoesEmMassa, type ProdutoSelecionado } from "@/components/estoque/acoes-em-massa";
+import { Checkbox } from "@/components/ui/checkbox";
+import { MAXIMO_POR_OPERACAO } from "@/lib/dominio/estoque/operacoes-em-massa";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -128,6 +131,7 @@ function ConteudoEstoque() {
   const searchParams = useSearchParams();
   const podeEditarEstoque = useTemPermissao("estoque.editar");
   const podeExcluirEstoque = useTemPermissao("estoque.excluir");
+  const podeVerCustos = useTemPermissao("estoque.ver_custos");
 
   // Página atual lida da URL (?page=N), com fallback para 1
   const currentPage = Math.max(1, Number(searchParams.get("page") ?? "1"));
@@ -145,6 +149,29 @@ function ConteudoEstoque() {
   const [produtoEmMovimentacao, setProdutoEmMovimentacao] = useState<ProdutoTabela | null>(null);
   // Incrementado após cada mutação para forçar o useEffect a rebuscar a lista
   const [contadorRecarga, setContadorRecarga] = useState(0);
+  // Seleção para as ações em massa. Sobrevive à troca de página e de filtro:
+  // dá para marcar produtos de várias buscas e agir em todos de uma vez.
+  const [selecao, setSelecao] = useState<Map<string, ProdutoSelecionado>>(() => new Map());
+
+  const paraSelecao = (produto: ProdutoTabela): ProdutoSelecionado => ({
+    id: produto.id,
+    nome: produto.nome,
+    precoVenda: produto.precoVenda,
+    custo: produto.custo,
+    quantidadeEstoque: produto.quantidadeEstoque,
+  });
+
+  const alternarSelecao = (produto: ProdutoTabela) => {
+    setSelecao((atual) => {
+      const proxima = new Map(atual);
+      if (proxima.has(produto.id)) proxima.delete(produto.id);
+      else if (proxima.size >= MAXIMO_POR_OPERACAO) {
+        toast.error(`Selecione no máximo ${MAXIMO_POR_OPERACAO} produtos por vez.`);
+        return atual;
+      } else proxima.set(produto.id, paraSelecao(produto));
+      return proxima;
+    });
+  };
 
   // Navega para uma página específica, preservando os demais query params
   const irParaPagina = useCallback(
@@ -186,8 +213,7 @@ function ConteudoEstoque() {
           situacao
         );
         if (!ativo) return;
-        setProdutos(
-          resultado.data.map((produto) => ({
+        const lista: ProdutoTabela[] = resultado.data.map((produto) => ({
             id: produto.id,
             nome: produto.nome,
             codigoBarras: produto.codigoBarras,
@@ -201,8 +227,20 @@ function ConteudoEstoque() {
             precoVenda: produto.precoVenda,
             quantidadeEstoque: produto.quantidadeEstoque,
             estoqueMinimo: produto.estoqueMinimo,
-          }))
-        );
+          }));
+        setProdutos(lista);
+        // Depois de uma alteração em massa a lista recarrega: a seleção pega
+        // os valores novos (preço, saldo) dos produtos desta página.
+        setSelecao((atual) => {
+          if (!lista.some((p) => atual.has(p.id))) return atual;
+          const proxima = new Map(atual);
+          for (const p of lista) {
+            if (proxima.has(p.id)) {
+              proxima.set(p.id, { id: p.id, nome: p.nome, precoVenda: p.precoVenda, custo: p.custo, quantidadeEstoque: p.quantidadeEstoque });
+            }
+          }
+          return proxima;
+        });
         setTotalPages(resultado.totalPages);
       } catch {
         if (!ativo) return;
@@ -257,6 +295,24 @@ function ConteudoEstoque() {
 
   // A filtragem é feita no servidor — exibe a lista recebida diretamente
   const produtosFiltrados = produtos;
+  const todosDaPaginaMarcados = produtosFiltrados.length > 0 && produtosFiltrados.every((p) => selecao.has(p.id));
+  const algunsDaPaginaMarcados = produtosFiltrados.some((p) => selecao.has(p.id));
+
+  const alternarPagina = () => {
+    setSelecao((atual) => {
+      const proxima = new Map(atual);
+      if (todosDaPaginaMarcados) {
+        for (const p of produtosFiltrados) proxima.delete(p.id);
+      } else {
+        for (const p of produtosFiltrados) {
+          if (proxima.size >= MAXIMO_POR_OPERACAO) break;
+          proxima.set(p.id, paraSelecao(p));
+        }
+      }
+      return proxima;
+    });
+  };
+
 
   const aoConfirmarDesativacao = async () => {
     if (!produtoParaDesativar) return;
@@ -316,7 +372,7 @@ function ConteudoEstoque() {
             <Card className="border-border bg-card p-3 sm:p-5 space-y-4">
               {/* Celular: busca na linha toda, filtros e botoes dois a dois. */}
               <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-row lg:items-center lg:gap-3">
-                <div className="relative col-span-2 flex-1">
+                <div className="relative col-span-2 flex-1 lg:min-w-[240px]">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     value={busca}
@@ -387,10 +443,16 @@ function ConteudoEstoque() {
                 {produtosFiltrados.map((produto) => {
                   const estoqueBaixo = produto.quantidadeEstoque <= produto.estoqueMinimo;
                   return (
-                    <li key={produto.id}>
+                    <li key={produto.id} className="flex items-center gap-2">
+                      <Checkbox
+                        aria-label={`Selecionar ${produto.nome}`}
+                        checked={selecao.has(produto.id)}
+                        onCheckedChange={() => alternarSelecao(produto)}
+                        className="h-5 w-5 shrink-0"
+                      />
                       <Link
                         href={`/estoque/produtos/${produto.id}`}
-                        className="flex items-center gap-3 rounded-kx-cartao border border-kx-painel-borda bg-kx-superficie p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kx-foco"
+                        className="flex min-w-0 flex-1 items-center gap-3 rounded-kx-cartao border border-kx-painel-borda bg-kx-superficie p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kx-foco"
                       >
                         {produto.imagemUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element -- foto do cadastro, de qualquer endereco.
@@ -424,6 +486,13 @@ function ConteudoEstoque() {
                 <Table>
                   <TableHeader className="sticky top-0 z-kx-sticky bg-card">
                     <TableRow>
+                      <TableHead className="w-10">
+                        <Checkbox
+                          aria-label="Selecionar todos desta página"
+                          checked={todosDaPaginaMarcados ? true : algunsDaPaginaMarcados ? "indeterminate" : false}
+                          onCheckedChange={alternarPagina}
+                        />
+                      </TableHead>
                       <TableHead>Foto</TableHead>
                       <TableHead>Nome</TableHead>
                       <TableHead>Categoria</TableHead>
@@ -440,7 +509,14 @@ function ConteudoEstoque() {
                       const estoqueBaixo = produto.quantidadeEstoque <= produto.estoqueMinimo;
 
                       return (
-                        <TableRow key={produto.id}>
+                        <TableRow key={produto.id} data-state={selecao.has(produto.id) ? "selected" : undefined}>
+                          <TableCell>
+                            <Checkbox
+                              aria-label={`Selecionar ${produto.nome}`}
+                              checked={selecao.has(produto.id)}
+                              onCheckedChange={() => alternarSelecao(produto)}
+                            />
+                          </TableCell>
                           <TableCell>
                             {produto.imagemUrl ? (
                               <img
@@ -515,7 +591,7 @@ function ConteudoEstoque() {
                     {!carregando && produtosFiltrados.length === 0 && (
                       <TableRow>
                         <TableCell
-                          colSpan={podeEditarEstoque || podeExcluirEstoque ? 7 : 6}
+                          colSpan={podeEditarEstoque || podeExcluirEstoque ? 8 : 7}
                           className="text-center py-8 text-muted-foreground"
                         >
                           Nenhum produto encontrado para os filtros atuais.
@@ -526,7 +602,7 @@ function ConteudoEstoque() {
                     {carregando && (
                       <TableRow>
                         <TableCell
-                          colSpan={podeEditarEstoque || podeExcluirEstoque ? 7 : 6}
+                          colSpan={podeEditarEstoque || podeExcluirEstoque ? 8 : 7}
                           className="text-center py-8 text-muted-foreground"
                         >
                           Carregando produtos...
@@ -542,6 +618,16 @@ function ConteudoEstoque() {
                 totalPages={totalPages}
                 onPageChange={irParaPagina}
                 disabled={carregando}
+              />
+
+              <AcoesEmMassa
+                selecionados={[...selecao.values()]}
+                categorias={categorias}
+                podeEditar={podeEditarEstoque}
+                podeExcluir={podeExcluirEstoque}
+                podeVerCustos={podeVerCustos}
+                onLimpar={() => setSelecao(new Map())}
+                onAlterado={() => setContadorRecarga((n) => n + 1)}
               />
             </Card>
             )}

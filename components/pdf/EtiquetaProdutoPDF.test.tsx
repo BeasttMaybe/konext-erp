@@ -7,7 +7,7 @@ import {
   mmParaPontos,
 } from "@/lib/dominio/estoque/etiqueta";
 
-import { EtiquetaProdutoPDF, type DadosEtiqueta } from "./EtiquetaProdutoPDF";
+import { EtiquetaProdutoPDF, EtiquetasPDF, type DadosEtiqueta } from "./EtiquetaProdutoPDF";
 
 /**
  * Renderiza a etiqueta DE VERDADE e confere o tamanho da página.
@@ -104,5 +104,23 @@ describe("EtiquetaProdutoPDF — conteúdo por tamanho", () => {
     // testes de `encurtarParaEtiqueta` e `limiteDeNomePorTamanho`.
     expect(pdf.byteLength).toBeGreaterThan(0);
     expect(lerMediaBox(pdf)).toHaveLength(1);
+  }, 30_000);
+});
+
+describe("EtiquetasPDF — lote do estoque", () => {
+  it("soma as cópias de todos os produtos, uma página cada, na medida do rolo", async () => {
+    const tamanho = acharTamanhoDeEtiqueta("50x30");
+    const pdf = await renderToBuffer(
+      <EtiquetasPDF
+        tamanho={tamanho}
+        itens={[
+          { dados: DADOS, copias: 2 },
+          { dados: { ...DADOS, nome: "Película 3D", legenda: "PEL-0001", sku: "PEL-0001" }, copias: 3 },
+        ]}
+      />
+    );
+    const paginas = lerMediaBox(pdf);
+    expect(paginas).toHaveLength(5);
+    expect(paginas.every((p) => Math.abs(p.largura - mmParaPontos(tamanho.larguraMm)) < 0.1)).toBe(true);
   }, 30_000);
 });
