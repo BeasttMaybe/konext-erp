@@ -87,6 +87,24 @@ async function esperarPronto(projetoId, branchId) {
   throw new Error("branch temporario nao ficou pronto em 2 minutos.");
 }
 
+/**
+ * Cota de branches cheia: apaga o ponto de restauracao AUTOMATICO mais antigo
+ * (mesmo formato que scripts/neon/criar-ponto-restauracao.mjs cria e ja poda),
+ * desde que reste ao menos um. Branch criado a mao nunca e tocado.
+ */
+const PADRAO_AUTOMATICO = /^antes-(teste|producao)-ep-[a-z0-9-]+-\d{12,14}$/;
+
+async function abrirEspaco(projetoId) {
+  const { branches } = await chamarNeon(`/projects/${projetoId}/branches`);
+  const automaticos = (branches ?? [])
+    .filter((b) => PADRAO_AUTOMATICO.test(b.name) && !b.default && !b.primary)
+    .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+  if (automaticos.length < 2) throw new Error("cota de branches cheia e nao ha ponto automatico antigo para liberar.");
+  const velho = automaticos[0];
+  await chamarNeon(`/projects/${projetoId}/branches/${velho.id}`, { method: "DELETE" });
+  console.log(`[ensaio] cota cheia: apagado o ponto automatico mais antigo (${velho.name}); restam ${automaticos.length - 1}.`);
+}
+
 async function retratoDoBanco(uri, rotulo) {
   const cliente = await abrirConexaoSomenteLeitura(uri, rotulo);
   try {
@@ -113,13 +131,18 @@ async function ensaiar(nome, idEndpoint, horasAtras, carimbo) {
   const nomeDoBranch = `ensaio-restauracao-${idEndpoint}-${carimbo}`;
   console.log(`[ensaio] ${nome}: criando ${nomeDoBranch} a partir de ${instante}`);
 
-  const criado = await chamarNeon(`/projects/${local.projetoId}/branches`, {
-    method: "POST",
-    body: JSON.stringify({
-      branch: { parent_id: local.branchId, parent_timestamp: instante, name: nomeDoBranch },
-      endpoints: [{ type: "read_write" }],
-    }),
+  const corpo = JSON.stringify({
+    branch: { parent_id: local.branchId, parent_timestamp: instante, name: nomeDoBranch },
+    endpoints: [{ type: "read_write" }],
   });
+  let criado;
+  try {
+    criado = await chamarNeon(`/projects/${local.projetoId}/branches`, { method: "POST", body: corpo });
+  } catch (falha) {
+    if (!String(falha?.message).includes("BRANCHES_LIMIT_EXCEEDED")) throw falha;
+    await abrirEspaco(local.projetoId);
+    criado = await chamarNeon(`/projects/${local.projetoId}/branches`, { method: "POST", body: corpo });
+  }
   const branchId = criado?.branch?.id;
   if (!branchId) throw new Error("a API nao devolveu o branch temporario.");
 
