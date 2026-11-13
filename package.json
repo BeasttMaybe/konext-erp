@@ -18,6 +18,7 @@
     "db:verificar-datas": "node scripts/verificacao/verificar-datas.mjs",
     "db:verificar-dinheiro": "node scripts/verificacao/verificar-dinheiro.mjs",
     "db:reparar-os": "node scripts/reparo/aplicar-reparo-os.mjs",
+    "db:cifrar-senhas": "node scripts/reparo/cifrar-senhas-aparelho.mjs",
     "db:migrate:deploy:manual": "node scripts/migrate-deploy-com-retry.mjs",
     "verificar:ambiente": "node scripts/verificar-ambiente.mjs",
     "seed:demo": "node scripts/seed-demo-tenant.mjs",

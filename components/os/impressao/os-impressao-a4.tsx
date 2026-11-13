@@ -22,11 +22,11 @@ export function OsImpressaoA4({ dados, qrCodeSvg = null }: PropsOsImpressaoA4) {
     marca,
     modelo,
     imei,
-    senha,
+    senhaInformada,
     relatoCliente,
     condicaoFisica,
     acessorios,
-    pontosDesenho,
+    desenhoInformado,
     itens,
     totalOS,
     empresa,
@@ -161,11 +161,12 @@ export function OsImpressaoA4({ dados, qrCodeSvg = null }: PropsOsImpressaoA4) {
               </h2>
               <div className="space-y-1 text-xs text-kx-papel-texto-2">
                 <p>
-                  <span className="font-semibold">Senha:</span> {senha}
+                  <span className="font-semibold">Senha:</span>{" "}
+                  {senhaInformada ? "Informada — guardada só no sistema" : "Não informada"}
                 </p>
                 <p>
                   <span className="font-semibold">Padrão de desbloqueio:</span>{" "}
-                  {pontosDesenho.length > 0 ? pontosDesenho.join(" → ") : "Não definido"}
+                  {desenhoInformado ? "Informado — guardado só no sistema" : "Não definido"}
                 </p>
               </div>
             </section>

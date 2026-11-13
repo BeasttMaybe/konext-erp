@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { registrarVisualizacaoSenhaOS } from "@/app/actions/os";
+import { toast } from "sonner";
+
+import { revelarSenhaDoAparelho } from "@/app/actions/os";
 
 function extrairPontosDesenho(valor: string | null | undefined): number[] {
   if (!valor) return [];
@@ -16,8 +18,9 @@ type PropsCartaoAparelhoOS = {
   marca: string | null;
   modelo: string | null;
   imei: string | null;
-  senha: string | null;
-  senhaDesenho: string | null;
+  /** So se ha senha/desenho — os valores vem do servidor quando alguem pede para ver. */
+  temSenha: boolean;
+  temDesenho: boolean;
 };
 
 /**
@@ -26,17 +29,30 @@ type PropsCartaoAparelhoOS = {
  * lá também são só visuais por isso) — a linha "Tipo" fica de fora até essa
  * generalização de domínio chegar numa fase futura.
  */
-export function CartaoAparelhoOS({ osId, marca, modelo, imei, senha, senhaDesenho }: PropsCartaoAparelhoOS) {
-  const [senhaVisivel, setSenhaVisivel] = useState(false);
-  const pontosDesenho = extrairPontosDesenho(senhaDesenho);
+export function CartaoAparelhoOS({ osId, marca, modelo, imei, temSenha, temDesenho }: PropsCartaoAparelhoOS) {
+  const [revelada, setRevelada] = useState<{ senha: string | null; senhaDesenho: string | null } | null>(null);
+  const [carregando, setCarregando] = useState(false);
+  const senhaVisivel = revelada !== null;
+  const pontosDesenho = extrairPontosDesenho(revelada?.senhaDesenho);
+  const temAlgo = temSenha || temDesenho;
 
-  const alternarSenha = () => {
-    const proximoEstado = !senhaVisivel;
-    setSenhaVisivel(proximoEstado);
-
-    if (proximoEstado && senha) {
-      // Best-effort, nunca bloqueia a UI — ver comentário em registrarVisualizacaoSenhaOS.
-      void registrarVisualizacaoSenhaOS(osId);
+  const alternarSenha = async () => {
+    if (senhaVisivel) {
+      setRevelada(null);
+      return;
+    }
+    setCarregando(true);
+    try {
+      const resultado = await revelarSenhaDoAparelho(osId);
+      if (!resultado) {
+        toast.error("Não foi possível abrir a senha desta OS.");
+        return;
+      }
+      setRevelada(resultado);
+    } catch {
+      toast.error("Não foi possível abrir a senha desta OS.");
+    } finally {
+      setCarregando(false);
     }
   };
 
@@ -63,21 +79,23 @@ export function CartaoAparelhoOS({ osId, marca, modelo, imei, senha, senhaDesenh
         <div className="flex-1 flex flex-col gap-0.5">
           <span className="text-xs text-kx-legenda">Senha do aparelho</span>
           <span className="text-sm font-extrabold tracking-[0.18em] tabular-nums text-kx-texto">
-            {senhaVisivel ? senha || "Não informada" : "••••"}
+            {senhaVisivel ? revelada?.senha || "Não informada" : temSenha ? "••••" : "Não informada"}
           </span>
+          {!senhaVisivel && temDesenho && <span className="text-xs text-kx-legenda">Desenho de desbloqueio cadastrado</span>}
         </div>
-        {senha && (
+        {temAlgo && (
           <button
             type="button"
             onClick={alternarSenha}
+            disabled={carregando}
             aria-pressed={senhaVisivel}
             className="h-[34px] shrink-0 rounded-kx-botao border border-kx-campo-borda px-3 text-xs font-bold text-kx-texto-2 transition-colors hover:bg-kx-cartao"
           >
-            {senhaVisivel ? "Ocultar" : "Mostrar"}
+            {carregando ? "Abrindo..." : senhaVisivel ? "Ocultar" : "Mostrar"}
           </button>
         )}
       </div>
-      {senhaVisivel && senha && <span className="text-[11px] text-kx-alerta">Visualização registrada na auditoria.</span>}
+      {senhaVisivel && <span className="text-[11px] text-kx-alerta">Visualização registrada na auditoria.</span>}
 
       {pontosDesenho.length > 0 && (
         <div className="flex flex-col gap-2">

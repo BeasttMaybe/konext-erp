@@ -54,14 +54,6 @@ function extrairNumeroOsDoSlug(entrada: string): number | null {
   return Number.isFinite(numero) ? numero : null;
 }
 
-function extrairPontosDesenho(valor: string | null | undefined): number[] {
-  if (!valor) return [];
-  return valor
-    .split(/[^0-9]+/)
-    .map((v) => Number(v))
-    .filter((v) => Number.isInteger(v) && v >= 1 && v <= 9);
-}
-
 export const formatarMoedaImpressao = (valor: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(valor);
 
@@ -89,11 +81,12 @@ export type DadosImpressaoOS = {
   marca: string;
   modelo: string;
   imei: string;
-  senha: string;
+  /** A senha e o desenho NAO saem no papel (vai para o cliente): so se foram informados. */
+  senhaInformada: boolean;
+  desenhoInformado: boolean;
   relatoCliente: string;
   condicaoFisica: string;
   acessorios: string;
-  pontosDesenho: number[];
   itens: ItemImpressaoOS[];
   totalOS: number;
   empresa: ResumoEmpresaDocumentos;
@@ -193,11 +186,11 @@ export async function obterDadosImpressaoOS(id: string): Promise<DadosImpressaoO
     marca: String(os.marca ?? "Não informado"),
     modelo: String(os.modelo ?? "Não informado"),
     imei: String(os.imei ?? "Não informado"),
-    senha: String(os.senha ?? "Não informada"),
+    senhaInformada: Boolean(os.senha),
+    desenhoInformado: Boolean(os.senhaDesenho),
     relatoCliente: String(os.relatoCliente ?? "Não informado"),
     condicaoFisica: String(os.condicaoFisica ?? "Não informada"),
     acessorios: String(os.acessorios ?? "Não informado"),
-    pontosDesenho: extrairPontosDesenho(String(os.senhaDesenho ?? "")),
     itens,
     totalOS,
     empresa,

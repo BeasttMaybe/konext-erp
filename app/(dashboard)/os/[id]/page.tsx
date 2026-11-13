@@ -214,8 +214,10 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
   const etapa = String(osBanco.etapa) as EtapaOS;
   const situacao = (osBanco.situacao ? String(osBanco.situacao) : null) as SituacaoOS | null;
   const imei = osBanco.imei ? String(osBanco.imei) : null;
-  const senha = osBanco.senha ? String(osBanco.senha) : null;
-  const senhaDesenho = osBanco.senhaDesenho ? String(osBanco.senhaDesenho) : null;
+  // So "tem ou nao": o valor (cifrado no banco) so sai do servidor quando
+  // alguem clica "Mostrar" — revelarSenhaDoAparelho, com auditoria.
+  const temSenha = Boolean(osBanco.senha);
+  const temDesenho = Boolean(osBanco.senhaDesenho);
   const relatoCliente = String(osBanco.relatoCliente ?? "Não informado");
   const condicaoFisica = String(osBanco.condicaoFisica ?? "");
   const acessorios = String(osBanco.acessorios ?? "");
@@ -314,7 +316,7 @@ export default async function PaginaDetalheOS({ params }: PropsPaginaDetalheOS) 
               telefone={clienteTelefone}
               aceitaWhatsapp={clienteAceitaWhatsapp}
             />
-            <CartaoAparelhoOS osId={idOs} marca={marca} modelo={modelo} imei={imei} senha={senha} senhaDesenho={senhaDesenho} />
+            <CartaoAparelhoOS osId={idOs} marca={marca} modelo={modelo} imei={imei} temSenha={temSenha} temDesenho={temDesenho} />
             <CartaoEntradaOS relatoCliente={relatoCliente} condicaoFisica={condicaoFisica} acessorios={acessorios} />
           </div>
 

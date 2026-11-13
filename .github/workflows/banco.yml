@@ -34,6 +34,8 @@ on:
           - migrar-aplicar
           - central-dry-run
           - central-aplicar
+          - cifrar-senhas-dry-run
+          - cifrar-senhas-aplicar
           - relatorio-os
           - verificar-datas
           - verificar-dinheiro
@@ -135,7 +137,7 @@ jobs:
       # privado): nao impede quem dispara, impede o disparo por engano e deixa a
       # intencao registrada no historico do run.
       - name: Confirmar intenção de escrever em produção
-        if: inputs.ambiente == 'producao' && (inputs.comando == 'migrar-aplicar' || inputs.comando == 'central-aplicar')
+        if: inputs.ambiente == 'producao' && endsWith(inputs.comando, '-aplicar')
         run: |
           if [ "${{ inputs.confirmo_producao }}" != "APLICAR EM PRODUCAO" ]; then
             echo "::error::Para aplicar em producao, confirmo_producao precisa ser exatamente: APLICAR EM PRODUCAO"
@@ -144,7 +146,7 @@ jobs:
 
       - name: Criar ponto de restauração no Neon
         id: restauracao
-        if: inputs.comando == 'migrar-aplicar' || inputs.comando == 'central-aplicar'
+        if: endsWith(inputs.comando, '-aplicar')
         run: |
           set -o pipefail
 
@@ -179,7 +181,7 @@ jobs:
       - name: Rodar
         env:
           PONTO_RESTAURACAO: ${{ steps.restauracao.outputs.ponto }}
-          CONFIRMAR: ${{ (inputs.comando == 'migrar-aplicar' || inputs.comando == 'central-aplicar') && 'SIM' || '' }}
+          CONFIRMAR: ${{ endsWith(inputs.comando, '-aplicar') && 'SIM' || '' }}
           AUTORIZAR_DESTRUTIVO: ${{ inputs.autorizar_destrutivo && 'SIM' || '' }}
         run: |
           set -o pipefail
@@ -201,6 +203,8 @@ jobs:
               migrar-aplicar)       npm run db:migrar -- --aplicar $ALVO_TENANT ;;
               central-dry-run)      node scripts/migracao/migrar-central.mjs --dry-run ;;
               central-aplicar)      node scripts/migracao/migrar-central.mjs --aplicar ;;
+              cifrar-senhas-dry-run) npm run db:cifrar-senhas -- --dry-run $ALVO_TENANT ;;
+              cifrar-senhas-aplicar) npm run db:cifrar-senhas -- --aplicar $ALVO_TENANT ;;
               relatorio-os)         npm run db:relatorio-os ;;
               verificar-datas)      npm run db:verificar-datas -- --${{ inputs.modo_verificacao || 'antes' }} ;;
               verificar-dinheiro)   npm run db:verificar-dinheiro -- --${{ inputs.modo_verificacao || 'antes' }} ;;

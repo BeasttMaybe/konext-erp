@@ -13,6 +13,7 @@ import {
 // Importação de calcularPrecoVendaPeca removida — preços são definidos manualmente pelo operador.
 import { garantirTermoGarantiaPorOS } from "@/app/actions/garantias";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
+import { abrirSenhasDoAparelho, protegerSenhasDoAparelho } from "@/lib/seguranca/chave-da-empresa";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 import {
   mensagemIndicaRuntimeLegadoConfiguracao,
@@ -165,8 +166,8 @@ function mapearOrdemServicoDashboard(order: RawOrdemServico, podeVerCustos: bool
     marca: order.marca ? String(order.marca) : undefined,
     modelo: order.modelo ? String(order.modelo) : undefined,
     imei: order.imei ? String(order.imei) : undefined,
-    senha: order.senha ? String(order.senha) : undefined,
-    senhaDesenho: order.senhaDesenho ? String(order.senhaDesenho) : undefined,
+    // Senha e desenho do aparelho nao vao para o quadro: so a tela de detalhe
+    // mostra, sob pedido e com auditoria (revelarSenhaDoAparelho).
     checklist: {
       relatoCliente: String(order.relatoCliente ?? ""),
       condicaoFisica: String(order.condicaoFisica ?? ""),
@@ -629,6 +630,13 @@ export async function criarOrdemServico(dados: DadosNovaOS) {
     })
     .filter((item): item is NonNullable<typeof item> => Boolean(item));
 
+  // Senha e desenho do aparelho vao cifrados com a chave da loja (banco
+  // central) — ver lib/seguranca/cifra.ts.
+  const senhasProtegidas = await protegerSenhasDoAparelho(contexto.empresaId, {
+    senha: dados.senha ?? null,
+    senhaDesenho: dados.senhaDesenho ?? null,
+  });
+
   const prismaAny = prisma as typeof prisma & {
     ordemServico?: OrdemServicoCreateDelegate;
     OrdemServico?: OrdemServicoCreateDelegate;
@@ -661,8 +669,8 @@ export async function criarOrdemServico(dados: DadosNovaOS) {
         marca: dados.marca?.trim() || null,
         modelo: dados.modelo?.trim() || null,
         imei: dados.imei?.trim() || null,
-        senha: dados.senha?.trim() || null,
-        senhaDesenho: dados.senhaDesenho?.trim() || null,
+        senha: senhasProtegidas.senha,
+        senhaDesenho: senhasProtegidas.senhaDesenho,
         relatoCliente: dados.relatoCliente.trim(),
         condicaoFisica: dados.condicaoFisica?.trim() || null,
         acessorios: dados.acessorios?.trim() || null,
@@ -1951,33 +1959,39 @@ async function listarOrdensServicoExcluidas(): Promise<DadosOrdemServicoExcluida
 
 /**
  * Fase 3-2B — chamado quando o usuario clica "Mostrar" na senha do aparelho
- * na tela de detalhe. So grava a trilha (quem + quando + qual OS); o valor
- * da senha nunca entra no payload — mesmo que entrasse, sanitizarValor()
- * (lib/auditoria.ts) redige qualquer campo chamado "senha". Best-effort
- * fora de transacao de negocio (ver OpcoesRegistroAuditoria.melhorEsforco):
- * uma falha aqui nao pode impedir o usuario de ver a senha que ja tem
- * permissao de ver.
+ * na tela de detalhe. Devolve a senha e o desenho ABERTOS (estao cifrados no
+ * banco — lib/seguranca/cifra.ts) e grava a trilha (quem + quando + qual OS);
+ * o valor nunca entra no payload da auditoria — mesmo que entrasse,
+ * sanitizarValor() (lib/auditoria.ts) redige "senha"/"senhaDesenho".
+ *
+ * A pagina de detalhe nao manda mais a senha junto com o HTML: so sabe se ha
+ * senha. Assim ela so sai do servidor quando alguem pede, e cada pedido fica
+ * registrado. Auditoria best-effort: uma falha la nao impede quem ja pode ver
+ * a OS de ver a senha.
  */
-export async function registrarVisualizacaoSenhaOS(osId: string): Promise<void> {
+export async function revelarSenhaDoAparelho(
+  osId: string
+): Promise<{ senha: string | null; senhaDesenho: string | null } | null> {
   const contexto = await exigirContextoTenant();
   const prisma = contexto.prisma;
   const idNormalizado = String(osId ?? "").trim();
 
-  if (!idNormalizado) return;
+  if (!idNormalizado) return null;
 
-  // Confere que a OS existe no escopo de visibilidade do usuario antes de
-  // gravar — mesma regra de acesso da pagina de detalhe (lib/auth/escopos.ts).
+  // Mesma regra de acesso da pagina de detalhe (lib/auth/escopos.ts).
   const escopoOS = escopoOrdemServico(contexto);
-  const osNoEscopo = await prisma.ordemServico.findFirst({
+  const os = await prisma.ordemServico.findFirst({
     where: { id: idNormalizado, ...escopoOS },
-    select: { id: true },
+    select: { id: true, senha: true, senhaDesenho: true },
   });
 
-  if (!osNoEscopo) return;
+  if (!os) return null;
+
+  const abertas = await abrirSenhasDoAparelho(contexto.empresaId, { senha: os.senha, senhaDesenho: os.senhaDesenho });
 
   await registrarLogAuditoria(
     prisma,
-    contextoAuditoriaDoUsuario(contexto.usuarioOperacional, "app/actions/os.ts:registrarVisualizacaoSenhaOS"),
+    contextoAuditoriaDoUsuario(contexto.usuarioOperacional, "app/actions/os.ts:revelarSenhaDoAparelho"),
     {
       acao: ACOES_AUDITORIA.VISUALIZAR_SENHA,
       entidade: ENTIDADES_AUDITORIA.ORDEM_SERVICO,
@@ -1985,6 +1999,8 @@ export async function registrarVisualizacaoSenhaOS(osId: string): Promise<void> 
     },
     { melhorEsforco: true }
   );
+
+  return abertas;
 }
 
 export type LinhaHistoricoOS = {

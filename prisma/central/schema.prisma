@@ -36,6 +36,7 @@ model Empresa {
   usuarios     UsuarioEmpresa[]
   cargos       Cargo[]
   logsAuditoria LogAuditoria[]
+  chaveDeCifra ChaveDeCifraEmpresa?
   /**
    * Conta responsavel pela loja (Fase 1D-3, protecao do dono) — a UsuarioEmpresa
    * que criou a empresa, com protecoes que nenhum outro admin tem (ver
@@ -185,4 +186,19 @@ model LogAuditoria {
   @@index([entidadeId])
   @@index([acao])
   @@index([criadoEm])
+}
+
+/**
+ * Chave de cifra de cada loja (AES-256-GCM, 32 bytes em base64) para os dados
+ * sensiveis que ficam no banco do TENANT — hoje, a senha e o desenho de
+ * desbloqueio do aparelho na OS. Fica no banco CENTRAL de proposito: quem
+ * obtiver uma copia do banco da loja nao tem a chave junto. Gerada na primeira
+ * vez que a loja precisa dela (lib/seguranca/chave-da-empresa.ts) e nunca
+ * trocada por codigo — trocar exige recifrar tudo antes.
+ */
+model ChaveDeCifraEmpresa {
+  empresaId String   @id
+  empresa   Empresa  @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  chave     String
+  criadoEm  DateTime @default(now()) @db.Timestamptz(3)
 }
