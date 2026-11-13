@@ -560,6 +560,31 @@ export const ARTIGOS_AJUDA: readonly ArtigoAjuda[] = [
     palavrasChave: ["vírus", "virus", "anúncio", "propaganda", "adware", "malware", "limpar", "usb", "adb", "ferramentas"],
   },
 
+  {
+    slug: "rom-samsung",
+    titulo: "Ver e baixar a ROM de um Samsung",
+    categoria: "Ordens de Serviço",
+    resumo: "Saber a versão mais recente da Samsung para o modelo e baixar a ROM pelo Bifrost.",
+    secoes: [
+      {
+        passos: [
+          "Vá em Ferramentas → Rom Samsung.",
+          "Digite o modelo (ex.: SM-A155M) e escolha a região — ZTO para aparelho livre do Brasil. Ou clique em \"Ler do celular no cabo\" (precisa da Depuração USB).",
+          "Clique em Consultar: aparece a versão mais recente, o Android, o mês e o binário.",
+          "Com o celular no cabo, o sistema diz se ele está desatualizado e se o binário permite gravar.",
+          "Baixe a ROM pelo Bifrost (gratuito, instalado no computador) com o modelo e a região copiados da tela, e grave com o Odin.",
+        ],
+      },
+    ],
+    dicas: [
+      "Binário: não dá para gravar ROM com binário menor que o do celular.",
+      "No Odin, use o HOME_CSC para manter os dados do cliente.",
+      "\"Copiar para a OS\" gera o texto com a versão gravada para as observações da OS.",
+    ],
+    destino: { rotulo: "Abrir a Rom Samsung", href: "/ferramentas/rom-samsung" },
+    palavrasChave: ["rom", "firmware", "samsung", "odin", "bifrost", "atualizar", "binário", "csc", "ferramentas"],
+  },
+
   // ── Equipe e configurações ──────────────────────────────────────────
   {
     slug: "novo-usuario",

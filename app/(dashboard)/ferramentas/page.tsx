@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight, ShieldCheck } from "lucide-react";
+import { ChevronRight, Download, ShieldCheck } from "lucide-react";
 
 export const metadata = { title: "Ferramentas | TechOS" };
 
@@ -9,6 +9,12 @@ const FERRAMENTAS = [
     nome: "Remoção de Vírus",
     descricao: "Conecte o Android pelo cabo USB, veja os apps de anúncio e vírus e remova direto daqui.",
     icone: ShieldCheck,
+  },
+  {
+    href: "/ferramentas/rom-samsung",
+    nome: "Rom Samsung",
+    descricao: "Veja a ROM mais recente de cada Samsung, compare com o celular no cabo e baixe pelo Bifrost.",
+    icone: Download,
   },
 ];
 

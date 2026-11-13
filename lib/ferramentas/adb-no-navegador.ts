@@ -245,3 +245,34 @@ async function abrirAdministradoresNoCelular(adb: Adb): Promise<void> {
   const saida = await shell(adb, "am start -n com.android.settings/.Settings\\$DeviceAdminSettingsActivity");
   if (/Error|Exception/i.test(saida)) await shell(adb, "am start -a android.settings.SECURITY_SETTINGS");
 }
+
+export type InfoSamsung = {
+  samsung: boolean;
+  modelo: string;
+  regiao: string | null;
+  /** Versao do sistema gravada (ex.: A155MUBS3BXK1) */
+  pda: string | null;
+  bootloader: string | null;
+  android: string;
+};
+
+/** Modelo, regiao (CSC) e versao atual — para a ferramenta Rom Samsung. */
+export async function lerInfoSamsung(celular: CelularConectado): Promise<InfoSamsung> {
+  const prop = async (chave: string) => (await celular.adb.getProp(chave).catch(() => "")).trim();
+  const [modelo, csc1, csc2, pda, bootloader] = await Promise.all([
+    prop("ro.product.model"),
+    prop("ro.csc.sales_code"),
+    prop("ro.boot.sales_code"),
+    prop("ro.build.PDA"),
+    prop("ro.boot.bootloader"),
+  ]);
+  const regiao = (csc1 || csc2).toUpperCase();
+  return {
+    samsung: celular.fabricante.toLowerCase() === "samsung",
+    modelo: modelo.toUpperCase(),
+    regiao: /^[A-Z0-9]{3}$/.test(regiao) ? regiao : null,
+    pda: pda || bootloader || null,
+    bootloader: bootloader || null,
+    android: celular.android,
+  };
+}
