@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import {
@@ -79,7 +80,11 @@ export function LayoutConfiguracoes({
     [podeVerUsuariosCargos, marcasPeca, categoriasProduto]
   );
 
-  const [secaoAtiva, setSecaoAtiva] = useState<SecaoConfiguracoesId>("empresa");
+  // `?secao=usuarios` abre direto numa secao (links da Ajuda e dos Primeiros passos).
+  const secaoPedida = useSearchParams().get("secao");
+  const [secaoAtiva, setSecaoAtiva] = useState<SecaoConfiguracoesId>(() =>
+    secoesVisiveis.find((secao) => secao.id === secaoPedida)?.id ?? "empresa"
+  );
   const [salvando, setSalvando] = useState(false);
   const [buscandoCnpj, setBuscandoCnpj] = useState(false);
 

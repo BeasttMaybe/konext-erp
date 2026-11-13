@@ -15,6 +15,8 @@ import { FluxoOs } from "@/components/dashboard/fluxo-os";
 import { MovimentacoesHome } from "@/components/dashboard/movimentacoes-home";
 import { MetasHome } from "@/components/dashboard/metas-home";
 import { PendenciasHome } from "@/components/dashboard/pendencias-home";
+import { PrimeirosPassos } from "@/components/dashboard/primeiros-passos";
+import { primeirosPassosDaLoja } from "@/lib/primeiros-passos-da-loja";
 
 export const dynamic = "force-dynamic";
 
@@ -81,6 +83,9 @@ export default async function PaginaDashboard({ searchParams }: PropsPaginaDashb
     );
   }
 
+  // So para quem configura a loja: os passos levam a telas de administracao.
+  const passos = temPermissao(contexto, "configuracoes.empresa") ? await primeirosPassosDaLoja(contexto, configuracoes) : null;
+
   const painel = resultadoOperacional.dados;
   const faturamento = resultadoFaturamento?.sucesso ? resultadoFaturamento.dados : null;
   const erroFaturamento = resultadoFaturamento && !resultadoFaturamento.sucesso ? resultadoFaturamento.erro : null;
@@ -94,6 +99,8 @@ export default async function PaginaDashboard({ searchParams }: PropsPaginaDashb
         periodo={painel.periodo}
         fusoHorario={contexto.fusoHorario}
       />
+
+      {passos ? <PrimeirosPassos passos={passos} /> : null}
 
       <PendenciasHome itens={pendencias} />
 
