@@ -37,6 +37,7 @@ model Empresa {
   cargos       Cargo[]
   logsAuditoria LogAuditoria[]
   chaveDeCifra ChaveDeCifraEmpresa?
+  modulos      ModuloEmpresa[]
   /**
    * Conta responsavel pela loja (Fase 1D-3, protecao do dono) — a UsuarioEmpresa
    * que criou a empresa, com protecoes que nenhum outro admin tem (ver
@@ -73,6 +74,7 @@ model UsuarioCentral {
   ativo        Boolean          @default(true)
   empresas     UsuarioEmpresa[]
   logsAuditoria LogAuditoria[]
+  tokensDeRecuperacao TokenRecuperacaoSenha[]
   criadoEm     DateTime         @default(now()) @db.Timestamptz(3)
   atualizadoEm DateTime         @updatedAt @db.Timestamptz(3)
 }
@@ -201,4 +203,68 @@ model ChaveDeCifraEmpresa {
   empresa   Empresa  @relation(fields: [empresaId], references: [id], onDelete: Cascade)
   chave     String
   criadoEm  DateTime @default(now()) @db.Timestamptz(3)
+}
+
+/**
+ * Falha de login (e-mail ou senha errados), para o limite de tentativas —
+ * regras em lib/auth/limite-login.ts. E-mail e IP so como hash SHA-256.
+ * Linhas com mais de um dia sao apagadas aos poucos (lib/auth/tentativas-login.ts).
+ */
+model TentativaLoginFalha {
+  id        String   @id @default(uuid())
+  emailHash String
+  ipHash    String
+  criadoEm  DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([emailHash, criadoEm])
+  @@index([ipHash, criadoEm])
+  @@index([criadoEm])
+}
+
+/**
+ * Link de "esqueci minha senha": guarda so o hash do token (quem le o banco
+ * nao consegue usar o link), vale por pouco tempo e uma vez so.
+ */
+model TokenRecuperacaoSenha {
+  id         String         @id @default(uuid())
+  usuarioId  String
+  usuario    UsuarioCentral @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  tokenHash  String         @unique
+  expiraEm   DateTime       @db.Timestamptz(3)
+  usadoEm    DateTime?      @db.Timestamptz(3)
+  criadoEm   DateTime       @default(now()) @db.Timestamptz(3)
+
+  @@index([usuarioId, criadoEm])
+}
+
+/**
+ * Erro do servidor capturado (instrumentation.ts -> onRequestError), para o
+ * aviso automatico e a tela "Estado do sistema". Sem dado de cliente: so onde
+ * aconteceu e a mensagem.
+ */
+model ErroDoSistema {
+  id         String    @id @default(uuid())
+  empresaId  String?
+  origem     String
+  mensagem   String
+  digest     String?
+  avisadoEm  DateTime? @db.Timestamptz(3)
+  criadoEm   DateTime  @default(now()) @db.Timestamptz(3)
+
+  @@index([criadoEm])
+  @@index([empresaId, criadoEm])
+}
+
+/**
+ * Modulo contratado por loja (lib/modulos/catalogo.ts). SEM LINHA = LIGADO:
+ * toda loja nasce com tudo, e o sistema master grava aqui so o que mudar.
+ */
+model ModuloEmpresa {
+  empresaId    String
+  empresa      Empresa  @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  modulo       String
+  ativo        Boolean
+  atualizadoEm DateTime @updatedAt @db.Timestamptz(3)
+
+  @@id([empresaId, modulo])
 }
