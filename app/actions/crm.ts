@@ -6,7 +6,10 @@ import { ZodError } from "zod";
 import { formClienteSchema, type FormCliente } from "@/lib/validations/crm";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { exigirPermissao } from "@/lib/auth/permissoes";
-import { mensagemDeErroConhecido } from "@/lib/erros";
+import { mensagemDeErroConhecido, paraMensagemSegura } from "@/lib/erros";
+import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
+import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
+import { DADOS_DO_CLIENTE_ANONIMIZADO } from "@/lib/dominio/crm/anonimizar";
 import { ID_CLIENTE_CONSUMIDOR_FINAL, podeEditarCliente, podeExcluirCliente } from "@/lib/dominio/crm/consumidor-final";
 
 type ResultadoCriarCliente =
@@ -657,5 +660,47 @@ export async function buscarClientesCRM(
   } catch (erro) {
     console.error("Erro ao buscar clientes:", erro);
     return [];
+  }
+}
+
+/**
+ * LGPD — o cliente pediu para apagar os dados pessoais dele.
+ *
+ * Excluir de verdade quase nunca da: OS, vendas e contas apontam para o
+ * cliente, e esse historico a loja precisa guardar (garantia, fiscal). Entao
+ * o cadastro FICA, mas sem nada que identifique a pessoa: nome vira
+ * "Cliente anonimizado", e documento, contato e endereco sao apagados. A
+ * senha e o desenho do aparelho das OS dele tambem saem. Os valores, datas e
+ * servicos continuam, sem dono identificavel.
+ *
+ * Nao tem volta. A auditoria registra quem fez e quando — sem os dados.
+ */
+export async function anonimizarCliente(clienteId: string): Promise<{ sucesso: boolean; mensagem: string }> {
+  try {
+    const contexto = await exigirContextoTenant();
+    exigirPermissao(contexto, "crm.excluir");
+
+    const invariante = podeExcluirCliente(clienteId);
+    if (!invariante.permitido) {
+      return { sucesso: false, mensagem: invariante.motivo ?? "Não é possível anonimizar este cliente." };
+    }
+
+    await contexto.prisma.$transaction(async (tx) => {
+      await tx.cliente.update({ where: { id: clienteId }, data: DADOS_DO_CLIENTE_ANONIMIZADO, select: { id: true } });
+      await tx.ordemServico.updateMany({ where: { clienteId }, data: { senha: null, senhaDesenho: null } });
+      await registrarLogAuditoria(
+        tx,
+        contextoAuditoriaDoUsuario(contexto.usuarioOperacional, "app/actions/crm.ts:anonimizarCliente"),
+        { acao: ACOES_AUDITORIA.ANONIMIZAR_CLIENTE, entidade: ENTIDADES_AUDITORIA.CLIENTE, entidadeId: clienteId }
+      );
+    });
+
+    revalidatePath("/crm");
+    return { sucesso: true, mensagem: "Dados pessoais apagados. O histórico de OS e vendas foi mantido sem identificação." };
+  } catch (erro) {
+    if (erro instanceof Prisma.PrismaClientKnownRequestError && erro.code === "P2025") {
+      return { sucesso: false, mensagem: "Cliente não encontrado." };
+    }
+    return { sucesso: false, mensagem: paraMensagemSegura(erro) };
   }
 }

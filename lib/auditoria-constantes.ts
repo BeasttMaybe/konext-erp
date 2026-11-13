@@ -38,6 +38,8 @@ export const ACOES_AUDITORIA = {
   // Recuperacao de senha: pelo administrador e pelo link do e-mail.
   GERAR_NOVA_SENHA_USUARIO: "GERAR_NOVA_SENHA_USUARIO",
   REDEFINIR_SENHA_PELO_LINK: "REDEFINIR_SENHA_PELO_LINK",
+  // LGPD — pedido do titular para apagar os dados pessoais.
+  ANONIMIZAR_CLIENTE: "ANONIMIZAR_CLIENTE",
   // Logo enviada como arquivo (tela Empresa).
   ATUALIZAR_LOGO_EMPRESA: "ATUALIZAR_LOGO_EMPRESA",
   DESATIVAR_USUARIO: "DESATIVAR_USUARIO",
@@ -125,6 +127,7 @@ export const ENTIDADES_AUDITORIA = {
   CATEGORIA_PRODUTO: "CATEGORIA_PRODUTO",
   PRODUTO: "PRODUTO",
   NOTA_DE_COMPRA: "NOTA_DE_COMPRA",
+  CLIENTE: "CLIENTE",
 } as const;
 
 export type AcaoAuditoria = (typeof ACOES_AUDITORIA)[keyof typeof ACOES_AUDITORIA];

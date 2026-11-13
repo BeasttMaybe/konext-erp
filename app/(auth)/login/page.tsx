@@ -162,6 +162,15 @@ function LoginPageConteudo() {
         style={{ borderColor: "var(--kx-painel-borda)", color: "var(--kx-legenda)" }}
       >
         Acesso restrito a usuários cadastrados pela loja. Precisa de acesso? Peça ao administrador da sua loja.
+        <span className="mt-2 block">
+          <Link href="/termos" className={`hover:text-kx-link ${classeFoco}`} style={{ color: "var(--kx-link)", outlineColor: "var(--kx-foco)" }}>
+            Termos de Uso
+          </Link>
+          {" · "}
+          <Link href="/privacidade" className={`hover:text-kx-link ${classeFoco}`} style={{ color: "var(--kx-link)", outlineColor: "var(--kx-foco)" }}>
+            Política de Privacidade
+          </Link>
+        </span>
       </p>
     </div>
   );

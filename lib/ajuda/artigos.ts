@@ -539,6 +539,24 @@ export const ARTIGOS_AJUDA: readonly ArtigoAjuda[] = [
     palavrasChave: ["senha", "password", "acesso", "trocar"],
   },
   {
+    slug: "apagar-dados-do-cliente",
+    titulo: "Cliente pediu para apagar os dados dele (LGPD)",
+    categoria: "Equipe e configurações",
+    resumo: "Remover nome, documento, contato e endereço, mantendo o histórico obrigatório.",
+    secoes: [
+      {
+        passos: [
+          "Em Clientes (CRM), abra o menu (⋯) do cliente e escolha \"Apagar dados pessoais (LGPD)\".",
+          "Confirme. Nome, CPF/CNPJ, telefone, e-mail, endereço e observações são apagados, e a senha dos aparelhos nas OS dele também.",
+          "O histórico de OS, vendas e notas continua, sem identificar a pessoa — a loja precisa guardá-lo por garantia e obrigação fiscal.",
+          "Não tem como desfazer. Precisa da permissão de excluir clientes.",
+        ],
+      },
+    ],
+    destino: { rotulo: "Ir para Clientes", href: "/crm" },
+    palavrasChave: ["lgpd", "apagar", "dados pessoais", "privacidade", "anonimizar", "excluir cliente"],
+  },
+  {
     slug: "importar-planilha",
     titulo: "Importar clientes ou produtos de uma planilha",
     categoria: "Equipe e configurações",
