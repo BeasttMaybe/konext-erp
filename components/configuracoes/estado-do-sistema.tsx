@@ -1,6 +1,18 @@
-import { ShieldAlert, ShieldCheck } from "lucide-react";
+import { CircleAlert, ShieldAlert, ShieldCheck } from "lucide-react";
 
 import type { EstadoDoSistema as Estado } from "@/lib/sistema/estado";
+import type { ErroRecente } from "@/lib/sistema/registrar-erro";
+import { FUSO_HORARIO_PADRAO } from "@/lib/datas";
+
+function quando(iso: string): string {
+  return new Date(iso).toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: FUSO_HORARIO_PADRAO,
+  });
+}
 
 const ROTULO_DO_AMBIENTE: Record<string, string> = {
   production: "produção",
@@ -21,7 +33,13 @@ const ROTULO_DO_AMBIENTE: Record<string, string> = {
  * olhando para a tela, e nao descobrir semanas depois que o caixa nao fecha
  * mais sozinho.
  */
-export function EstadoDoSistema({ estado }: { estado: Estado }) {
+export function EstadoDoSistema({
+  estado,
+  erros,
+}: {
+  estado: Estado;
+  erros?: { total24h: number; ultimos: ErroRecente[] } | null;
+}) {
   const ambiente = estado.ambiente ? (ROTULO_DO_AMBIENTE[estado.ambiente] ?? estado.ambiente) : null;
 
   return (
@@ -39,6 +57,19 @@ export function EstadoDoSistema({ estado }: { estado: Estado }) {
           {estado.ramo ? ` · ${estado.ramo}` : null}
         </p>
 
+        {erros ? (
+          <p className="flex items-center gap-1.5 text-xs text-kx-legenda">
+            {erros.total24h === 0 ? (
+              <ShieldCheck className="h-4 w-4 text-kx-sucesso-texto" aria-hidden />
+            ) : (
+              <CircleAlert className="h-4 w-4 text-kx-alerta-texto" aria-hidden />
+            )}
+            {erros.total24h === 0
+              ? "Nenhum erro nas últimas 24 h"
+              : `${erros.total24h} ${erros.total24h === 1 ? "erro" : "erros"} nas últimas 24 h`}
+          </p>
+        ) : null}
+
         {estado.rotinasProtegidas ? (
           <p className="flex items-center gap-1.5 text-xs text-kx-legenda">
             <ShieldCheck className="h-4 w-4 text-kx-sucesso-texto" aria-hidden />
@@ -46,6 +77,24 @@ export function EstadoDoSistema({ estado }: { estado: Estado }) {
           </p>
         ) : null}
       </div>
+
+      {erros && erros.ultimos.length > 0 ? (
+        <details className="text-xs text-kx-legenda">
+          <summary className="cursor-pointer font-semibold text-kx-texto-2">Últimos erros registrados</summary>
+          <p className="mt-2">
+            O sistema registra sozinho cada erro que acontece nas telas da sua loja. Se um deles se repetir, mande um
+            print desta lista para o suporte.
+          </p>
+          <ul className="mt-2 flex flex-col gap-1.5">
+            {erros.ultimos.map((erro) => (
+              <li key={erro.id} className="rounded-kx-botao border border-kx-painel-borda bg-kx-painel px-3 py-2">
+                <span className="font-semibold text-kx-texto">{quando(erro.criadoEm)}</span> · {erro.origem}
+                <span className="mt-0.5 block break-words font-mono text-[11px]">{erro.mensagem}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
 
       {estado.rotinasProtegidas ? null : (
         <div

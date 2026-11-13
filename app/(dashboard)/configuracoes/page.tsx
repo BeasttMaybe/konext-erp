@@ -7,6 +7,7 @@ import { temAlgumaPermissao, temPermissao } from "@/lib/auth/permissoes";
 import { AcessoNegado } from "@/components/ui/acesso-negado";
 import { EstadoDoSistema } from "@/components/configuracoes/estado-do-sistema";
 import { lerEstadoDoSistema } from "@/lib/sistema/estado";
+import { errosRecentesDaLoja } from "@/lib/sistema/registrar-erro";
 
 export const metadata = { title: "Configurações | Konext" };
 
@@ -41,6 +42,7 @@ export default async function ConfiguracoesPage() {
   // pedem `configuracoes.sistema` — mostrar a lista a quem não pode mexer
   // nela seria oferecer controles que falham no clique.
   const categoriasProduto = podeGerirCadastros ? await listarCategoriasProduto() : null;
+  const erros = podeGerirCadastros ? await errosRecentesDaLoja(contexto.empresaId) : null;
 
   return (
     <div className="flex w-full flex-col bg-kx-fundo p-5 lg:p-6">
@@ -52,7 +54,7 @@ export default async function ConfiguracoesPage() {
 
       {/* So para quem administra o sistema: e informacao de operacao, e o
           aviso pede uma acao na hospedagem que so o dono pode tomar. */}
-      {podeGerirCadastros ? <EstadoDoSistema estado={lerEstadoDoSistema(process.env)} /> : null}
+      {podeGerirCadastros ? <EstadoDoSistema estado={lerEstadoDoSistema(process.env)} erros={erros} /> : null}
     </div>
   );
 }
