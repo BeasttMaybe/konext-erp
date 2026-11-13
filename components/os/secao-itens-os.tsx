@@ -78,7 +78,10 @@ const opcoesTipoPeca: Array<{ value: TipoPeca; label: string }> = [
 const formatarMoeda = (valor: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(valor);
 
-const COLUNAS_GRID = "grid-cols-[minmax(0,1.6fr)_100px_100px_100px_40px]";
+const COLUNAS_GRID = "sm:grid-cols-[minmax(0,1.6fr)_100px_100px_100px_40px]";
+// Sem a coluna de custo (quem nao ve custo), uma coluna a menos — com a grade
+// de cinco, "Descricao" e "Tipo" caiam uma por cima da outra.
+const COLUNAS_GRID_SEM_CUSTO = "sm:grid-cols-[minmax(0,1.6fr)_100px_100px_40px]";
 
 export function SecaoItensOS({
   osId,
@@ -274,7 +277,7 @@ export function SecaoItensOS({
         </Button>
       </div>
 
-      <div className={`grid ${COLUNAS_GRID} gap-2.5 px-2.5 text-xs font-semibold text-kx-legenda`}>
+      <div className={`hidden ${mostraCusto ? COLUNAS_GRID : COLUNAS_GRID_SEM_CUSTO} gap-2.5 px-2.5 text-xs font-semibold text-kx-legenda sm:grid`}>
         <span>Descrição</span>
         <span>Tipo</span>
         {mostraCusto && <span className="text-right">Custo</span>}
@@ -290,11 +293,13 @@ export function SecaoItensOS({
             {itens.map((item) => (
               <div
                 key={item.id}
-                className={`grid ${COLUNAS_GRID} items-center gap-2.5 rounded-kx-cartao bg-kx-cartao px-2.5 py-2.5 text-sm`}
+                // Celular: descricao e tipo empilhados a esquerda, valor e menu a
+                // direita. Computador: a grade de colunas de sempre.
+                className={`flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-kx-cartao bg-kx-cartao px-2.5 py-2.5 text-sm sm:grid ${mostraCusto ? COLUNAS_GRID : COLUNAS_GRID_SEM_CUSTO}`}
               >
-                <span className="truncate font-medium text-kx-texto">{item.descricao}</span>
-                <div className="flex min-w-0 flex-col gap-0.5">
-                  <span className="w-fit truncate rounded-kx-pilula bg-kx-superficie px-2.5 py-0.5 text-xs font-bold text-kx-texto-2">
+                <span className="w-full truncate font-medium text-kx-texto sm:w-auto">{item.descricao}</span>
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-none">
+                  <span className="w-fit max-w-full truncate rounded-kx-pilula bg-kx-superficie px-2.5 py-0.5 text-xs font-bold text-kx-texto-2">
                     {item.tipoPeca.replaceAll("_", " ")}
                   </span>
                   {item.marcaPecaNome ? (
@@ -302,7 +307,8 @@ export function SecaoItensOS({
                   ) : null}
                 </div>
                 {mostraCusto && (
-                  <span className="text-right tabular-nums text-kx-erro-icone">
+                  <span className="text-right text-xs tabular-nums text-kx-erro-icone sm:text-sm">
+                    <span className="sm:hidden">custo </span>
                     {item.custoPeca === null ? "—" : formatarMoeda(item.custoPeca)}
                   </span>
                 )}
@@ -311,7 +317,7 @@ export function SecaoItensOS({
                   <DropdownMenuTrigger asChild>
                     <button
                       type="button"
-                      className="ml-auto flex h-7 w-7 items-center justify-center rounded-kx-botao text-kx-legenda hover:bg-kx-superficie hover:text-kx-texto"
+                      className="ml-auto flex h-10 w-10 items-center justify-center rounded-kx-botao text-kx-legenda hover:bg-kx-superficie hover:text-kx-texto sm:h-7 sm:w-7"
                     >
                       <MoreVertical className="h-4 w-4" aria-hidden="true" />
                       <span className="sr-only">Ações do item</span>

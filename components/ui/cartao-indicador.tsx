@@ -25,7 +25,7 @@ const faixaVariants = cva("absolute inset-y-0 left-0 w-1 rounded-l-kx-cartao", {
   defaultVariants: { variante: "primaria" },
 });
 
-const iconeVariants = cva("flex h-10 w-10 shrink-0 items-center justify-center rounded-kx-botao [&_svg]:h-5 [&_svg]:w-5", {
+const iconeVariants = cva("hidden h-10 w-10 shrink-0 sm:flex items-center justify-center rounded-kx-botao [&_svg]:h-5 [&_svg]:w-5", {
   variants: {
     variante: {
       primaria: "bg-kx-primaria/15 text-kx-destaque",
@@ -68,16 +68,19 @@ function CartaoIndicador({
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-kx-cartao border border-kx-painel-borda bg-kx-cartao p-kx-4 shadow-kx-cartao",
+        // No celular, compacto: dois por linha, sem o icone e com numero menor —
+        // um por linha, como no computador, os cartoes ocupavam a tela toda
+        // antes do conteudo da pagina.
+        "relative overflow-hidden rounded-kx-cartao border border-kx-painel-borda bg-kx-cartao p-3 shadow-kx-cartao sm:p-kx-4",
         className
       )}
       {...props}
     >
       <div className={faixaVariants({ variante })} aria-hidden="true" />
-      <div className="flex items-start justify-between gap-3 pl-kx-3">
+      <div className="flex items-start justify-between gap-3 pl-2 sm:pl-kx-3">
         <div className="min-w-0 space-y-1">
           <p className="truncate text-xs font-medium text-kx-legenda">{titulo}</p>
-          <p className="text-2xl font-bold tabular-nums text-kx-texto">{valor}</p>
+          <p className="text-lg font-bold tabular-nums text-kx-texto sm:text-2xl">{valor}</p>
           {descricao && <p className="text-xs text-kx-legenda">{descricao}</p>}
           {temTendencia && (
             <p

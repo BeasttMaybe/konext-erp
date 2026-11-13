@@ -33,7 +33,32 @@ export function MovimentacoesHome({ itens }: MovimentacoesHomeProps) {
         }
       />
 
-      <div className="px-kx-2 pb-kx-2">
+      {/* Celular: uma linha por movimentacao (referencia + cliente a esquerda,
+          valor e status a direita), tocavel. Cinco colunas nao cabiam. */}
+      <ul className="divide-y divide-kx-painel-borda md:hidden">
+        {itens.length === 0 ? (
+          <li className="px-4 py-8 text-center text-sm text-kx-legenda">Nenhuma movimentação recente.</li>
+        ) : (
+          itens.map((item) => (
+            <li key={item.id}>
+              <Link href={item.href} className="flex items-center gap-3 px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-kx-foco">
+                <span className="min-w-0 flex-1">
+                  <span className="block font-medium text-kx-texto">{item.referencia}</span>
+                  <span className="block truncate text-sm text-kx-legenda">
+                    {[item.cliente, item.descricao].filter(Boolean).join(" · ")}
+                  </span>
+                </span>
+                <span className="flex shrink-0 flex-col items-end gap-1">
+                  <span className="text-sm font-semibold tabular-nums text-kx-texto">{formatarMoeda(item.valor)}</span>
+                  <PilulaStatus variante={item.variante}>{item.status}</PilulaStatus>
+                </span>
+              </Link>
+            </li>
+          ))
+        )}
+      </ul>
+
+      <div className="hidden px-kx-2 pb-kx-2 md:block">
         <Table>
           <TableHeader>
             <TableRow>

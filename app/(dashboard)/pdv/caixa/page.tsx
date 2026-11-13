@@ -216,7 +216,9 @@ export default function PDVCaixaPage() {
       // <main> no shell nao tem altura propria, entao h-full aqui vira
       // auto. 72px = barra superior; 0/16px/24px = margens do cartao
       // flutuante nos mesmos breakpoints do shell.
-      className="flex h-[calc(100vh-72px)] w-full flex-col gap-4 overflow-hidden bg-kx-fundo p-5 lg:h-[calc(100vh-104px)] lg:p-6 xl:h-[calc(100vh-120px)]"
+      // Altura travada na tela so do computador para cima: no celular os
+      // paineis espremidos numa tela so se sobrepunham. La a pagina rola.
+      className="flex w-full flex-col gap-4 bg-kx-fundo p-4 md:h-[calc(100vh-72px)] md:overflow-hidden md:p-5 lg:h-[calc(100vh-104px)] lg:p-6 xl:h-[calc(100vh-120px)]"
     >
       <div className="flex flex-col gap-0.5">
         <span className="text-xs text-kx-legenda">PDV · sessão de hoje</span>

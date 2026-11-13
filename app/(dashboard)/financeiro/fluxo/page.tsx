@@ -62,7 +62,7 @@ export default async function FinanceiroFluxoPage({ searchParams }: PageProps) {
   ]);
 
   return (
-    <div className="flex w-full flex-col gap-4 bg-kx-fundo p-5 pb-8 lg:p-6">
+    <div className="flex w-full flex-col gap-4 bg-kx-fundo p-4 pb-8 sm:p-5 lg:p-6">
       <div className="flex flex-col gap-0.5">
         <span className="text-xs text-kx-legenda">Financeiro</span>
         <span className="text-[22px] font-extrabold tracking-tight text-kx-texto">Fluxo e relatórios</span>
@@ -72,7 +72,7 @@ export default async function FinanceiroFluxoPage({ searchParams }: PageProps) {
 
       <Suspense fallback={<div className="h-11 shrink-0 animate-pulse rounded-kx-botao bg-kx-superficie" />}>
         <FiltroPeriodoPagina
-          campos={[{ valor: "referencia", rotulo: "Período (Resultado/Relatórios)" }]}
+          campos={[{ valor: "referencia", rotulo: "Período" }]}
           fusoHorario={contexto.fusoHorario}
         />
       </Suspense>

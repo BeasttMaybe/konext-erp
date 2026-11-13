@@ -17,7 +17,7 @@ const ABAS: Array<{ id: AbaCaixa; rotulo: string }> = [
 /** Tiras de abas + "Voltar ao balcão" (referência: docs/design/referencia-pdv-caixa.html). */
 export function AbasCaixa({ abaAtiva, onEscolher }: PropsAbasCaixa) {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       {ABAS.map((aba) => {
         const ativa = aba.id === abaAtiva;
         return (
@@ -26,7 +26,7 @@ export function AbasCaixa({ abaAtiva, onEscolher }: PropsAbasCaixa) {
             type="button"
             aria-pressed={ativa}
             onClick={() => onEscolher(aba.id)}
-            className={`h-9 rounded-kx-pilula border px-4 text-[13px] font-bold transition-colors ${
+            className={`h-10 whitespace-nowrap rounded-kx-pilula border px-4 text-[13px] font-bold transition-colors ${
               ativa
                 ? "border-kx-primaria bg-kx-primaria text-primary-foreground"
                 : "border-kx-painel-borda bg-transparent text-kx-texto-2 hover:text-kx-texto"
@@ -39,7 +39,7 @@ export function AbasCaixa({ abaAtiva, onEscolher }: PropsAbasCaixa) {
 
       <Link
         href="/pdv"
-        className="ml-auto flex h-[42px] items-center gap-2 rounded-kx-botao border border-kx-painel-borda px-3.5 text-sm font-semibold text-kx-texto hover:bg-kx-cartao"
+        className="ml-auto flex h-10 items-center gap-2 whitespace-nowrap rounded-kx-botao border border-kx-painel-borda px-3.5 text-sm font-semibold text-kx-texto hover:bg-kx-cartao"
       >
         Voltar ao balcão
       </Link>

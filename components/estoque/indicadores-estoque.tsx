@@ -78,23 +78,23 @@ export function IndicadoresEstoque({ dados }: { dados: IndicadoresEstoque }) {
   ].filter((cartao): cartao is NonNullable<typeof cartao> => cartao !== null);
 
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+    <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-5">
       {cartoes.map((cartao) => {
         const Icone = cartao.icone;
 
         return (
           <div
             key={cartao.chave}
-            className={`rounded-kx-cartao border p-4 ${cartao.classeCartao}`}
+            className={`rounded-kx-cartao border p-3 sm:p-4 ${cartao.classeCartao}`}
           >
             <div className="flex items-start justify-between gap-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-kx-legenda">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-kx-legenda sm:text-xs">
                 {cartao.rotulo}
               </p>
               <Icone className={`h-4 w-4 shrink-0 ${cartao.classeIcone}`} aria-hidden />
             </div>
-            <p className="mt-2 text-2xl font-bold tabular-nums text-kx-texto">{cartao.valor}</p>
-            <p className="mt-1 text-xs text-kx-legenda">{cartao.detalhe}</p>
+            <p className="mt-1 text-lg font-bold tabular-nums text-kx-texto sm:mt-2 sm:text-2xl">{cartao.valor}</p>
+            <p className="mt-1 hidden text-xs text-kx-legenda sm:block">{cartao.detalhe}</p>
           </div>
         );
       })}

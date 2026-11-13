@@ -457,7 +457,7 @@ export function FormularioDeProposta({ proposta }: { proposta?: PropostaParaEdit
 
  return (
  <form className="w-full flex flex-col bg-transparent" onSubmit={(e) => e.preventDefault()}>
- <div className="sticky top-0 z-kx-sticky border-b border-kx-painel-borda bg-kx-painel px-6 py-4 lg:px-8">
+ <div className="sticky top-0 z-kx-sticky border-b border-kx-painel-borda bg-kx-painel px-4 py-3 sm:px-6 sm:py-4 lg:px-8">
  <div className="mx-auto flex max-w-5xl items-center justify-between gap-4">
  <div className="flex items-center gap-4 min-w-0">
  <Button
@@ -505,15 +505,15 @@ export function FormularioDeProposta({ proposta }: { proposta?: PropostaParaEdit
  </div>
  </div>
 
- <div className="px-6 py-8 lg:px-8">
+ <div className="px-3 py-4 sm:px-6 sm:py-8 lg:px-8">
  <div className="mx-auto max-w-5xl space-y-6">
  <GlassCard>
- <div className="border-b border-kx-painel-borda px-6 py-5">
+ <div className="border-b border-kx-painel-borda px-4 py-4 sm:px-6 sm:py-5">
  <SectionLabel>01 - Dados gerais e contexto</SectionLabel>
  <h2 className="mt-1 text-base font-semibold text-kx-texto">Identificacao da Proposta</h2>
  </div>
 
- <div className="space-y-6 px-6 py-6">
+ <div className="space-y-6 px-4 py-4 sm:px-6 sm:py-6">
  <div className="grid gap-4 sm:grid-cols-2">
  <FieldGroup>
  <Label className="text-kx-texto-2">Cliente <Required /></Label>
@@ -632,7 +632,7 @@ export function FormularioDeProposta({ proposta }: { proposta?: PropostaParaEdit
  <button
  type="button"
  onClick={() => setTechnicalContextOpen((prev) => !prev)}
- className="flex w-full items-center justify-between px-5 py-3.5 text-left transition-colors hover:bg-kx-painel/[0.03]"
+ className="flex w-full items-center justify-between px-4 py-3.5 text-left sm:px-5 transition-colors hover:bg-kx-painel/[0.03]"
  >
  <SectionLabel>Contexto tecnico (opcional)</SectionLabel>
  <ChevronDown
@@ -643,7 +643,7 @@ export function FormularioDeProposta({ proposta }: { proposta?: PropostaParaEdit
  </button>
 
  {technicalContextOpen && (
- <div className="grid gap-4 px-5 pb-5 sm:grid-cols-2">
+ <div className="grid gap-4 px-4 pb-4 sm:grid-cols-2 sm:px-5 sm:pb-5">
  <FieldGroup>
  <Label className="text-kx-texto-2">Aparelho / Equipamento</Label>
  <GlassInput
@@ -675,7 +675,7 @@ export function FormularioDeProposta({ proposta }: { proposta?: PropostaParaEdit
  </GlassCard>
 
  <GlassCard>
- <div className="border-b border-kx-painel-borda px-6 py-5">
+ <div className="border-b border-kx-painel-borda px-4 py-4 sm:px-6 sm:py-5">
  <SectionLabel>02 - Itens e servicos</SectionLabel>
  <h2 className="mt-1 text-base font-semibold text-kx-texto">Composicao da Proposta <Required /></h2>
  {errors.itens?.message && (
@@ -832,7 +832,7 @@ export function FormularioDeProposta({ proposta }: { proposta?: PropostaParaEdit
  </table>
  </div>
 
- <div className="px-6 py-4 border-b border-kx-painel-borda">
+ <div className="px-4 py-4 border-b border-kx-painel-borda sm:px-6">
  <Button
  type="button"
  variant="ghost"
@@ -847,7 +847,7 @@ export function FormularioDeProposta({ proposta }: { proposta?: PropostaParaEdit
  </Button>
  </div>
 
- <div className="flex justify-end px-6 py-5">
+ <div className="flex justify-end px-4 py-4 sm:px-6 sm:py-5">
  <div className="w-full max-w-xs space-y-2">
  <div className="flex items-center justify-between text-sm text-kx-legenda">
  <span>Subtotal Bruto</span>
@@ -866,12 +866,12 @@ export function FormularioDeProposta({ proposta }: { proposta?: PropostaParaEdit
  </GlassCard>
 
  <GlassCard>
- <div className="border-b border-kx-painel-borda px-6 py-5">
+ <div className="border-b border-kx-painel-borda px-4 py-4 sm:px-6 sm:py-5">
  <SectionLabel>03 - Fechamento e observacoes</SectionLabel>
  <h2 className="mt-1 text-base font-semibold text-kx-texto">Condicoes e Termos</h2>
  </div>
 
- <div className="space-y-6 px-6 py-6">
+ <div className="space-y-6 px-4 py-4 sm:px-6 sm:py-6">
  <FieldGroup>
  <Label className="text-kx-texto-2">Condicoes de Pagamento</Label>
  <Select value={paymentPreset} onValueChange={handlePaymentPreset}>
@@ -913,7 +913,7 @@ export function FormularioDeProposta({ proposta }: { proposta?: PropostaParaEdit
  </div>
  </GlassCard>
 
- <div className="flex items-center justify-between rounded-kx-painel border border-kx-painel-borda bg-kx-painel px-6 py-4">
+ <div className="flex flex-wrap items-center justify-between gap-3 rounded-kx-painel border border-kx-painel-borda bg-kx-painel px-4 py-4 sm:px-6">
  <Button
  asChild
  variant="ghost"
@@ -922,7 +922,7 @@ export function FormularioDeProposta({ proposta }: { proposta?: PropostaParaEdit
  <Link href="/crm/propostas">Cancelar</Link>
  </Button>
 
- <div className="flex items-center gap-3">
+ <div className="flex flex-wrap items-center justify-end gap-3">
  <Button
  type="button"
  variant="outline"

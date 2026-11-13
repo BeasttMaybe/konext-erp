@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { Camera, ImageOff, Loader2, Smartphone, Trash2, X } from "lucide-react";
+import { useCallback, useEffect, useState, useTransition } from "react";
+import { ImageOff, Smartphone, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -11,6 +11,7 @@ import {
   obterSituacaoFotosDaOS,
   type FotoDaOS,
 } from "@/app/actions/fotos-os";
+import { BotoesDeFoto } from "@/components/os/fotos/botoes-de-foto";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -59,7 +60,6 @@ export function SecaoFotosOS({ ordemServicoId }: { ordemServicoId: string }) {
   const [paraApagar, setParaApagar] = useState<FotoDaOS | null>(null);
   const [emTransicao, iniciarTransicao] = useTransition();
 
-  const entradaDeArquivo = useRef<HTMLInputElement>(null);
 
   const carregar = useCallback(async () => {
     const [situacao, lista] = await Promise.all([
@@ -131,7 +131,6 @@ export function SecaoFotosOS({ ordemServicoId }: { ordemServicoId: string }) {
     }
 
     setEnviando(false);
-    if (entradaDeArquivo.current) entradaDeArquivo.current.value = "";
   };
 
   const confirmarRemocao = () => {
@@ -174,36 +173,17 @@ export function SecaoFotosOS({ ordemServicoId }: { ordemServicoId: string }) {
               Enviar pelo celular
             </Button>
 
-            <Button
-              type="button"
-              size="sm"
-              disabled={enviando || cheia}
-              onClick={() => entradaDeArquivo.current?.click()}
-            >
-              {enviando ? (
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-              ) : (
-                <Camera className="h-4 w-4" />
-              )}
-              {enviando ? "Enviando..." : "Adicionar"}
-            </Button>
+            <BotoesDeFoto
+              desabilitado={cheia}
+              ocupado={enviando}
+              onArquivos={(arquivos) => void aoEscolherArquivos(arquivos)}
+            />
           </div>
         )}
       </div>
 
       {podeEditar && configurado && (
         <>
-          {/* `capture` não é usado de propósito: no celular ele força a câmera
-              e esconde a galeria, e boa parte das fotos já foi tirada antes. */}
-          <input
-            ref={entradaDeArquivo}
-            type="file"
-            accept="image/*"
-            multiple
-            hidden
-            onChange={(evento) => void aoEscolherArquivos(evento.target.files)}
-          />
-
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs text-kx-legenda">Adicionar como:</span>
             {MOMENTOS_DA_FOTO.map((momento) => (

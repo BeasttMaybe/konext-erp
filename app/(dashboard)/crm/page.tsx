@@ -377,6 +377,48 @@ function ContactsPageContent() {
     });
   };
 
+  const renderMenuDoContato = (client: ClientRecord) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" aria-label={`Ações de ${client.nomeRazaoSocial}`}>
+          <MoreHorizontal className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-52">
+        <DropdownMenuItem onClick={() => setProfileClient(client)}>
+          <Eye className="h-4 w-4 mr-2" />
+          Ver perfil
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => router.push(`/os?clienteId=${client.id}`)}>
+          <ChevronRight className="h-4 w-4 mr-2" />
+          Nova OS para este contato
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => {
+            setEditingClient(client);
+            setIsClientModalOpen(true);
+          }}
+        >
+          <SquarePen className="h-4 w-4 mr-2" />
+          Editar
+        </DropdownMenuItem>
+        {podeExcluirCliente ? (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => setClientToDelete(client)}
+              disabled={deletingClientId === client.id}
+              className="text-destructive focus:text-destructive"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Excluir
+            </DropdownMenuItem>
+          </>
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
   const renderContactsTable = (params: {
     titulo: string;
     descricao: string;
@@ -386,9 +428,10 @@ function ContactsPageContent() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-foreground">{params.titulo}</h2>
-          <p className="text-sm text-muted-foreground mt-1">{params.descricao}</p>
+          <p className="mt-1 hidden text-sm text-muted-foreground sm:block">{params.descricao}</p>
         </div>
-        <Button onClick={openNewContact}>
+        {/* No celular o "Novo Contato" do topo ja faz isso. */}
+        <Button onClick={openNewContact} className="hidden sm:inline-flex">
           <UserPlus className="h-4 w-4 mr-2" />
           {params.botaoLabel}
         </Button>
@@ -407,7 +450,34 @@ function ContactsPageContent() {
 
       </div>
 
-      <div className="rounded-lg border border-border overflow-hidden">
+      {/* Celular: um cartao por contato (toque abre o perfil). A tabela de seis
+          colunas espremida em 360px quebrava cada nome em tres linhas. */}
+      <ul className="flex flex-col gap-2 md:hidden" aria-label={params.titulo}>
+        {clients.map((client) => (
+          <li
+            key={client.id}
+            className="flex items-center gap-2 rounded-kx-cartao border border-kx-painel-borda bg-kx-superficie p-3"
+          >
+            <button
+              type="button"
+              className="min-w-0 flex-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kx-foco"
+              onClick={() => setProfileClient(client)}
+            >
+              <span className="block truncate text-base font-semibold text-kx-texto">{client.nomeRazaoSocial}</span>
+              <span className="block truncate text-sm text-kx-legenda">
+                {[client.telefone, client.documento].filter(Boolean).join(" · ")}
+              </span>
+            </button>
+            {renderMenuDoContato(client)}
+          </li>
+        ))}
+        {!isListLoading && clients.length === 0 && (
+          <li className="py-8 text-center text-sm text-muted-foreground">Nenhum contato encontrado.</li>
+        )}
+        {isListLoading && <li className="py-8 text-center text-sm text-muted-foreground">Carregando contatos...</li>}
+      </ul>
+
+      <div className="hidden rounded-lg border border-border overflow-hidden md:block">
         <Table>
           <TableHeader>
             <TableRow>
@@ -436,45 +506,7 @@ function ContactsPageContent() {
                   </Badge>
                 </TableCell>
                 <TableCell className="text-right">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="min-w-52">
-                      <DropdownMenuItem onClick={() => setProfileClient(client)}>
-                        <Eye className="h-4 w-4 mr-2" />
-                        Ver perfil
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => router.push(`/os?clienteId=${client.id}`)}>
-                        <ChevronRight className="h-4 w-4 mr-2" />
-                        Nova OS para este contato
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => {
-                          setEditingClient(client);
-                          setIsClientModalOpen(true);
-                        }}
-                      >
-                        <SquarePen className="h-4 w-4 mr-2" />
-                        Editar
-                      </DropdownMenuItem>
-                      {podeExcluirCliente ? (
-                        <>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() => setClientToDelete(client)}
-                            disabled={deletingClientId === client.id}
-                            className="text-destructive focus:text-destructive"
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Excluir
-                          </DropdownMenuItem>
-                        </>
-                      ) : null}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  {renderMenuDoContato(client)}
                 </TableCell>
               </TableRow>
             ))}
@@ -528,11 +560,11 @@ function ContactsPageContent() {
       {/* `backdrop-blur-sm/70/50` estava aqui: não é classe válida do Tailwind
           (modificador de opacidade empilhado), então o blur simplesmente não
           era aplicado. As outras telas usam `backdrop-blur-sm`. */}
-      <div className="border-b border-kx-painel-borda/70 bg-kx-painel/75 px-6 py-6 backdrop-blur-sm lg:px-8">
+      <div className="border-b border-kx-painel-borda/70 bg-kx-painel/75 px-4 py-4 backdrop-blur-sm sm:px-6 sm:py-6 lg:px-8">
         <div className="max-w-7xl mx-auto w-full flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Clientes e fornecedores</h1>
-            <p className="text-muted-foreground mt-2 text-sm">
+            <h1 className="text-2xl font-bold text-foreground sm:text-3xl">Clientes e fornecedores</h1>
+            <p className="mt-2 hidden text-sm text-muted-foreground sm:block">
               Quem compra e quem fornece, num cadastro só.
             </p>
           </div>
@@ -546,36 +578,37 @@ function ContactsPageContent() {
         </div>
       </div>
 
-      <div className="px-6 lg:px-8 py-6">
-          <div className="max-w-7xl mx-auto space-y-6">
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
-              <Card className="p-5 border-border bg-card">
+      <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+          <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6">
+            {/* Celular: os tres numeros numa linha so. */}
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-[repeat(auto-fit,minmax(220px,1fr))] sm:gap-4">
+              <Card className="border-border bg-card p-3 sm:p-5">
                 <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Contatos Ativos</p>
-                    <p className="text-3xl font-bold text-foreground mt-2">{summary.total}</p>
+                  <div className="min-w-0">
+                    <p className="truncate text-xs text-muted-foreground sm:text-sm">Contatos Ativos</p>
+                    <p className="mt-1 text-xl font-bold text-foreground sm:mt-2 sm:text-3xl">{summary.total}</p>
                   </div>
-                  <Users className="h-5 w-5 text-muted-foreground" />
+                  <Users className="hidden h-5 w-5 sm:block text-muted-foreground" />
                 </div>
               </Card>
 
-              <Card className="p-5 border-border bg-card">
+              <Card className="border-border bg-card p-3 sm:p-5">
                 <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Fornecedores</p>
-                    <p className="text-3xl font-bold text-foreground mt-2">{summary.fornecedores}</p>
+                  <div className="min-w-0">
+                    <p className="truncate text-xs text-muted-foreground sm:text-sm">Fornecedores</p>
+                    <p className="mt-1 text-xl font-bold text-foreground sm:mt-2 sm:text-3xl">{summary.fornecedores}</p>
                   </div>
-                  <Building2 className="h-5 w-5 text-muted-foreground" />
+                  <Building2 className="hidden h-5 w-5 sm:block text-muted-foreground" />
                 </div>
               </Card>
 
-              <Card className="p-5 border-border bg-card">
+              <Card className="border-border bg-card p-3 sm:p-5">
                 <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Pessoas jurídicas</p>
-                    <p className="text-3xl font-bold text-foreground mt-2">{totalBusiness}</p>
+                  <div className="min-w-0">
+                    <p className="truncate text-xs text-muted-foreground sm:text-sm">Pessoas jurídicas</p>
+                    <p className="mt-1 text-xl font-bold text-foreground sm:mt-2 sm:text-3xl">{totalBusiness}</p>
                   </div>
-                  <Filter className="h-5 w-5 text-muted-foreground" />
+                  <Filter className="hidden h-5 w-5 sm:block text-muted-foreground" />
                 </div>
               </Card>
 
@@ -625,7 +658,7 @@ function ContactsPageContent() {
                     </button>
                   </div>
 
-                  <div className="mt-4 rounded-lg border border-dashed border-border bg-muted/30 p-4">
+                  <div className="mt-4 hidden rounded-lg border border-dashed border-border bg-muted/30 p-4 sm:block">
                     <p className="text-sm font-medium text-foreground">Registro com distinção visual</p>
                     <p className="text-xs text-muted-foreground mt-1">
                       O formulário usa a mesma base do CRM e permite registrar o contato com perfil de cliente ou fornecedor.
@@ -636,7 +669,8 @@ function ContactsPageContent() {
                 {renderMainContent()}
               </div>
 
-              <div className="space-y-4">
+              {/* No celular, "Ações rápidas" repetia o botao do topo. */}
+              <div className="hidden space-y-4 lg:block">
                 <Card className="p-5 border-border bg-card sticky top-4">
                   <h2 className="text-lg font-semibold text-foreground mb-3">Ações Rápidas</h2>
                   <div className="space-y-2">

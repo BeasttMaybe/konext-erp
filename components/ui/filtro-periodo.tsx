@@ -365,10 +365,13 @@ export function FiltroPeriodo({
       ref={gatilhoRef}
       type="button"
       variant="outline"
-      className={cn("h-10 min-h-11 gap-2 rounded-kx-botao border-kx-campo-borda bg-kx-superficie px-3 text-sm font-medium text-kx-texto", className)}
+      // `max-w-full` + texto que corta: "Vencimento: 01/11/2026 até 30/11/2026"
+      // e mais largo que um celular de 360px e empurrava a tela para o lado.
+      className={cn("h-10 min-h-11 max-w-full gap-2 rounded-kx-botao border-kx-campo-borda bg-kx-superficie px-3 text-sm font-medium text-kx-texto", className)}
+      title={rotuloBotao}
     >
-      <IconeCalendario className="size-4 text-kx-legenda" />
-      <span>{rotuloBotao}</span>
+      <IconeCalendario className="size-4 shrink-0 text-kx-legenda" />
+      <span className="min-w-0 truncate">{rotuloBotao}</span>
     </Button>
   );
 
