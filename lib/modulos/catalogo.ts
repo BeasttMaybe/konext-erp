@@ -1,5 +1,3 @@
-import type { Permissao } from "@/lib/auth/permissoes";
-
 /**
  * Catalogo de modulos — a base para vender o Konext por partes.
  *
@@ -17,6 +15,9 @@ import type { Permissao } from "@/lib/auth/permissoes";
  *
  * QUEM LIGA E DESLIGA: o sistema master, gravando em ModuloEmpresa (banco
  * central). Sem linha = ligado: toda loja que ja existe continua com tudo.
+ *
+ * SEM IMPORTS DE PROPOSITO: o sistema master (pasta master/) le este mesmo
+ * arquivo, e ele nao tem o resto do ERP.
  *
  * DEPENDENCIAS: um modulo ligado cujo requisito esta desligado tambem fica
  * desligado (ex.: PDV sem Estoque nao teria o que vender).
@@ -154,11 +155,11 @@ export function moduloDaPermissao(permissao: string): IdModulo | null {
 }
 
 /** Tira as permissoes dos modulos desligados. */
-export function filtrarPermissoesPorModulo(
-  permissoes: Iterable<Permissao>,
+export function filtrarPermissoesPorModulo<P extends string>(
+  permissoes: Iterable<P>,
   ativos: ReadonlySet<IdModulo>
-): Set<Permissao> {
-  const resultado = new Set<Permissao>();
+): Set<P> {
+  const resultado = new Set<P>();
   for (const permissao of permissoes) {
     const modulo = moduloDaPermissao(permissao);
     if (!modulo || ativos.has(modulo)) resultado.add(permissao);
