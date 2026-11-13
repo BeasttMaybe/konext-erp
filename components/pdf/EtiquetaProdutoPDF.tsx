@@ -39,6 +39,22 @@ export function EtiquetaProdutoPDF({
   tamanho: TamanhoEtiqueta;
   copias: number;
 }) {
+  return <EtiquetasPDF itens={[{ dados, copias }]} tamanho={tamanho} titulo={`Etiqueta ${dados.sku ?? dados.legenda}`} />;
+}
+
+/**
+ * Várias etiquetas num PDF só (impressão em lote do estoque): uma página por
+ * cópia, na ordem dos itens — a impressora segue cortando no picote.
+ */
+export function EtiquetasPDF({
+  itens,
+  tamanho,
+  titulo = "Etiquetas",
+}: {
+  itens: ReadonlyArray<{ dados: DadosEtiqueta; copias: number }>;
+  tamanho: TamanhoEtiqueta;
+  titulo?: string;
+}) {
   const largura = mmParaPontos(tamanho.larguraMm);
   const altura = mmParaPontos(tamanho.alturaMm);
 
@@ -50,32 +66,34 @@ export function EtiquetaProdutoPDF({
   const estilos = montarEstilos(tamanho);
 
   return (
-    <Document title={`Etiqueta ${dados.sku ?? dados.legenda}`}>
-      {Array.from({ length: Math.max(1, copias) }).map((_, indice) => (
-        <Page key={indice} size={{ width: largura, height: altura }} style={estilos.pagina}>
-          {cabeNome && (
-            <Text style={estilos.nome}>
-              {encurtarParaEtiqueta(dados.nome, limiteDeNomePorTamanho(tamanho))}
-            </Text>
-          )}
+    <Document title={titulo}>
+      {itens.flatMap(({ dados, copias }, item) =>
+        Array.from({ length: Math.max(1, copias) }).map((_, indice) => (
+          <Page key={`${item}-${indice}`} size={{ width: largura, height: altura }} style={estilos.pagina}>
+            {cabeNome && (
+              <Text style={estilos.nome}>
+                {encurtarParaEtiqueta(dados.nome, limiteDeNomePorTamanho(tamanho))}
+              </Text>
+            )}
 
-          {cabeCompatibilidade && dados.compatibilidade && (
-            <Text style={estilos.compatibilidade}>
-              {encurtarParaEtiqueta(dados.compatibilidade, 44)}
-            </Text>
-          )}
+            {cabeCompatibilidade && dados.compatibilidade && (
+              <Text style={estilos.compatibilidade}>
+                {encurtarParaEtiqueta(dados.compatibilidade, 44)}
+              </Text>
+            )}
 
-          <Text style={estilos.preco}>{dados.preco}</Text>
+            <Text style={estilos.preco}>{dados.preco}</Text>
 
-          <View style={estilos.areaDoCodigo}>
-            {/* Imagem e não vetor: ver lib/estoque/codigo-de-barras.ts. */}
-            {/* eslint-disable-next-line jsx-a11y/alt-text -- é o Image do
-                @react-pdf/renderer, não o <img> do HTML: não existe alt em PDF. */}
-            <Image src={dados.codigoDeBarrasPng} style={estilos.codigo} />
-            <Text style={estilos.legenda}>{dados.legenda}</Text>
-          </View>
-        </Page>
-      ))}
+            <View style={estilos.areaDoCodigo}>
+              {/* Imagem e não vetor: ver lib/estoque/codigo-de-barras.ts. */}
+              {/* eslint-disable-next-line jsx-a11y/alt-text -- é o Image do
+                  @react-pdf/renderer, não o <img> do HTML: não existe alt em PDF. */}
+              <Image src={dados.codigoDeBarrasPng} style={estilos.codigo} />
+              <Text style={estilos.legenda}>{dados.legenda}</Text>
+            </View>
+          </Page>
+        ))
+      )}
     </Document>
   );
 }
