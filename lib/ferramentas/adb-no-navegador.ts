@@ -14,6 +14,8 @@
  */
 import type { Adb } from "@yume-chan/adb";
 
+import { montarRetrato, type RetratoDoArmazenamento } from "@/lib/dominio/ferramentas/armazenamento";
+import { classificarLista, ehEssencial, type AppClassificado } from "@/lib/dominio/ferramentas/bloatware";
 import {
   analisarApp,
   lerAdministradores,
@@ -275,4 +277,99 @@ export async function lerInfoSamsung(celular: CelularConectado): Promise<InfoSam
     bootloader: bootloader || null,
     android: celular.android,
   };
+}
+
+// ── Armazenamento ("o que está pesando") ─────────────────────────────────────
+
+/**
+ * Retrato do armazenamento: espaço livre, apps que mais ocupam e pastas do
+ * cartão. `du` pode demorar em cartão cheio, por isso o timeout maior fica a
+ * cargo do subprocess do Tango.
+ */
+export async function analisarArmazenamento(adb: Adb): Promise<RetratoDoArmazenamento> {
+  const [diskstats, du] = await Promise.all([
+    shell(adb, "dumpsys diskstats"),
+    shell(adb, "du -k -d 1 /sdcard 2>/dev/null"),
+  ]);
+  return montarRetrato(diskstats, du);
+}
+
+/**
+ * Limpa o cache de todos os apps sem apagar fotos, conversas ou dados: o
+ * Android escolhe o que descartar para liberar o espaço pedido. Devolve o
+ * espaço livre antes e depois para mostrar quanto rendeu.
+ */
+export async function limparCache(adb: Adb): Promise<{ antes: number | null; depois: number | null }> {
+  const { lerEspacoDoDiskstats } = await import("@/lib/dominio/ferramentas/armazenamento");
+  const antes = lerEspacoDoDiskstats(await shell(adb, "dumpsys diskstats"));
+  // "trim-caches" pede um tamanho-alvo; um número enorme força limpar tudo.
+  await shell(adb, "pm trim-caches 9999999999999");
+  const depois = lerEspacoDoDiskstats(await shell(adb, "dumpsys diskstats"));
+  return { antes: antes?.livre ?? null, depois: depois?.livre ?? null };
+}
+
+// ── Limpeza de apps (bloatware) ──────────────────────────────────────────────
+
+/**
+ * Lista os apps do aparelho (de fábrica e do usuário) já classificados
+ * (lib/dominio/ferramentas/bloatware.ts), para a limpeza de bloatware.
+ */
+export async function listarAppsDoAparelho(adb: Adb): Promise<AppClassificado[]> {
+  const [todos, sistema, desativados] = await Promise.all([
+    shell(adb, "pm list packages"),
+    shell(adb, "pm list packages -s"),
+    shell(adb, "pm list packages -d"),
+  ]);
+  const comoSet = (saida: string) =>
+    new Set(
+      saida
+        .split(/\r?\n/)
+        .map((l) => l.trim().replace(/^package:/, ""))
+        .filter((p) => /^[a-zA-Z][\w.]+$/.test(p))
+    );
+  const doSistema = comoSet(sistema);
+  const off = comoSet(desativados);
+  const lista = [...comoSet(todos)].map((pacote) => ({
+    pacote,
+    doSistema: doSistema.has(pacote),
+    desativado: off.has(pacote),
+  }));
+  return classificarLista(lista);
+}
+
+export type ResultadoLimpezaApp = { pacote: string; ok: boolean; detalhe: string };
+
+/**
+ * "Remove" um app de fábrica do jeito reversível: desinstala só para o
+ * usuário atual (`pm uninstall --user 0`), que é como o Android esconde
+ * bloatware sem mexer na partição — dá para trazer de volta com uma
+ * restauração de fábrica ou `cmd package install-existing`. App do usuário é
+ * desinstalado de vez. Recusa qualquer pacote essencial, por segurança.
+ */
+export async function desativarAppEmLote(adb: Adb, pacotes: readonly string[]): Promise<ResultadoLimpezaApp[]> {
+  const resultados: ResultadoLimpezaApp[] = [];
+  for (const bruto of pacotes) {
+    const pacote = String(bruto).trim();
+    if (!/^[a-zA-Z][\w.]+$/.test(pacote)) {
+      resultados.push({ pacote, ok: false, detalhe: "Pacote inválido." });
+      continue;
+    }
+    if (ehEssencial(pacote)) {
+      resultados.push({ pacote, ok: false, detalhe: "App essencial — bloqueado por segurança." });
+      continue;
+    }
+    const saida = await shell(adb, `pm uninstall --user 0 ${pacote}`);
+    if (/\bSuccess\b/.test(saida)) {
+      resultados.push({ pacote, ok: true, detalhe: "Removido deste aparelho (reversível)." });
+      continue;
+    }
+    // Alguns apps de sistema não deixam desinstalar; aí desativa.
+    const off = await shell(adb, `pm disable-user --user 0 ${pacote}`);
+    resultados.push(
+      /disabled/i.test(off)
+        ? { pacote, ok: true, detalhe: "Desativado." }
+        : { pacote, ok: false, detalhe: (saida || off).trim().slice(0, 120) || "O Android recusou." }
+    );
+  }
+  return resultados;
 }
