@@ -95,6 +95,8 @@ export const ITENS_NAVEGACAO: readonly ItemNavegacao[] = [
     iconKey: "Ferramentas",
     filhos: [
       { label: "Remoção de Vírus", path: "/ferramentas/remocao-de-virus" },
+      { label: "O que está pesando", path: "/ferramentas/armazenamento" },
+      { label: "Limpeza de apps", path: "/ferramentas/limpeza-de-apps" },
       { label: "Rom Samsung", path: "/ferramentas/rom-samsung" },
     ],
   },

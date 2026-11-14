@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight, Download, ShieldCheck } from "lucide-react";
+import { ChevronRight, Download, HardDrive, PackageMinus, ShieldCheck } from "lucide-react";
 
 export const metadata = { title: "Ferramentas | TechOS" };
 
@@ -9,6 +9,18 @@ const FERRAMENTAS = [
     nome: "Remoção de Vírus",
     descricao: "Conecte o Android pelo cabo USB, veja os apps de anúncio e vírus e remova direto daqui.",
     icone: ShieldCheck,
+  },
+  {
+    href: "/ferramentas/armazenamento",
+    nome: "O que está pesando",
+    descricao: "Veja o que ocupa espaço no aparelho e limpe o cache sem apagar fotos ou conversas.",
+    icone: HardDrive,
+  },
+  {
+    href: "/ferramentas/limpeza-de-apps",
+    nome: "Limpeza de apps",
+    descricao: "Desative apps de fábrica (bloatware) que deixam o aparelho lento, com segurança.",
+    icone: PackageMinus,
   },
   {
     href: "/ferramentas/rom-samsung",

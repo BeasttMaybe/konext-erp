@@ -561,6 +561,50 @@ export const ARTIGOS_AJUDA: readonly ArtigoAjuda[] = [
   },
 
   {
+    slug: "o-que-esta-pesando",
+    titulo: "Ver o que está ocupando espaço no celular",
+    categoria: "Ordens de Serviço",
+    resumo: "Descobrir o que lota a memória do Android e limpar o cache sem apagar nada do cliente.",
+    secoes: [
+      {
+        passos: [
+          "Vá em Ferramentas → O que está pesando.",
+          "Ligue o celular no cabo (com Depuração USB) e clique em \"Conectar e analisar\".",
+          "Veja o espaço livre, os apps que mais ocupam e as pastas (fotos, vídeos, WhatsApp).",
+          "Clique em \"Limpar cache de tudo\" para liberar o lixo temporário — não apaga fotos, conversas nem logins.",
+        ],
+      },
+    ],
+    dicas: [
+      "Fotos e vídeos quase sempre são o que mais pesa: ofereça o backup antes de apagar.",
+      "O cache volta a crescer com o uso; limpar de novo a cada visita é normal.",
+    ],
+    destino: { rotulo: "Abrir O que está pesando", href: "/ferramentas/armazenamento" },
+    palavrasChave: ["espaço", "memória", "cheio", "lento", "cache", "limpar", "armazenamento", "ferramentas"],
+  },
+  {
+    slug: "limpeza-de-apps",
+    titulo: "Tirar apps de fábrica (bloatware)",
+    categoria: "Ordens de Serviço",
+    resumo: "Desativar apps pré-instalados que deixam o aparelho lento, sem risco de travar o celular.",
+    secoes: [
+      {
+        passos: [
+          "Vá em Ferramentas → Limpeza de apps e conecte o celular no cabo.",
+          "A lista mostra primeiro os \"Pode tirar\" (bloatware conhecido). Os essenciais ficam bloqueados.",
+          "Use \"Marcar sugeridos\" ou marque um a um e clique em \"Remover deste aparelho\".",
+          "Para ver o resto, troque o filtro para \"Todos\" — mas só mexa no que você reconhece.",
+        ],
+      },
+    ],
+    dicas: [
+      "É reversível: os apps saem só deste usuário e uma restauração de fábrica traz todos de volta.",
+      "Telefone, ajustes, Play Store e teclado nunca aparecem para remover, de propósito.",
+    ],
+    destino: { rotulo: "Abrir Limpeza de apps", href: "/ferramentas/limpeza-de-apps" },
+    palavrasChave: ["bloatware", "apps", "fábrica", "lento", "desativar", "remover", "limpeza", "ferramentas"],
+  },
+  {
     slug: "rom-samsung",
     titulo: "Ver e baixar a ROM de um Samsung",
     categoria: "Ordens de Serviço",
