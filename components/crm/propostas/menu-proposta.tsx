@@ -226,7 +226,8 @@ export function MenuProposta({
 
             <DropdownMenuItem
               className="cursor-pointer gap-2"
-              onSelect={() => router.push(`/propostas/${propostaId}/imprimir`)}
+              // Abre a impressão em outra aba para não perder a lista de propostas.
+              onSelect={() => window.open(`/propostas/${propostaId}/imprimir`, "_blank", "noopener,noreferrer")}
             >
               <Printer className="h-4 w-4" />
               Imprimir
