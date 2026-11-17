@@ -33,10 +33,10 @@ import { LinhaProposta } from "./linha-proposta";
 const LIMITE_POR_PAGINA = 20;
 
 /**
- * As abas de triagem. "Precisam de atenção" é a primeira e a padrão porque é a
- * única que responde "o que eu faço agora" — a tela antiga abria com TODAS as
- * propostas de todos os tempos, ordenadas por data de criação, o que coloca a
- * proposta fechada no mês passado acima da que vence hoje.
+ * As abas de triagem. A tela abre em "Todas", com as propostas mais recentes
+ * no topo — é o que o dono quer ver ao entrar. "Precisam de atenção" fica
+ * como aba/filtro para quando ele quiser triar "o que eu faço agora", e a
+ * ordenação por urgência continua disponível no seletor de ordem.
  */
 const ABAS: Array<{ valor: FiltroSituacaoProposta; rotulo: string }> = [
   { valor: "ATENCAO", rotulo: "Precisam de atenção" },
@@ -92,8 +92,8 @@ function ConteudoPropostas({ hojeIso }: { hojeIso: string }) {
   const [carregando, setCarregando] = useState(true);
   const [busca, setBusca] = useState("");
   const [buscaAplicada, setBuscaAplicada] = useState("");
-  const [aba, setAba] = useState<FiltroSituacaoProposta>("ATENCAO");
-  const [ordem, setOrdem] = useState<OrdemProposta>("urgencia");
+  const [aba, setAba] = useState<FiltroSituacaoProposta>("TODAS");
+  const [ordem, setOrdem] = useState<OrdemProposta>("recentes");
   const [indicadores, setIndicadores] = useState<DadosIndicadores | null>(null);
 
   const irParaPagina = useCallback(

@@ -127,7 +127,8 @@ export default async function ProposalDetailsPage({ params }: ProposalDetailsPag
                 {proposta.itens.length === 1 ? "1 item" : `${proposta.itens.length} itens`}
               </h2>
               <Button asChild variant="outline" size="sm">
-                <Link href={`/propostas/${proposta.id}/imprimir`}>
+                {/* Abre em outra aba para não perder a proposta aberta. */}
+                <Link href={`/propostas/${proposta.id}/imprimir`} target="_blank" rel="noopener noreferrer">
                   <Printer className="h-4 w-4" />
                   Imprimir
                 </Link>
