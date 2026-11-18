@@ -23,6 +23,19 @@ export function iaConfigurada(): boolean {
 
 export class ErroIA extends Error {}
 
+/** Tira a mensagem de erro do corpo do provedor (formato OpenAI/Google/texto). */
+function extrairMensagemDeErro(corpo: string): string {
+  if (!corpo) return "";
+  try {
+    const json = JSON.parse(corpo) as { error?: { message?: string } | string; message?: string };
+    const msg = typeof json.error === "string" ? json.error : json.error?.message || json.message;
+    if (msg) return String(msg).slice(0, 200);
+  } catch {
+    // corpo não-JSON
+  }
+  return corpo.replace(/\s+/g, " ").trim().slice(0, 200);
+}
+
 export async function gerarComIA(mensagens: MensagemIA[], opcoes: { maxTokens?: number; temperatura?: number } = {}): Promise<string> {
   const chave = (process.env.IA_API_KEY ?? "").trim();
   if (!chave) throw new ErroIA("IA não configurada.");
@@ -50,10 +63,18 @@ export async function gerarComIA(mensagens: MensagemIA[], opcoes: { maxTokens?: 
     throw new ErroIA("A chave de IA foi recusada. Confira a IA_API_KEY nas configurações.");
   }
   if (resposta.status === 429) {
-    throw new ErroIA("O serviço de IA está ocupado ou sem créditos. Tente de novo em instantes.");
+    throw new ErroIA("O serviço de IA está ocupado ou sem créditos (limite do plano gratuito). Tente de novo em instantes.");
   }
   if (!resposta.ok) {
-    throw new ErroIA("O serviço de IA respondeu com erro. Tente de novo.");
+    // Mostra o motivo que o provedor devolveu (ex.: "model ... does not
+    // exist"), para dar pra corrigir o modelo/endereço sem adivinhar. A chave
+    // nunca aparece no corpo da resposta.
+    const detalhe = extrairMensagemDeErro(await resposta.text().catch(() => ""));
+    const dica =
+      resposta.status === 404 || resposta.status === 400
+        ? " Normalmente é o IA_MODELO ou o IA_BASE_URL. Confira o nome do modelo do seu provedor."
+        : "";
+    throw new ErroIA(`O serviço de IA recusou (${resposta.status})${detalhe ? `: ${detalhe}` : "."}${dica}`);
   }
 
   const dados = (await resposta.json().catch(() => null)) as
