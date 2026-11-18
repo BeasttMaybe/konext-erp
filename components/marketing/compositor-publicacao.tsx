@@ -2,11 +2,12 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ImagePlus, Loader2, Trash2 } from "lucide-react";
+import { ImagePlus, Loader2, Sparkles, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
   enviarMidiaDaPublicacao,
+  gerarTextoPublicacao,
   removerMidiaDaPublicacao,
   salvarPublicacao,
   type MidiaDaPublicacao,
@@ -14,11 +15,13 @@ import {
 } from "@/app/actions/marketing";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CANAIS_ORGANICOS, ROTULO_CANAL, type CanalMarketing } from "@/lib/dominio/marketing/plataformas";
 import { LIMITE_TEXTO } from "@/lib/dominio/marketing/publicacao";
+import { TONS, type TomDaPublicacao } from "@/lib/dominio/marketing/gerador-de-texto";
 
 type Tipo = "POST_ORGANICO" | "ANUNCIO_PAGO";
 
@@ -46,6 +49,7 @@ export function CompositorPublicacao({ tipo, publicacao }: { tipo: Tipo; publica
   const [enviandoMidia, setEnviandoMidia] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const inputFoto = useRef<HTMLInputElement>(null);
+  const [iaAberta, setIaAberta] = useState(false);
 
   const alternarCanal = (canal: CanalMarketing) =>
     setCanais((atual) => {
@@ -126,9 +130,15 @@ export function CompositorPublicacao({ tipo, publicacao }: { tipo: Tipo; publica
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:items-start">
         <div className="flex flex-col gap-4 rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="mkt-texto" className="text-xs font-bold text-kx-texto">
-              Texto da publicação
-            </Label>
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor="mkt-texto" className="text-xs font-bold text-kx-texto">
+                Texto da publicação
+              </Label>
+              <Button type="button" variant="outline" size="sm" onClick={() => setIaAberta(true)}>
+                <Sparkles className="h-3.5 w-3.5" />
+                Gerar com IA
+              </Button>
+            </div>
             <Textarea
               id="mkt-texto"
               rows={7}
@@ -272,6 +282,148 @@ export function CompositorPublicacao({ tipo, publicacao }: { tipo: Tipo; publica
           )}
         </div>
       </div>
+
+      <DialogoGerarIA
+        aberta={iaAberta}
+        canais={[...canais]}
+        onFechar={() => setIaAberta(false)}
+        onUsar={(texto) => {
+          setTexto(texto);
+          setIaAberta(false);
+        }}
+      />
     </div>
+  );
+}
+
+/** Pede tema, tom e referências e gera legendas com IA. */
+function DialogoGerarIA({
+  aberta,
+  canais,
+  onFechar,
+  onUsar,
+}: {
+  aberta: boolean;
+  canais: CanalMarketing[];
+  onFechar: () => void;
+  onUsar: (texto: string) => void;
+}) {
+  const [tema, setTema] = useState("");
+  const [tom, setTom] = useState<TomDaPublicacao>("ANIMADO");
+  const [referencias, setReferencias] = useState("");
+  const [gerando, setGerando] = useState(false);
+  const [variacoes, setVariacoes] = useState<string[]>([]);
+  const [erro, setErro] = useState<string | null>(null);
+  const [configurar, setConfigurar] = useState(false);
+
+  const gerar = async () => {
+    setGerando(true);
+    setErro(null);
+    setConfigurar(false);
+    try {
+      const r = await gerarTextoPublicacao({ tema, tom, canais, referencias, variacoes: 2 });
+      if (r.ok) setVariacoes(r.variacoes);
+      else {
+        setErro(r.erro);
+        setConfigurar(r.configurar === true);
+      }
+    } catch {
+      setErro("Não foi possível gerar agora. Tente de novo.");
+    } finally {
+      setGerando(false);
+    }
+  };
+
+  return (
+    <Dialog open={aberta} onOpenChange={(a) => !a && onFechar()}>
+      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Gerar texto com IA</DialogTitle>
+          <DialogDescription>Diga o tema e como você quer; a IA escreve a legenda no contexto da loja.</DialogDescription>
+        </DialogHeader>
+
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="ia-tema" className="text-xs font-bold text-kx-texto">
+              Sobre o que é a publicação
+            </Label>
+            <Input
+              id="ia-tema"
+              className="h-11 border-kx-campo-borda bg-kx-superficie"
+              placeholder="Ex.: promoção de troca de tela nesta semana"
+              value={tema}
+              onChange={(e) => setTema(e.target.value)}
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="ia-tom" className="text-xs font-bold text-kx-texto">
+              Tom
+            </Label>
+            <select
+              id="ia-tom"
+              className="h-11 w-full rounded-kx-botao border border-kx-campo-borda bg-kx-superficie px-3 text-sm text-kx-texto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kx-foco"
+              value={tom}
+              onChange={(e) => setTom(e.target.value as TomDaPublicacao)}
+            >
+              {TONS.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.rotulo}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="ia-ref" className="text-xs font-bold text-kx-texto">
+              Como você quer <span className="font-normal text-kx-legenda">(opcional)</span>
+            </Label>
+            <Textarea
+              id="ia-ref"
+              rows={4}
+              maxLength={1500}
+              className="border-kx-campo-borda bg-kx-superficie text-kx-texto placeholder:text-kx-placeholder"
+              placeholder="Cole um exemplo de post que você gosta, ou descreva o estilo: curto, com emojis, puxando pro WhatsApp..."
+              value={referencias}
+              onChange={(e) => setReferencias(e.target.value)}
+            />
+          </div>
+
+          {erro ? (
+            <p role="alert" className="rounded-kx-botao border border-kx-alerta bg-kx-alerta-fundo px-3 py-2 text-sm text-kx-alerta-texto">
+              {erro}
+              {configurar ? " O dono configura isso uma vez no Vercel." : ""}
+            </p>
+          ) : null}
+
+          {variacoes.length > 0 ? (
+            <div className="flex flex-col gap-2">
+              <span className="text-xs font-bold text-kx-texto">Sugestões — toque em uma para usar</span>
+              {variacoes.map((v, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => onUsar(v)}
+                  className="flex flex-col gap-1 rounded-kx-botao border border-kx-campo-borda bg-kx-superficie p-3 text-left text-sm text-kx-texto transition-colors hover:border-kx-primaria"
+                >
+                  <span className="whitespace-pre-line">{v}</span>
+                  <span className="text-xs font-bold text-kx-info-texto">Usar esta</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onFechar}>
+            Fechar
+          </Button>
+          <Button type="button" disabled={gerando || !tema.trim()} onClick={() => void gerar()}>
+            {gerando ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Sparkles className="h-4 w-4" />}
+            {variacoes.length > 0 ? "Gerar de novo" : "Gerar"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
