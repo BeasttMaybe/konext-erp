@@ -88,6 +88,16 @@ export const ITENS_NAVEGACAO: readonly ItemNavegacao[] = [
   // Compromissos da equipe + vencimentos do financeiro + prazos de meta.
   { label: "Agenda", path: "/agenda", iconKey: "Agenda" },
   { label: "Metas", path: "/metas", iconKey: "Metas" },
+  {
+    label: "Marketing",
+    path: "/marketing",
+    iconKey: "Marketing",
+    filhos: [
+      { label: "Publicações", path: "/marketing/publicacoes" },
+      { label: "Anúncios", path: "/marketing/anuncios" },
+      { label: "Conexões", path: "/marketing/conexoes" },
+    ],
+  },
   // Ferramentas de bancada (modulo "ferramentas"); /ferramentas lista todas.
   {
     label: "Ferramentas",

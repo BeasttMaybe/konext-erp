@@ -23,7 +23,7 @@
  * desligado (ex.: PDV sem Estoque nao teria o que vender).
  */
 
-export const IDS_DE_MODULO = ["os", "estoque", "pdv", "vendas", "propostas", "financeiro", "fiscal", "metas", "ferramentas"] as const;
+export const IDS_DE_MODULO = ["os", "estoque", "pdv", "vendas", "propostas", "financeiro", "fiscal", "metas", "marketing", "ferramentas"] as const;
 export type IdModulo = (typeof IDS_DE_MODULO)[number];
 
 export type Modulo = {
@@ -96,6 +96,13 @@ export const MODULOS: readonly Modulo[] = [
     descricao: "Metas da loja e da equipe, com acompanhamento automático.",
     rotas: ["/metas"],
     permissoes: ["metas"],
+  },
+  {
+    id: "marketing",
+    nome: "Marketing",
+    descricao: "Publicações e anúncios nas redes (Meta, Google, TikTok, Perfil do Google), agenda e conexões.",
+    rotas: ["/marketing"],
+    permissoes: ["marketing"],
   },
   {
     id: "ferramentas",
