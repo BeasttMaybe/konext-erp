@@ -554,6 +554,28 @@ export const ARTIGOS_AJUDA: readonly ArtigoAjuda[] = [
     palavrasChave: ["marketing", "post", "publicação", "agendar", "instagram", "facebook", "tiktok", "rede social"],
   },
   {
+    slug: "marketing-ia",
+    titulo: "Gerar o texto do post com IA",
+    categoria: "Financeiro",
+    resumo: "Deixar a IA escrever a legenda a partir do tema e do estilo que você quer.",
+    secoes: [
+      {
+        passos: [
+          "No compositor (Nova publicação), clique em \"Gerar com IA\".",
+          "Diga o tema, escolha o tom e, se quiser, cole um exemplo ou descreva o estilo em \"Como você quer\".",
+          "Clique em Gerar e toque na sugestão que mais gostou para usar. Você ainda pode editar o texto.",
+        ],
+      },
+    ],
+    dicas: [
+      "Quanto mais claro o tema e as referências, melhor o texto.",
+      "A IA não inventa preço nem prazo: escreva esses dados no tema se quiser que apareçam.",
+      "Precisa da chave de IA configurada pelo dono (IA_API_KEY no Vercel); cada geração tem um custo pequeno.",
+    ],
+    destino: { rotulo: "Abrir Publicações", href: "/marketing/publicacoes" },
+    palavrasChave: ["ia", "inteligência artificial", "gerar texto", "legenda", "copy", "escrever post", "marketing"],
+  },
+  {
     slug: "marketing-conexoes",
     titulo: "Conectar as redes no Marketing",
     categoria: "Financeiro",

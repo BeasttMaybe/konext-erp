@@ -10,7 +10,6 @@ import {
   CANAIS_ORGANICOS,
   PLATAFORMAS,
   plataformaConfiguravel,
-  plataformaDoCanal,
   type CanalMarketing,
   type IdPlataformaMarketing,
 } from "@/lib/dominio/marketing/plataformas";
@@ -391,3 +390,59 @@ export async function obterResumoMarketing(): Promise<{ agendadas: number; rascu
   return { agendadas, rascunhos, publicadas, conexoesAtivas };
 }
 
+
+// ── Gerador de texto com IA ──────────────────────────────────────────────────
+
+export type ResultadoGeracao =
+  | { ok: true; variacoes: string[] }
+  | { ok: false; erro: string; configurar?: boolean };
+
+/**
+ * Escreve sugestões de legenda com IA, a partir do tema, do tom e das
+ * referências do usuário, no contexto da loja (lib/dominio/marketing/
+ * gerador-de-texto.ts). A chave de IA é do dono (IA_API_KEY); sem ela, devolve
+ * `configurar: true` para a tela explicar.
+ */
+export async function gerarTextoPublicacao(entrada: Record<string, unknown>): Promise<ResultadoGeracao> {
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "marketing.publicar");
+
+  const { lerPedido, montarMensagens, separarVariacoes } = await import("@/lib/dominio/marketing/gerador-de-texto");
+  const { iaConfigurada, gerarComIA, ErroIA } = await import("@/lib/ia/cliente");
+
+  if (!iaConfigurada()) {
+    return {
+      ok: false,
+      configurar: true,
+      erro: "O gerador por IA ainda não está ligado. Configure a chave de IA (IA_API_KEY) para usar.",
+    };
+  }
+
+  const pedidoLido = lerPedido(entrada ?? {});
+  if (!pedidoLido.ok) return { ok: false, erro: pedidoLido.erro };
+
+  const config = await contexto.prisma.configuracao.findFirst({
+    select: { nomeFantasia: true, cidade: true, telefone: true },
+  });
+
+  const mensagens = montarMensagens(
+    {
+      nome: config?.nomeFantasia?.trim() || "a loja",
+      cidade: config?.cidade?.trim() || null,
+      telefone: config?.telefone?.trim() || null,
+      segmento: "Assistência técnica de celulares: conserto, troca de tela, bateria, venda de acessórios e películas.",
+    },
+    pedidoLido.pedido
+  );
+
+  try {
+    const resposta = await gerarComIA(mensagens);
+    const variacoes = separarVariacoes(resposta);
+    if (variacoes.length === 0) return { ok: false, erro: "A IA não devolveu texto. Tente de novo." };
+    return { ok: true, variacoes };
+  } catch (erro) {
+    if (erro instanceof ErroIA) return { ok: false, erro: erro.message };
+    console.error("[marketing] falha ao gerar texto", erro instanceof Error ? erro.message : erro);
+    return { ok: false, erro: "Não foi possível gerar o texto agora. Tente de novo." };
+  }
+}
