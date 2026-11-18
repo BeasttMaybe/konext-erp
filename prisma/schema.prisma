@@ -23,6 +23,8 @@ model Usuario {
   retornosGarantiaCriados RetornoGarantiaOS[] @relation("RetornoGarantiaCriadoPor")
   metasCriadas Meta[] @relation("MetasCriadasPor")
   compromissosCriados Compromisso[] @relation("CompromissosCriadosPor")
+  publicacoesMarketingCriadas PublicacaoMarketing[] @relation("PublicacaoMarketingCriadaPor")
+  conexoesMarketingConectadas ConexaoMarketing[] @relation("ConexaoMarketingConectadaPor")
   caixaSessionsAbertas CaixaSession[] @relation("CaixaSessionAbertaPor")
   contasReceberCriadas ContaReceber[] @relation("ContaReceberCriadaPor")
   despesasCriadas Despesa[] @relation("DespesaCriadaPor")
@@ -1751,4 +1753,144 @@ enum CriterioDeRateioDeFrete {
   VALOR
   /// Cada unidade carrega a mesma fatia.
   QUANTIDADE
+}
+
+
+// ==========================================
+// MARKETING
+// ==========================================
+/// Plataformas de marketing que a loja pode conectar. META cobre Facebook e
+/// Instagram (uma conexao, dois canais de publicacao); os demais sao 1:1.
+enum PlataformaMarketing {
+  META
+  GOOGLE_ADS
+  TIKTOK_ADS
+  GOOGLE_PERFIL
+}
+
+/// Canal de PUBLICACAO (onde o post sai). Vem da plataforma conectada.
+enum CanalMarketing {
+  INSTAGRAM
+  FACEBOOK
+  TIKTOK
+  GOOGLE_PERFIL
+}
+
+enum StatusConexaoMarketing {
+  NAO_CONFIGURADA
+  DESCONECTADA
+  CONECTADA
+  EXPIRADA
+  ERRO
+}
+
+enum TipoPublicacaoMarketing {
+  POST_ORGANICO
+  ANUNCIO_PAGO
+}
+
+enum StatusPublicacaoMarketing {
+  RASCUNHO
+  AGENDADA
+  PUBLICANDO
+  PUBLICADA
+  FALHOU
+  CANCELADA
+}
+
+enum StatusDestinoPublicacao {
+  PENDENTE
+  PUBLICADA
+  FALHOU
+}
+
+/// Conexao de UMA plataforma com a loja. Uma linha por plataforma (unique).
+/// Os tokens OAuth ficam CIFRADOS com a chave da empresa (lib/seguranca).
+model ConexaoMarketing {
+  id         String              @id @default(uuid())
+  plataforma PlataformaMarketing @unique
+
+  status StatusConexaoMarketing @default(NAO_CONFIGURADA)
+
+  /// Nome/@ da conta conectada, para a tela mostrar "conectado como ...".
+  contaNome      String?
+  /// Id da conta/perfil na plataforma (ad account, page id, etc.).
+  contaExternaId String?
+
+  /// Tokens OAuth cifrados; nulos ate conectar. Nunca em texto puro.
+  tokenCifrado   String?
+  renovacaoCifrada String?
+  expiraEm       DateTime? @db.Timestamptz(3)
+  escopos        String?
+  ultimoErro     String?
+
+  conectadoPorId String?
+  conectadoPor   Usuario? @relation("ConexaoMarketingConectadaPor", fields: [conectadoPorId], references: [id], onDelete: SetNull)
+
+  criadoEm     DateTime @default(now()) @db.Timestamptz(3)
+  atualizadoEm DateTime @updatedAt @db.Timestamptz(3)
+}
+
+/// Um post organico ou um anuncio. Os canais-alvo ficam em `destinos`.
+model PublicacaoMarketing {
+  id    String                  @id @default(uuid())
+  tipo  TipoPublicacaoMarketing @default(POST_ORGANICO)
+  texto String
+
+  status      StatusPublicacaoMarketing @default(RASCUNHO)
+  agendadoPara DateTime?                @db.Timestamptz(3)
+  publicadoEm  DateTime?                @db.Timestamptz(3)
+  ultimoErro   String?
+
+  /// So para ANUNCIO_PAGO: verba (centavos) e link de destino. Anuncio pago
+  /// sempre exige aprovacao humana antes de publicar (gasta dinheiro).
+  orcamentoCentavos Int?
+  linkDestino       String?
+
+  midias   PublicacaoMidia[]
+  destinos PublicacaoDestino[]
+
+  criadoPorId String?
+  criadoPor   Usuario? @relation("PublicacaoMarketingCriadaPor", fields: [criadoPorId], references: [id], onDelete: SetNull)
+
+  criadoEm     DateTime @default(now()) @db.Timestamptz(3)
+  atualizadoEm DateTime @updatedAt @db.Timestamptz(3)
+
+  @@index([status, agendadoPara])
+  @@index([criadoEm])
+}
+
+/// Imagem/video de uma publicacao, guardada no R2 (como as fotos de OS).
+model PublicacaoMidia {
+  id            String              @id @default(uuid())
+  publicacaoId  String
+  publicacao    PublicacaoMarketing @relation(fields: [publicacaoId], references: [id], onDelete: Cascade)
+
+  chaveArmazenamento String @unique
+  tipoConteudo       String
+  tamanhoBytes       Int
+  largura            Int?
+  altura             Int?
+  ordem              Int    @default(0)
+
+  criadoEm DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([publicacaoId, ordem])
+}
+
+/// Status da publicacao em cada canal (uma publicacao pode sair no Instagram e
+/// no Facebook ao mesmo tempo; cada canal tem seu resultado).
+model PublicacaoDestino {
+  id           String              @id @default(uuid())
+  publicacaoId String
+  publicacao   PublicacaoMarketing @relation(fields: [publicacaoId], references: [id], onDelete: Cascade)
+
+  canal           CanalMarketing
+  status          StatusDestinoPublicacao @default(PENDENTE)
+  /// Id do post publicado na plataforma, para abrir/remover depois.
+  idExternoPublicado String?
+  erro            String?
+  publicadoEm     DateTime? @db.Timestamptz(3)
+
+  @@unique([publicacaoId, canal])
 }

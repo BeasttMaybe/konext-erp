@@ -530,6 +530,51 @@ export const ARTIGOS_AJUDA: readonly ArtigoAjuda[] = [
     palavrasChave: ["meta", "objetivo", "alvo"],
   },
 
+  // ── Marketing ───────────────────────────────────────────────────────
+  {
+    slug: "marketing-publicacoes",
+    titulo: "Criar e agendar uma publicação",
+    categoria: "Financeiro",
+    resumo: "Montar um post, escolher as redes e deixar agendado para publicar sozinho.",
+    secoes: [
+      {
+        passos: [
+          "Vá em Marketing → Publicações → Nova publicação.",
+          "Escreva o texto e marque onde publicar (Instagram, Facebook, TikTok, Perfil do Google).",
+          "Para publicar sozinho num horário, preencha \"Agendar para\". Sem data, fica como rascunho.",
+          "Salve. Para anexar imagens, use \"Salvar e adicionar imagens\".",
+        ],
+      },
+    ],
+    dicas: [
+      "A publicação só sai de verdade quando a rede estiver conectada em Marketing → Conexões.",
+      "Anúncio pago fica em Anúncios e sempre espera sua aprovação antes de gastar.",
+    ],
+    destino: { rotulo: "Abrir Publicações", href: "/marketing/publicacoes" },
+    palavrasChave: ["marketing", "post", "publicação", "agendar", "instagram", "facebook", "tiktok", "rede social"],
+  },
+  {
+    slug: "marketing-conexoes",
+    titulo: "Conectar as redes no Marketing",
+    categoria: "Financeiro",
+    resumo: "Ligar as contas da loja no Meta, Google, TikTok e Perfil do Google.",
+    secoes: [
+      {
+        passos: [
+          "Vá em Marketing → Conexões.",
+          "Cada plataforma mostra o que falta: criar a conta de desenvolvedor e pedir a aprovação dela.",
+          "Quando a plataforma estiver liberada, clique em Conectar e faça o login seguro.",
+        ],
+      },
+    ],
+    dicas: [
+      "A aprovação é feita por cada plataforma e pode levar alguns dias — é um passo único.",
+      "Nenhuma senha das suas contas passa pelo sistema; a conexão é por login seguro (OAuth).",
+    ],
+    destino: { rotulo: "Abrir Conexões", href: "/marketing/conexoes" },
+    palavrasChave: ["marketing", "conectar", "meta", "google", "tiktok", "oauth", "integração", "conta"],
+  },
+
   // ── Ferramentas ─────────────────────────────────────────────────────
   {
     slug: "remocao-de-virus",

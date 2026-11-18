@@ -37,6 +37,7 @@ export const GRADE_PERMISSOES: readonly LinhaGradePermissoes[] = [
   { chave: "propostas", rotulo: "Propostas", colunas: { editar: "propostas.editar", excluir: "propostas.excluir" } },
   { chave: "financeiro", rotulo: "Financeiro", colunas: { ver: "financeiro.ver", criar: "financeiro.lancar", editar: "financeiro.editar", excluir: "financeiro.excluir" } },
   { chave: "metas", rotulo: "Metas", colunas: { ver: "metas.ver", editar: "metas.editar", excluir: "metas.excluir" } },
+  { chave: "marketing", rotulo: "Marketing", colunas: { ver: "marketing.ver", criar: "marketing.publicar" } },
   { chave: "vendas", rotulo: "Vendas", colunas: { criar: "vendas.criar", editar: "vendas.aprovar", excluir: "vendas.cancelar" } },
 ];
 
@@ -64,6 +65,8 @@ export const PERMISSOES_ESPECIAIS: readonly Permissao[] = [
   "configuracoes.sistema",
   "configuracoes.usuarios",
   "dashboard.financeiro",
+  "marketing.conectar",
+  "marketing.anunciar",
 ];
 
 export type PermissaoEscopo = {

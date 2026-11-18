@@ -68,6 +68,11 @@ export const CATALOGO_PERMISSOES = [
   "metas.ver",
   "metas.editar",
   "metas.excluir",
+  // Marketing
+  "marketing.ver",
+  "marketing.publicar",
+  "marketing.conectar",
+  "marketing.anunciar",
   // Vendas
   "vendas.criar",
   "vendas.aprovar",
@@ -98,6 +103,7 @@ export type ModuloPermissao =
   | "crm"
   | "financeiro"
   | "metas"
+  | "marketing"
   | "vendas"
   | "sistema";
 
@@ -111,6 +117,7 @@ const MODULO_POR_PREFIXO: Readonly<Record<string, ModuloPermissao>> = {
   financeiro: "financeiro",
   dashboard: "financeiro",
   metas: "metas",
+  marketing: "marketing",
   vendas: "vendas",
   configuracoes: "sistema",
   auditoria: "sistema",
@@ -123,6 +130,7 @@ export const ROTULOS_MODULO_PERMISSAO: Readonly<Record<ModuloPermissao, string>>
   crm: "CRM e Propostas",
   financeiro: "Financeiro",
   metas: "Metas",
+  marketing: "Marketing",
   vendas: "Vendas",
   sistema: "Sistema e Configurações",
 };
@@ -194,6 +202,10 @@ export const ROTULOS_PERMISSAO: Readonly<Record<Permissao, { rotulo: string; des
   "metas.ver": { rotulo: "Ver metas", descricao: "Consultar metas e indicadores." },
   "metas.editar": { rotulo: "Editar metas", descricao: "Criar e alterar metas." },
   "metas.excluir": { rotulo: "Excluir metas", descricao: "Excluir metas." },
+  "marketing.ver": { rotulo: "Ver Marketing", descricao: "Acessar a área de Marketing, publicações e conexões." },
+  "marketing.publicar": { rotulo: "Publicar nas redes", descricao: "Criar, agendar e publicar posts orgânicos nas redes conectadas." },
+  "marketing.conectar": { rotulo: "Conectar contas de marketing", descricao: "Ligar e desligar as contas das plataformas (Meta, Google, TikTok, Perfil do Google)." },
+  "marketing.anunciar": { rotulo: "Criar anúncios pagos", descricao: "Criar e aprovar campanhas de anúncios pagos, que gastam verba." },
   "vendas.criar": { rotulo: "Criar vendas", descricao: "Gerar um pedido de venda." },
   "vendas.aprovar": { rotulo: "Aprovar vendas", descricao: "Aprovar um pedido de venda." },
   "vendas.cancelar": { rotulo: "Cancelar vendas", descricao: "Cancelar um pedido de venda." },
