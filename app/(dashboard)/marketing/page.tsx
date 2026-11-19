@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BarChart3, CalendarClock, Camera, ChevronRight, MessageSquare, Megaphone, Music2, Plug, Send, TrendingUp } from "lucide-react";
+import { BarChart3, CalendarClock, Camera, ChevronRight, MessageSquare, Music2, Plug, Send, TrendingUp } from "lucide-react";
 
 import { obterResumoMarketing } from "@/app/actions/marketing";
 
@@ -41,12 +41,6 @@ const ATALHOS = [
     nome: "TikTok",
     descricao: "Visualizações de vídeo, curtidas, seguidores e visitas ao perfil no TikTok.",
     icone: Music2,
-  },
-  {
-    href: "/marketing/anuncios",
-    nome: "Anúncios",
-    descricao: "Monte campanhas pagas no Meta, Google e TikTok. Você revisa e aprova antes de gastar.",
-    icone: Megaphone,
   },
   {
     href: "/marketing/conexoes",
