@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BarChart3, CalendarClock, ChevronRight, Instagram, Megaphone, Music2, Plug, Send } from "lucide-react";
+import { BarChart3, CalendarClock, Camera, ChevronRight, Megaphone, Music2, Plug, Send } from "lucide-react";
 
 import { obterResumoMarketing } from "@/app/actions/marketing";
 
@@ -22,7 +22,7 @@ const ATALHOS = [
     href: "/marketing/instagram",
     nome: "Instagram",
     descricao: "Alcance, visualizações, seguidores e interações da conta no Instagram.",
-    icone: Instagram,
+    icone: Camera,
   },
   {
     href: "/marketing/tiktok",
