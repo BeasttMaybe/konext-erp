@@ -4,7 +4,10 @@ import {
   canalParaZernio,
   limparTextoAvaliacao,
   resumirMetricasGoogle,
+  serieDiariaDinamica,
+  totalMetrica,
   zernioParaCanal,
+  type MetricasBrutas,
   type RespostaPerformanceGoogle,
 } from "./mapeamento";
 
@@ -85,5 +88,45 @@ describe("resumirMetricasGoogle", () => {
     const r = resumirMetricasGoogle({});
     expect(r.totais.impressoes).toBe(0);
     expect(r.porDia).toEqual([]);
+  });
+});
+
+describe("métricas genéricas (Instagram/TikTok)", () => {
+  // Amostra reduzida do TikTok account-insights (time_series).
+  const m: MetricasBrutas = {
+    follower_count: { total: 67, values: [{ date: "2026-11-19", value: 67 }] },
+    video_views: {
+      total: 15,
+      values: [
+        { date: "2026-11-17", value: 10 },
+        { date: "2026-11-18", value: 5 },
+      ],
+    },
+    likes: {
+      total: 3,
+      values: [
+        { date: "2026-11-17", value: 2 },
+        { date: "2026-11-18", value: 1 },
+      ],
+    },
+  };
+
+  it("totalMetrica devolve o total arredondado e não-negativo", () => {
+    expect(totalMetrica(m, "video_views")).toBe(15);
+    expect(totalMetrica(m, "follower_count")).toBe(67);
+    expect(totalMetrica(m, "inexistente")).toBe(0);
+  });
+
+  it("serieDiariaDinamica junta as métricas por dia, em ordem", () => {
+    const serie = serieDiariaDinamica(m, ["video_views", "likes"]);
+    expect(serie).toEqual([
+      { data: "2026-11-17", video_views: 10, likes: 2 },
+      { data: "2026-11-18", video_views: 5, likes: 1 },
+    ]);
+  });
+
+  it("serieDiariaDinamica de métrica sem série devolve vazio", () => {
+    expect(serieDiariaDinamica(m, ["follower_count"]).length).toBe(1);
+    expect(serieDiariaDinamica(m, ["nao_existe"])).toEqual([]);
   });
 });

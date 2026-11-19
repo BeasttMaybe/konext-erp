@@ -46,6 +46,37 @@ export function limparTextoAvaliacao(texto: string): string {
 
 // ── Métricas do Perfil do Google ──────────────────────────────────────────────
 
+// ── Métricas genéricas (Instagram / TikTok) ───────────────────────────────────
+
+/** Formato comum das respostas de insights da Zernio: um objeto por métrica. */
+export type MetricasBrutas = Record<
+  string,
+  { total?: number; values?: Array<{ date?: string; value?: number }> } | undefined
+>;
+
+/** Total (arredondado, nunca negativo) de uma métrica. */
+export function totalMetrica(m: MetricasBrutas, nome: string): number {
+  return Math.max(0, Math.round(Number(m[nome]?.total ?? 0)) || 0);
+}
+
+/**
+ * Série diária para um conjunto de métricas: uma linha por data, com uma chave
+ * por métrica pedida. Usada para alimentar os gráficos (recharts).
+ */
+export function serieDiariaDinamica(m: MetricasBrutas, nomes: string[]): Array<Record<string, number | string>> {
+  const mapa = new Map<string, Record<string, number | string>>();
+  for (const nome of nomes) {
+    for (const ponto of m[nome]?.values ?? []) {
+      const data = String(ponto?.date ?? "");
+      if (!data) continue;
+      const linha = mapa.get(data) ?? { data };
+      linha[nome] = (Number(linha[nome] ?? 0) || 0) + (Number(ponto?.value ?? 0) || 0);
+      mapa.set(data, linha);
+    }
+  }
+  return [...mapa.values()].sort((a, b) => String(a.data).localeCompare(String(b.data)));
+}
+
 /** As quatro métricas de impressão que, somadas, dão as "visualizações". */
 export const METRICAS_IMPRESSAO = [
   "BUSINESS_IMPRESSIONS_DESKTOP_MAPS",

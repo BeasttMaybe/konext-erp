@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BarChart3, CalendarClock, ChevronRight, Megaphone, Plug, Send } from "lucide-react";
+import { BarChart3, CalendarClock, ChevronRight, Instagram, Megaphone, Music2, Plug, Send } from "lucide-react";
 
 import { obterResumoMarketing } from "@/app/actions/marketing";
 
@@ -17,6 +17,18 @@ const ATALHOS = [
     nome: "Perfil do Google",
     descricao: "Veja visualizações, ligações e rotas, e responda às avaliações com ajuda da IA.",
     icone: BarChart3,
+  },
+  {
+    href: "/marketing/instagram",
+    nome: "Instagram",
+    descricao: "Alcance, visualizações, seguidores e interações da conta no Instagram.",
+    icone: Instagram,
+  },
+  {
+    href: "/marketing/tiktok",
+    nome: "TikTok",
+    descricao: "Visualizações de vídeo, curtidas, seguidores e visitas ao perfil no TikTok.",
+    icone: Music2,
   },
   {
     href: "/marketing/anuncios",
