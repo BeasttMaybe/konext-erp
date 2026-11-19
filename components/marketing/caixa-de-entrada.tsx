@@ -126,7 +126,12 @@ export function CaixaDeEntrada({
       )}
     >
       {/* Lista de conversas */}
-      <div className={cn("w-full flex-col border-r border-kx-painel-borda md:flex md:w-80", sel ? "hidden md:flex" : "flex")}>
+      <div
+        className={cn(
+          "w-full flex-col border-r border-kx-painel-borda",
+          compacto ? (sel ? "hidden" : "flex") : cn("md:flex md:w-80", sel ? "hidden md:flex" : "flex")
+        )}
+      >
         <div className="flex items-center gap-2 border-b border-kx-painel-borda px-4 py-3">
           <MessageSquare className="h-4 w-4 text-kx-legenda" aria-hidden />
           <span className="text-sm font-bold text-kx-texto">Conversas</span>
@@ -180,7 +185,7 @@ export function CaixaDeEntrada({
       </div>
 
       {/* Conversa aberta */}
-      <div className={cn("flex-1 flex-col", sel ? "flex" : "hidden md:flex")}>
+      <div className={cn("flex-1 flex-col", compacto ? (sel ? "flex" : "hidden") : sel ? "flex" : "hidden md:flex")}>
         {!sel ? (
           <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-kx-legenda">
             Escolha uma conversa para ver as mensagens e responder.
@@ -188,7 +193,7 @@ export function CaixaDeEntrada({
         ) : (
           <>
             <div className="flex items-center gap-2 border-b border-kx-painel-borda px-4 py-3">
-              <button type="button" className="md:hidden" onClick={() => setSel(null)} aria-label="Voltar">
+              <button type="button" className={cn(!compacto && "md:hidden")} onClick={() => setSel(null)} aria-label="Voltar">
                 <ArrowLeft className="h-5 w-5 text-kx-texto-2" aria-hidden />
               </button>
               <span className="text-sm font-bold text-kx-texto">{sel.participante}</span>
