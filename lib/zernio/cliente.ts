@@ -303,3 +303,43 @@ export async function metricasGooglePerfil(
     query: { accountId: entrada.contaId, startDate: entrada.de, endDate: entrada.ate },
   });
 }
+
+// ── Insights de conta (Instagram / TikTok) ────────────────────────────────────
+
+export type RespostaInsights = {
+  metrics?: Record<string, { total?: number; values?: Array<{ date?: string; value?: number }> } | undefined>;
+  dateRange?: { since?: string; until?: string };
+};
+
+/** Insights de conta de uma rede (account-insights). plataforma: instagram|tiktok|... */
+export async function insightsDaRede(
+  chave: string,
+  entrada: {
+    plataforma: string;
+    contaId: string;
+    de: string;
+    ate: string;
+    metricas?: string;
+    tipo?: "time_series" | "total_value";
+  }
+): Promise<RespostaInsights> {
+  return requisitar<RespostaInsights>(chave, "GET", `/analytics/${entrada.plataforma}/account-insights`, {
+    query: {
+      accountId: entrada.contaId,
+      since: entrada.de,
+      until: entrada.ate,
+      metrics: entrada.metricas,
+      metricType: entrada.tipo ?? "total_value",
+    },
+  });
+}
+
+/** Histórico diário de seguidores do Instagram (série que preenche com o tempo). */
+export async function historicoSeguidoresInstagram(
+  chave: string,
+  entrada: { contaId: string; de: string; ate: string }
+): Promise<RespostaInsights> {
+  return requisitar<RespostaInsights>(chave, "GET", "/analytics/instagram/follower-history", {
+    query: { accountId: entrada.contaId, since: entrada.de, until: entrada.ate, metricType: "time_series" },
+  });
+}

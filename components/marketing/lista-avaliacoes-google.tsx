@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2, MessageSquareReply, Sparkles, Star } from "lucide-react";
 import { toast } from "sonner";
 
@@ -186,6 +186,8 @@ export function ListaAvaliacoesGoogle({
   );
 }
 
+const LIMITE_RESPOSTA = 500;
+
 function DialogoResponder({
   avaliacao,
   onFechar,
@@ -199,19 +201,12 @@ function DialogoResponder({
   const [enviando, setEnviando] = useState(false);
   const [sugerindo, setSugerindo] = useState(false);
 
-  // Reinicia o texto a cada avaliação aberta.
-  const [idAberta, setIdAberta] = useState<string | null>(null);
-  if (avaliacao && avaliacao.id !== idAberta) {
-    setIdAberta(avaliacao.id);
-    setTexto("");
-  }
-
-  const sugerir = async () => {
-    if (!avaliacao) return;
+  const sugerir = async (dados: { autor: string; nota: number; texto: string }) => {
     setSugerindo(true);
+    setTexto("");
     try {
-      const r = await sugerirRespostaAvaliacao({ autor: avaliacao.autor, nota: avaliacao.nota, texto: avaliacao.texto });
-      if (r.ok) setTexto(r.sugestao);
+      const r = await sugerirRespostaAvaliacao(dados);
+      if (r.ok) setTexto(r.sugestao.slice(0, LIMITE_RESPOSTA));
       else toast.error(r.erro + (r.configurar ? " (Configure a chave de IA.)" : ""));
     } catch {
       toast.error("Não foi possível sugerir agora.");
@@ -219,6 +214,16 @@ function DialogoResponder({
       setSugerindo(false);
     }
   };
+
+  // Ao abrir uma avaliação, já gera a sugestão da IA sozinho (o sugerir limpa o campo).
+  const idAberta = avaliacao?.id ?? null;
+  useEffect(() => {
+    if (!avaliacao) return;
+    const dados = { autor: avaliacao.autor, nota: avaliacao.nota, texto: avaliacao.texto };
+    const t = setTimeout(() => void sugerir(dados), 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idAberta]);
 
   const enviar = async () => {
     if (!avaliacao) return;
@@ -267,22 +272,31 @@ function DialogoResponder({
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center justify-between gap-2">
                 <Label htmlFor="resposta-texto" className="text-xs font-bold text-kx-texto">
-                  Sua resposta
+                  Sua resposta {sugerindo && !texto ? <span className="font-normal text-kx-legenda">· a IA está escrevendo…</span> : null}
                 </Label>
-                <Button type="button" variant="outline" size="sm" disabled={sugerindo} onClick={() => void sugerir()}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={sugerindo}
+                  onClick={() => void sugerir({ autor: avaliacao.autor, nota: avaliacao.nota, texto: avaliacao.texto })}
+                >
                   {sugerindo ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Sparkles className="h-3.5 w-3.5" aria-hidden />}
-                  Sugerir com IA
+                  Gerar de novo
                 </Button>
               </div>
               <Textarea
                 id="resposta-texto"
                 rows={5}
-                maxLength={4000}
+                maxLength={LIMITE_RESPOSTA}
                 className="border-kx-campo-borda bg-kx-superficie text-kx-texto placeholder:text-kx-placeholder"
-                placeholder="Agradeça, seja gentil e convide a voltar. Ou clique em Sugerir com IA."
+                placeholder={sugerindo ? "A IA está escrevendo a resposta…" : "A resposta sugerida aparece aqui. Edite à vontade."}
                 value={texto}
                 onChange={(e) => setTexto(e.target.value)}
               />
+              <span className="self-end text-xs text-kx-legenda">
+                {texto.length}/{LIMITE_RESPOSTA}
+              </span>
             </div>
           </div>
         ) : null}

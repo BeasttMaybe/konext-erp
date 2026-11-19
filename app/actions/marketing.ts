@@ -28,6 +28,8 @@ import {
   ErroZernio,
   criarPost,
   excluirPostZernio,
+  historicoSeguidoresInstagram,
+  insightsDaRede,
   listarAvaliacoes,
   listarContas,
   metricasGooglePerfil,
@@ -38,7 +40,15 @@ import {
   type DestinoPost,
   type ResumoAvaliacoes,
 } from "@/lib/zernio/cliente";
-import { canalParaZernio, resumirMetricasGoogle, zernioParaCanal, type MetricasGoogle } from "@/lib/zernio/mapeamento";
+import {
+  canalParaZernio,
+  resumirMetricasGoogle,
+  serieDiariaDinamica,
+  totalMetrica,
+  zernioParaCanal,
+  type MetricasBrutas,
+  type MetricasGoogle,
+} from "@/lib/zernio/mapeamento";
 import type { ContextoTenantServidor } from "@/types/tenant";
 
 /**
@@ -718,6 +728,156 @@ export async function obterMetricasGoogle(dias = 30): Promise<ResultadoMetricasG
   }
 }
 
+// ── Análise de redes (Instagram / TikTok) ─────────────────────────────────────
+
+export type SerieGrafico = {
+  titulo: string;
+  tipo: "area" | "bar";
+  series: Array<{ chave: string; rotulo: string; cor: string }>;
+  dados: Array<Record<string, number | string>>;
+};
+
+export type AnaliseRede = {
+  kpis: Array<{ rotulo: string; valor: number }>;
+  graficos: SerieGrafico[];
+  aviso: string | null;
+};
+
+export type ResultadoAnaliseRede =
+  | { ok: true; plataforma: "INSTAGRAM" | "TIKTOK"; analise: AnaliseRede }
+  | { ok: false; motivo: MotivoSemGoogle; erro: string };
+
+const CORES_GRAFICO = ["var(--kx-primaria)", "var(--kx-sucesso)", "var(--kx-destaque)", "var(--kx-pronto)"];
+
+function diaCurtoAnalise(data: string): string {
+  const [, mes, dia] = data.split("-");
+  return mes && dia ? `${dia}/${mes}` : data;
+}
+
+function comRotuloDeDia(linhas: Array<Record<string, number | string>>): Array<Record<string, number | string>> {
+  return linhas.map((l) => ({ ...l, rotulo: diaCurtoAnalise(String(l.data)) }));
+}
+
+export async function obterAnaliseRede(plataforma: "INSTAGRAM" | "TIKTOK", dias = 30): Promise<ResultadoAnaliseRede> {
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "marketing.ver");
+
+  const janela = Math.max(7, Math.min(89, Math.trunc(dias) || 30));
+  const chave = await lerChaveZernio(contexto.prisma, contexto.empresaId);
+  if (!chave) return { ok: false, motivo: "SEM_CHAVE", erro: "Conecte a Zernio em Marketing → Conexões." };
+
+  const fuso = contexto.fusoHorario ?? FUSO_HORARIO_PADRAO;
+  const hoje = TZDate.tz(fuso);
+  const ate = format(hoje, "yyyy-MM-dd");
+  const de = format(subDays(hoje, janela), "yyyy-MM-dd");
+  const idZernio = plataforma === "INSTAGRAM" ? "instagram" : "tiktok";
+  const nomeRede = plataforma === "INSTAGRAM" ? "Instagram" : "TikTok";
+
+  try {
+    const contas = await listarContas(chave);
+    const contaId = contas.find((c) => c.plataforma === idZernio)?.id;
+    if (!contaId) return { ok: false, motivo: "SEM_CONTA", erro: `A conta de ${nomeRede} ainda não está conectada na Zernio.` };
+
+    if (plataforma === "TIKTOK") {
+      const resp = await insightsDaRede(chave, {
+        plataforma: "tiktok",
+        contaId,
+        de,
+        ate,
+        tipo: "time_series",
+        metricas: "follower_count,video_views,likes,comments,shares,profile_views",
+      });
+      const m = (resp.metrics ?? {}) as MetricasBrutas;
+      const kpis = [
+        { rotulo: "Seguidores", valor: totalMetrica(m, "follower_count") },
+        { rotulo: "Visualizações", valor: totalMetrica(m, "video_views") },
+        { rotulo: "Curtidas", valor: totalMetrica(m, "likes") },
+        { rotulo: "Comentários", valor: totalMetrica(m, "comments") },
+        { rotulo: "Compart.", valor: totalMetrica(m, "shares") },
+        { rotulo: "Visitas ao perfil", valor: totalMetrica(m, "profile_views") },
+      ];
+      const graficos: SerieGrafico[] = [
+        {
+          titulo: "Visualizações por dia",
+          tipo: "area",
+          series: [{ chave: "video_views", rotulo: "Visualizações", cor: CORES_GRAFICO[0] }],
+          dados: comRotuloDeDia(serieDiariaDinamica(m, ["video_views"])),
+        },
+        {
+          titulo: "Engajamento por dia",
+          tipo: "bar",
+          series: [
+            { chave: "likes", rotulo: "Curtidas", cor: CORES_GRAFICO[1] },
+            { chave: "comments", rotulo: "Comentários", cor: CORES_GRAFICO[2] },
+            { chave: "shares", rotulo: "Compart.", cor: CORES_GRAFICO[3] },
+          ],
+          dados: comRotuloDeDia(serieDiariaDinamica(m, ["likes", "comments", "shares"])),
+        },
+      ];
+      return { ok: true, plataforma, analise: { kpis, graficos, aviso: "O TikTok fecha os números de cada dia com 24–48h de atraso." } };
+    }
+
+    // Instagram
+    const [totais, seguidores, alcance] = await Promise.all([
+      insightsDaRede(chave, {
+        plataforma: "instagram",
+        contaId,
+        de,
+        ate,
+        tipo: "total_value",
+        metricas: "reach,views,accounts_engaged,total_interactions,profile_views,website_clicks,likes,saves,shares,comments",
+      }),
+      historicoSeguidoresInstagram(chave, { contaId, de, ate }),
+      insightsDaRede(chave, { plataforma: "instagram", contaId, de, ate, tipo: "time_series", metricas: "reach" }),
+    ]);
+    const mt = (totais.metrics ?? {}) as MetricasBrutas;
+    const ms = (seguidores.metrics ?? {}) as MetricasBrutas;
+    const ma = (alcance.metrics ?? {}) as MetricasBrutas;
+
+    const kpis = [
+      { rotulo: "Seguidores", valor: totalMetrica(ms, "follower_count") },
+      { rotulo: "Alcance", valor: totalMetrica(mt, "reach") },
+      { rotulo: "Visualizações", valor: totalMetrica(mt, "views") },
+      { rotulo: "Contas engajadas", valor: totalMetrica(mt, "accounts_engaged") },
+      { rotulo: "Interações", valor: totalMetrica(mt, "total_interactions") },
+      { rotulo: "Visitas ao perfil", valor: totalMetrica(mt, "profile_views") },
+      { rotulo: "Cliques no site", valor: totalMetrica(mt, "website_clicks") },
+    ];
+
+    const graficos: SerieGrafico[] = [];
+    const serieAlcance = comRotuloDeDia(serieDiariaDinamica(ma, ["reach"]));
+    if (serieAlcance.length > 0) {
+      graficos.push({
+        titulo: "Alcance por dia",
+        tipo: "area",
+        series: [{ chave: "reach", rotulo: "Alcance", cor: CORES_GRAFICO[0] }],
+        dados: serieAlcance,
+      });
+    }
+    const serieSeguidores = comRotuloDeDia(serieDiariaDinamica(ms, ["follower_count"]));
+    if (serieSeguidores.length > 1) {
+      graficos.push({
+        titulo: "Seguidores por dia",
+        tipo: "area",
+        series: [{ chave: "follower_count", rotulo: "Seguidores", cor: CORES_GRAFICO[1] }],
+        dados: serieSeguidores,
+      });
+    }
+
+    const aviso =
+      graficos.length === 0
+        ? "Os totais acima já refletem os últimos 30 dias. Os gráficos diários vão aparecer conforme os próximos dias forem registrados."
+        : "O Instagram entrega a maioria dos números como total do período; o histórico diário preenche com o tempo.";
+
+    return { ok: true, plataforma, analise: { kpis, graficos, aviso } };
+  } catch (erro) {
+    if (erro instanceof ErroZernio && erro.codigo === "analytics_addon_required") {
+      return { ok: false, motivo: "SEM_ANALYTICS", erro: erro.message };
+    }
+    return { ok: false, motivo: "ERRO", erro: erro instanceof ErroZernio ? erro.message : "Não foi possível obter os dados agora." };
+  }
+}
+
 export type FiltroAvaliacoes = "TODAS" | "SEM_RESPOSTA" | "BAIXAS";
 
 export type ResultadoAvaliacoes =
@@ -793,7 +953,7 @@ export async function sugerirRespostaAvaliacao(entrada: { autor: string; nota: n
 
   const sistema = [
     `Você responde avaliações do Google em nome de ${nomeLoja}, uma assistência técnica de celulares no Brasil.`,
-    "Escreve em português do Brasil, em primeira pessoa do plural (nós), de forma calorosa, educada e breve (2 a 4 frases).",
+    "Escreve em português do Brasil, em primeira pessoa do plural (nós), de forma calorosa, educada e breve: 2 a 3 frases, no máximo 400 caracteres.",
     "Regras:",
     "- Agradeça pelo nome quando houver nome.",
     "- Para avaliações positivas: agradeça com simpatia e convide a voltar.",
