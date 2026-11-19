@@ -31,6 +31,7 @@ import {
   adicionarFotoGoogle,
   atualizarDescricaoGoogle,
   criarPost,
+  definirOcultacaoComentario,
   excluirPostZernio,
   fichaGoogle,
   fotosGoogle,
@@ -38,19 +39,24 @@ import {
   historicoSeguidoresInstagram,
   insightsDaRede,
   listarAvaliacoes,
+  listarComentariosDoPost,
   listarContas,
   listarConversas,
   listarMensagens,
+  listarPostsComComentarios,
   melhorHorario,
   metricasGooglePerfil,
   responderAvaliacao as responderAvaliacaoZernio,
+  responderComentario,
   subirMidia,
   validarChave,
   type AvaliacaoZernio,
+  type ComentarioZernio,
   type ConversaZernio,
   type DestinoPost,
   type HorarioSlot,
   type MensagemDireta,
+  type PostComComentarios,
   type ResumoAvaliacoes,
 } from "@/lib/zernio/cliente";
 import { auditarSite } from "@/lib/seo/auditar";
@@ -715,6 +721,11 @@ export async function gerarTextoPublicacao(entrada: Record<string, unknown>): Pr
 async function contaGoogleId(chave: string): Promise<string | null> {
   const contas = await listarContas(chave);
   return contas.find((c) => c.plataforma === "googlebusiness")?.id ?? null;
+}
+
+async function contaInstagramId(chave: string): Promise<string | null> {
+  const contas = await listarContas(chave);
+  return contas.find((c) => c.plataforma === "instagram")?.id ?? null;
 }
 
 export type MotivoSemGoogle = "SEM_CHAVE" | "SEM_CONTA" | "SEM_ANALYTICS" | "ERRO";
@@ -1587,5 +1598,157 @@ export async function prepararRespostasPendentes(): Promise<ResultadoPendentes> 
     return { ok: true, itens };
   } catch (erro) {
     return { ok: false, motivo: "ERRO", erro: erro instanceof ErroZernio ? erro.message : "Não foi possível carregar as avaliações agora." };
+  }
+}
+
+// ── Comentários dos posts (Instagram) ─────────────────────────────────────────
+
+export type MotivoSemRede = "SEM_CHAVE" | "SEM_CONTA" | "ERRO";
+
+export type ResultadoPostsComentarios =
+  | { ok: true; conta: string; posts: PostComComentarios[]; proximoCursor: string | null }
+  | { ok: false; motivo: MotivoSemRede; erro: string };
+
+/** Lista os posts do Instagram (mais recentes primeiro) com a contagem de comentários. */
+export async function obterPostsComentarios(cursor?: string | null): Promise<ResultadoPostsComentarios> {
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "marketing.ver");
+
+  const chave = await lerChaveZernio(contexto.prisma, contexto.empresaId);
+  if (!chave) return { ok: false, motivo: "SEM_CHAVE", erro: "Conecte a Zernio em Marketing → Conexões." };
+
+  try {
+    const contaId = await contaInstagramId(chave);
+    if (!contaId) return { ok: false, motivo: "SEM_CONTA", erro: "O Instagram ainda não está conectado na Zernio." };
+    const pagina = await listarPostsComComentarios(chave, { contaId, plataforma: "instagram", limite: 20, cursor: cursor ?? undefined });
+    return { ok: true, conta: contaId, posts: pagina.posts, proximoCursor: pagina.proximoCursor };
+  } catch (erro) {
+    return { ok: false, motivo: "ERRO", erro: erro instanceof ErroZernio ? erro.message : "Não foi possível carregar os posts agora." };
+  }
+}
+
+export type ResultadoComentarios =
+  | { ok: true; comentarios: ComentarioZernio[]; proximoCursor: string | null }
+  | { ok: false; erro: string };
+
+/** Comentários de um post específico. */
+export async function obterComentariosDoPost(postId: string, contaId: string, cursor?: string | null): Promise<ResultadoComentarios> {
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "marketing.ver");
+  if (!postId || !contaId) return { ok: false, erro: "Post inválido." };
+
+  const chave = await lerChaveZernio(contexto.prisma, contexto.empresaId);
+  if (!chave) return { ok: false, erro: "Conecte a Zernio primeiro." };
+
+  try {
+    const pagina = await listarComentariosDoPost(chave, { postId, contaId, limite: 30, cursor: cursor ?? undefined });
+    return { ok: true, comentarios: pagina.comentarios, proximoCursor: pagina.proximoCursor };
+  } catch (erro) {
+    return { ok: false, erro: erro instanceof ErroZernio ? erro.message : "Não foi possível carregar os comentários agora." };
+  }
+}
+
+/** Responde a um comentário. */
+export async function responderComentarioPost(
+  postId: string,
+  contaId: string,
+  comentarioId: string,
+  mensagem: string
+): Promise<{ ok: boolean; erro?: string }> {
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "marketing.publicar");
+
+  const texto = String(mensagem ?? "").trim();
+  if (!texto) return { ok: false, erro: "Escreva a resposta." };
+  if (texto.length > 2000) return { ok: false, erro: "A resposta é longa demais." };
+  if (!postId || !contaId || !comentarioId) return { ok: false, erro: "Comentário inválido." };
+
+  const chave = await lerChaveZernio(contexto.prisma, contexto.empresaId);
+  if (!chave) return { ok: false, erro: "Conecte a Zernio primeiro." };
+
+  try {
+    await responderComentario(chave, { postId, contaId, comentarioId, mensagem: texto });
+    await registrarLogAuditoria(contexto.prisma, contextoAuditoriaDoUsuario(contexto.usuarioOperacional, `${ORIGEM}:responderComentarioPost`), {
+      acao: ACOES_AUDITORIA.PUBLICAR_MARKETING,
+      entidade: ENTIDADES_AUDITORIA.INTEGRACAO_MARKETING,
+      entidadeId: comentarioId,
+      dadosDepois: { acao: "responder_comentario", postId },
+    });
+    return { ok: true };
+  } catch (erro) {
+    return { ok: false, erro: erro instanceof ErroZernio ? erro.message : "Não foi possível responder agora. Tente de novo." };
+  }
+}
+
+/** Oculta ou reexibe um comentário. */
+export async function ocultarComentarioPost(
+  postId: string,
+  contaId: string,
+  comentarioId: string,
+  oculto: boolean
+): Promise<{ ok: boolean; erro?: string }> {
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "marketing.publicar");
+  if (!postId || !contaId || !comentarioId) return { ok: false, erro: "Comentário inválido." };
+
+  const chave = await lerChaveZernio(contexto.prisma, contexto.empresaId);
+  if (!chave) return { ok: false, erro: "Conecte a Zernio primeiro." };
+
+  try {
+    await definirOcultacaoComentario(chave, { postId, contaId, comentarioId, oculto: Boolean(oculto) });
+    await registrarLogAuditoria(contexto.prisma, contextoAuditoriaDoUsuario(contexto.usuarioOperacional, `${ORIGEM}:ocultarComentarioPost`), {
+      acao: ACOES_AUDITORIA.PUBLICAR_MARKETING,
+      entidade: ENTIDADES_AUDITORIA.INTEGRACAO_MARKETING,
+      entidadeId: comentarioId,
+      dadosDepois: { acao: oculto ? "ocultar_comentario" : "reexibir_comentario", postId },
+    });
+    return { ok: true };
+  } catch (erro) {
+    return { ok: false, erro: erro instanceof ErroZernio ? erro.message : "Não foi possível alterar o comentário agora." };
+  }
+}
+
+/** Sugere uma resposta curta para um comentário, no tom da loja, com IA. */
+export async function sugerirRespostaComentario(entrada: { autor: string; texto: string }): Promise<ResultadoSugestao> {
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "marketing.publicar");
+
+  const { iaConfigurada, gerarComIA, ErroIA } = await import("@/lib/ia/cliente");
+  if (!iaConfigurada()) {
+    return { ok: false, configurar: true, erro: "O gerador por IA não está ligado. Configure a chave de IA (IA_API_KEY)." };
+  }
+
+  const nomeLoja = await nomeDaLoja(contexto.prisma);
+  const autor = String(entrada.autor ?? "").trim() || "cliente";
+  const texto = String(entrada.texto ?? "").trim();
+
+  const sistema = [
+    `Você responde comentários de posts do Instagram em nome de ${nomeLoja}, uma assistência técnica de celulares no Brasil.`,
+    "Escreve em português do Brasil, em primeira pessoa do plural (nós), de forma simpática, próxima e MUITO breve: 1 a 2 frases, no máximo 200 caracteres.",
+    "Regras:",
+    "- Pode usar no máximo um emoji, quando combinar.",
+    "- Agradeça/responda de forma genuína ao que a pessoa disse.",
+    "- Se for dúvida de preço/prazo, convide a chamar no WhatsApp ou a mandar direct, sem inventar valores.",
+    "- Nunca invente detalhes, nomes, descontos ou promessas que não foram ditos.",
+    "- Entregue só a resposta final, pronta para publicar, sem colchetes.",
+  ].join("\n");
+
+  const usuario = [`Comentário de ${autor}:`, texto || "(sem texto)", "", "Escreva apenas a resposta da loja."].join("\n");
+
+  try {
+    const resposta = await gerarComIA(
+      [
+        { papel: "system", conteudo: sistema },
+        { papel: "user", conteudo: usuario },
+      ],
+      { maxTokens: 200, temperatura: 0.7 }
+    );
+    const sugestao = resposta.trim();
+    if (!sugestao) return { ok: false, erro: "A IA não devolveu texto. Tente de novo." };
+    return { ok: true, sugestao };
+  } catch (erro) {
+    if (erro instanceof ErroIA) return { ok: false, erro: erro.message };
+    console.error("[marketing] falha ao sugerir resposta de comentário", erro instanceof Error ? erro.message : erro);
+    return { ok: false, erro: "Não foi possível sugerir agora. Tente de novo." };
   }
 }

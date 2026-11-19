@@ -483,6 +483,128 @@ export async function enviarMensagem(chave: string, entrada: { conversaId: strin
   });
 }
 
+// ── Comentários dos posts ─────────────────────────────────────────────────────
+
+export type PostComComentarios = {
+  id: string;
+  contaId: string;
+  usuario: string;
+  plataforma: string;
+  conteudo: string;
+  foto: string | null;
+  permalink: string | null;
+  qtdComentarios: number;
+  qtdCurtidas: number;
+  criadoEm: string;
+};
+
+// Lista os posts publicados que têm (ou podem ter) comentários, mais recentes
+// primeiro. Filtra por conta/plataforma quando informado.
+export async function listarPostsComComentarios(
+  chave: string,
+  filtros: { contaId?: string; plataforma?: string; limite?: number; cursor?: string | null } = {}
+): Promise<{ posts: PostComComentarios[]; proximoCursor: string | null }> {
+  const d = await requisitar<{
+    data?: Array<Record<string, unknown>>;
+    pagination?: { nextCursor?: string | null };
+  }>(chave, "GET", "/inbox/comments", {
+    query: {
+      platform: filtros.plataforma ?? undefined,
+      accountId: filtros.contaId ?? undefined,
+      limit: filtros.limite ?? 20,
+      cursor: filtros.cursor ?? undefined,
+      sortBy: "date",
+      sortOrder: "desc",
+      view: "full",
+    },
+  });
+  const posts = (d.data ?? []).map((p) => ({
+    id: String(p.id ?? ""),
+    contaId: String(p.accountId ?? filtros.contaId ?? ""),
+    usuario: String(p.accountUsername ?? ""),
+    plataforma: String(p.platform ?? ""),
+    conteudo: String(p.content ?? ""),
+    foto: (p.picture as string | undefined) ?? (p.thumbnailUrl as string | undefined) ?? (p.mediaUrl as string | undefined) ?? null,
+    permalink: (p.permalink as string | undefined) ?? null,
+    qtdComentarios: Number(p.commentCount ?? 0) || 0,
+    qtdCurtidas: Number(p.likeCount ?? 0) || 0,
+    criadoEm: String(p.createdTime ?? ""),
+  }));
+  return { posts, proximoCursor: d.pagination?.nextCursor ?? null };
+}
+
+export type ComentarioZernio = {
+  id: string;
+  autor: string;
+  fotoAutor: string | null;
+  texto: string;
+  criadoEm: string;
+  curtidas: number;
+  respostas: number;
+  oculto: boolean;
+  url: string | null;
+};
+
+export async function listarComentariosDoPost(
+  chave: string,
+  filtros: { postId: string; contaId: string; limite?: number; cursor?: string | null }
+): Promise<{ comentarios: ComentarioZernio[]; proximoCursor: string | null }> {
+  const d = await requisitar<{
+    comments?: Array<Record<string, unknown>>;
+    pagination?: { cursor?: string | null; nextCursor?: string | null };
+  }>(chave, "GET", `/inbox/comments/${encodeURIComponent(filtros.postId)}`, {
+    query: { accountId: filtros.contaId, limit: filtros.limite ?? 30, cursor: filtros.cursor ?? undefined, view: "full" },
+  });
+  const comentarios = (d.comments ?? []).map((c) => {
+    const from = (c.from ?? {}) as {
+      name?: string;
+      username?: string;
+      displayName?: string;
+      picture?: string | null;
+      profileImage?: string | null;
+    };
+    const respostas = Array.isArray(c.replies)
+      ? (c.replies as unknown[]).length
+      : Number(c.repliesCount ?? c.replyCount ?? 0) || 0;
+    return {
+      id: String(c.id ?? ""),
+      autor: String(from.name ?? from.displayName ?? from.username ?? "").trim() || "Usuário",
+      fotoAutor: from.picture ?? from.profileImage ?? null,
+      texto: String(c.text ?? c.message ?? c.content ?? "").trim(),
+      criadoEm: String(c.createdTime ?? c.created_time ?? c.timestamp ?? ""),
+      curtidas: Number(c.likeCount ?? c.likes ?? 0) || 0,
+      respostas,
+      oculto: Boolean(c.isHidden ?? c.hidden ?? false),
+      url: (c.url as string | undefined) ?? (c.permalink as string | undefined) ?? null,
+    };
+  });
+  return { comentarios, proximoCursor: d.pagination?.nextCursor ?? d.pagination?.cursor ?? null };
+}
+
+// Responde a um comentário (commentId) ou, sem ele, posta um comentário no post.
+export async function responderComentario(
+  chave: string,
+  entrada: { postId: string; contaId: string; comentarioId?: string; mensagem: string }
+): Promise<void> {
+  await requisitar(chave, "POST", `/inbox/comments/${encodeURIComponent(entrada.postId)}`, {
+    corpo: { accountId: entrada.contaId, commentId: entrada.comentarioId ?? undefined, message: entrada.mensagem },
+  });
+}
+
+// Oculta (POST .../hide) ou reexibe (DELETE no mesmo caminho) um comentário.
+// Ocultar mantém o comentário visível só para o autor; some para o resto.
+export async function definirOcultacaoComentario(
+  chave: string,
+  entrada: { postId: string; contaId: string; comentarioId: string; oculto: boolean }
+): Promise<void> {
+  const caminho = `/inbox/comments/${encodeURIComponent(entrada.postId)}/${encodeURIComponent(entrada.comentarioId)}/hide`;
+  if (entrada.oculto) {
+    await requisitar(chave, "POST", caminho, { corpo: { accountId: entrada.contaId } });
+  } else {
+    await requisitar(chave, "DELETE", caminho, { query: { accountId: entrada.contaId } });
+  }
+}
+
 // ── Melhor horário para postar ────────────────────────────────────────────────
 
 export type HorarioSlot = { diaSemana: number; hora: number; engajamento: number; posts: number };
