@@ -93,6 +93,7 @@ export const ITENS_NAVEGACAO: readonly ItemNavegacao[] = [
     path: "/marketing",
     iconKey: "Marketing",
     filhos: [
+      { label: "Análise & Dicas", path: "/marketing/analise" },
       { label: "Publicações", path: "/marketing/publicacoes" },
       { label: "Anúncios", path: "/marketing/anuncios" },
       { label: "Instagram", path: "/marketing/instagram" },
