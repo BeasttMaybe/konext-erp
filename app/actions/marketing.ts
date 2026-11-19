@@ -36,12 +36,14 @@ import {
   insightsDaRede,
   listarAvaliacoes,
   listarContas,
+  melhorHorario,
   metricasGooglePerfil,
   responderAvaliacao as responderAvaliacaoZernio,
   subirMidia,
   validarChave,
   type AvaliacaoZernio,
   type DestinoPost,
+  type HorarioSlot,
   type ResumoAvaliacoes,
 } from "@/lib/zernio/cliente";
 import { auditarSite } from "@/lib/seo/auditar";
@@ -1120,6 +1122,108 @@ export async function aplicarDescricaoGoogle(descricao: string): Promise<{ ok: b
     return { ok: true };
   } catch (erro) {
     return { ok: false, erro: erro instanceof ErroZernio ? erro.message : "Não foi possível aplicar no Google agora. Tente de novo." };
+  }
+}
+
+// ── Postar novidade no Google com IA ──────────────────────────────────────────
+
+const LIMITE_POST_GOOGLE = 1400;
+
+export type ResultadoNovidadeGoogle =
+  | { ok: true; sugestao: string; limite: number }
+  | { ok: false; erro: string; motivo?: MotivoSemGoogle; configurar?: boolean };
+
+export async function sugerirNovidadeGoogle(tema?: string): Promise<ResultadoNovidadeGoogle> {
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "marketing.ver");
+
+  const { iaConfigurada, gerarComIA, ErroIA } = await import("@/lib/ia/cliente");
+  if (!iaConfigurada()) return { ok: false, configurar: true, erro: "A sugestão usa IA. Configure a chave de IA (IA_API_KEY)." };
+
+  const config = await contexto.prisma.configuracao.findFirst({ select: { nomeFantasia: true, cidade: true } });
+  const nomeLoja = config?.nomeFantasia?.trim() || "a loja";
+  const temaLimpo = String(tema ?? "").trim().slice(0, 200);
+
+  const sistema = [
+    `Você escreve posts de "novidade" para o Perfil da Empresa no Google de ${nomeLoja}, uma assistência técnica de celulares no Brasil.`,
+    "Escreva em português do Brasil, curto e direto, como um aviso ou oferta que aparece no Google.",
+    "Regras:",
+    `- No máximo ${LIMITE_POST_GOOGLE} caracteres (ideal bem menos, 2 a 4 frases).`,
+    "- Pode usar 1 ou 2 emojis. Sem inventar preços, prazos ou serviços que não existem.",
+    "- Entregue apenas o texto final, pronto para publicar; sem aspas, títulos nem colchetes.",
+  ].join("\n");
+  const usuario = temaLimpo ? `Tema da novidade: ${temaLimpo}` : "Escreva uma novidade útil (ex.: serviço em destaque, dica rápida ou chamada para visitar a loja).";
+
+  try {
+    const resposta = await gerarComIA(
+      [
+        { papel: "system", conteudo: sistema },
+        { papel: "user", conteudo: usuario },
+      ],
+      { maxTokens: 400, temperatura: 0.8 }
+    );
+    const sugestao = resposta.trim().slice(0, LIMITE_POST_GOOGLE);
+    if (!sugestao) return { ok: false, erro: "A IA não devolveu texto. Tente de novo." };
+    return { ok: true, sugestao, limite: LIMITE_POST_GOOGLE };
+  } catch (erro) {
+    if (erro instanceof ErroIA) return { ok: false, erro: erro.message };
+    return { ok: false, erro: "Não foi possível sugerir agora. Tente de novo." };
+  }
+}
+
+export async function publicarNovidadeGoogle(texto: string): Promise<{ ok: boolean; erro?: string; url?: string | null }> {
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "marketing.publicar");
+
+  const conteudo = String(texto ?? "").trim();
+  if (!conteudo) return { ok: false, erro: "Escreva a novidade antes de publicar." };
+  if (conteudo.length > LIMITE_POST_GOOGLE) return { ok: false, erro: `A novidade pode ter até ${LIMITE_POST_GOOGLE} caracteres.` };
+
+  const chave = await lerChaveZernio(contexto.prisma, contexto.empresaId);
+  if (!chave) return { ok: false, erro: "Conecte a Zernio primeiro." };
+
+  try {
+    const { randomUUID } = await import("node:crypto");
+    const contas = await listarContas(chave);
+    const idGoogle = contas.find((c) => c.plataforma === "googlebusiness")?.id;
+    if (!idGoogle) return { ok: false, erro: "O Perfil do Google não está conectado na Zernio." };
+
+    const resultado = await criarPost(chave, {
+      conteudo,
+      destinos: [{ plataforma: "googlebusiness", contaId: idGoogle }],
+      idempotencia: randomUUID(),
+    });
+    await registrarLogAuditoria(contexto.prisma, contextoAuditoriaDoUsuario(contexto.usuarioOperacional, `${ORIGEM}:publicarNovidadeGoogle`), {
+      acao: ACOES_AUDITORIA.PUBLICAR_MARKETING,
+      entidade: ENTIDADES_AUDITORIA.INTEGRACAO_MARKETING,
+      dadosDepois: { acao: "post_google", zernioPostId: resultado.postId },
+    });
+    revalidatePath("/marketing/google");
+    return { ok: true, url: resultado.porPlataforma.find((p) => p.url)?.url ?? null };
+  } catch (erro) {
+    return { ok: false, erro: erro instanceof ErroZernio ? erro.message : "Não foi possível publicar no Google agora. Tente de novo." };
+  }
+}
+
+// ── Melhor horário para postar ────────────────────────────────────────────────
+
+export type ResultadoMelhorHorario = { ok: true; slots: HorarioSlot[] } | { ok: false; motivo: MotivoSemGoogle; erro: string };
+
+export async function obterMelhorHorario(plataforma: "INSTAGRAM" | "TIKTOK"): Promise<ResultadoMelhorHorario> {
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "marketing.ver");
+
+  const chave = await lerChaveZernio(contexto.prisma, contexto.empresaId);
+  if (!chave) return { ok: false, motivo: "SEM_CHAVE", erro: "Conecte a Zernio em Marketing → Conexões." };
+
+  const idZernio = plataforma === "INSTAGRAM" ? "instagram" : "tiktok";
+  try {
+    const contas = await listarContas(chave);
+    const contaId = contas.find((c) => c.plataforma === idZernio)?.id;
+    if (!contaId) return { ok: false, motivo: "SEM_CONTA", erro: "Conta não conectada na Zernio." };
+    return { ok: true, slots: await melhorHorario(chave, contaId) };
+  } catch (erro) {
+    return { ok: false, motivo: "ERRO", erro: erro instanceof ErroZernio ? erro.message : "Não foi possível obter o melhor horário agora." };
   }
 }
 

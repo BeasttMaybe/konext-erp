@@ -6,6 +6,7 @@ import { obterAvaliacoesGoogle, obterMetricasGoogle } from "@/app/actions/market
 import { GraficoDesempenhoGoogle } from "@/components/marketing/grafico-desempenho-google";
 import { ListaAvaliacoesGoogle } from "@/components/marketing/lista-avaliacoes-google";
 import { OtimizarDescricaoGoogle } from "@/components/marketing/otimizar-descricao-google";
+import { PostarNovidadeGoogle } from "@/components/marketing/postar-novidade-google";
 
 export const metadata = { title: "Perfil do Google | Marketing | TechOS" };
 
@@ -108,6 +109,9 @@ export default async function GooglePerfilPage() {
 
           {/* Otimizar a ficha (IA → aplicar) */}
           <OtimizarDescricaoGoogle />
+
+          {/* Postar novidade no Google (IA → publicar) */}
+          <PostarNovidadeGoogle />
 
           {/* Avaliações */}
           <div className="flex flex-col gap-3 rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5">
