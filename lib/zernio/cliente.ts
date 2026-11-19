@@ -135,7 +135,7 @@ export async function subirMidia(
     resposta = await fetch(presign.uploadUrl, {
       method: "PUT",
       headers: { "Content-Type": arquivo.tipoConteudo },
-      body: arquivo.bytes,
+      body: Buffer.from(arquivo.bytes),
       signal: AbortSignal.timeout(TIMEOUT_UPLOAD_MS),
     });
   } catch {
