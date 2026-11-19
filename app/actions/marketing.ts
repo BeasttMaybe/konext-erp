@@ -1450,18 +1450,12 @@ export async function responderAvaliacaoGoogle(reviewId: string, contaId: string
 
 export type ResultadoSugestao = { ok: true; sugestao: string } | { ok: false; erro: string; configurar?: boolean };
 
-/** Sugere uma resposta para a avaliação, no tom da loja, com IA. */
-export async function sugerirRespostaAvaliacao(entrada: { autor: string; nota: number; texto: string }): Promise<ResultadoSugestao> {
-  const contexto = await exigirContextoTenant();
-  exigirPermissao(contexto, "marketing.publicar");
-
-  const { iaConfigurada, gerarComIA, ErroIA } = await import("@/lib/ia/cliente");
-  if (!iaConfigurada()) {
-    return { ok: false, configurar: true, erro: "O gerador por IA não está ligado. Configure a chave de IA (IA_API_KEY)." };
-  }
-
-  const config = await contexto.prisma.configuracao.findFirst({ select: { nomeFantasia: true, cidade: true } });
-  const nomeLoja = config?.nomeFantasia?.trim() || "a loja";
+// Monta as mensagens (system/user) que pedem à IA a resposta de UMA avaliação,
+// no tom da loja. Pura: reusada pela sugestão avulsa e pela preparação em lote.
+function montarMensagensRespostaAvaliacao(
+  nomeLoja: string,
+  entrada: { autor: string; nota: number; texto: string }
+): Array<{ papel: "system" | "user"; conteudo: string }> {
   const autor = String(entrada.autor ?? "").trim() || "cliente";
   const nota = Math.max(0, Math.min(5, Number(entrada.nota) || 0));
   const texto = String(entrada.texto ?? "").trim();
@@ -1484,14 +1478,31 @@ export async function sugerirRespostaAvaliacao(entrada: { autor: string; nota: n
     "Escreva apenas a resposta da loja.",
   ].join("\n");
 
+  return [
+    { papel: "system", conteudo: sistema },
+    { papel: "user", conteudo: usuario },
+  ];
+}
+
+async function nomeDaLoja(prisma: ContextoTenantServidor["prisma"]): Promise<string> {
+  const config = await prisma.configuracao.findFirst({ select: { nomeFantasia: true } });
+  return config?.nomeFantasia?.trim() || "a loja";
+}
+
+/** Sugere uma resposta para a avaliação, no tom da loja, com IA. */
+export async function sugerirRespostaAvaliacao(entrada: { autor: string; nota: number; texto: string }): Promise<ResultadoSugestao> {
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "marketing.publicar");
+
+  const { iaConfigurada, gerarComIA, ErroIA } = await import("@/lib/ia/cliente");
+  if (!iaConfigurada()) {
+    return { ok: false, configurar: true, erro: "O gerador por IA não está ligado. Configure a chave de IA (IA_API_KEY)." };
+  }
+
+  const nomeLoja = await nomeDaLoja(contexto.prisma);
+
   try {
-    const resposta = await gerarComIA(
-      [
-        { papel: "system", conteudo: sistema },
-        { papel: "user", conteudo: usuario },
-      ],
-      { maxTokens: 300, temperatura: 0.7 }
-    );
+    const resposta = await gerarComIA(montarMensagensRespostaAvaliacao(nomeLoja, entrada), { maxTokens: 300, temperatura: 0.7 });
     const sugestao = resposta.trim();
     if (!sugestao) return { ok: false, erro: "A IA não devolveu texto. Tente de novo." };
     return { ok: true, sugestao };
@@ -1499,5 +1510,82 @@ export async function sugerirRespostaAvaliacao(entrada: { autor: string; nota: n
     if (erro instanceof ErroIA) return { ok: false, erro: erro.message };
     console.error("[marketing] falha ao sugerir resposta", erro instanceof Error ? erro.message : erro);
     return { ok: false, erro: "Não foi possível sugerir agora. Tente de novo." };
+  }
+}
+
+export type RascunhoAvaliacao = {
+  id: string;
+  contaId: string;
+  autor: string;
+  fotoAutor: string | null;
+  nota: number;
+  texto: string;
+  criadoEm: string;
+  sugestao: string;
+};
+
+export type ResultadoPendentes =
+  | { ok: true; itens: RascunhoAvaliacao[] }
+  | { ok: false; erro: string; configurar?: boolean; motivo?: MotivoSemGoogle };
+
+// Quantas avaliações sem resposta preparamos de uma vez. Cada uma é uma
+// chamada de IA; mais que isso deixa o dono esperando demais numa requisição só.
+const LIMITE_PREPARAR_LOTE = 6;
+
+/**
+ * Carrega as avaliações do Google ainda sem resposta e já gera, para cada uma,
+ * um rascunho de resposta com IA. O dono revisa/edita e envia (uma a uma ou
+ * todas) — nada é publicado aqui.
+ */
+export async function prepararRespostasPendentes(): Promise<ResultadoPendentes> {
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "marketing.publicar");
+
+  const { iaConfigurada, gerarComIA } = await import("@/lib/ia/cliente");
+  if (!iaConfigurada()) {
+    return { ok: false, configurar: true, erro: "O gerador por IA não está ligado. Configure a chave de IA (IA_API_KEY)." };
+  }
+
+  const chave = await lerChaveZernio(contexto.prisma, contexto.empresaId);
+  if (!chave) return { ok: false, motivo: "SEM_CHAVE", erro: "Conecte a Zernio em Marketing → Conexões." };
+
+  try {
+    const contaId = await contaGoogleId(chave);
+    if (!contaId) return { ok: false, motivo: "SEM_CONTA", erro: "O Perfil do Google ainda não está conectado na Zernio." };
+
+    const pagina = await listarAvaliacoes(chave, { contaId, apenasSemResposta: true, limite: LIMITE_PREPARAR_LOTE });
+    if (pagina.avaliacoes.length === 0) return { ok: true, itens: [] };
+
+    const nomeLoja = await nomeDaLoja(contexto.prisma);
+
+    const itens: RascunhoAvaliacao[] = [];
+    for (const a of pagina.avaliacoes) {
+      let sugestao = "";
+      try {
+        const resposta = await gerarComIA(montarMensagensRespostaAvaliacao(nomeLoja, { autor: a.autor, nota: a.nota, texto: a.texto }), {
+          maxTokens: 300,
+          temperatura: 0.7,
+        });
+        sugestao = resposta.trim();
+      } catch (erro) {
+        // Uma falha de IA numa avaliação não derruba o lote: o dono recebe o
+        // rascunho vazio e escreve/tenta de novo só nessa.
+        console.error("[marketing] falha ao preparar resposta em lote", erro instanceof Error ? erro.message : erro);
+      }
+      itens.push({
+        id: a.id,
+        contaId: a.contaId,
+        autor: a.autor,
+        fotoAutor: a.fotoAutor,
+        nota: a.nota,
+        texto: a.texto,
+        criadoEm: a.criadoEm,
+        sugestao,
+      });
+    }
+
+    return { ok: true, itens };
+  } catch (erro) {
+    return { ok: false, motivo: "ERRO", erro: erro instanceof ErroZernio ? erro.message : "Não foi possível carregar as avaliações agora." };
   }
 }
