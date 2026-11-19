@@ -26,6 +26,8 @@ import {
 } from "@/lib/zernio/conexao";
 import {
   ErroZernio,
+  LIMITE_DESCRICAO_GOOGLE,
+  atualizarDescricaoGoogle,
   criarPost,
   excluirPostZernio,
   fichaGoogle,
@@ -1030,6 +1032,94 @@ export async function gerarAnaliseMarketing(): Promise<ResultadoAnalise> {
     if (erro instanceof ErroIA) return { ok: false, erro: erro.message };
     console.error("[marketing] falha ao gerar análise", erro instanceof Error ? erro.message : erro);
     return { ok: false, erro: "Não foi possível gerar a análise agora. Tente de novo." };
+  }
+}
+
+// ── Ações do Perfil do Google (IA sugere, dono aplica) ────────────────────────
+
+export type ResultadoDescricaoGoogle =
+  | { ok: true; atual: string | null; sugestao: string; limite: number }
+  | { ok: false; erro: string; motivo?: MotivoSemGoogle; configurar?: boolean };
+
+export async function sugerirDescricaoGoogle(): Promise<ResultadoDescricaoGoogle> {
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "marketing.ver");
+
+  const { iaConfigurada, gerarComIA, ErroIA } = await import("@/lib/ia/cliente");
+  if (!iaConfigurada()) return { ok: false, configurar: true, erro: "A sugestão usa IA. Configure a chave de IA (IA_API_KEY)." };
+
+  const chave = await lerChaveZernio(contexto.prisma, contexto.empresaId);
+  if (!chave) return { ok: false, motivo: "SEM_CHAVE", erro: "Conecte a Zernio em Marketing → Conexões." };
+
+  const config = await contexto.prisma.configuracao.findFirst({ select: { nomeFantasia: true, cidade: true } });
+
+  let atual: string | null = null;
+  try {
+    const contas = await listarContas(chave);
+    const idGoogle = contas.find((c) => c.plataforma === "googlebusiness")?.id;
+    if (!idGoogle) return { ok: false, motivo: "SEM_CONTA", erro: "O Perfil do Google ainda não está conectado na Zernio." };
+    atual = (await fichaGoogle(chave, idGoogle)).descricao;
+  } catch (erro) {
+    return { ok: false, motivo: "ERRO", erro: erro instanceof ErroZernio ? erro.message : "Não foi possível ler a ficha do Google agora." };
+  }
+
+  const nomeLoja = config?.nomeFantasia?.trim() || "a loja";
+  const cidade = config?.cidade?.trim() || null;
+  const sistema = [
+    `Você escreve a descrição do Perfil da Empresa no Google de ${nomeLoja}, uma assistência técnica de celulares no Brasil${cidade ? ` em ${cidade}` : ""}.`,
+    "Escreva em português do Brasil, de forma natural, confiável e amigável, pensando em SEO local.",
+    "Regras:",
+    `- No máximo ${LIMITE_DESCRICAO_GOOGLE} caracteres.`,
+    "- Deixe claro o que a loja faz (conserto de celulares, troca de tela e bateria, acessórios), o diferencial (garantia, agilidade) e a cidade, se houver.",
+    "- Sem telefone, preço, link, emojis em excesso, aspas ou colchetes. Não invente serviços.",
+    "- Entregue apenas o texto final da descrição, pronto para publicar.",
+  ].join("\n");
+  const usuario = atual
+    ? `Descrição atual (melhore-a, mantendo o que for bom):\n${atual}`
+    : "Ainda não há descrição. Escreva uma do zero.";
+
+  try {
+    const resposta = await gerarComIA(
+      [
+        { papel: "system", conteudo: sistema },
+        { papel: "user", conteudo: usuario },
+      ],
+      { maxTokens: 500, temperatura: 0.6 }
+    );
+    const sugestao = resposta.trim().slice(0, LIMITE_DESCRICAO_GOOGLE);
+    if (!sugestao) return { ok: false, erro: "A IA não devolveu texto. Tente de novo." };
+    return { ok: true, atual, sugestao, limite: LIMITE_DESCRICAO_GOOGLE };
+  } catch (erro) {
+    if (erro instanceof ErroIA) return { ok: false, erro: erro.message };
+    return { ok: false, erro: "Não foi possível sugerir agora. Tente de novo." };
+  }
+}
+
+export async function aplicarDescricaoGoogle(descricao: string): Promise<{ ok: boolean; erro?: string }> {
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "marketing.publicar");
+
+  const texto = String(descricao ?? "").trim();
+  if (!texto) return { ok: false, erro: "A descrição está vazia." };
+  if (texto.length > LIMITE_DESCRICAO_GOOGLE) return { ok: false, erro: `A descrição pode ter até ${LIMITE_DESCRICAO_GOOGLE} caracteres.` };
+
+  const chave = await lerChaveZernio(contexto.prisma, contexto.empresaId);
+  if (!chave) return { ok: false, erro: "Conecte a Zernio primeiro." };
+
+  try {
+    const contas = await listarContas(chave);
+    const idGoogle = contas.find((c) => c.plataforma === "googlebusiness")?.id;
+    if (!idGoogle) return { ok: false, erro: "O Perfil do Google não está conectado na Zernio." };
+    await atualizarDescricaoGoogle(chave, idGoogle, texto);
+    await registrarLogAuditoria(contexto.prisma, contextoAuditoriaDoUsuario(contexto.usuarioOperacional, `${ORIGEM}:aplicarDescricaoGoogle`), {
+      acao: ACOES_AUDITORIA.PUBLICAR_MARKETING,
+      entidade: ENTIDADES_AUDITORIA.INTEGRACAO_MARKETING,
+      dadosDepois: { acao: "descricao_google", tamanho: texto.length },
+    });
+    revalidatePath("/marketing/google");
+    return { ok: true };
+  } catch (erro) {
+    return { ok: false, erro: erro instanceof ErroZernio ? erro.message : "Não foi possível aplicar no Google agora. Tente de novo." };
   }
 }
 

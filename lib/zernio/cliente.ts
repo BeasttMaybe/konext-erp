@@ -354,10 +354,14 @@ export type FichaGoogle = {
   categoriaPrincipal: string | null;
   qtdCategoriasSecundarias: number;
   temDescricao: boolean;
+  descricao: string | null;
   descricaoLen: number;
   temHorario: boolean;
   endereco: string | null;
 };
+
+/** Limite da descrição do Perfil da Empresa no Google. */
+export const LIMITE_DESCRICAO_GOOGLE = 750;
 
 export async function fichaGoogle(chave: string, contaId: string): Promise<FichaGoogle> {
   const d = await requisitar<Record<string, unknown>>(chave, "GET", `/accounts/${encodeURIComponent(contaId)}/gmb-location-details`, {
@@ -385,10 +389,18 @@ export async function fichaGoogle(chave: string, contaId: string): Promise<Ficha
     categoriaPrincipal: categories.primaryCategory?.displayName ?? null,
     qtdCategoriasSecundarias: Array.isArray(categories.additionalCategories) ? categories.additionalCategories.length : 0,
     temDescricao: descricao.length > 0,
+    descricao: descricao || null,
     descricaoLen: descricao.length,
     temHorario: Array.isArray(hours.periods) && hours.periods.length > 0,
     endereco: linhasEndereco || null,
   };
+}
+
+/** Atualiza a descrição da ficha do Google (profile.description). */
+export async function atualizarDescricaoGoogle(chave: string, contaId: string, descricao: string): Promise<void> {
+  await requisitar(chave, "PUT", `/accounts/${encodeURIComponent(contaId)}/gmb-location-details`, {
+    corpo: { updateMask: "profile.description", profile: { description: descricao } },
+  });
 }
 
 export async function fotosGoogle(chave: string, contaId: string): Promise<{ quantidade: number; temMais: boolean }> {
