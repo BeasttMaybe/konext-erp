@@ -1831,6 +1831,27 @@ model ConexaoMarketing {
   atualizadoEm DateTime @updatedAt @db.Timestamptz(3)
 }
 
+/// Integracao de marketing da loja via Zernio (uma linha por loja).
+///
+/// O ERP nao faz OAuth por plataforma: quem guarda as contas (Instagram,
+/// TikTok, Google Perfil) e publica de fato e a Zernio. Aqui fica so a CHAVE
+/// de API da loja, CIFRADA com a chave da empresa (lib/seguranca) — quem levar
+/// uma copia do banco nao leva junto o acesso a Zernio. As contas em si sao
+/// lidas ao vivo da Zernio, nunca copiadas para ca.
+model IntegracaoZernio {
+  id String @id @default(uuid())
+
+  /// Chave da API Zernio, cifrada (nunca em texto puro, nunca no cliente).
+  chaveCifrada String
+
+  conectadoEm  DateTime @default(now()) @db.Timestamptz(3)
+  conectadoPor String?
+  /// Ultima falha ao falar com a Zernio, para a tela explicar o que houve.
+  ultimoErro   String?
+
+  atualizadoEm DateTime @updatedAt @db.Timestamptz(3)
+}
+
 /// Um post organico ou um anuncio. Os canais-alvo ficam em `destinos`.
 model PublicacaoMarketing {
   id    String                  @id @default(uuid())
@@ -1841,6 +1862,9 @@ model PublicacaoMarketing {
   agendadoPara DateTime?                @db.Timestamptz(3)
   publicadoEm  DateTime?                @db.Timestamptz(3)
   ultimoErro   String?
+
+  /// Id do post na Zernio (quem publica/agenda de fato), para abrir/consultar.
+  zernioPostId String?
 
   /// So para ANUNCIO_PAGO: verba (centavos) e link de destino. Anuncio pago
   /// sempre exige aprovacao humana antes de publicar (gasta dinheiro).

@@ -1,0 +1,305 @@
+import "server-only";
+
+import type { RespostaPerformanceGoogle } from "./mapeamento";
+import { limparTextoAvaliacao } from "./mapeamento";
+
+/**
+ * Cliente da API Zernio (https://zernio.com/api/v1). A Zernio é quem guarda as
+ * contas das redes (Instagram, TikTok, Perfil do Google) e publica de fato; o
+ * ERP fala com ela por uma CHAVE de API da loja (Bearer), guardada cifrada
+ * (lib/zernio/conexao.ts). A chave nunca aparece no corpo das respostas nem vai
+ * para o navegador.
+ */
+
+const BASE = "https://zernio.com/api/v1";
+const TIMEOUT_MS = 30_000;
+const TIMEOUT_UPLOAD_MS = 60_000;
+
+export class ErroZernio extends Error {
+  readonly status: number | null;
+  readonly codigo: string | null;
+  constructor(mensagem: string, status: number | null = null, codigo: string | null = null) {
+    super(mensagem);
+    this.name = "ErroZernio";
+    this.status = status;
+    this.codigo = codigo;
+  }
+}
+
+type Opcoes = {
+  query?: Record<string, string | number | boolean | undefined>;
+  corpo?: unknown;
+  headers?: Record<string, string>;
+};
+
+/** Uma chamada à Zernio, já com tratamento de erro traduzido para o dono. */
+async function requisitar<T>(chave: string, metodo: string, caminho: string, opcoes: Opcoes = {}): Promise<T> {
+  const url = new URL(BASE + caminho);
+  for (const [k, v] of Object.entries(opcoes.query ?? {})) {
+    if (v !== undefined && v !== null) url.searchParams.set(k, String(v));
+  }
+
+  let resposta: Response;
+  try {
+    resposta = await fetch(url, {
+      method: metodo,
+      headers: {
+        Authorization: `Bearer ${chave}`,
+        ...(opcoes.corpo !== undefined ? { "Content-Type": "application/json" } : {}),
+        ...opcoes.headers,
+      },
+      body: opcoes.corpo !== undefined ? JSON.stringify(opcoes.corpo) : undefined,
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+  } catch {
+    throw new ErroZernio("Não foi possível falar com a Zernio agora. Tente de novo em instantes.");
+  }
+
+  if (resposta.status === 401 || resposta.status === 403) {
+    throw new ErroZernio("A chave da Zernio foi recusada. Confira a chave em Marketing → Conexões.", resposta.status);
+  }
+  if (resposta.status === 429) {
+    throw new ErroZernio("A Zernio está limitando as requisições agora. Tente de novo em instantes.", 429);
+  }
+
+  const texto = await resposta.text().catch(() => "");
+  let dados: unknown = null;
+  if (texto) {
+    try {
+      dados = JSON.parse(texto);
+    } catch {
+      dados = null;
+    }
+  }
+
+  if (!resposta.ok) {
+    const corpo = (dados ?? {}) as { error?: { message?: string } | string; message?: string; code?: string };
+    const codigo = corpo.code ?? null;
+    if (resposta.status === 402 || codigo === "analytics_addon_required") {
+      throw new ErroZernio(
+        "O recurso de análise não está incluído no seu plano Zernio. Ative o add-on de Analytics na Zernio para ver as métricas do Perfil do Google.",
+        402,
+        "analytics_addon_required"
+      );
+    }
+    const detalhe =
+      (typeof corpo.error === "string" ? corpo.error : corpo.error?.message) ||
+      corpo.message ||
+      texto.replace(/\s+/g, " ").trim();
+    throw new ErroZernio(
+      `A Zernio recusou (${resposta.status})${detalhe ? `: ${String(detalhe).slice(0, 200)}` : "."}`,
+      resposta.status,
+      codigo
+    );
+  }
+
+  return (dados ?? {}) as T;
+}
+
+// ── Contas conectadas ─────────────────────────────────────────────────────────
+
+export type ContaZernio = { id: string; plataforma: string; usuario: string };
+
+export async function listarContas(chave: string): Promise<ContaZernio[]> {
+  const dados = await requisitar<{ accounts?: Array<Record<string, unknown>> }>(chave, "GET", "/accounts");
+  return (dados.accounts ?? [])
+    .map((a) => ({
+      id: String(a._id ?? a.id ?? ""),
+      plataforma: String(a.platform ?? ""),
+      usuario: String(a.username ?? a.name ?? a.displayName ?? ""),
+    }))
+    .filter((c) => c.id && c.plataforma);
+}
+
+/** Confere a chave fazendo a chamada mais barata; devolve as contas. Lança ErroZernio se inválida. */
+export async function validarChave(chave: string): Promise<ContaZernio[]> {
+  return listarContas(chave);
+}
+
+// ── Mídia ─────────────────────────────────────────────────────────────────────
+
+/** Sobe um arquivo para a Zernio e devolve a URL pública para usar no post. */
+export async function subirMidia(
+  chave: string,
+  arquivo: { nome: string; tipoConteudo: string; bytes: Uint8Array }
+): Promise<string> {
+  const presign = await requisitar<{ uploadUrl?: string; publicUrl?: string }>(chave, "POST", "/media/presign", {
+    corpo: { filename: arquivo.nome, contentType: arquivo.tipoConteudo, size: arquivo.bytes.byteLength },
+  });
+  if (!presign.uploadUrl || !presign.publicUrl) {
+    throw new ErroZernio("A Zernio não devolveu o endereço de upload da imagem.");
+  }
+
+  let resposta: Response;
+  try {
+    resposta = await fetch(presign.uploadUrl, {
+      method: "PUT",
+      headers: { "Content-Type": arquivo.tipoConteudo },
+      body: Buffer.from(arquivo.bytes),
+      signal: AbortSignal.timeout(TIMEOUT_UPLOAD_MS),
+    });
+  } catch {
+    throw new ErroZernio("Falha ao enviar a imagem para a Zernio. Tente de novo.");
+  }
+  if (!resposta.ok) throw new ErroZernio(`Falha ao enviar a imagem para a Zernio (${resposta.status}).`);
+
+  return presign.publicUrl;
+}
+
+// ── Publicar / agendar ────────────────────────────────────────────────────────
+
+export type DestinoPost = { plataforma: string; contaId: string };
+
+export type ResultadoPost = {
+  postId: string | null;
+  status: string | null;
+  porPlataforma: Array<{ plataforma: string; status: string; url: string | null }>;
+};
+
+export async function criarPost(
+  chave: string,
+  entrada: {
+    conteudo: string;
+    destinos: DestinoPost[];
+    midias?: Array<{ tipo: "image" | "video"; url: string }>;
+    /** Horário local "yyyy-MM-ddTHH:mm:ss" para agendar; vazio = publicar agora. */
+    agendarPara?: string | null;
+    fusoHorario?: string;
+    idempotencia?: string;
+  }
+): Promise<ResultadoPost> {
+  const corpo: Record<string, unknown> = {
+    content: entrada.conteudo,
+    platforms: entrada.destinos.map((d) => ({ platform: d.plataforma, accountId: d.contaId })),
+  };
+  if (entrada.midias?.length) corpo.mediaItems = entrada.midias.map((m) => ({ type: m.tipo, url: m.url }));
+  if (entrada.agendarPara) {
+    corpo.scheduledFor = entrada.agendarPara;
+    corpo.timezone = entrada.fusoHorario ?? "America/Sao_Paulo";
+  } else {
+    corpo.publishNow = true;
+  }
+
+  const dados = await requisitar<{ post?: Record<string, unknown> }>(chave, "POST", "/posts", {
+    corpo,
+    headers: entrada.idempotencia ? { "Idempotency-Key": entrada.idempotencia } : undefined,
+  });
+
+  const post = (dados.post ?? {}) as {
+    _id?: string;
+    id?: string;
+    status?: string;
+    platforms?: Array<{ platform?: string; status?: string; platformPostUrl?: string | null }>;
+  };
+
+  return {
+    postId: post._id ?? post.id ?? null,
+    status: post.status ?? null,
+    porPlataforma: Array.isArray(post.platforms)
+      ? post.platforms.map((p) => ({
+          plataforma: String(p.platform ?? ""),
+          status: String(p.status ?? ""),
+          url: p.platformPostUrl ?? null,
+        }))
+      : [],
+  };
+}
+
+/** Cancela um post AINDA não publicado (agendado). Um post já publicado não some. */
+export async function excluirPostZernio(chave: string, postId: string): Promise<void> {
+  await requisitar(chave, "DELETE", `/posts/${encodeURIComponent(postId)}`);
+}
+
+// ── Avaliações do Perfil do Google ────────────────────────────────────────────
+
+export type AvaliacaoZernio = {
+  id: string;
+  contaId: string;
+  localNome: string | null;
+  autor: string;
+  fotoAutor: string | null;
+  nota: number;
+  texto: string;
+  criadoEm: string;
+  respondida: boolean;
+  respostaTexto: string | null;
+  url: string | null;
+};
+
+export type ResumoAvaliacoes = { total: number; media: number };
+
+export type PaginaAvaliacoes = {
+  avaliacoes: AvaliacaoZernio[];
+  resumo: ResumoAvaliacoes | null;
+  proximoCursor: string | null;
+};
+
+export async function listarAvaliacoes(
+  chave: string,
+  filtros: { contaId: string; apenasSemResposta?: boolean; notaMax?: number; limite?: number; cursor?: string | null }
+): Promise<PaginaAvaliacoes> {
+  const dados = await requisitar<{
+    data?: Array<Record<string, unknown>>;
+    summary?: { totalReviews?: number; averageRating?: number };
+    pagination?: { nextCursor?: string | null };
+  }>(chave, "GET", "/inbox/reviews", {
+    query: {
+      platform: "googlebusiness",
+      accountId: filtros.contaId,
+      hasReply: filtros.apenasSemResposta ? false : undefined,
+      maxRating: filtros.notaMax,
+      limit: filtros.limite ?? 25,
+      cursor: filtros.cursor ?? undefined,
+    },
+  });
+
+  const avaliacoes = (dados.data ?? []).map((r) => {
+    const reviewer = (r.reviewer ?? {}) as { name?: string; profileImage?: string | null };
+    const reply = (r.reply ?? {}) as { text?: string; comment?: string };
+    return {
+      id: String(r.id ?? ""),
+      contaId: String(r.accountId ?? filtros.contaId),
+      localNome: (r.locationName as string | undefined) ?? null,
+      autor: reviewer.name?.trim() || "Cliente",
+      fotoAutor: reviewer.profileImage ?? null,
+      nota: Math.max(0, Math.min(5, Number(r.rating ?? 0) || 0)),
+      texto: limparTextoAvaliacao(String(r.text ?? "")),
+      criadoEm: String(r.created ?? ""),
+      respondida: Boolean(r.hasReply),
+      respostaTexto: reply.text ?? reply.comment ?? null,
+      url: (r.reviewUrl as string | undefined) ?? null,
+    };
+  });
+
+  return {
+    avaliacoes,
+    resumo: dados.summary
+      ? { total: Number(dados.summary.totalReviews ?? 0) || 0, media: Number(dados.summary.averageRating ?? 0) || 0 }
+      : null,
+    proximoCursor: dados.pagination?.nextCursor ?? null,
+  };
+}
+
+/**
+ * Responde uma avaliação. O Google guarda UMA resposta por avaliação: uma nova
+ * sobrescreve a anterior (inclusive uma digitada à mão no Google). A tela avisa.
+ */
+export async function responderAvaliacao(
+  chave: string,
+  entrada: { reviewId: string; contaId: string; mensagem: string }
+): Promise<void> {
+  await requisitar(chave, "POST", `/inbox/reviews/${encodeURIComponent(entrada.reviewId)}/reply`, {
+    corpo: { accountId: entrada.contaId, message: entrada.mensagem },
+  });
+}
+
+// ── Métricas de desempenho do Perfil do Google ────────────────────────────────
+
+export async function metricasGooglePerfil(
+  chave: string,
+  entrada: { contaId: string; de: string; ate: string }
+): Promise<RespostaPerformanceGoogle> {
+  return requisitar<RespostaPerformanceGoogle>(chave, "GET", "/analytics/googlebusiness/performance", {
+    query: { accountId: entrada.contaId, startDate: entrada.de, endDate: entrada.ate },
+  });
+}

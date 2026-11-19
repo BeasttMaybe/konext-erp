@@ -1,118 +1,168 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { format, subDays } from "date-fns";
+import { TZDate } from "@date-fns/tz";
 
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { exigirPermissao } from "@/lib/auth/permissoes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
-import {
-  CANAIS_ORGANICOS,
-  PLATAFORMAS,
-  plataformaConfiguravel,
-  type CanalMarketing,
-  type IdPlataformaMarketing,
-} from "@/lib/dominio/marketing/plataformas";
+import { CANAIS_ORGANICOS, ROTULO_CANAL, type CanalMarketing } from "@/lib/dominio/marketing/plataformas";
 import {
   podeCancelar,
   podeEditar,
-  statusAoSalvar,
   validarPublicacao,
   type StatusPublicacao,
   type TipoPublicacao,
 } from "@/lib/dominio/marketing/publicacao";
+import { FUSO_HORARIO_PADRAO } from "@/lib/datas";
+import {
+  estadoIntegracaoZernio,
+  lerChaveZernio,
+  registrarErroZernio,
+  removerChaveZernio,
+  salvarChaveZernio,
+} from "@/lib/zernio/conexao";
+import {
+  ErroZernio,
+  criarPost,
+  excluirPostZernio,
+  listarAvaliacoes,
+  listarContas,
+  metricasGooglePerfil,
+  responderAvaliacao as responderAvaliacaoZernio,
+  subirMidia,
+  validarChave,
+  type AvaliacaoZernio,
+  type DestinoPost,
+  type ResumoAvaliacoes,
+} from "@/lib/zernio/cliente";
+import { canalParaZernio, resumirMetricasGoogle, zernioParaCanal, type MetricasGoogle } from "@/lib/zernio/mapeamento";
 import type { ContextoTenantServidor } from "@/types/tenant";
 
 /**
- * Marketing (lib/dominio/marketing). Publicações e conexões ficam no banco do
- * tenant; os tokens das plataformas são cifrados com a chave da empresa. O que
- * realmente fala com Meta/Google/TikTok entra depois, conexão por conexão —
- * aqui está a base: compor, agendar e guardar.
+ * Marketing integrado 100% à Zernio. As contas das redes (Instagram, TikTok,
+ * Perfil do Google) vivem na Zernio; o ERP fala com ela por uma chave de API da
+ * loja (cifrada — lib/zernio). Aqui ficam: conexão, composição/agendamento,
+ * geração de texto com IA e o painel do Perfil do Google (métricas e avaliações).
  */
 
 const ORIGEM = "app/actions/marketing.ts";
 
-// ── Conexões ─────────────────────────────────────────────────────────────────
-
-export type SituacaoDaPlataforma = {
-  id: IdPlataformaMarketing;
-  nome: string;
-  organico: boolean;
-  anuncios: boolean;
-  preRequisito: string;
-  /** O dono já configurou o app (variáveis de ambiente presentes)? */
-  pronta: boolean;
-  status: StatusConexao;
-  contaNome: string | null;
-  ultimoErro: string | null;
-};
-
-type StatusConexao = "NAO_CONFIGURADA" | "DESCONECTADA" | "CONECTADA" | "EXPIRADA" | "ERRO";
-
-function variaveisPresentes(): Set<string> {
-  const presentes = new Set<string>();
-  for (const plataforma of PLATAFORMAS) {
-    for (const v of plataforma.variaveis) {
-      if ((process.env[v] ?? "").trim().length > 0) presentes.add(v);
-    }
-  }
-  return presentes;
+/** Rótulo amigável para plataformas que não têm um canal nosso (ex.: linkedin). */
+function rotuloPlataformaZernio(plataforma: string): string {
+  const mapa: Record<string, string> = {
+    instagram: "Instagram",
+    facebook: "Facebook",
+    tiktok: "TikTok",
+    googlebusiness: "Perfil do Google",
+    youtube: "YouTube",
+    linkedin: "LinkedIn",
+    twitter: "X (Twitter)",
+    pinterest: "Pinterest",
+    threads: "Threads",
+    bluesky: "Bluesky",
+  };
+  return mapa[plataforma] ?? plataforma.charAt(0).toUpperCase() + plataforma.slice(1);
 }
 
-export async function obterConexoes(): Promise<SituacaoDaPlataforma[]> {
+// ── Conexão com a Zernio ──────────────────────────────────────────────────────
+
+export type ContaConectada = {
+  id: string;
+  plataforma: string;
+  usuario: string;
+  canal: CanalMarketing | null;
+  rotulo: string;
+};
+
+export type EstadoConexaoZernio = {
+  configurada: boolean;
+  conectadoEm: string | null;
+  contas: ContaConectada[];
+  erro: string | null;
+};
+
+export async function obterConexaoZernio(): Promise<EstadoConexaoZernio> {
   const contexto = await exigirContextoTenant();
   exigirPermissao(contexto, "marketing.ver");
 
-  const linhas = await contexto.prisma.conexaoMarketing.findMany({
-    select: { plataforma: true, status: true, contaNome: true, ultimoErro: true },
-  });
-  const porPlataforma = new Map(linhas.map((l) => [l.plataforma, l]));
-  const env = variaveisPresentes();
+  const estado = await estadoIntegracaoZernio(contexto.prisma);
+  if (!estado.existe) return { configurada: false, conectadoEm: null, contas: [], erro: null };
 
-  return PLATAFORMAS.map((def) => {
-    const linha = porPlataforma.get(def.id);
-    const pronta = plataformaConfiguravel(def.id, env);
-    // Sem o app configurado pelo dono, a plataforma nem pode ser conectada.
-    const status: StatusConexao = linha ? (linha.status as StatusConexao) : pronta ? "DESCONECTADA" : "NAO_CONFIGURADA";
+  const chave = await lerChaveZernio(contexto.prisma, contexto.empresaId);
+  if (!chave) {
+    return { configurada: false, conectadoEm: null, contas: [], erro: "A chave salva não pôde ser lida. Reconecte a Zernio." };
+  }
+
+  try {
+    const contas = await listarContas(chave);
+    await registrarErroZernio(contexto.prisma, null);
     return {
-      id: def.id,
-      nome: def.nome,
-      organico: def.organico,
-      anuncios: def.anuncios,
-      preRequisito: def.preRequisito,
-      pronta,
-      status: pronta ? status : "NAO_CONFIGURADA",
-      contaNome: linha?.contaNome ?? null,
-      ultimoErro: linha?.ultimoErro ?? null,
+      configurada: true,
+      conectadoEm: estado.conectadoEm?.toISOString() ?? null,
+      contas: contas.map((c) => {
+        const canal = zernioParaCanal(c.plataforma);
+        return {
+          id: c.id,
+          plataforma: c.plataforma,
+          usuario: c.usuario,
+          canal,
+          rotulo: canal ? ROTULO_CANAL[canal] : rotuloPlataformaZernio(c.plataforma),
+        };
+      }),
+      erro: null,
     };
-  });
+  } catch (erro) {
+    const mensagem = erro instanceof ErroZernio ? erro.message : "Não foi possível falar com a Zernio agora.";
+    await registrarErroZernio(contexto.prisma, mensagem).catch(() => {});
+    return { configurada: true, conectadoEm: estado.conectadoEm?.toISOString() ?? null, contas: [], erro: mensagem };
+  }
 }
 
-export type ResultadoConexao = { ok: true; mensagem: string } | { ok: false; erro: string };
+export type ResultadoConexaoZernio = { ok: true; contas: number } | { ok: false; erro: string };
 
-/**
- * Início da conexão de uma plataforma. A troca de tokens (OAuth) de cada
- * plataforma entra numa etapa própria; por ora, se o app ainda não foi
- * configurado pelo dono, explica o que falta.
- */
-export async function iniciarConexao(plataforma: string): Promise<ResultadoConexao> {
+export async function conectarZernio(chaveBruta: string): Promise<ResultadoConexaoZernio> {
   const contexto = await exigirContextoTenant();
   exigirPermissao(contexto, "marketing.conectar");
-  const def = PLATAFORMAS.find((p) => p.id === plataforma);
-  if (!def) return { ok: false, erro: "Plataforma inválida." };
-  if (!plataformaConfiguravel(def.id, variaveisPresentes())) {
-    return {
-      ok: false,
-      erro: `Antes de conectar, é preciso configurar o app desta plataforma. ${def.preRequisito}`,
-    };
+
+  const chave = String(chaveBruta ?? "").trim();
+  if (!chave) return { ok: false, erro: "Cole a sua chave da API Zernio." };
+  if (chave.length < 10) return { ok: false, erro: "Essa chave parece curta demais. Confira em zernio.com → API keys." };
+
+  let contas;
+  try {
+    contas = await validarChave(chave);
+  } catch (erro) {
+    return { ok: false, erro: erro instanceof ErroZernio ? erro.message : "Não foi possível validar a chave agora. Tente de novo." };
   }
-  return {
-    ok: true,
-    mensagem: "Conexão pronta para ligar. O login seguro com a plataforma será o próximo passo desta integração.",
-  };
+
+  await salvarChaveZernio(contexto.prisma, contexto.empresaId, chave, contexto.usuarioOperacional.id || null);
+  await registrarLogAuditoria(contexto.prisma, contextoAuditoriaDoUsuario(contexto.usuarioOperacional, `${ORIGEM}:conectarZernio`), {
+    acao: ACOES_AUDITORIA.CONECTAR_ZERNIO,
+    entidade: ENTIDADES_AUDITORIA.INTEGRACAO_MARKETING,
+    dadosDepois: { contas: contas.length },
+  });
+  revalidatePath("/marketing/conexoes");
+  revalidatePath("/marketing");
+  return { ok: true, contas: contas.length };
 }
 
-// ── Publicações ──────────────────────────────────────────────────────────────
+export async function desconectarZernio(): Promise<{ ok: boolean }> {
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "marketing.conectar");
+  await removerChaveZernio(contexto.prisma);
+  await registrarLogAuditoria(contexto.prisma, contextoAuditoriaDoUsuario(contexto.usuarioOperacional, `${ORIGEM}:desconectarZernio`), {
+    acao: ACOES_AUDITORIA.DESCONECTAR_ZERNIO,
+    entidade: ENTIDADES_AUDITORIA.INTEGRACAO_MARKETING,
+  });
+  revalidatePath("/marketing/conexoes");
+  revalidatePath("/marketing");
+  return { ok: true };
+}
+
+// ── Publicações (CRUD) ────────────────────────────────────────────────────────
 
 export type MidiaDaPublicacao = { id: string; url: string; tipoConteudo: string };
 
@@ -180,17 +230,19 @@ export async function salvarPublicacao(id: string | null, entrada: Record<string
   const dados = validacao.dados;
   exigirPermissaoDoTipo(contexto, dados.tipo);
 
-  // Posts orgânicos não podem ter canal que seja só de anúncio (ex.: nenhum
-  // canal do Google Ads é de publicação). Mantém a escolha coerente.
   const canaisValidos = dados.canais.filter((c) => (CANAIS_ORGANICOS as readonly string[]).includes(c));
   if (canaisValidos.length === 0) return { ok: false, erro: "Escolha um canal de publicação válido." };
 
-  const status = statusAoSalvar(dados);
-
+  // Salvar sempre guarda como RASCUNHO: publicar/agendar é um passo explícito
+  // (publicarPublicacao), que é quem fala com a Zernio. A data preenchida fica
+  // guardada como a hora pretendida para o botão "Agendar".
   try {
     if (id) {
       const atual = await contexto.prisma.publicacaoMarketing.findUnique({ where: { id }, select: { id: true, status: true } });
       if (!atual) return { ok: false, erro: "Publicação não encontrada." };
+      if (atual.status === "AGENDADA") {
+        return { ok: false, erro: "Esta publicação está agendada na Zernio. Cancele o agendamento antes de editar." };
+      }
       if (!podeEditar(atual.status as StatusPublicacao)) return { ok: false, erro: "Esta publicação não pode mais ser editada." };
       await contexto.prisma.$transaction(async (tx) => {
         await tx.publicacaoDestino.deleteMany({ where: { publicacaoId: id } });
@@ -199,7 +251,8 @@ export async function salvarPublicacao(id: string | null, entrada: Record<string
           data: {
             tipo: dados.tipo,
             texto: dados.texto,
-            status,
+            status: "RASCUNHO",
+            zernioPostId: null,
             agendadoPara: dados.agendadoPara ? new Date(dados.agendadoPara) : null,
             orcamentoCentavos: dados.orcamentoCentavos,
             linkDestino: dados.linkDestino,
@@ -218,7 +271,7 @@ export async function salvarPublicacao(id: string | null, entrada: Record<string
       data: {
         tipo: dados.tipo,
         texto: dados.texto,
-        status,
+        status: "RASCUNHO",
         agendadoPara: dados.agendadoPara ? new Date(dados.agendadoPara) : null,
         orcamentoCentavos: dados.orcamentoCentavos,
         linkDestino: dados.linkDestino,
@@ -231,7 +284,7 @@ export async function salvarPublicacao(id: string | null, entrada: Record<string
       acao: ACOES_AUDITORIA.CRIAR,
       entidade: ENTIDADES_AUDITORIA.PUBLICACAO_MARKETING,
       entidadeId: criada.id,
-      dadosDepois: { tipo: dados.tipo, status, canais: canaisValidos },
+      dadosDepois: { tipo: dados.tipo, status: "RASCUNHO", canais: canaisValidos },
     });
     revalidatePath("/marketing/publicacoes");
     revalidatePath("/marketing/anuncios");
@@ -293,11 +346,30 @@ export async function obterPublicacao(id: string): Promise<PublicacaoParaEditar 
 export async function cancelarPublicacao(id: string): Promise<ResultadoPublicacao> {
   const contexto = await exigirContextoTenant();
   exigirPermissao(contexto, "marketing.ver");
-  const atual = await contexto.prisma.publicacaoMarketing.findUnique({ where: { id }, select: { id: true, status: true, tipo: true } });
+  const atual = await contexto.prisma.publicacaoMarketing.findUnique({
+    where: { id },
+    select: { id: true, status: true, tipo: true, zernioPostId: true },
+  });
   if (!atual) return { ok: false, erro: "Publicação não encontrada." };
   exigirPermissaoDoTipo(contexto, atual.tipo as TipoPublicacao);
   if (!podeCancelar(atual.status as StatusPublicacao)) return { ok: false, erro: "Esta publicação não pode ser cancelada." };
-  await contexto.prisma.publicacaoMarketing.update({ where: { id }, data: { status: "CANCELADA" }, select: { id: true } });
+
+  // Agendada na Zernio: tira o agendamento de lá ANTES, senão o post sairia
+  // mesmo cancelado aqui.
+  if (atual.status === "AGENDADA" && atual.zernioPostId) {
+    const chave = await lerChaveZernio(contexto.prisma, contexto.empresaId);
+    if (!chave) return { ok: false, erro: "Conecte a Zernio para cancelar um post agendado." };
+    try {
+      await excluirPostZernio(chave, atual.zernioPostId);
+    } catch (erro) {
+      return {
+        ok: false,
+        erro: erro instanceof ErroZernio ? `Não deu para cancelar o agendamento na Zernio: ${erro.message}` : "Não deu para cancelar o agendamento na Zernio agora. Tente de novo.",
+      };
+    }
+  }
+
+  await contexto.prisma.publicacaoMarketing.update({ where: { id }, data: { status: "CANCELADA", zernioPostId: null }, select: { id: true } });
   revalidatePath("/marketing/publicacoes");
   revalidatePath("/marketing/anuncios");
   return { ok: true, id };
@@ -309,10 +381,26 @@ export async function excluirPublicacao(id: string): Promise<ResultadoPublicacao
   const { apagarObjeto } = await import("@/lib/fotos/armazenamento");
   const p = await contexto.prisma.publicacaoMarketing.findUnique({
     where: { id },
-    select: { id: true, tipo: true, midias: { select: { chaveArmazenamento: true } } },
+    select: { id: true, tipo: true, status: true, zernioPostId: true, midias: { select: { chaveArmazenamento: true } } },
   });
   if (!p) return { ok: false, erro: "Publicação não encontrada." };
   exigirPermissaoDoTipo(contexto, p.tipo as TipoPublicacao);
+
+  // Se ainda está agendada na Zernio, tira de lá antes de apagar aqui.
+  if (p.status === "AGENDADA" && p.zernioPostId) {
+    const chave = await lerChaveZernio(contexto.prisma, contexto.empresaId);
+    if (chave) {
+      try {
+        await excluirPostZernio(chave, p.zernioPostId);
+      } catch (erro) {
+        return {
+          ok: false,
+          erro: erro instanceof ErroZernio ? `Cancele o agendamento na Zernio antes de excluir: ${erro.message}` : "Não deu para cancelar o agendamento na Zernio agora. Tente de novo.",
+        };
+      }
+    }
+  }
+
   for (const m of p.midias) await apagarObjeto(m.chaveArmazenamento).catch(() => {});
   await contexto.prisma.publicacaoMarketing.delete({ where: { id } });
   revalidatePath("/marketing/publicacoes");
@@ -320,11 +408,158 @@ export async function excluirPublicacao(id: string): Promise<ResultadoPublicacao
   return { ok: true, id };
 }
 
-// ── Mídia ────────────────────────────────────────────────────────────────────
+// ── Publicar / agendar (via Zernio) ───────────────────────────────────────────
+
+export type ResultadoPublicar =
+  | { ok: true; status: StatusPublicacao; url: string | null }
+  | { ok: false; erro: string; configurar?: boolean };
+
+export async function publicarPublicacao(id: string, opcoes?: { agendarPara?: string | null }): Promise<ResultadoPublicar> {
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "marketing.ver");
+  const { randomUUID } = await import("node:crypto");
+  const { lerObjetoComoBytes } = await import("@/lib/fotos/armazenamento");
+
+  const pub = await contexto.prisma.publicacaoMarketing.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      tipo: true,
+      texto: true,
+      status: true,
+      agendadoPara: true,
+      destinos: { select: { canal: true } },
+      midias: { select: { chaveArmazenamento: true, tipoConteudo: true }, orderBy: { ordem: "asc" } },
+    },
+  });
+  if (!pub) return { ok: false, erro: "Publicação não encontrada." };
+  exigirPermissaoDoTipo(contexto, pub.tipo as TipoPublicacao);
+
+  if (pub.tipo === "ANUNCIO_PAGO") {
+    return { ok: false, erro: "Anúncios pagos não publicam por aqui ainda — por ora são planejados. A publicação paga entra numa etapa própria." };
+  }
+  if (!podeEditar(pub.status as StatusPublicacao)) {
+    return { ok: false, erro: "Esta publicação não pode mais ser publicada (já saiu ou foi cancelada)." };
+  }
+  if (!pub.texto.trim()) return { ok: false, erro: "Escreva o texto antes de publicar." };
+
+  const canais = pub.destinos.map((d) => d.canal as CanalMarketing);
+  if (canais.length === 0) return { ok: false, erro: "Escolha ao menos um canal." };
+
+  const chave = await lerChaveZernio(contexto.prisma, contexto.empresaId);
+  if (!chave) return { ok: false, configurar: true, erro: "Conecte a Zernio em Marketing → Conexões antes de publicar." };
+
+  // Agendar? Converte o instante guardado (UTC) para a hora local da loja, que é
+  // o formato que a Zernio espera (horário "de parede" + fuso à parte).
+  const fuso = contexto.fusoHorario ?? FUSO_HORARIO_PADRAO;
+  const quando = opcoes?.agendarPara ?? (pub.agendadoPara ? pub.agendadoPara.toISOString() : null);
+  let agendarLocal: string | null = null;
+  if (quando) {
+    const instante = new Date(quando);
+    if (Number.isNaN(instante.getTime())) return { ok: false, erro: "Data de agendamento inválida." };
+    if (instante.getTime() <= Date.now()) {
+      return { ok: false, erro: "O horário de agendamento já passou. Escolha um horário futuro ou publique agora." };
+    }
+    agendarLocal = format(new TZDate(instante, fuso), "yyyy-MM-dd'T'HH:mm:ss");
+  }
+
+  try {
+    const contas = await listarContas(chave);
+    const porPlataforma = new Map<string, string>();
+    for (const c of contas) if (!porPlataforma.has(c.plataforma)) porPlataforma.set(c.plataforma, c.id);
+
+    const destinos: DestinoPost[] = [];
+    const faltando: string[] = [];
+    for (const canal of canais) {
+      const contaId = porPlataforma.get(canalParaZernio(canal));
+      if (contaId) destinos.push({ plataforma: canalParaZernio(canal), contaId });
+      else faltando.push(ROTULO_CANAL[canal]);
+    }
+    if (destinos.length === 0) {
+      return {
+        ok: false,
+        configurar: true,
+        erro: `Nenhum dos canais escolhidos está conectado na Zernio (${faltando.join(", ")}). Conecte-os na Zernio e tente de novo.`,
+      };
+    }
+
+    // Reenvia as imagens do R2 para a Zernio (ela hospeda e serve no post).
+    const midias: Array<{ tipo: "image"; url: string }> = [];
+    for (const m of pub.midias) {
+      const bytes = await lerObjetoComoBytes(m.chaveArmazenamento);
+      const nome = m.chaveArmazenamento.split("/").pop() || "imagem.jpg";
+      const url = await subirMidia(chave, { nome, tipoConteudo: m.tipoConteudo, bytes });
+      midias.push({ tipo: "image", url });
+    }
+
+    const resultado = await criarPost(chave, {
+      conteudo: pub.texto,
+      destinos,
+      midias,
+      agendarPara: agendarLocal,
+      fusoHorario: fuso,
+      idempotencia: randomUUID(),
+    });
+
+    const novoStatus: StatusPublicacao = agendarLocal ? "AGENDADA" : "PUBLICADA";
+    const statusPorPlataforma = new Map(resultado.porPlataforma.map((p) => [p.plataforma, p]));
+
+    await contexto.prisma.$transaction(async (tx) => {
+      await tx.publicacaoMarketing.update({
+        where: { id },
+        data: {
+          status: novoStatus,
+          publicadoEm: agendarLocal ? null : new Date(),
+          agendadoPara: quando ? new Date(quando) : null,
+          zernioPostId: resultado.postId,
+          ultimoErro: null,
+        },
+      });
+      for (const canal of canais) {
+        const plataforma = canalParaZernio(canal);
+        const enviado = destinos.some((d) => d.plataforma === plataforma);
+        const resPlataforma = statusPorPlataforma.get(plataforma);
+        const falhou = Boolean(resPlataforma && /fail|error|reject/i.test(resPlataforma.status));
+        await tx.publicacaoDestino.updateMany({
+          where: { publicacaoId: id, canal },
+          data: {
+            status: !enviado ? "FALHOU" : agendarLocal ? "PENDENTE" : falhou ? "FALHOU" : "PUBLICADA",
+            idExternoPublicado: resPlataforma?.url ?? null,
+            erro: !enviado ? "Canal não conectado na Zernio" : null,
+            publicadoEm: !agendarLocal && enviado && !falhou ? new Date() : null,
+          },
+        });
+      }
+    });
+
+    await registrarErroZernio(contexto.prisma, null).catch(() => {});
+    await registrarLogAuditoria(contexto.prisma, contextoAuditoriaDoUsuario(contexto.usuarioOperacional, `${ORIGEM}:publicarPublicacao`), {
+      acao: ACOES_AUDITORIA.PUBLICAR_MARKETING,
+      entidade: ENTIDADES_AUDITORIA.PUBLICACAO_MARKETING,
+      entidadeId: id,
+      dadosDepois: { status: novoStatus, canais, agendado: Boolean(agendarLocal), zernioPostId: resultado.postId },
+    });
+
+    revalidatePath("/marketing/publicacoes");
+    revalidatePath("/marketing");
+    const url = resultado.porPlataforma.find((p) => p.url)?.url ?? null;
+    return { ok: true, status: novoStatus, url };
+  } catch (erro) {
+    const mensagem = erro instanceof ErroZernio ? erro.message : "Não foi possível publicar agora. Tente de novo.";
+    await contexto.prisma.publicacaoMarketing
+      .update({ where: { id }, data: { status: "FALHOU", ultimoErro: mensagem.slice(0, 500) } })
+      .catch(() => {});
+    await registrarErroZernio(contexto.prisma, mensagem).catch(() => {});
+    if (!(erro instanceof ErroZernio)) console.error("[marketing] falha ao publicar", erro instanceof Error ? erro.message : erro);
+    revalidatePath("/marketing/publicacoes");
+    return { ok: false, erro: mensagem };
+  }
+}
+
+// ── Mídia ──────────────────────────────────────────────────────────────────────
 
 export type ResultadoMidia = { ok: true; midia: MidiaDaPublicacao } | { ok: false; erro: string };
 
-/** Sobe uma imagem e anexa a uma publicação já criada (R2, como as fotos de OS). */
 export async function enviarMidiaDaPublicacao(dados: FormData): Promise<ResultadoMidia> {
   const contexto = await exigirContextoTenant();
   const { randomUUID } = await import("node:crypto");
@@ -381,28 +616,27 @@ export async function removerMidiaDaPublicacao(midiaId: string): Promise<{ ok: b
 export async function obterResumoMarketing(): Promise<{ agendadas: number; rascunhos: number; publicadas: number; conexoesAtivas: number }> {
   const contexto = await exigirContextoTenant();
   exigirPermissao(contexto, "marketing.ver");
-  const [agendadas, rascunhos, publicadas, conexoesAtivas] = await Promise.all([
+  const [agendadas, rascunhos, publicadas] = await Promise.all([
     contexto.prisma.publicacaoMarketing.count({ where: { status: "AGENDADA" } }),
     contexto.prisma.publicacaoMarketing.count({ where: { status: "RASCUNHO" } }),
     contexto.prisma.publicacaoMarketing.count({ where: { status: "PUBLICADA" } }),
-    contexto.prisma.conexaoMarketing.count({ where: { status: "CONECTADA" } }),
   ]);
+
+  let conexoesAtivas = 0;
+  try {
+    const chave = await lerChaveZernio(contexto.prisma, contexto.empresaId);
+    if (chave) conexoesAtivas = (await listarContas(chave)).length;
+  } catch {
+    conexoesAtivas = 0;
+  }
+
   return { agendadas, rascunhos, publicadas, conexoesAtivas };
 }
 
+// ── Gerador de texto com IA ────────────────────────────────────────────────────
 
-// ── Gerador de texto com IA ──────────────────────────────────────────────────
+export type ResultadoGeracao = { ok: true; variacoes: string[] } | { ok: false; erro: string; configurar?: boolean };
 
-export type ResultadoGeracao =
-  | { ok: true; variacoes: string[] }
-  | { ok: false; erro: string; configurar?: boolean };
-
-/**
- * Escreve sugestões de legenda com IA, a partir do tema, do tom e das
- * referências do usuário, no contexto da loja (lib/dominio/marketing/
- * gerador-de-texto.ts). A chave de IA é do dono (IA_API_KEY); sem ela, devolve
- * `configurar: true` para a tela explicar.
- */
 export async function gerarTextoPublicacao(entrada: Record<string, unknown>): Promise<ResultadoGeracao> {
   const contexto = await exigirContextoTenant();
   exigirPermissao(contexto, "marketing.publicar");
@@ -421,9 +655,7 @@ export async function gerarTextoPublicacao(entrada: Record<string, unknown>): Pr
   const pedidoLido = lerPedido(entrada ?? {});
   if (!pedidoLido.ok) return { ok: false, erro: pedidoLido.erro };
 
-  const config = await contexto.prisma.configuracao.findFirst({
-    select: { nomeFantasia: true, cidade: true, telefone: true },
-  });
+  const config = await contexto.prisma.configuracao.findFirst({ select: { nomeFantasia: true, cidade: true, telefone: true } });
 
   const mensagens = montarMensagens(
     {
@@ -444,5 +676,153 @@ export async function gerarTextoPublicacao(entrada: Record<string, unknown>): Pr
     if (erro instanceof ErroIA) return { ok: false, erro: erro.message };
     console.error("[marketing] falha ao gerar texto", erro instanceof Error ? erro.message : erro);
     return { ok: false, erro: "Não foi possível gerar o texto agora. Tente de novo." };
+  }
+}
+
+// ── Perfil do Google: métricas e avaliações ───────────────────────────────────
+
+async function contaGoogleId(chave: string): Promise<string | null> {
+  const contas = await listarContas(chave);
+  return contas.find((c) => c.plataforma === "googlebusiness")?.id ?? null;
+}
+
+export type MotivoSemGoogle = "SEM_CHAVE" | "SEM_CONTA" | "SEM_ANALYTICS" | "ERRO";
+
+export type ResultadoMetricasGoogle =
+  | { ok: true; conta: string; dias: number; metricas: MetricasGoogle }
+  | { ok: false; motivo: MotivoSemGoogle; erro: string };
+
+export async function obterMetricasGoogle(dias = 30): Promise<ResultadoMetricasGoogle> {
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "marketing.ver");
+
+  const janela = Math.max(7, Math.min(540, Math.trunc(dias) || 30));
+  const chave = await lerChaveZernio(contexto.prisma, contexto.empresaId);
+  if (!chave) return { ok: false, motivo: "SEM_CHAVE", erro: "Conecte a Zernio em Marketing → Conexões." };
+
+  const fuso = contexto.fusoHorario ?? FUSO_HORARIO_PADRAO;
+  const hoje = TZDate.tz(fuso);
+  const ate = format(hoje, "yyyy-MM-dd");
+  const de = format(subDays(hoje, janela), "yyyy-MM-dd");
+
+  try {
+    const contaId = await contaGoogleId(chave);
+    if (!contaId) return { ok: false, motivo: "SEM_CONTA", erro: "O Perfil do Google ainda não está conectado na Zernio." };
+    const resposta = await metricasGooglePerfil(chave, { contaId, de, ate });
+    return { ok: true, conta: contaId, dias: janela, metricas: resumirMetricasGoogle(resposta) };
+  } catch (erro) {
+    if (erro instanceof ErroZernio && erro.codigo === "analytics_addon_required") {
+      return { ok: false, motivo: "SEM_ANALYTICS", erro: erro.message };
+    }
+    return { ok: false, motivo: "ERRO", erro: erro instanceof ErroZernio ? erro.message : "Não foi possível obter as métricas agora." };
+  }
+}
+
+export type FiltroAvaliacoes = "TODAS" | "SEM_RESPOSTA" | "BAIXAS";
+
+export type ResultadoAvaliacoes =
+  | { ok: true; conta: string; avaliacoes: AvaliacaoZernio[]; resumo: ResumoAvaliacoes | null; proximoCursor: string | null }
+  | { ok: false; motivo: MotivoSemGoogle; erro: string };
+
+export async function obterAvaliacoesGoogle(filtro: FiltroAvaliacoes = "TODAS", cursor?: string | null): Promise<ResultadoAvaliacoes> {
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "marketing.ver");
+
+  const chave = await lerChaveZernio(contexto.prisma, contexto.empresaId);
+  if (!chave) return { ok: false, motivo: "SEM_CHAVE", erro: "Conecte a Zernio em Marketing → Conexões." };
+
+  try {
+    const contaId = await contaGoogleId(chave);
+    if (!contaId) return { ok: false, motivo: "SEM_CONTA", erro: "O Perfil do Google ainda não está conectado na Zernio." };
+    const pagina = await listarAvaliacoes(chave, {
+      contaId,
+      apenasSemResposta: filtro === "SEM_RESPOSTA",
+      notaMax: filtro === "BAIXAS" ? 3 : undefined,
+      limite: 15,
+      cursor: cursor ?? undefined,
+    });
+    return { ok: true, conta: contaId, avaliacoes: pagina.avaliacoes, resumo: pagina.resumo, proximoCursor: pagina.proximoCursor };
+  } catch (erro) {
+    return { ok: false, motivo: "ERRO", erro: erro instanceof ErroZernio ? erro.message : "Não foi possível carregar as avaliações agora." };
+  }
+}
+
+export async function responderAvaliacaoGoogle(reviewId: string, contaId: string, mensagem: string): Promise<{ ok: boolean; erro?: string }> {
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "marketing.publicar");
+
+  const texto = String(mensagem ?? "").trim();
+  if (!texto) return { ok: false, erro: "Escreva a resposta." };
+  if (texto.length > 4000) return { ok: false, erro: "A resposta é longa demais (máx. 4000 caracteres)." };
+  if (!reviewId || !contaId) return { ok: false, erro: "Avaliação inválida." };
+
+  const chave = await lerChaveZernio(contexto.prisma, contexto.empresaId);
+  if (!chave) return { ok: false, erro: "Conecte a Zernio primeiro." };
+
+  try {
+    await responderAvaliacaoZernio(chave, { reviewId, contaId, mensagem: texto });
+    await registrarLogAuditoria(contexto.prisma, contextoAuditoriaDoUsuario(contexto.usuarioOperacional, `${ORIGEM}:responderAvaliacaoGoogle`), {
+      acao: ACOES_AUDITORIA.RESPONDER_AVALIACAO_GOOGLE,
+      entidade: ENTIDADES_AUDITORIA.INTEGRACAO_MARKETING,
+      entidadeId: reviewId,
+    });
+    revalidatePath("/marketing/google");
+    return { ok: true };
+  } catch (erro) {
+    return { ok: false, erro: erro instanceof ErroZernio ? erro.message : "Não foi possível responder agora. Tente de novo." };
+  }
+}
+
+export type ResultadoSugestao = { ok: true; sugestao: string } | { ok: false; erro: string; configurar?: boolean };
+
+/** Sugere uma resposta para a avaliação, no tom da loja, com IA. */
+export async function sugerirRespostaAvaliacao(entrada: { autor: string; nota: number; texto: string }): Promise<ResultadoSugestao> {
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "marketing.publicar");
+
+  const { iaConfigurada, gerarComIA, ErroIA } = await import("@/lib/ia/cliente");
+  if (!iaConfigurada()) {
+    return { ok: false, configurar: true, erro: "O gerador por IA não está ligado. Configure a chave de IA (IA_API_KEY)." };
+  }
+
+  const config = await contexto.prisma.configuracao.findFirst({ select: { nomeFantasia: true, cidade: true } });
+  const nomeLoja = config?.nomeFantasia?.trim() || "a loja";
+  const autor = String(entrada.autor ?? "").trim() || "cliente";
+  const nota = Math.max(0, Math.min(5, Number(entrada.nota) || 0));
+  const texto = String(entrada.texto ?? "").trim();
+
+  const sistema = [
+    `Você responde avaliações do Google em nome de ${nomeLoja}, uma assistência técnica de celulares no Brasil.`,
+    "Escreve em português do Brasil, em primeira pessoa do plural (nós), de forma calorosa, educada e breve (2 a 4 frases).",
+    "Regras:",
+    "- Agradeça pelo nome quando houver nome.",
+    "- Para avaliações positivas: agradeça com simpatia e convide a voltar.",
+    "- Para avaliações críticas (nota baixa): peça desculpas com empatia, sem discutir, e convide a resolver pelo WhatsApp ou na loja.",
+    "- Nunca invente detalhes, nomes de funcionários, descontos ou promessas que não foram ditos.",
+    "- Não use colchetes nem campos para preencher; entregue a resposta final, pronta para publicar.",
+  ].join("\n");
+
+  const usuario = [
+    `Avaliação de ${autor} — ${nota} de 5 estrelas:`,
+    texto || "(sem texto, apenas a nota)",
+    "",
+    "Escreva apenas a resposta da loja.",
+  ].join("\n");
+
+  try {
+    const resposta = await gerarComIA(
+      [
+        { papel: "system", conteudo: sistema },
+        { papel: "user", conteudo: usuario },
+      ],
+      { maxTokens: 300, temperatura: 0.7 }
+    );
+    const sugestao = resposta.trim();
+    if (!sugestao) return { ok: false, erro: "A IA não devolveu texto. Tente de novo." };
+    return { ok: true, sugestao };
+  } catch (erro) {
+    if (erro instanceof ErroIA) return { ok: false, erro: erro.message };
+    console.error("[marketing] falha ao sugerir resposta", erro instanceof Error ? erro.message : erro);
+    return { ok: false, erro: "Não foi possível sugerir agora. Tente de novo." };
   }
 }
