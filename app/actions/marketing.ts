@@ -28,6 +28,8 @@ import {
   ErroZernio,
   criarPost,
   excluirPostZernio,
+  fichaGoogle,
+  fotosGoogle,
   historicoSeguidoresInstagram,
   insightsDaRede,
   listarAvaliacoes,
@@ -40,6 +42,14 @@ import {
   type DestinoPost,
   type ResumoAvaliacoes,
 } from "@/lib/zernio/cliente";
+import { auditarSite } from "@/lib/seo/auditar";
+import {
+  lerRecomendacoes,
+  montarMensagensAnalise,
+  ordenarPorPrioridade,
+  type ContextoAnalise,
+  type Recomendacao,
+} from "@/lib/dominio/marketing/analise";
 import {
   canalParaZernio,
   resumirMetricasGoogle,
@@ -875,6 +885,151 @@ export async function obterAnaliseRede(plataforma: "INSTAGRAM" | "TIKTOK", dias 
       return { ok: false, motivo: "SEM_ANALYTICS", erro: erro.message };
     }
     return { ok: false, motivo: "ERRO", erro: erro instanceof ErroZernio ? erro.message : "Não foi possível obter os dados agora." };
+  }
+}
+
+// ── Análise & Dicas (IA sobre os dados reais) ─────────────────────────────────
+
+export type ResultadoAnalise =
+  | {
+      ok: true;
+      recomendacoes: Recomendacao[];
+      seo: { url: string; palavras: number; pareceSpa: boolean; problemas: string[] } | null;
+    }
+  | { ok: false; erro: string; configurar?: boolean };
+
+export async function gerarAnaliseMarketing(): Promise<ResultadoAnalise> {
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "marketing.ver");
+
+  const { iaConfigurada, gerarComIA, ErroIA } = await import("@/lib/ia/cliente");
+  if (!iaConfigurada()) {
+    return { ok: false, configurar: true, erro: "A análise usa IA. Configure a chave de IA (IA_API_KEY) para usar." };
+  }
+
+  const chave = await lerChaveZernio(contexto.prisma, contexto.empresaId);
+  if (!chave) return { ok: false, erro: "Conecte a Zernio em Marketing → Conexões para gerar a análise." };
+
+  const config = await contexto.prisma.configuracao.findFirst({ select: { nomeFantasia: true, cidade: true } });
+  const fuso = contexto.fusoHorario ?? FUSO_HORARIO_PADRAO;
+  const hoje = TZDate.tz(fuso);
+  const ate = format(hoje, "yyyy-MM-dd");
+  const de = format(subDays(hoje, 30), "yyyy-MM-dd");
+
+  let contas;
+  try {
+    contas = await listarContas(chave);
+  } catch (erro) {
+    return { ok: false, erro: erro instanceof ErroZernio ? erro.message : "Não foi possível falar com a Zernio agora." };
+  }
+  const idGoogle = contas.find((c) => c.plataforma === "googlebusiness")?.id ?? null;
+  const idInstagram = contas.find((c) => c.plataforma === "instagram")?.id ?? null;
+  const idTiktok = contas.find((c) => c.plataforma === "tiktok")?.id ?? null;
+
+  // Perfil do Google: métricas + avaliações + ficha + fotos (resiliente a falhas parciais).
+  let google: ContextoAnalise["google"] = null;
+  let siteUrl: string | null = null;
+  if (idGoogle) {
+    const [metricasRes, avaliacoesRes, fichaRes, fotosRes] = await Promise.allSettled([
+      metricasGooglePerfil(chave, { contaId: idGoogle, de, ate }),
+      listarAvaliacoes(chave, { contaId: idGoogle, apenasSemResposta: true, limite: 50 }),
+      fichaGoogle(chave, idGoogle),
+      fotosGoogle(chave, idGoogle),
+    ]);
+    const metricas = metricasRes.status === "fulfilled" ? resumirMetricasGoogle(metricasRes.value) : null;
+    const ficha = fichaRes.status === "fulfilled" ? fichaRes.value : null;
+    const fotos = fotosRes.status === "fulfilled" ? fotosRes.value : null;
+    const semResp = avaliacoesRes.status === "fulfilled" ? avaliacoesRes.value : null;
+    siteUrl = ficha?.site ?? null;
+    google = {
+      verificado: ficha?.verificado ?? false,
+      site: ficha?.site ?? null,
+      categoriaPrincipal: ficha?.categoriaPrincipal ?? null,
+      qtdCategoriasSecundarias: ficha?.qtdCategoriasSecundarias ?? 0,
+      temDescricao: ficha?.temDescricao ?? false,
+      descricaoLen: ficha?.descricaoLen ?? 0,
+      temHorario: ficha?.temHorario ?? false,
+      fotos: fotos ? `${fotos.quantidade}${fotos.temMais ? "+" : ""}` : "desconhecido",
+      impressoes: metricas?.totais.impressoes ?? 0,
+      ligacoes: metricas?.totais.ligacoes ?? 0,
+      rotas: metricas?.totais.rotas ?? 0,
+      cliquesSite: metricas?.totais.cliquesSite ?? 0,
+      avaliacoesTotal: semResp?.resumo?.total ?? 0,
+      avaliacoesMedia: semResp?.resumo?.media ?? 0,
+      avaliacoesSemResposta: semResp ? semResp.avaliacoes.length : 0,
+    };
+  }
+
+  // SEO do site (buscado pelo runtime do ERP; nunca derruba a análise).
+  let seo: ContextoAnalise["seo"] = null;
+  let seoPublico: { url: string; palavras: number; pareceSpa: boolean; problemas: string[] } | null = null;
+  if (siteUrl) {
+    const auditoria = await auditarSite(siteUrl);
+    if (auditoria.ok) {
+      seo = { problemas: auditoria.problemas, pareceSpa: auditoria.sinais.pareceSpa, palavras: auditoria.sinais.palavras };
+      seoPublico = {
+        url: auditoria.sinais.url,
+        palavras: auditoria.sinais.palavras,
+        pareceSpa: auditoria.sinais.pareceSpa,
+        problemas: auditoria.problemas,
+      };
+    }
+  }
+
+  // Instagram / TikTok (resumos para o contexto).
+  let instagram: ContextoAnalise["instagram"] = null;
+  if (idInstagram) {
+    try {
+      const [tot, seg] = await Promise.all([
+        insightsDaRede(chave, { plataforma: "instagram", contaId: idInstagram, de, ate, tipo: "total_value", metricas: "reach,total_interactions" }),
+        historicoSeguidoresInstagram(chave, { contaId: idInstagram, de, ate }),
+      ]);
+      const mt = (tot.metrics ?? {}) as MetricasBrutas;
+      const ms = (seg.metrics ?? {}) as MetricasBrutas;
+      instagram = { seguidores: totalMetrica(ms, "follower_count"), alcance: totalMetrica(mt, "reach"), interacoes: totalMetrica(mt, "total_interactions") };
+    } catch {
+      instagram = null;
+    }
+  }
+  let tiktok: ContextoAnalise["tiktok"] = null;
+  if (idTiktok) {
+    try {
+      const resp = await insightsDaRede(chave, {
+        plataforma: "tiktok",
+        contaId: idTiktok,
+        de,
+        ate,
+        tipo: "time_series",
+        metricas: "follower_count,video_views,likes",
+      });
+      const m = (resp.metrics ?? {}) as MetricasBrutas;
+      tiktok = { seguidores: totalMetrica(m, "follower_count"), visualizacoes: totalMetrica(m, "video_views"), curtidas: totalMetrica(m, "likes") };
+    } catch {
+      tiktok = null;
+    }
+  }
+
+  const ctx: ContextoAnalise = {
+    loja: {
+      nome: config?.nomeFantasia?.trim() || "a loja",
+      cidade: config?.cidade?.trim() || null,
+      segmento: "Assistência técnica de celulares: conserto, troca de tela, bateria, venda de acessórios e películas.",
+    },
+    google,
+    seo,
+    instagram,
+    tiktok,
+  };
+
+  try {
+    const resposta = await gerarComIA(montarMensagensAnalise(ctx), { maxTokens: 1500, temperatura: 0.5 });
+    const recomendacoes = ordenarPorPrioridade(lerRecomendacoes(resposta));
+    if (recomendacoes.length === 0) return { ok: false, erro: "A IA não devolveu recomendações desta vez. Tente de novo." };
+    return { ok: true, recomendacoes, seo: seoPublico };
+  } catch (erro) {
+    if (erro instanceof ErroIA) return { ok: false, erro: erro.message };
+    console.error("[marketing] falha ao gerar análise", erro instanceof Error ? erro.message : erro);
+    return { ok: false, erro: "Não foi possível gerar a análise agora. Tente de novo." };
   }
 }
 

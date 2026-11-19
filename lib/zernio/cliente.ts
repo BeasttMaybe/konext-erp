@@ -343,3 +343,60 @@ export async function historicoSeguidoresInstagram(
     query: { accountId: entrada.contaId, since: entrada.de, until: entrada.ate, metricType: "time_series" },
   });
 }
+
+// ── Ficha do Perfil do Google (para análise de SEO local) ─────────────────────
+
+export type FichaGoogle = {
+  titulo: string | null;
+  verificado: boolean;
+  site: string | null;
+  telefone: string | null;
+  categoriaPrincipal: string | null;
+  qtdCategoriasSecundarias: number;
+  temDescricao: boolean;
+  descricaoLen: number;
+  temHorario: boolean;
+  endereco: string | null;
+};
+
+export async function fichaGoogle(chave: string, contaId: string): Promise<FichaGoogle> {
+  const d = await requisitar<Record<string, unknown>>(chave, "GET", `/accounts/${encodeURIComponent(contaId)}/gmb-location-details`, {
+    query: { readMask: "title,websiteUri,phoneNumbers,categories,storefrontAddress,regularHours,profile" },
+  });
+
+  const location = (d.location ?? {}) as { isVerified?: boolean; name?: string };
+  const categories = (d.categories ?? {}) as {
+    primaryCategory?: { displayName?: string };
+    additionalCategories?: unknown[];
+  };
+  const phone = (d.phoneNumbers ?? {}) as { primaryPhone?: string };
+  const profile = (d.profile ?? {}) as { description?: string };
+  const hours = (d.regularHours ?? {}) as { periods?: unknown[] };
+  const endereco = (d.storefrontAddress ?? {}) as { addressLines?: string[]; locality?: string; administrativeArea?: string };
+
+  const descricao = String(profile.description ?? "").trim();
+  const linhasEndereco = [endereco.addressLines?.join(", "), endereco.locality, endereco.administrativeArea].filter(Boolean).join(" - ");
+
+  return {
+    titulo: (d.title as string | undefined) ?? location.name ?? null,
+    verificado: Boolean(location.isVerified),
+    site: (d.websiteUri as string | undefined) ?? null,
+    telefone: phone.primaryPhone ?? null,
+    categoriaPrincipal: categories.primaryCategory?.displayName ?? null,
+    qtdCategoriasSecundarias: Array.isArray(categories.additionalCategories) ? categories.additionalCategories.length : 0,
+    temDescricao: descricao.length > 0,
+    descricaoLen: descricao.length,
+    temHorario: Array.isArray(hours.periods) && hours.periods.length > 0,
+    endereco: linhasEndereco || null,
+  };
+}
+
+export async function fotosGoogle(chave: string, contaId: string): Promise<{ quantidade: number; temMais: boolean }> {
+  const d = await requisitar<{ mediaItems?: unknown[]; nextPageToken?: string }>(
+    chave,
+    "GET",
+    `/accounts/${encodeURIComponent(contaId)}/gmb-media`,
+    { query: { pageSize: 100 } }
+  );
+  return { quantidade: Array.isArray(d.mediaItems) ? d.mediaItems.length : 0, temMais: Boolean(d.nextPageToken) };
+}
