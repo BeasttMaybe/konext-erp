@@ -403,6 +403,24 @@ export async function atualizarDescricaoGoogle(chave: string, contaId: string, d
   });
 }
 
+// ── Melhor horário para postar ────────────────────────────────────────────────
+
+export type HorarioSlot = { diaSemana: number; hora: number; engajamento: number; posts: number };
+
+export async function melhorHorario(chave: string, contaId: string): Promise<HorarioSlot[]> {
+  const d = await requisitar<{ slots?: Array<Record<string, number>> }>(chave, "GET", "/analytics/best-time", {
+    query: { accountId: contaId },
+  });
+  return (d.slots ?? [])
+    .map((s) => ({
+      diaSemana: Number(s.day_of_week ?? 0) % 7,
+      hora: Math.max(0, Math.min(23, Number(s.hour ?? 0))),
+      engajamento: Math.max(0, Math.round(Number(s.avg_engagement ?? 0)) || 0),
+      posts: Math.max(0, Number(s.post_count ?? 0) || 0),
+    }))
+    .slice(0, 6);
+}
+
 export async function fotosGoogle(chave: string, contaId: string): Promise<{ quantidade: number; temMais: boolean }> {
   const d = await requisitar<{ mediaItems?: unknown[]; nextPageToken?: string }>(
     chave,

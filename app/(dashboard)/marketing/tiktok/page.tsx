@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { Plug } from "lucide-react";
 
-import { obterAnaliseRede } from "@/app/actions/marketing";
+import { obterAnaliseRede, obterMelhorHorario } from "@/app/actions/marketing";
 import { PainelAnaliseRede } from "@/components/marketing/painel-analise-rede";
+import { MelhorHorario } from "@/components/marketing/melhor-horario";
 
 export const metadata = { title: "TikTok | Marketing | TechOS" };
 
 export default async function TikTokPage() {
-  const r = await obterAnaliseRede("TIKTOK", 30);
+  const [r, melhor] = await Promise.all([obterAnaliseRede("TIKTOK", 30), obterMelhorHorario("TIKTOK")]);
   return (
     <div className="flex w-full flex-col gap-4 bg-kx-fundo p-4 pb-8 sm:p-5 lg:p-6">
       <div className="flex flex-col gap-0.5">
@@ -17,7 +18,10 @@ export default async function TikTokPage() {
       </div>
 
       {r.ok ? (
-        <PainelAnaliseRede analise={r.analise} />
+        <>
+          <PainelAnaliseRede analise={r.analise} />
+          {melhor.ok ? <MelhorHorario slots={melhor.slots} /> : null}
+        </>
       ) : r.motivo === "SEM_CHAVE" || r.motivo === "SEM_CONTA" ? (
         <div className="flex flex-col items-center gap-3 rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-10 text-center">
           <span className="flex h-12 w-12 items-center justify-center rounded-kx-botao bg-kx-info-fundo text-kx-info-texto">
