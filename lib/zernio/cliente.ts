@@ -492,6 +492,26 @@ export async function melhorHorario(chave: string, contaId: string): Promise<Hor
     .slice(0, 6);
 }
 
+/** Categorias de foto aceitas pelo Google (as úteis para uma loja). */
+export const CATEGORIAS_FOTO_GOOGLE = ["ADDITIONAL", "COVER", "EXTERIOR", "INTERIOR", "PRODUCT", "LOGO"] as const;
+export type CategoriaFotoGoogle = (typeof CATEGORIAS_FOTO_GOOGLE)[number];
+
+/** Adiciona uma foto à ficha do Google a partir de uma URL pública (ex.: mídia da Zernio). */
+export async function adicionarFotoGoogle(
+  chave: string,
+  contaId: string,
+  entrada: { sourceUrl: string; categoria?: CategoriaFotoGoogle; descricao?: string }
+): Promise<void> {
+  await requisitar(chave, "POST", `/accounts/${encodeURIComponent(contaId)}/gmb-media`, {
+    corpo: {
+      sourceUrl: entrada.sourceUrl,
+      mediaFormat: "PHOTO",
+      category: entrada.categoria ?? "ADDITIONAL",
+      ...(entrada.descricao ? { description: entrada.descricao } : {}),
+    },
+  });
+}
+
 export async function fotosGoogle(chave: string, contaId: string): Promise<{ quantidade: number; temMais: boolean }> {
   const d = await requisitar<{ mediaItems?: unknown[]; nextPageToken?: string }>(
     chave,

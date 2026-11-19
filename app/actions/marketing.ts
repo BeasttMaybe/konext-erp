@@ -25,8 +25,10 @@ import {
   salvarChaveZernio,
 } from "@/lib/zernio/conexao";
 import {
+  CATEGORIAS_FOTO_GOOGLE,
   ErroZernio,
   LIMITE_DESCRICAO_GOOGLE,
+  adicionarFotoGoogle,
   atualizarDescricaoGoogle,
   criarPost,
   excluirPostZernio,
@@ -1343,6 +1345,51 @@ export async function sugerirRespostaMensagem(conversaId: string, contaId: strin
   } catch (erro) {
     if (erro instanceof ErroIA) return { ok: false, erro: erro.message };
     return { ok: false, erro: "Não foi possível sugerir agora. Tente de novo." };
+  }
+}
+
+// ── Adicionar foto à ficha do Google ──────────────────────────────────────────
+
+export async function enviarFotoGoogle(dados: FormData): Promise<{ ok: boolean; erro?: string }> {
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "marketing.publicar");
+
+  const { ehTipoDeImagemAceito, TAMANHO_MAXIMO_DA_FOTO_EM_BYTES, conteudoConfereComOTipo } = await import("@/lib/dominio/os/fotos");
+
+  const arquivo = dados.get("arquivo");
+  const categoriaBruta = String(dados.get("categoria") ?? "ADDITIONAL");
+  const categoria = (CATEGORIAS_FOTO_GOOGLE as readonly string[]).includes(categoriaBruta)
+    ? (categoriaBruta as (typeof CATEGORIAS_FOTO_GOOGLE)[number])
+    : "ADDITIONAL";
+
+  if (!(arquivo instanceof File)) return { ok: false, erro: "Nenhuma imagem foi recebida." };
+  if (!ehTipoDeImagemAceito(arquivo.type)) return { ok: false, erro: "Envie uma imagem JPG, PNG ou WebP." };
+  if (arquivo.size > TAMANHO_MAXIMO_DA_FOTO_EM_BYTES) return { ok: false, erro: "A imagem é grande demais." };
+
+  const chave = await lerChaveZernio(contexto.prisma, contexto.empresaId);
+  if (!chave) return { ok: false, erro: "Conecte a Zernio primeiro." };
+
+  try {
+    const bytes = new Uint8Array(await arquivo.arrayBuffer());
+    if (!conteudoConfereComOTipo(bytes, arquivo.type)) return { ok: false, erro: "Esse arquivo não é uma imagem válida." };
+
+    const contas = await listarContas(chave);
+    const idGoogle = contas.find((c) => c.plataforma === "googlebusiness")?.id;
+    if (!idGoogle) return { ok: false, erro: "O Perfil do Google não está conectado na Zernio." };
+
+    const extensao = arquivo.type === "image/png" ? "png" : arquivo.type === "image/webp" ? "webp" : "jpg";
+    const publicUrl = await subirMidia(chave, { nome: `foto-google.${extensao}`, tipoConteudo: arquivo.type, bytes });
+    await adicionarFotoGoogle(chave, idGoogle, { sourceUrl: publicUrl, categoria });
+
+    await registrarLogAuditoria(contexto.prisma, contextoAuditoriaDoUsuario(contexto.usuarioOperacional, `${ORIGEM}:enviarFotoGoogle`), {
+      acao: ACOES_AUDITORIA.PUBLICAR_MARKETING,
+      entidade: ENTIDADES_AUDITORIA.INTEGRACAO_MARKETING,
+      dadosDepois: { acao: "foto_google", categoria },
+    });
+    revalidatePath("/marketing/google");
+    return { ok: true };
+  } catch (erro) {
+    return { ok: false, erro: erro instanceof ErroZernio ? erro.message : "Não foi possível enviar a foto agora. Tente de novo." };
   }
 }
 

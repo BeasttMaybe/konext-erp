@@ -7,6 +7,7 @@ import { GraficoDesempenhoGoogle } from "@/components/marketing/grafico-desempen
 import { ListaAvaliacoesGoogle } from "@/components/marketing/lista-avaliacoes-google";
 import { OtimizarDescricaoGoogle } from "@/components/marketing/otimizar-descricao-google";
 import { PostarNovidadeGoogle } from "@/components/marketing/postar-novidade-google";
+import { EnviarFotoGoogle } from "@/components/marketing/enviar-foto-google";
 
 export const metadata = { title: "Perfil do Google | Marketing | TechOS" };
 
@@ -112,6 +113,9 @@ export default async function GooglePerfilPage() {
 
           {/* Postar novidade no Google (IA → publicar) */}
           <PostarNovidadeGoogle />
+
+          {/* Adicionar foto à ficha */}
+          <EnviarFotoGoogle />
 
           {/* Avaliações */}
           <div className="flex flex-col gap-3 rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5">
