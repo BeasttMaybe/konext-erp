@@ -5,6 +5,7 @@ import { Eye, MessageSquare, MousePointerClick, Navigation, Phone, Plug, Star } 
 import { obterAvaliacoesGoogle, obterMetricasGoogle } from "@/app/actions/marketing";
 import { GraficoDesempenhoGoogle } from "@/components/marketing/grafico-desempenho-google";
 import { ListaAvaliacoesGoogle } from "@/components/marketing/lista-avaliacoes-google";
+import { RespostasPendentesLote } from "@/components/marketing/respostas-pendentes-lote";
 import { OtimizarDescricaoGoogle } from "@/components/marketing/otimizar-descricao-google";
 import { PostarNovidadeGoogle } from "@/components/marketing/postar-novidade-google";
 import { EnviarFotoGoogle } from "@/components/marketing/enviar-foto-google";
@@ -116,6 +117,9 @@ export default async function GooglePerfilPage() {
 
           {/* Adicionar foto à ficha */}
           <EnviarFotoGoogle />
+
+          {/* Responder avaliações sem resposta em lote (IA → revisar → enviar) */}
+          {avaliacoes.ok ? <RespostasPendentesLote /> : null}
 
           {/* Avaliações */}
           <div className="flex flex-col gap-3 rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5">
