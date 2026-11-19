@@ -2,12 +2,13 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ImagePlus, Loader2, Sparkles, Trash2 } from "lucide-react";
+import { CalendarClock, ImagePlus, Loader2, Send, Sparkles, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
   enviarMidiaDaPublicacao,
   gerarTextoPublicacao,
+  publicarPublicacao,
   removerMidiaDaPublicacao,
   salvarPublicacao,
   type MidiaDaPublicacao,
@@ -46,6 +47,7 @@ export function CompositorPublicacao({ tipo, publicacao }: { tipo: Tipo; publica
   const [linkDestino, setLinkDestino] = useState(publicacao?.linkDestino ?? "");
   const [midias, setMidias] = useState<MidiaDaPublicacao[]>(publicacao?.midias ?? []);
   const [salvando, setSalvando] = useState(false);
+  const [publicando, setPublicando] = useState<null | "agora" | "agendar">(null);
   const [enviandoMidia, setEnviandoMidia] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const inputFoto = useRef<HTMLInputElement>(null);
@@ -91,6 +93,50 @@ export function CompositorPublicacao({ tipo, publicacao }: { tipo: Tipo; publica
     }
   };
 
+  /** Salva sem navegar e devolve o id (para então publicar/agendar). */
+  const persistir = async (): Promise<string | null> => {
+    const r = await salvarPublicacao(id, {
+      tipo,
+      texto,
+      canais: [...canais],
+      agendadoPara: agendadoPara ? new Date(agendadoPara).toISOString() : "",
+      orcamento,
+      linkDestino,
+    });
+    if (!r.ok) {
+      setErro(r.erro);
+      return null;
+    }
+    setId(r.id);
+    return r.id;
+  };
+
+  const publicar = async (agendar: boolean) => {
+    if (ehAnuncio) return;
+    if (agendar && !agendadoPara) {
+      setErro("Escolha a data e a hora para agendar.");
+      return;
+    }
+    setPublicando(agendar ? "agendar" : "agora");
+    setErro(null);
+    try {
+      const salvoId = await persistir();
+      if (!salvoId) return;
+      const r = await publicarPublicacao(salvoId, agendar ? { agendarPara: new Date(agendadoPara).toISOString() } : {});
+      if (!r.ok) {
+        setErro(r.configurar ? `${r.erro}` : r.erro);
+        return;
+      }
+      toast.success(r.status === "AGENDADA" ? "Publicação agendada! ✅" : "Publicado nas redes! 🎉");
+      router.push(base);
+      router.refresh();
+    } catch {
+      setErro("Não foi possível publicar agora. Tente de novo.");
+    } finally {
+      setPublicando(null);
+    }
+  };
+
   const enviarImagem = async (arquivo: File) => {
     if (!id) {
       setErro("Salve o texto primeiro; depois adicione as imagens.");
@@ -117,6 +163,8 @@ export function CompositorPublicacao({ tipo, publicacao }: { tipo: Tipo; publica
     if (r.ok) setMidias((m) => m.filter((x) => x.id !== midiaId));
     else toast.error("Não foi possível remover.");
   };
+
+  const ocupado = salvando || publicando !== null;
 
   return (
     <div className="flex w-full flex-col gap-4">
@@ -213,8 +261,8 @@ export function CompositorPublicacao({ tipo, publicacao }: { tipo: Tipo; publica
               {ehAnuncio
                 ? "O anúncio fica guardado como rascunho até você aprovar — não é publicado sozinho."
                 : agendadoPara
-                  ? "Será publicado automaticamente neste horário."
-                  : "Sem data, fica como rascunho."}
+                  ? "Clique em Agendar para programar a publicação neste horário (pela Zernio)."
+                  : "Escolha um horário e clique em Agendar, ou use Publicar agora."}
             </span>
           </div>
 
@@ -225,16 +273,39 @@ export function CompositorPublicacao({ tipo, publicacao }: { tipo: Tipo; publica
           ) : null}
 
           <div className="flex flex-wrap gap-2">
-            <Button type="button" disabled={salvando} onClick={() => void salvar(true)}>
-              {salvando ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
-              Salvar
-            </Button>
+            {!ehAnuncio ? (
+              <>
+                <Button type="button" disabled={ocupado} onClick={() => void publicar(false)}>
+                  {publicando === "agora" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Send className="h-4 w-4" aria-hidden />}
+                  Publicar agora
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={ocupado || !agendadoPara}
+                  onClick={() => void publicar(true)}
+                  title={!agendadoPara ? "Escolha a data e a hora acima para agendar" : undefined}
+                >
+                  {publicando === "agendar" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <CalendarClock className="h-4 w-4" aria-hidden />}
+                  Agendar
+                </Button>
+                <Button type="button" variant="ghost" disabled={ocupado} onClick={() => void salvar(true)}>
+                  {salvando ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
+                  Salvar rascunho
+                </Button>
+              </>
+            ) : (
+              <Button type="button" disabled={ocupado} onClick={() => void salvar(true)}>
+                {salvando ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
+                Salvar
+              </Button>
+            )}
             {!id ? (
-              <Button type="button" variant="outline" disabled={salvando} onClick={() => void salvar(false)}>
+              <Button type="button" variant="outline" disabled={ocupado} onClick={() => void salvar(false)}>
                 Salvar e adicionar imagens
               </Button>
             ) : null}
-            <Button type="button" variant="ghost" onClick={() => router.push(base)}>
+            <Button type="button" variant="ghost" disabled={ocupado} onClick={() => router.push(base)}>
               Voltar
             </Button>
           </div>

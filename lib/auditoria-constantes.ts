@@ -101,11 +101,20 @@ export const ACOES_AUDITORIA = {
   CONECTAR_BLING: "CONECTAR_BLING",
   /** Conta do Bling desconectada: os tokens sao apagados, as notas ficam. */
   DESCONECTAR_BLING: "DESCONECTAR_BLING",
+  /** Marketing via Zernio conectado/atualizado (a chave de API foi salva). */
+  CONECTAR_ZERNIO: "CONECTAR_ZERNIO",
+  /** Marketing via Zernio desconectado: a chave e apagada. */
+  DESCONECTAR_ZERNIO: "DESCONECTAR_ZERNIO",
+  /** Publicacao enviada para publicar/agendar na Zernio. */
+  PUBLICAR_MARKETING: "PUBLICAR_MARKETING",
+  /** Resposta a uma avaliacao do Perfil do Google. */
+  RESPONDER_AVALIACAO_GOOGLE: "RESPONDER_AVALIACAO_GOOGLE",
 } as const;
 
 export const ENTIDADES_AUDITORIA = {
   ORDEM_SERVICO: "ORDEM_SERVICO",
   PUBLICACAO_MARKETING: "PUBLICACAO_MARKETING",
+  INTEGRACAO_MARKETING: "INTEGRACAO_MARKETING",
   ITEM_OS: "ITEM_OS",
   CONFIGURACAO: "CONFIGURACAO",
   TERMO_GARANTIA_OS: "TERMO_GARANTIA_OS",

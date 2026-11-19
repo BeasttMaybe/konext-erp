@@ -3,10 +3,10 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarClock, Image as ImageIcon, Megaphone, Pencil, Plus, Trash2, XCircle } from "lucide-react";
+import { CalendarClock, Image as ImageIcon, Megaphone, Pencil, Plus, Send, Trash2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
-import { cancelarPublicacao, excluirPublicacao, type PublicacaoDaLista } from "@/app/actions/marketing";
+import { cancelarPublicacao, excluirPublicacao, publicarPublicacao, type PublicacaoDaLista } from "@/app/actions/marketing";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -54,6 +54,14 @@ export function ListaPublicacoes({
     iniciar(async () => {
       const r = await cancelarPublicacao(id);
       if (r.ok) toast.success("Cancelada.");
+      else toast.error(r.erro);
+      router.refresh();
+    });
+
+  const publicar = (id: string) =>
+    iniciar(async () => {
+      const r = await publicarPublicacao(id);
+      if (r.ok) toast.success(r.status === "AGENDADA" ? "Agendada." : "Publicado! 🎉");
       else toast.error(r.erro);
       router.refresh();
     });
@@ -132,6 +140,20 @@ export function ListaPublicacoes({
                   </div>
                 </div>
                 <div className="flex shrink-0 gap-1">
+                  {!ehAnuncio && (p.status === "RASCUNHO" || p.status === "FALHOU") ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-kx-sucesso-texto"
+                      disabled={ocupado}
+                      onClick={() => publicar(p.id)}
+                      title="Publicar agora"
+                      aria-label="Publicar agora"
+                    >
+                      <Send className="h-4 w-4" />
+                    </Button>
+                  ) : null}
                   {editavel ? (
                     <Button asChild variant="ghost" size="icon" className="h-8 w-8" title="Editar">
                       <Link href={`${base}/${p.id}/editar`} aria-label="Editar">

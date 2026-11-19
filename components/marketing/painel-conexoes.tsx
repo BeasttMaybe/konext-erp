@@ -1,32 +1,77 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, Info, Loader2, Plug } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { CheckCircle2, ExternalLink, KeyRound, Loader2, Plug, Unplug } from "lucide-react";
 import { toast } from "sonner";
 
-import { iniciarConexao, type SituacaoDaPlataforma } from "@/app/actions/marketing";
+import { conectarZernio, desconectarZernio, type EstadoConexaoZernio } from "@/app/actions/marketing";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 
-const BADGE: Record<SituacaoDaPlataforma["status"], { rotulo: string; classe: string }> = {
-  CONECTADA: { rotulo: "Conectada", classe: "bg-kx-sucesso-fundo text-kx-sucesso-texto" },
-  DESCONECTADA: { rotulo: "Pronta para conectar", classe: "bg-kx-info-fundo text-kx-info-texto" },
-  NAO_CONFIGURADA: { rotulo: "Falta configurar", classe: "bg-kx-alerta-fundo text-kx-alerta-texto" },
-  EXPIRADA: { rotulo: "Expirada", classe: "bg-kx-alerta-fundo text-kx-alerta-texto" },
-  ERRO: { rotulo: "Com erro", classe: "bg-kx-erro-fundo text-kx-erro-texto" },
+const CLASSE_PLATAFORMA: Record<string, string> = {
+  instagram: "bg-kx-info-fundo text-kx-info-texto",
+  facebook: "bg-kx-info-fundo text-kx-info-texto",
+  tiktok: "bg-kx-superficie text-kx-texto-2",
+  googlebusiness: "bg-kx-sucesso-fundo text-kx-sucesso-texto",
 };
 
-export function PainelConexoes({ conexoes }: { conexoes: SituacaoDaPlataforma[] }) {
-  const [ocupada, setOcupada] = useState<string | null>(null);
+const formatarData = (iso: string | null) =>
+  iso ? new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" }) : null;
 
-  const conectar = async (id: string) => {
-    setOcupada(id);
+export function PainelConexoes({ conexao }: { conexao: EstadoConexaoZernio }) {
+  const router = useRouter();
+  const [chave, setChave] = useState("");
+  const [salvando, setSalvando] = useState(false);
+  const [trocando, setTrocando] = useState(!conexao.configurada);
+  const [confirmarDesconectar, setConfirmarDesconectar] = useState(false);
+
+  const conectar = async () => {
+    const valor = chave.trim();
+    if (!valor) {
+      toast.error("Cole a sua chave da API Zernio.");
+      return;
+    }
+    setSalvando(true);
     try {
-      const r = await iniciarConexao(id);
-      if (r.ok) toast.success(r.mensagem);
-      else toast.error(r.erro);
+      const r = await conectarZernio(valor);
+      if (r.ok) {
+        toast.success(`Zernio conectada — ${r.contas} ${r.contas === 1 ? "conta encontrada" : "contas encontradas"}.`);
+        setChave("");
+        setTrocando(false);
+        router.refresh();
+      } else {
+        toast.error(r.erro);
+      }
+    } catch {
+      toast.error("Não foi possível conectar agora. Tente de novo.");
     } finally {
-      setOcupada(null);
+      setSalvando(false);
+    }
+  };
+
+  const desconectar = async () => {
+    setConfirmarDesconectar(false);
+    setSalvando(true);
+    try {
+      await desconectarZernio();
+      toast.success("Zernio desconectada.");
+      setTrocando(true);
+      router.refresh();
+    } finally {
+      setSalvando(false);
     }
   };
 
@@ -38,58 +83,120 @@ export function PainelConexoes({ conexoes }: { conexoes: SituacaoDaPlataforma[] 
       </div>
 
       <p className="rounded-kx-botao border border-kx-painel-borda bg-kx-painel px-4 py-3 text-sm text-kx-texto-2">
-        Cada plataforma precisa de uma conta de desenvolvedor criada e aprovada por ela antes de conectar — isso é feito uma vez. Abaixo,
-        o que já está pronto e o que falta. Assim que uma plataforma estiver liberada, a conexão é por login seguro, sem senha passar pelo
-        sistema.
+        As redes da loja (Instagram, TikTok e Perfil do Google) são ligadas na <strong className="text-kx-texto">Zernio</strong>, e o ERP
+        publica, agenda e lê as métricas por ela. Aqui você cola a sua chave da API Zernio uma vez — ela fica guardada de forma cifrada e
+        nunca aparece na tela de novo.
       </p>
 
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        {conexoes.map((c) => {
-          const badge = BADGE[c.status];
-          return (
-            <div key={c.id} className="flex flex-col gap-3 rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex flex-col gap-1">
-                  <span className="text-base font-bold text-kx-texto">{c.nome}</span>
-                  <div className="flex flex-wrap gap-1.5 text-[11px] font-bold">
-                    {c.organico ? <span className="rounded-kx-pilula bg-kx-superficie px-2 py-0.5 text-kx-texto-2">Posts</span> : null}
-                    {c.anuncios ? <span className="rounded-kx-pilula bg-kx-superficie px-2 py-0.5 text-kx-texto-2">Anúncios</span> : null}
-                  </div>
-                </div>
-                <span className={cn("shrink-0 rounded-kx-pilula px-2.5 py-1 text-[11px] font-bold", badge.classe)}>{badge.rotulo}</span>
-              </div>
-
-              {c.status === "CONECTADA" && c.contaNome ? (
-                <p className="flex items-center gap-2 text-sm text-kx-sucesso-texto">
-                  <CheckCircle2 className="h-4 w-4" /> Conectada como {c.contaNome}
-                </p>
-              ) : (
-                <p className="flex items-start gap-2 text-xs text-kx-legenda">
-                  <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-                  {c.pronta
-                    ? "O app desta plataforma já está configurado. Clique em Conectar para ligar a conta da loja."
-                    : c.preRequisito}
-                </p>
-              )}
-
-              {c.ultimoErro ? <p className="text-xs text-kx-erro-texto">{c.ultimoErro}</p> : null}
-
-              <div>
-                <Button
-                  type="button"
-                  variant={c.pronta ? "default" : "outline"}
-                  size="sm"
-                  disabled={!c.pronta || ocupada === c.id}
-                  onClick={() => void conectar(c.id)}
-                >
-                  {ocupada === c.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Plug className="h-3.5 w-3.5" />}
-                  {c.status === "CONECTADA" ? "Reconectar" : "Conectar"}
-                </Button>
-              </div>
+      {/* Estado atual */}
+      <div className="flex flex-col gap-4 rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5">
+        {conexao.configurada ? (
+          <>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="flex items-center gap-2 text-sm font-bold text-kx-sucesso-texto">
+                <CheckCircle2 className="h-4 w-4" aria-hidden /> Zernio conectada
+              </span>
+              {formatarData(conexao.conectadoEm) ? (
+                <span className="text-xs text-kx-legenda">desde {formatarData(conexao.conectadoEm)}</span>
+              ) : null}
             </div>
-          );
-        })}
+
+            {conexao.erro ? (
+              <p role="alert" className="rounded-kx-botao border border-kx-erro bg-kx-erro-fundo px-3 py-2 text-sm text-kx-erro-texto">
+                {conexao.erro}
+              </p>
+            ) : conexao.contas.length === 0 ? (
+              <p className="text-sm text-kx-legenda">
+                Nenhuma conta conectada na Zernio ainda. Entre em zernio.com, ligue as contas da loja e volte aqui.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <span className="text-xs font-bold uppercase tracking-wide text-kx-legenda">Contas conectadas</span>
+                <ul className="flex flex-col gap-2">
+                  {conexao.contas.map((c) => (
+                    <li
+                      key={c.id}
+                      className="flex items-center justify-between gap-3 rounded-kx-botao border border-kx-campo-borda bg-kx-superficie px-3 py-2"
+                    >
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className={cn("rounded-kx-pilula px-2 py-0.5 text-[11px] font-bold", CLASSE_PLATAFORMA[c.plataforma] ?? "bg-kx-superficie text-kx-texto-2")}>
+                          {c.rotulo}
+                        </span>
+                        <span className="truncate text-sm text-kx-texto">{c.usuario || "conta"}</span>
+                      </div>
+                      <CheckCircle2 className="h-4 w-4 shrink-0 text-kx-sucesso-texto" aria-hidden />
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => setTrocando((v) => !v)}>
+                <KeyRound className="h-3.5 w-3.5" aria-hidden /> Trocar chave
+              </Button>
+              <Button type="button" variant="ghost" size="sm" className="text-kx-erro-texto" disabled={salvando} onClick={() => setConfirmarDesconectar(true)}>
+                <Unplug className="h-3.5 w-3.5" aria-hidden /> Desconectar
+              </Button>
+            </div>
+          </>
+        ) : (
+          <div className="flex items-center gap-2 text-sm font-bold text-kx-texto">
+            <Plug className="h-4 w-4 text-kx-legenda" aria-hidden /> Zernio ainda não conectada
+          </div>
+        )}
+
+        {/* Formulário da chave */}
+        {trocando ? (
+          <div className="flex flex-col gap-2 border-t border-kx-painel-borda pt-4">
+            <Label htmlFor="zernio-chave" className="text-xs font-bold text-kx-texto">
+              Chave da API Zernio
+            </Label>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input
+                id="zernio-chave"
+                type="password"
+                autoComplete="off"
+                placeholder="Cole aqui a sua API key da Zernio"
+                className="h-11 flex-1 border-kx-campo-borda bg-kx-superficie font-mono"
+                value={chave}
+                onChange={(e) => setChave(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void conectar();
+                }}
+              />
+              <Button type="button" disabled={salvando} onClick={() => void conectar()}>
+                {salvando ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Plug className="h-4 w-4" aria-hidden />}
+                Conectar
+              </Button>
+            </div>
+            <a
+              href="https://zernio.com/dashboard/api-keys"
+              target="_blank"
+              rel="noreferrer"
+              className="flex w-fit items-center gap-1 text-xs font-bold text-kx-info-texto hover:underline"
+            >
+              Onde pego minha chave? <ExternalLink className="h-3 w-3" aria-hidden />
+            </a>
+          </div>
+        ) : null}
       </div>
+
+      <AlertDialog open={confirmarDesconectar} onOpenChange={setConfirmarDesconectar}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Desconectar a Zernio?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A chave guardada será apagada e o ERP deixa de publicar, agendar e ler métricas até você conectar de novo. As contas na
+              Zernio não são afetadas.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void desconectar()}>Desconectar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

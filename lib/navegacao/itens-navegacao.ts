@@ -95,6 +95,7 @@ export const ITENS_NAVEGACAO: readonly ItemNavegacao[] = [
     filhos: [
       { label: "Publicações", path: "/marketing/publicacoes" },
       { label: "Anúncios", path: "/marketing/anuncios" },
+      { label: "Perfil do Google", path: "/marketing/google" },
       { label: "Conexões", path: "/marketing/conexoes" },
     ],
   },

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarClock, ChevronRight, Megaphone, Plug, Send } from "lucide-react";
+import { BarChart3, CalendarClock, ChevronRight, Megaphone, Plug, Send } from "lucide-react";
 
 import { obterResumoMarketing } from "@/app/actions/marketing";
 
@@ -9,8 +9,14 @@ const ATALHOS = [
   {
     href: "/marketing/publicacoes",
     nome: "Publicações",
-    descricao: "Crie, agende e acompanhe os posts das redes (Instagram, Facebook, TikTok, Perfil do Google).",
+    descricao: "Crie, gere o texto com IA, publique e agende posts no Instagram, TikTok e Perfil do Google.",
     icone: Send,
+  },
+  {
+    href: "/marketing/google",
+    nome: "Perfil do Google",
+    descricao: "Veja visualizações, ligações e rotas, e responda às avaliações com ajuda da IA.",
+    icone: BarChart3,
   },
   {
     href: "/marketing/anuncios",
@@ -21,7 +27,7 @@ const ATALHOS = [
   {
     href: "/marketing/conexoes",
     nome: "Conexões",
-    descricao: "Ligue as contas da loja em cada plataforma e veja o que falta liberar.",
+    descricao: "Conecte a Zernio uma vez e veja as contas da loja (Instagram, TikTok, Google) ao vivo.",
     icone: Plug,
   },
 ];

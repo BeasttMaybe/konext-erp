@@ -83,4 +83,6 @@ export const CONTEXTO_DESENHO_DO_APARELHO = "os.senhaDesenho";
 export const CONTEXTO_TOKEN_DE_ACESSO_BLING = "bling.accessToken";
 export const CONTEXTO_TOKEN_MARKETING = "marketing.accessToken";
 export const CONTEXTO_RENOVACAO_MARKETING = "marketing.refreshToken";
+/// Chave da API Zernio da loja (integração de marketing). Uma por empresa.
+export const CONTEXTO_CHAVE_ZERNIO = "zernio.apiKey";
 export const CONTEXTO_TOKEN_DE_RENOVACAO_BLING = "bling.refreshToken";

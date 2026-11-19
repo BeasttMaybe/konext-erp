@@ -232,6 +232,21 @@ export async function lerObjetoComoTexto(chave: string): Promise<string> {
   return resposta.Body.transformToString();
 }
 
+/** Lê o conteúdo binário de um objeto (usado para reenviar a imagem à Zernio). */
+export async function lerObjetoComoBytes(chave: string): Promise<Uint8Array> {
+  const configuracao = exigirConfiguracao();
+
+  const resposta = await obterCliente(configuracao).send(
+    new GetObjectCommand({ Bucket: configuracao.bucket, Key: chave })
+  );
+
+  if (!resposta.Body) {
+    throw new ErroArmazenamento("O objeto voltou sem conteúdo.");
+  }
+
+  return resposta.Body.transformToByteArray();
+}
+
 export async function apagarObjeto(chave: string): Promise<void> {
   const configuracao = exigirConfiguracao();
 
