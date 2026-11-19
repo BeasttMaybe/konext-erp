@@ -403,6 +403,77 @@ export async function atualizarDescricaoGoogle(chave: string, contaId: string, d
   });
 }
 
+// ── Caixa de entrada (mensagens diretas) ──────────────────────────────────────
+
+export type ConversaZernio = {
+  id: string;
+  contaId: string;
+  plataforma: string;
+  participante: string;
+  usuario: string;
+  foto: string | null;
+  ultimaMensagem: string;
+  atualizadoEm: string;
+  naoLidas: number;
+};
+
+export type MensagemDireta = { id: string; texto: string; de: string; entrada: boolean; em: string };
+
+export async function listarConversas(
+  chave: string,
+  filtros: { cursor?: string | null; limite?: number } = {}
+): Promise<{ conversas: ConversaZernio[]; proximoCursor: string | null }> {
+  const d = await requisitar<{
+    data?: Array<Record<string, unknown>>;
+    pagination?: { nextCursor?: string | null };
+  }>(chave, "GET", "/inbox/conversations", {
+    query: { status: "active", limit: filtros.limite ?? 20, cursor: filtros.cursor ?? undefined },
+  });
+
+  const conversas = (d.data ?? []).map((c) => ({
+    id: String(c.id ?? ""),
+    contaId: String(c.accountId ?? ""),
+    plataforma: String(c.platform ?? ""),
+    participante: (c.participantName as string | undefined)?.trim() || (c.participantUsername as string | undefined) || "Cliente",
+    usuario: (c.participantUsername as string | undefined) ?? "",
+    foto: (c.participantPicture as string | undefined) ?? null,
+    ultimaMensagem: String(c.lastMessage ?? ""),
+    atualizadoEm: String(c.updatedTime ?? ""),
+    naoLidas: Number(c.unreadCount ?? 0) || 0,
+  }));
+  return { conversas, proximoCursor: d.pagination?.nextCursor ?? null };
+}
+
+export async function listarMensagens(
+  chave: string,
+  filtros: { conversaId: string; contaId: string; limite?: number }
+): Promise<MensagemDireta[]> {
+  const d = await requisitar<{ messages?: Array<Record<string, unknown>> }>(
+    chave,
+    "GET",
+    `/inbox/conversations/${encodeURIComponent(filtros.conversaId)}/messages`,
+    { query: { accountId: filtros.contaId, limit: filtros.limite ?? 30 } }
+  );
+  return (d.messages ?? []).map((m) => {
+    const temAnexo = Array.isArray(m.attachments) && m.attachments.length > 0;
+    const story = m.storyReply ? "[resposta ao story]" : "";
+    const texto = String(m.message ?? "").trim() || story || (temAnexo ? "[anexo]" : "");
+    return {
+      id: String(m.id ?? ""),
+      texto,
+      de: String(m.senderName ?? ""),
+      entrada: m.direction === "incoming",
+      em: String(m.createdAt ?? m.sentAt ?? ""),
+    };
+  });
+}
+
+export async function enviarMensagem(chave: string, entrada: { conversaId: string; contaId: string; texto: string }): Promise<void> {
+  await requisitar(chave, "POST", `/inbox/conversations/${encodeURIComponent(entrada.conversaId)}/messages`, {
+    corpo: { accountId: entrada.contaId, message: entrada.texto },
+  });
+}
+
 // ── Melhor horário para postar ────────────────────────────────────────────────
 
 export type HorarioSlot = { diaSemana: number; hora: number; engajamento: number; posts: number };

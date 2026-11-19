@@ -32,18 +32,23 @@ import {
   excluirPostZernio,
   fichaGoogle,
   fotosGoogle,
+  enviarMensagem,
   historicoSeguidoresInstagram,
   insightsDaRede,
   listarAvaliacoes,
   listarContas,
+  listarConversas,
+  listarMensagens,
   melhorHorario,
   metricasGooglePerfil,
   responderAvaliacao as responderAvaliacaoZernio,
   subirMidia,
   validarChave,
   type AvaliacaoZernio,
+  type ConversaZernio,
   type DestinoPost,
   type HorarioSlot,
+  type MensagemDireta,
   type ResumoAvaliacoes,
 } from "@/lib/zernio/cliente";
 import { auditarSite } from "@/lib/seo/auditar";
@@ -1224,6 +1229,120 @@ export async function obterMelhorHorario(plataforma: "INSTAGRAM" | "TIKTOK"): Pr
     return { ok: true, slots: await melhorHorario(chave, contaId) };
   } catch (erro) {
     return { ok: false, motivo: "ERRO", erro: erro instanceof ErroZernio ? erro.message : "Não foi possível obter o melhor horário agora." };
+  }
+}
+
+// ── Caixa de entrada (mensagens diretas) ──────────────────────────────────────
+
+export type ResultadoConversas =
+  | { ok: true; conversas: ConversaZernio[]; proximoCursor: string | null }
+  | { ok: false; motivo: MotivoSemGoogle; erro: string };
+
+export async function obterConversas(cursor?: string | null): Promise<ResultadoConversas> {
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "marketing.ver");
+
+  const chave = await lerChaveZernio(contexto.prisma, contexto.empresaId);
+  if (!chave) return { ok: false, motivo: "SEM_CHAVE", erro: "Conecte a Zernio em Marketing → Conexões." };
+
+  try {
+    const { conversas, proximoCursor } = await listarConversas(chave, { cursor, limite: 20 });
+    return { ok: true, conversas, proximoCursor };
+  } catch (erro) {
+    return { ok: false, motivo: "ERRO", erro: erro instanceof ErroZernio ? erro.message : "Não foi possível carregar as conversas agora." };
+  }
+}
+
+export async function obterMensagens(conversaId: string, contaId: string): Promise<{ ok: true; mensagens: MensagemDireta[] } | { ok: false; erro: string }> {
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "marketing.ver");
+  if (!conversaId || !contaId) return { ok: false, erro: "Conversa inválida." };
+
+  const chave = await lerChaveZernio(contexto.prisma, contexto.empresaId);
+  if (!chave) return { ok: false, erro: "Conecte a Zernio primeiro." };
+
+  try {
+    const mensagens = await listarMensagens(chave, { conversaId, contaId, limite: 30 });
+    return { ok: true, mensagens };
+  } catch (erro) {
+    return { ok: false, erro: erro instanceof ErroZernio ? erro.message : "Não foi possível carregar a conversa agora." };
+  }
+}
+
+export async function responderMensagem(conversaId: string, contaId: string, texto: string): Promise<{ ok: boolean; erro?: string }> {
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "marketing.publicar");
+
+  const mensagem = String(texto ?? "").trim();
+  if (!mensagem) return { ok: false, erro: "Escreva a mensagem." };
+  if (mensagem.length > 2000) return { ok: false, erro: "A mensagem é longa demais." };
+  if (!conversaId || !contaId) return { ok: false, erro: "Conversa inválida." };
+
+  const chave = await lerChaveZernio(contexto.prisma, contexto.empresaId);
+  if (!chave) return { ok: false, erro: "Conecte a Zernio primeiro." };
+
+  try {
+    await enviarMensagem(chave, { conversaId, contaId, texto: mensagem });
+    await registrarLogAuditoria(contexto.prisma, contextoAuditoriaDoUsuario(contexto.usuarioOperacional, `${ORIGEM}:responderMensagem`), {
+      acao: ACOES_AUDITORIA.PUBLICAR_MARKETING,
+      entidade: ENTIDADES_AUDITORIA.INTEGRACAO_MARKETING,
+      entidadeId: conversaId,
+      dadosDepois: { acao: "dm" },
+    });
+    return { ok: true };
+  } catch (erro) {
+    return { ok: false, erro: erro instanceof ErroZernio ? erro.message : "Não foi possível enviar agora. Tente de novo." };
+  }
+}
+
+export async function sugerirRespostaMensagem(conversaId: string, contaId: string): Promise<ResultadoSugestao> {
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "marketing.publicar");
+
+  const { iaConfigurada, gerarComIA, ErroIA } = await import("@/lib/ia/cliente");
+  if (!iaConfigurada()) return { ok: false, configurar: true, erro: "O gerador por IA não está ligado. Configure a chave de IA (IA_API_KEY)." };
+
+  const chave = await lerChaveZernio(contexto.prisma, contexto.empresaId);
+  if (!chave) return { ok: false, erro: "Conecte a Zernio primeiro." };
+
+  let mensagens: MensagemDireta[];
+  try {
+    mensagens = await listarMensagens(chave, { conversaId, contaId, limite: 12 });
+  } catch (erro) {
+    return { ok: false, erro: erro instanceof ErroZernio ? erro.message : "Não foi possível ler a conversa agora." };
+  }
+  if (mensagens.length === 0) return { ok: false, erro: "Sem mensagens para responder." };
+
+  const config = await contexto.prisma.configuracao.findFirst({ select: { nomeFantasia: true } });
+  const nomeLoja = config?.nomeFantasia?.trim() || "a loja";
+
+  const sistema = [
+    `Você atende os clientes de ${nomeLoja}, uma assistência técnica de celulares no Brasil, pelo direct/DM.`,
+    "Escreva a PRÓXIMA mensagem da loja em português do Brasil, curta, educada e prestativa.",
+    "Regras:",
+    "- Responda ao que o cliente perguntou; se faltar informação (modelo do aparelho, problema), pergunte de forma gentil.",
+    "- Nunca invente preços, prazos ou garantias; se perguntarem preço sem dados, peça o modelo/defeito ou convide a passar na loja.",
+    "- Sem colchetes, sem assinatura, sem título; entregue só o texto da mensagem.",
+  ].join("\n");
+  const historico = mensagens
+    .map((m) => `${m.entrada ? "Cliente" : "Loja"}: ${m.texto || "[anexo]"}`)
+    .join("\n");
+  const usuario = `Conversa até aqui:\n${historico}\n\nEscreva a próxima mensagem da loja.`;
+
+  try {
+    const resposta = await gerarComIA(
+      [
+        { papel: "system", conteudo: sistema },
+        { papel: "user", conteudo: usuario },
+      ],
+      { maxTokens: 300, temperatura: 0.6 }
+    );
+    const sugestao = resposta.trim();
+    if (!sugestao) return { ok: false, erro: "A IA não devolveu texto. Tente de novo." };
+    return { ok: true, sugestao };
+  } catch (erro) {
+    if (erro instanceof ErroIA) return { ok: false, erro: erro.message };
+    return { ok: false, erro: "Não foi possível sugerir agora. Tente de novo." };
   }
 }
 

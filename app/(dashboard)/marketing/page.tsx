@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BarChart3, CalendarClock, Camera, ChevronRight, Megaphone, Music2, Plug, Send, TrendingUp } from "lucide-react";
+import { BarChart3, CalendarClock, Camera, ChevronRight, MessageSquare, Megaphone, Music2, Plug, Send, TrendingUp } from "lucide-react";
 
 import { obterResumoMarketing } from "@/app/actions/marketing";
 
@@ -11,6 +11,12 @@ const ATALHOS = [
     nome: "Análise & Dicas",
     descricao: "A IA analisa seus dados e o site, e sugere melhorias de SEO local, conteúdo e reputação.",
     icone: TrendingUp,
+  },
+  {
+    href: "/marketing/inbox",
+    nome: "Mensagens",
+    descricao: "Responda os directs das redes num só lugar, com sugestão de resposta por IA.",
+    icone: MessageSquare,
   },
   {
     href: "/marketing/publicacoes",
