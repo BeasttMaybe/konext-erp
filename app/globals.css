@@ -298,6 +298,12 @@ html.dark ::-webkit-scrollbar-thumb {
   background: #475569;
 }
 
+/* Gradiente da marca Instagram (usado no widget de mensagens). As cores da
+   marca não têm token Konext porque são externas; ficam aqui no CSS. */
+.kx-gradiente-instagram {
+  background: linear-gradient(45deg, #feda75 0%, #fa7e1e 25%, #d62976 50%, #962fbf 75%, #4f5bd5 100%);
+}
+
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }

@@ -21,7 +21,8 @@ type Conversa = {
   naoLidas: number;
 };
 
-type Mensagem = { id: string; texto: string; de: string; entrada: boolean; em: string };
+type Anexo = { tipo: string; url: string };
+type Mensagem = { id: string; texto: string; de: string; entrada: boolean; em: string; anexos: Anexo[] };
 
 const horaCurta = (iso: string) => {
   if (!iso) return "";
@@ -31,7 +32,13 @@ const horaCurta = (iso: string) => {
 
 const ROTULO_PLATAFORMA: Record<string, string> = { instagram: "Instagram", facebook: "Facebook", whatsapp: "WhatsApp" };
 
-export function CaixaDeEntrada({ inicial }: { inicial: { conversas: Conversa[]; proximoCursor: string | null } }) {
+export function CaixaDeEntrada({
+  inicial,
+  compacto = false,
+}: {
+  inicial: { conversas: Conversa[]; proximoCursor: string | null };
+  compacto?: boolean;
+}) {
   const [conversas, setConversas] = useState<Conversa[]>(inicial.conversas);
   const [cursor, setCursor] = useState<string | null>(inicial.proximoCursor);
   const [carregandoMais, setCarregandoMais] = useState(false);
@@ -98,7 +105,7 @@ export function CaixaDeEntrada({ inicial }: { inicial: { conversas: Conversa[]; 
     try {
       const r = await responderMensagem(sel.id, sel.contaId, msg);
       if (r.ok) {
-        setMensagens((atual) => [...atual, { id: `local-${Date.now()}`, texto: msg, de: "Loja", entrada: false, em: new Date().toISOString() }]);
+        setMensagens((atual) => [...atual, { id: `local-${Date.now()}`, texto: msg, de: "Loja", entrada: false, em: new Date().toISOString(), anexos: [] }]);
         setTexto("");
         toast.success("Mensagem enviada.");
       } else {
@@ -112,7 +119,12 @@ export function CaixaDeEntrada({ inicial }: { inicial: { conversas: Conversa[]; 
   };
 
   return (
-    <div className="flex h-[calc(100vh-11rem)] min-h-[420px] overflow-hidden rounded-kx-painel border border-kx-painel-borda bg-kx-painel">
+    <div
+      className={cn(
+        "flex overflow-hidden bg-kx-painel",
+        compacto ? "h-full" : "h-[calc(100vh-11rem)] min-h-[420px] rounded-kx-painel border border-kx-painel-borda"
+      )}
+    >
       {/* Lista de conversas */}
       <div className={cn("w-full flex-col border-r border-kx-painel-borda md:flex md:w-80", sel ? "hidden md:flex" : "flex")}>
         <div className="flex items-center gap-2 border-b border-kx-painel-borda px-4 py-3">
@@ -201,7 +213,21 @@ export function CaixaDeEntrada({ inicial }: { inicial: { conversas: Conversa[]; 
                         m.entrada ? "bg-kx-superficie text-kx-texto" : "bg-kx-primaria text-primary-foreground"
                       )}
                     >
-                      <p className="whitespace-pre-line">{m.texto}</p>
+                      {m.texto ? <p className="whitespace-pre-line">{m.texto}</p> : null}
+                      {m.anexos.map((a, i) => {
+                        if (a.tipo === "image") {
+                          // eslint-disable-next-line @next/next/no-img-element -- mídia do direct (CDN da rede)
+                          return <img key={i} src={a.url} alt="anexo" className="mt-1 max-h-52 rounded-kx-botao" referrerPolicy="no-referrer" />;
+                        }
+                        if (a.tipo === "video") return <video key={i} src={a.url} controls className="mt-1 max-h-52 rounded-kx-botao" />;
+                        if (a.tipo === "audio") return <audio key={i} src={a.url} controls className="mt-1 w-[220px] max-w-full" />;
+                        return (
+                          <a key={i} href={a.url} target="_blank" rel="noreferrer" className="mt-1 block text-xs underline">
+                            Abrir anexo
+                          </a>
+                        );
+                      })}
+                      {!m.texto && m.anexos.length === 0 ? <p className="italic opacity-80">[mensagem]</p> : null}
                       <span className={cn("mt-0.5 block text-[10px]", m.entrada ? "text-kx-legenda" : "text-primary-foreground/80")}>{horaCurta(m.em)}</span>
                     </div>
                   </div>

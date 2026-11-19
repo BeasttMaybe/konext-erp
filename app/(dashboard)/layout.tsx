@@ -1,6 +1,7 @@
 import { unstable_rethrow } from "next/navigation";
 
 import { ShellDashboard } from "@/components/shell/shell-dashboard";
+import { WidgetMensagens } from "@/components/marketing/widget-mensagens";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { obterPermissoesDoContexto } from "@/lib/auth/permissoes";
 import { ProvedorPermissoes } from "@/contextos/contexto-permissoes";
@@ -65,6 +66,7 @@ export default async function LayoutDashboard({
       <ProvedorLoja slug={contexto.tenantSlug}>
         <ProvedorPerfil perfil={perfil}>
           <ShellDashboard>{children}</ShellDashboard>
+          <WidgetMensagens />
         </ProvedorPerfil>
       </ProvedorLoja>
     </ProvedorPermissoes>

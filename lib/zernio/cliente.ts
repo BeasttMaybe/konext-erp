@@ -417,7 +417,8 @@ export type ConversaZernio = {
   naoLidas: number;
 };
 
-export type MensagemDireta = { id: string; texto: string; de: string; entrada: boolean; em: string };
+export type AnexoMensagem = { tipo: "image" | "video" | "audio" | "file"; url: string };
+export type MensagemDireta = { id: string; texto: string; de: string; entrada: boolean; em: string; anexos: AnexoMensagem[] };
 
 export async function listarConversas(
   chave: string,
@@ -454,16 +455,24 @@ export async function listarMensagens(
     `/inbox/conversations/${encodeURIComponent(filtros.conversaId)}/messages`,
     { query: { accountId: filtros.contaId, limit: filtros.limite ?? 30 } }
   );
+  const tiposValidos = new Set(["image", "video", "audio", "file"]);
   return (d.messages ?? []).map((m) => {
-    const temAnexo = Array.isArray(m.attachments) && m.attachments.length > 0;
+    const anexos: AnexoMensagem[] = (Array.isArray(m.attachments) ? (m.attachments as Array<Record<string, unknown>>) : [])
+      .map((a) => {
+        const payload = (a.payload ?? {}) as { url?: string };
+        const tipoBruto = String(a.type ?? "file");
+        return { tipo: (tiposValidos.has(tipoBruto) ? tipoBruto : "file") as AnexoMensagem["tipo"], url: String(payload.url ?? a.url ?? "") };
+      })
+      .filter((a) => a.url);
     const story = m.storyReply ? "[resposta ao story]" : "";
-    const texto = String(m.message ?? "").trim() || story || (temAnexo ? "[anexo]" : "");
+    const texto = String(m.message ?? "").trim() || story;
     return {
       id: String(m.id ?? ""),
       texto,
       de: String(m.senderName ?? ""),
       entrada: m.direction === "incoming",
       em: String(m.createdAt ?? m.sentAt ?? ""),
+      anexos,
     };
   });
 }
