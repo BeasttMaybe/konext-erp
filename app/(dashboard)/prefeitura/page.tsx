@@ -97,8 +97,8 @@ export default async function PrefeituraPage() {
           </span>
           <p className="text-sm font-bold text-kx-texto">Nenhuma nota da prefeitura ainda</p>
           <p className="max-w-md text-sm text-kx-legenda">
-            As notas aparecem aqui automaticamente quando o cliente da nota está cadastrado como órgão público. Sincronize o Bling em
-            Financeiro → Notas Fiscais, ou marque uma nota como Prefeitura por lá.
+            As notas aparecem aqui sozinhas quando o nome do cliente contém “prefeitura” ou “município”, ou quando o cliente está cadastrado
+            como órgão público. Sincronize o Bling em Financeiro → Notas Fiscais para o reconhecimento rodar.
           </p>
           <Link
             href="/financeiro/notas-fiscais"
