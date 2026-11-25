@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowRight, Banknote, Landmark, Percent, Receipt, TrendingUp, Wallet } from "lucide-react";
 
 import { obterPainelPrefeitura, type ResumoNotaPrefeitura } from "@/app/actions/prefeitura";
+import { FiltrosPrefeitura } from "@/components/prefeitura/filtros-prefeitura";
 import { formatarReais } from "@/lib/dinheiro";
 
 export const metadata = { title: "Prefeitura | TechOS" };
@@ -75,8 +76,12 @@ function LinhaNota({ nota }: { nota: ResumoNotaPrefeitura }) {
   );
 }
 
-export default async function PrefeituraPage() {
-  const { periodo, notas } = await obterPainelPrefeitura();
+type Props = { searchParams: Promise<{ cliente?: string; de?: string; ate?: string }> };
+
+export default async function PrefeituraPage({ searchParams }: Props) {
+  const sp = await searchParams;
+  const { periodo, notas, prefeituras, filtros } = await obterPainelPrefeitura({ cliente: sp.cliente, de: sp.de, ate: sp.ate });
+  const semNotasNoSistema = prefeituras.length === 0;
 
   return (
     <div className="flex w-full flex-col gap-4 bg-kx-fundo p-4 pb-8 sm:p-5 lg:p-6">
@@ -90,7 +95,7 @@ export default async function PrefeituraPage() {
         </p>
       </div>
 
-      {notas.length === 0 ? (
+      {semNotasNoSistema ? (
         <div className="flex flex-col items-center gap-3 rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-10 text-center">
           <span className="flex h-12 w-12 items-center justify-center rounded-kx-botao bg-kx-info-fundo text-kx-info-texto">
             <Landmark className="h-6 w-6" aria-hidden />
@@ -109,6 +114,14 @@ export default async function PrefeituraPage() {
         </div>
       ) : (
         <>
+          <FiltrosPrefeitura prefeituras={prefeituras} filtros={filtros} />
+
+          {notas.length === 0 ? (
+            <p className="rounded-kx-painel border border-kx-painel-borda bg-kx-painel px-4 py-10 text-center text-sm text-kx-legenda">
+              Nenhuma nota da prefeitura com esse filtro. Ajuste a prefeitura ou o período.
+            </p>
+          ) : (
+          <>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 xl:grid-cols-6">
             <Indicador rotulo="Receita" valor={formatarReais(periodo.receitaTotalCentavos)} nota={`${periodo.notas} nota(s)`} icone={Receipt} />
             <Indicador rotulo="Custo lançado" valor={formatarReais(periodo.custoLancadoCentavos)} icone={Wallet} />
@@ -140,6 +153,8 @@ export default async function PrefeituraPage() {
               <LinhaNota key={nota.id} nota={nota} />
             ))}
           </div>
+          </>
+          )}
         </>
       )}
     </div>
