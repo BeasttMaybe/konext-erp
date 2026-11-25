@@ -900,8 +900,17 @@ model NotaFiscal {
   /// Custo total digitado quando `modoCusto = TOTAL`. Ignorado no modo ITENS.
   custoTotalInformado Decimal? @db.Decimal(12, 2)
 
+  /// Frete pago nesta venda, em reais, informado pelo dono. Entra no custo
+  /// (abate o lucro bruto). NULO = nao informado (tratado como zero).
+  freteInformado Decimal? @db.Decimal(12, 2)
+
+  /// Aliquota de imposto desta venda, em pontos percentuais (ex.: 4.00 para o
+  /// Simples). Quando informada, o lucro liquido desconta receita x aliquota.
+  /// NULO = usar `impostosReais` (valor do Bling) como fallback.
+  impostoPercentual Decimal? @db.Decimal(5, 2)
+
   /// Impostos destacados na nota, em reais, quando o detalhe do Bling os
-  /// traz. Usado so no calculo de lucro liquido; NULO = desconhecido.
+  /// traz. Fallback do lucro liquido quando nao ha aliquota informada.
   impostosReais Decimal? @db.Decimal(12, 2)
 
   itens NotaFiscalItem[]

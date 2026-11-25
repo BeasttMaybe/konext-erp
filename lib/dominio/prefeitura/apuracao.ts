@@ -27,6 +27,11 @@ export type NotaApuracao = {
   custoTotalInformadoCentavos: number | null;
   /** Impostos destacados na nota, centavos. NULO = desconhecido. */
   impostosCentavos: number | null;
+  /** Frete pago na venda, em centavos. Entra no custo (abate o lucro bruto). */
+  freteCentavos: number;
+  /** Aliquota de imposto (pontos percentuais, ex.: 4). Quando informada, tem
+   *  prioridade sobre `impostosCentavos` no calculo do lucro liquido. */
+  impostoPercentual: number | null;
   itens: ItemApuracao[];
   /** A nota ja foi recebida (todas as parcelas baixadas)? */
   recebida: boolean;
@@ -80,7 +85,9 @@ export type ApuracaoNota = {
   custoCompleto: boolean;
   temBaseDeCusto: boolean;
   itensSemCusto: number;
-  /** receita − custo. So faz sentido quando custoCompleto; use o flag. */
+  /** Frete incluido no custo, em centavos. */
+  freteCentavos: number;
+  /** receita − (custo dos produtos + frete). So faz sentido quando custoCompleto. */
   lucroBrutoCentavos: number;
   /** Margem bruta em pontos percentuais (0–100), ou NULO se receita = 0. */
   margemBrutaPct: number | null;
@@ -93,26 +100,40 @@ export type ApuracaoNota = {
   caixaConsumidoCentavos: number;
 };
 
+// Imposto em centavos: a aliquota (%) tem prioridade; sem ela, cai no valor
+// que o Bling trouxe; sem nada, zero.
+function impostoDaNota(nota: NotaApuracao): { centavos: number; conhecido: boolean } {
+  if (nota.impostoPercentual !== null) {
+    return { centavos: Math.round((nota.receitaCentavos * nota.impostoPercentual) / 100), conhecido: true };
+  }
+  if (nota.impostosCentavos !== null) return { centavos: nota.impostosCentavos, conhecido: true };
+  return { centavos: 0, conhecido: false };
+}
+
 export function apurarNota(nota: NotaApuracao): ApuracaoNota {
-  const custo = custoDaNota(nota);
-  const lucroBruto = nota.receitaCentavos - custo.custoCentavos;
-  const impostos = nota.impostosCentavos ?? 0;
+  const produtos = custoDaNota(nota);
+  const frete = nota.freteCentavos ?? 0;
+  // Frete entra no custo: abate o lucro bruto, como o dono pediu.
+  const custoTotal = produtos.custoCentavos + frete;
+  const lucroBruto = nota.receitaCentavos - custoTotal;
+  const imposto = impostoDaNota(nota);
 
   return {
     receitaCentavos: nota.receitaCentavos,
-    custoCentavos: custo.custoCentavos,
-    custoCompleto: custo.completo,
-    temBaseDeCusto: custo.temBase,
-    itensSemCusto: custo.itensSemCusto,
+    custoCentavos: custoTotal,
+    custoCompleto: produtos.completo,
+    temBaseDeCusto: produtos.temBase,
+    itensSemCusto: produtos.itensSemCusto,
+    freteCentavos: frete,
     lucroBrutoCentavos: lucroBruto,
     margemBrutaPct: nota.receitaCentavos > 0 ? (lucroBruto / nota.receitaCentavos) * 100 : null,
-    impostosCentavos: impostos,
-    impostosConhecidos: nota.impostosCentavos !== null,
-    lucroLiquidoCentavos: lucroBruto - impostos,
+    impostosCentavos: imposto.centavos,
+    impostosConhecidos: imposto.conhecido,
+    lucroLiquidoCentavos: lucroBruto - imposto.centavos,
     diasPrazo: diasDePrazo(nota),
     // So consome caixa o que ainda nao foi recebido. Nota ja recebida devolveu
     // o dinheiro; o custo dela nao esta mais "parado" na prefeitura.
-    caixaConsumidoCentavos: nota.recebida ? 0 : custo.custoCentavos,
+    caixaConsumidoCentavos: nota.recebida ? 0 : custoTotal,
   };
 }
 

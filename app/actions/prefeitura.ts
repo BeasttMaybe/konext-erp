@@ -22,6 +22,8 @@ type NotaComItens = {
   valorTotal: unknown;
   modoCusto: "ITENS" | "TOTAL";
   custoTotalInformado: unknown;
+  freteInformado: unknown;
+  impostoPercentual: unknown;
   impostosReais: unknown;
   segmento: string | null;
   segmentoManual: boolean;
@@ -47,6 +49,8 @@ function paraApuracao(nota: NotaComItens): NotaApuracao {
     modoCusto: nota.modoCusto,
     custoTotalInformadoCentavos: centavosOuNulo(nota.custoTotalInformado),
     impostosCentavos: centavosOuNulo(nota.impostosReais),
+    freteCentavos: centavos(nota.freteInformado),
+    impostoPercentual: nota.impostoPercentual === null || nota.impostoPercentual === undefined ? null : Number(nota.impostoPercentual),
     itens: nota.itens.map((i) => ({
       valorVendaCentavos: centavos(i.valorTotalVenda),
       custoCentavos: centavosOuNulo(i.custoTotal),
@@ -185,6 +189,9 @@ export type NotaPrefeituraDetalhe = {
   linkDanfe: string | null;
   modoCusto: "ITENS" | "TOTAL";
   custoTotalInformadoCentavos: number | null;
+  freteCentavos: number | null;
+  /** Alíquota salva (ex.: 4). NULO = nunca informada (a tela sugere 4%). */
+  impostoPercentual: number | null;
   receitaCentavos: number;
   itens: ItemNotaPrefeitura[];
 };
@@ -212,6 +219,8 @@ export async function obterNotaPrefeitura(notaId: string): Promise<NotaPrefeitur
     linkDanfe: nota.linkDanfe,
     modoCusto: nota.modoCusto,
     custoTotalInformadoCentavos: centavosOuNulo(nota.custoTotalInformado),
+    freteCentavos: centavosOuNulo(nota.freteInformado),
+    impostoPercentual: nota.impostoPercentual === null || nota.impostoPercentual === undefined ? null : Number(nota.impostoPercentual),
     receitaCentavos: centavos(nota.valorTotal),
     itens: nota.itens.map((i) => {
       const venda = centavos(i.valorTotalVenda);
@@ -234,11 +243,18 @@ export type EntradaCustos = {
   notaId: string;
   modoCusto: "ITENS" | "TOTAL";
   custoTotalCentavos: number | null;
+  freteCentavos: number | null;
+  /** Alíquota em pontos percentuais (ex.: 4). NULO limpa o campo. */
+  impostoPercentual: number | null;
   itens: Array<{ id: string; custoCentavos: number | null }>;
 };
 
 const paraDecimalOuNulo = (centavosValor: number | null): string | null =>
   centavosValor === null || !Number.isFinite(centavosValor) || centavosValor < 0 ? null : paraDecimal(Math.round(centavosValor));
+
+// Alíquota (0–100) como string decimal "x.xx"; fora da faixa ou inválida → null.
+const percentualOuNulo = (valor: number | null): string | null =>
+  valor === null || !Number.isFinite(valor) || valor < 0 || valor > 100 ? null : valor.toFixed(2);
 
 /** Salva o custo da nota: modo (itens/total), o total e/ou os custos por item. */
 export async function salvarCustosDaNota(entrada: EntradaCustos): Promise<{ ok: boolean; erro?: string }> {
@@ -266,6 +282,8 @@ export async function salvarCustosDaNota(entrada: EntradaCustos): Promise<{ ok: 
         data: {
           modoCusto,
           custoTotalInformado: modoCusto === "TOTAL" ? paraDecimalOuNulo(entrada.custoTotalCentavos) : undefined,
+          freteInformado: paraDecimalOuNulo(entrada.freteCentavos),
+          impostoPercentual: percentualOuNulo(entrada.impostoPercentual),
         },
       });
 
