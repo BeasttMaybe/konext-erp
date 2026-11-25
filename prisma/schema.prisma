@@ -886,18 +886,80 @@ model NotaFiscal {
   /// de um numero.
   descricaoItens String?
 
+  /// Segmento comercial da nota (hoje so PREFEITURA). NULO = nota comum, fora
+  /// do modulo Prefeitura. Preenchido automaticamente na sincronizacao quando
+  /// o cliente e orgao publico; o dono pode corrigir a mao.
+  segmento SegmentoComercial?
+  /// Quando o dono define o segmento a mao, a sincronizacao NAO sobrescreve
+  /// mais. Sem isso, a deteccao automatica desfaria a correcao a cada sync.
+  segmentoManual Boolean @default(false)
+
+  /// Como o custo desta nota e informado: por item (padrao) ou um total unico
+  /// digitado na nota inteira (atalho para os dias corridos).
+  modoCusto ModoCustoNota @default(ITENS)
+  /// Custo total digitado quando `modoCusto = TOTAL`. Ignorado no modo ITENS.
+  custoTotalInformado Decimal? @db.Decimal(12, 2)
+
+  /// Impostos destacados na nota, em reais, quando o detalhe do Bling os
+  /// traz. Usado so no calculo de lucro liquido; NULO = desconhecido.
+  impostosReais Decimal? @db.Decimal(12, 2)
+
+  itens NotaFiscalItem[]
+
   criadoEm     DateTime @default(now()) @db.Timestamptz(3)
   atualizadoEm DateTime @updatedAt @db.Timestamptz(3)
 
   @@index([dataEmissao])
   @@index([pedidoId])
   @@index([clienteId])
+  @@index([segmento])
 }
 
 enum StatusNotaFiscal {
   EMITIDA
   CANCELADA
   PENDENTE
+}
+
+/// Segmento comercial de uma nota. Comeca so com PREFEITURA; o enum existe
+/// para o modulo poder crescer (ex.: EMPRESA, LICITACAO) sem nova migration
+/// de modelo.
+enum SegmentoComercial {
+  PREFEITURA
+}
+
+/// De onde vem o custo de uma nota no calculo de lucro.
+enum ModoCustoNota {
+  ITENS
+  TOTAL
+}
+
+/// Um item da nota de saida, puxado do detalhe do Bling. Guarda o que foi
+/// vendido (descricao, quantidade, valor) e o CUSTO que o dono informa, que
+/// e o que falta hoje para apurar lucro de verdade.
+model NotaFiscalItem {
+  id           String     @id @default(uuid())
+  notaFiscalId String
+  notaFiscal   NotaFiscal @relation(fields: [notaFiscalId], references: [id], onDelete: Cascade)
+
+  /// Posicao do item na nota (1, 2, 3...). E a chave de idempotencia: reler a
+  /// mesma nota atualiza o item na mesma posicao em vez de duplicar.
+  ordem     Int
+  descricao String
+
+  quantidade         Decimal @default(1) @db.Decimal(14, 4)
+  valorUnitarioVenda Decimal @default(0) @db.Decimal(12, 2)
+  valorTotalVenda    Decimal @default(0) @db.Decimal(12, 2)
+
+  /// Custo total da LINHA, informado pelo dono. NULO = ainda nao informado
+  /// (entra no relatorio como custo pendente, nunca como zero).
+  custoTotal Decimal? @db.Decimal(12, 2)
+
+  criadoEm     DateTime @default(now()) @db.Timestamptz(3)
+  atualizadoEm DateTime @updatedAt @db.Timestamptz(3)
+
+  @@unique([notaFiscalId, ordem])
+  @@index([notaFiscalId])
 }
 
 // ==========================================
