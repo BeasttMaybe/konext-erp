@@ -8,7 +8,7 @@ import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditor
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { deDecimal, paraDecimal } from "@/lib/dinheiro";
 import { dataDeCalendario } from "@/lib/datas";
-import { apurarNota, apurarPeriodo, type ApuracaoPeriodo, type NotaApuracao } from "@/lib/dominio/prefeitura/apuracao";
+import { apurarNota, apurarPeriodo, IMPOSTO_PADRAO_PERCENTUAL, type ApuracaoPeriodo, type NotaApuracao } from "@/lib/dominio/prefeitura/apuracao";
 
 const ORIGEM = "prefeitura";
 
@@ -50,7 +50,11 @@ function paraApuracao(nota: NotaComItens): NotaApuracao {
     custoTotalInformadoCentavos: centavosOuNulo(nota.custoTotalInformado),
     impostosCentavos: centavosOuNulo(nota.impostosReais),
     freteCentavos: centavos(nota.freteInformado),
-    impostoPercentual: nota.impostoPercentual === null || nota.impostoPercentual === undefined ? null : Number(nota.impostoPercentual),
+    // Nota sem alíquota informada assume o padrão (Simples 4%), para o lucro
+    // líquido já descontar imposto sem precisar salvar nota por nota. Uma
+    // alíquota definida à mão (inclusive 0) sobrepõe.
+    impostoPercentual:
+      nota.impostoPercentual === null || nota.impostoPercentual === undefined ? IMPOSTO_PADRAO_PERCENTUAL : Number(nota.impostoPercentual),
     itens: nota.itens.map((i) => ({
       valorVendaCentavos: centavos(i.valorTotalVenda),
       custoCentavos: centavosOuNulo(i.custoTotal),

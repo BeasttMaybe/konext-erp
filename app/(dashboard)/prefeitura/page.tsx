@@ -8,6 +8,7 @@ import { FiltroPeriodoPagina } from "@/components/ui/filtro-periodo-pagina";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 import { formatarReais } from "@/lib/dinheiro";
 import { calcularPresetEsteMes, validarIntervalo } from "@/lib/filtro-periodo";
+import { IMPOSTO_PADRAO_PERCENTUAL } from "@/lib/dominio/prefeitura/apuracao";
 import { dataDeCalendario } from "@/lib/datas";
 
 export const metadata = { title: "Prefeitura | TechOS" };
@@ -179,7 +180,7 @@ export default async function PrefeituraPage({ searchParams }: Props) {
                 <Indicador
                   rotulo="Lucro líquido"
                   valor={formatarReais(periodo.lucroLiquidoApuradoCentavos)}
-                  nota="− impostos"
+                  nota={`− imposto ${IMPOSTO_PADRAO_PERCENTUAL}% (padrão)`}
                   icone={Banknote}
                   corValor={corLucro(periodo.lucroLiquidoApuradoCentavos)}
                 />
