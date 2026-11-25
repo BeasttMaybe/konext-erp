@@ -7,6 +7,7 @@ import { exigirPermissao } from "@/lib/auth/permissoes";
 import { contextoAuditoriaDoUsuario, registrarLogAuditoria } from "@/lib/auditoria";
 import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes";
 import { deDecimal, paraDecimal } from "@/lib/dinheiro";
+import { dataDeCalendario } from "@/lib/datas";
 import { apurarNota, apurarPeriodo, type ApuracaoPeriodo, type NotaApuracao } from "@/lib/dominio/prefeitura/apuracao";
 
 const ORIGEM = "prefeitura";
@@ -109,25 +110,64 @@ function resumir(nota: NotaComItens): ResumoNotaPrefeitura {
   };
 }
 
+export type FiltrosPrefeitura = { cliente?: string | null; de?: string | null; ate?: string | null };
+
 export type PainelPrefeitura = {
   periodo: ApuracaoPeriodo;
   notas: ResumoNotaPrefeitura[];
+  /** Nomes de prefeitura disponíveis para o seletor (todas, sem filtro). */
+  prefeituras: string[];
+  /** Filtros efetivamente aplicados (já normalizados). */
+  filtros: { cliente: string | null; de: string | null; ate: string | null };
 };
 
+// Aceita só YYYY-MM-DD; qualquer outra coisa vira null (filtro ignorado).
+function dataValida(valor: string | null | undefined): string | null {
+  const v = (valor ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return null;
+  const d = new Date(`${v}T00:00:00Z`);
+  return Number.isNaN(d.getTime()) ? null : v;
+}
+
 /** Carrega o painel da Prefeitura: KPIs do período + as notas com apuração. */
-export async function obterPainelPrefeitura(): Promise<PainelPrefeitura> {
+export async function obterPainelPrefeitura(filtros: FiltrosPrefeitura = {}): Promise<PainelPrefeitura> {
   const contexto = await exigirContextoTenant();
   exigirPermissao(contexto, "financeiro.ver");
 
-  const notas = (await contexto.prisma.notaFiscal.findMany({
-    where: { segmento: "PREFEITURA" },
-    orderBy: { dataEmissao: "desc" },
-    include: { itens: { orderBy: { ordem: "asc" } } },
-  })) as unknown as NotaComItens[];
+  const cliente = (filtros.cliente ?? "").trim() || null;
+  const de = dataValida(filtros.de);
+  const ate = dataValida(filtros.ate);
+
+  const where: Record<string, unknown> = { segmento: "PREFEITURA" };
+  if (cliente) where.clienteNome = cliente;
+  if (de || ate) {
+    // dataEmissao é data de calendário (meia-noite UTC), então os limites
+    // batem exatos com o dia escolhido — `ate` inclui o próprio dia.
+    const faixa: Record<string, Date> = {};
+    if (de) faixa.gte = dataDeCalendario(de);
+    if (ate) faixa.lte = dataDeCalendario(ate);
+    where.dataEmissao = faixa;
+  }
+
+  const [notas, distintas] = await Promise.all([
+    contexto.prisma.notaFiscal.findMany({
+      where,
+      orderBy: { dataEmissao: "desc" },
+      include: { itens: { orderBy: { ordem: "asc" } } },
+    }) as unknown as Promise<NotaComItens[]>,
+    contexto.prisma.notaFiscal.findMany({
+      where: { segmento: "PREFEITURA", clienteNome: { not: null } },
+      select: { clienteNome: true },
+      distinct: ["clienteNome"],
+      orderBy: { clienteNome: "asc" },
+    }) as unknown as Promise<Array<{ clienteNome: string | null }>>,
+  ]);
 
   return {
     periodo: apurarPeriodo(notas.map(paraApuracao)),
     notas: notas.map(resumir),
+    prefeituras: distintas.map((d) => d.clienteNome).filter((n): n is string => !!n),
+    filtros: { cliente, de, ate },
   };
 }
 
