@@ -59,6 +59,9 @@ import {
   type PostComComentarios,
   type ResumoAvaliacoes,
 } from "@/lib/zernio/cliente";
+// Reexporta os tipos da Zernio usados pelos componentes cliente (que não podem
+// importar de @/lib/zernio/cliente, que é server-only).
+export type { ComentarioZernio, PostComComentarios } from "@/lib/zernio/cliente";
 import { auditarSite } from "@/lib/seo/auditar";
 import {
   lerRecomendacoes,
