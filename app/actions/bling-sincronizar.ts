@@ -546,6 +546,8 @@ async function importarContasAReceber({
           origem: "BLING" as const,
           formaRecebimento: "NAO_INFORMADO" as const,
           clienteId: clienteLocal?.id ?? null,
+          // Só dígitos: agrupa a conta por documento (prefeitura) sem cadastro.
+          clienteDocumento: (conta.clienteDocumento ?? "").replace(/\D/g, "") || null,
         };
 
         if (existente) {

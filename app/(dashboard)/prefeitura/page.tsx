@@ -1,8 +1,8 @@
 import type { ComponentType } from "react";
 import Link from "next/link";
-import { ArrowRight, Banknote, Landmark, Percent, Receipt, TrendingUp, Wallet } from "lucide-react";
+import { AlertTriangle, ArrowRight, Banknote, CalendarClock, Clock, HandCoins, Landmark, Percent, Receipt, TrendingUp, Wallet } from "lucide-react";
 
-import { obterPainelPrefeitura, type ResumoNotaPrefeitura } from "@/app/actions/prefeitura";
+import { obterCaixaPrefeitura, obterPainelPrefeitura, type CaixaPrefeitura, type ResumoNotaPrefeitura } from "@/app/actions/prefeitura";
 import { SeletorPrefeitura } from "@/components/prefeitura/seletor-prefeitura";
 import { FiltroPeriodoPagina } from "@/components/ui/filtro-periodo-pagina";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
@@ -94,6 +94,72 @@ function LinhaNota({ nota }: { nota: ResumoNotaPrefeitura }) {
   );
 }
 
+function CaixaBloco({ caixa }: { caixa: CaixaPrefeitura }) {
+  const prazo =
+    caixa.prazoMedioDias === null
+      ? "—"
+      : caixa.prazoMedioDias === 0
+        ? "no prazo"
+        : caixa.prazoMedioDias > 0
+          ? `+${caixa.prazoMedioDias} dias`
+          : `${caixa.prazoMedioDias} dias`;
+
+  return (
+    <div className="flex flex-col gap-3 rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-5">
+      <div className="flex flex-col gap-0.5">
+        <h2 className="flex items-center gap-1.5 text-[15px] font-bold text-kx-texto">
+          <HandCoins className="h-4 w-4" aria-hidden /> Caixa da prefeitura
+        </h2>
+        <span className="text-xs text-kx-legenda">Posição atual das contas a receber da prefeitura (independe do período acima).</span>
+      </div>
+
+      {!caixa.temDados ? (
+        <p className="rounded-kx-botao border border-kx-painel-borda bg-kx-superficie px-4 py-6 text-center text-sm text-kx-legenda">
+          Ainda não há contas a receber da prefeitura. Elas aparecem conforme o Bling é sincronizado.
+        </p>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 xl:grid-cols-5">
+            <Indicador rotulo="A receber" valor={formatarReais(caixa.aReceberAbertoCentavos)} nota={`${caixa.qtdAberto} em aberto`} icone={Wallet} />
+            <Indicador
+              rotulo="Vencido"
+              valor={formatarReais(caixa.vencidoCentavos)}
+              nota={`${caixa.qtdVencido} atrasada(s)`}
+              icone={AlertTriangle}
+              corValor={caixa.vencidoCentavos > 0 ? "text-kx-erro-texto" : "text-kx-texto"}
+            />
+            <Indicador rotulo="A vencer" valor={formatarReais(caixa.aVencerCentavos)} icone={CalendarClock} />
+            <Indicador rotulo="Recebido" valor={formatarReais(caixa.recebidoCentavos)} icone={Banknote} corValor="text-kx-sucesso-texto" />
+            <Indicador rotulo="Prazo médio" valor={prazo} nota="após o vencimento" icone={Clock} />
+          </div>
+
+          {caixa.contasAbertas.length > 0 ? (
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs font-bold uppercase tracking-wide text-kx-legenda">Em aberto (mais urgentes)</span>
+              <ul className="flex flex-col divide-y divide-kx-painel-borda overflow-hidden rounded-kx-botao border border-kx-painel-borda">
+                {caixa.contasAbertas.map((c) => (
+                  <li key={c.id} className="flex items-center justify-between gap-3 bg-kx-superficie px-4 py-2.5">
+                    <div className="flex min-w-0 flex-col">
+                      <span className="truncate text-sm text-kx-texto">{c.descricao}</span>
+                      <span className="text-xs text-kx-legenda">
+                        Vence {data(c.vencimento)}
+                        {c.atrasoDias > 0 ? <span className="text-kx-erro-texto"> · {c.atrasoDias} dia(s) de atraso</span> : null}
+                      </span>
+                    </div>
+                    <span className={`shrink-0 text-sm font-bold ${c.atrasoDias > 0 ? "text-kx-erro-texto" : "text-kx-texto"}`}>
+                      {formatarReais(c.valorCentavos)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </>
+      )}
+    </div>
+  );
+}
+
 type Props = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
 export default async function PrefeituraPage({ searchParams }: Props) {
@@ -114,11 +180,10 @@ export default async function PrefeituraPage({ searchParams }: Props) {
       ? { inicio: inicioValido, fim: fimValido }
       : intervaloPadrao;
 
-  const { periodo, notas, prefeituras } = await obterPainelPrefeitura({
-    cliente,
-    de: paraUrl(periodoSel.inicio),
-    ate: paraUrl(periodoSel.fim),
-  });
+  const [{ periodo, notas, prefeituras }, caixa] = await Promise.all([
+    obterPainelPrefeitura({ cliente, de: paraUrl(periodoSel.inicio), ate: paraUrl(periodoSel.fim) }),
+    obterCaixaPrefeitura(),
+  ]);
   const semNotasNoSistema = prefeituras.length === 0;
 
   return (
@@ -207,6 +272,8 @@ export default async function PrefeituraPage({ searchParams }: Props) {
               </div>
             </>
           )}
+
+          <CaixaBloco caixa={caixa} />
         </>
       )}
     </div>
