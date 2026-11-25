@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BarChart3, CalendarClock, Camera, ChevronRight, MessageSquare, Music2, Plug, Send, TrendingUp } from "lucide-react";
+import { BarChart3, CalendarClock, Camera, ChevronRight, MessageCircle, MessageSquare, Music2, Plug, Send, TrendingUp } from "lucide-react";
 
 import { obterResumoMarketing } from "@/app/actions/marketing";
 
@@ -17,6 +17,12 @@ const ATALHOS = [
     nome: "Mensagens",
     descricao: "Responda os directs das redes num só lugar, com sugestão de resposta por IA.",
     icone: MessageSquare,
+  },
+  {
+    href: "/marketing/comentarios",
+    nome: "Comentários",
+    descricao: "Veja os comentários dos posts do Instagram e responda com IA ou oculte.",
+    icone: MessageCircle,
   },
   {
     href: "/marketing/publicacoes",
