@@ -24,6 +24,7 @@ import {
   type ItemDaNota,
   type NotaDeSaidaLida,
 } from "@/lib/dominio/bling/nota-de-saida";
+import { ehNomeDePrefeitura } from "@/lib/dominio/prefeitura/deteccao";
 import { paraMensagemSegura } from "@/lib/erros";
 import { exigirContextoTenant } from "@/lib/tenant/exigir-contexto-tenant";
 
@@ -106,6 +107,7 @@ type DelegateGenerico = {
   findFirst?: (args?: unknown) => Promise<unknown>;
   create: (args: unknown) => Promise<unknown>;
   update: (args: unknown) => Promise<unknown>;
+  updateMany: (args: unknown) => Promise<unknown>;
   count: (args?: unknown) => Promise<number>;
 };
 
@@ -154,27 +156,48 @@ async function acharClientePorDocumento(
 }
 
 /**
- * Acha o cliente pelo documento e diz se ele é ÓRGÃO PÚBLICO.
+ * Reavalia o segmento das notas e marca como Prefeitura as que casam, por:
+ *  - NOME do cliente ("prefeitura", "municipio/municipal") — não depende de
+ *    cadastro; ou
+ *  - CNPJ de um cliente cadastrado como órgão público.
  *
- * É o que liga a nota ao módulo Prefeitura sem o dono precisar marcar nada:
- * se o CNPJ da nota é de um cliente cadastrado como órgão público, a nota é
- * reconhecida como Prefeitura na própria sincronização.
+ * Roda a CADA sincronização e varre as notas que ainda não têm segmento (e
+ * que o dono não travou à mão). É isto que faz uma nota antiga, já importada
+ * antes deste recurso existir, passar a aparecer no módulo Prefeitura — a
+ * detecção não acontece só na primeira leitura do detalhe.
  */
-async function acharClientePorDocumentoComCategoria(
-  prisma: PrismaComRaw,
-  documento: string | null
-): Promise<{ id: string; ehOrgaoPublico: boolean } | null> {
-  const digitos = (documento ?? "").replace(/\D/g, "");
-  if (digitos.length !== 11 && digitos.length !== 14) return null;
+async function redetectarSegmentoPrefeitura(
+  notaFiscal: DelegateGenerico,
+  prisma: PrismaComRaw
+): Promise<number> {
+  const candidatas = (await notaFiscal.findMany({
+    where: { segmentoManual: false, segmento: null },
+    select: { id: true, clienteNome: true, clienteDocumento: true },
+    take: 2000,
+  })) as Array<{ id: string; clienteNome: string | null; clienteDocumento: string | null }>;
 
-  const encontrados = await prisma.$queryRaw<Array<{ id: string; categoria: string }>>`
-    SELECT id, categoria::text AS categoria FROM "Cliente"
-     WHERE regexp_replace(documento, '[^0-9]', '', 'g') = ${digitos}
-     LIMIT 1
+  if (candidatas.length === 0) return 0;
+
+  // Documentos (só dígitos) dos clientes cadastrados como órgão público.
+  const publicos = await prisma.$queryRaw<Array<{ doc: string }>>`
+    SELECT regexp_replace(documento, '[^0-9]', '', 'g') AS doc
+      FROM "Cliente"
+     WHERE categoria = 'ORGAO_PUBLICO'::"CategoriaCliente"
+       AND documento IS NOT NULL
   `;
+  const docsPublicos = new Set(publicos.map((p) => p.doc).filter(Boolean));
 
-  const cliente = encontrados[0];
-  return cliente ? { id: cliente.id, ehOrgaoPublico: cliente.categoria === "ORGAO_PUBLICO" } : null;
+  const ids = candidatas
+    .filter((c) => {
+      const doc = (c.clienteDocumento ?? "").replace(/\D/g, "");
+      return ehNomeDePrefeitura(c.clienteNome) || (doc.length > 0 && docsPublicos.has(doc));
+    })
+    .map((c) => c.id);
+
+  if (ids.length === 0) return 0;
+
+  await notaFiscal.updateMany({ where: { id: { in: ids } }, data: { segmento: "PREFEITURA" } });
+  return ids.length;
 }
 
 /**
@@ -210,6 +233,57 @@ async function gravarItensDaNota(
   }
 }
 
+/** Orçamento e teto da busca de itens faltantes (notas da prefeitura antigas). */
+const ORCAMENTO_ITENS_EM_MS = 6_000;
+const TETO_DE_ITENS_POR_EXECUCAO = 25;
+
+/**
+ * Busca os itens das notas da Prefeitura que ainda não têm nenhum item.
+ *
+ * As notas importadas ANTES deste recurso já tiveram o valor lido, então
+ * pulam a fase de detalhe (que só busca quem está sem valor) e nunca teriam
+ * itens. Esta fase, limitada por tempo e resumível, rebusca o detalhe só
+ * dessas notas para o dono poder lançar o custo item a item.
+ */
+async function buscarItensFaltantesPrefeitura({
+  accessToken,
+  notaFiscal,
+  notaFiscalItem,
+}: {
+  accessToken: string;
+  notaFiscal: DelegateGenerico;
+  notaFiscalItem: DelegateGenerico;
+}): Promise<number> {
+  const semItens = (await notaFiscal.findMany({
+    where: { segmento: "PREFEITURA", blingId: { not: null }, itens: { none: {} } },
+    select: { id: true, blingId: true, impostosReais: true },
+    orderBy: { dataEmissao: "desc" },
+    take: TETO_DE_ITENS_POR_EXECUCAO,
+  })) as Array<{ id: string; blingId: string | null; impostosReais: unknown }>;
+
+  let buscados = 0;
+  const comecou = Date.now();
+
+  for (const nota of semItens) {
+    if (!nota.blingId) continue;
+    if (Date.now() - comecou > ORCAMENTO_ITENS_EM_MS) break;
+
+    await esperarPelaVazao();
+    const detalhe = lerDetalheDaNota(await chamarBling({ accessToken, caminho: `/nfe/${nota.blingId}` }));
+    buscados += 1;
+    if (!detalhe) continue;
+
+    if (detalhe.itens.length > 0) await gravarItensDaNota(notaFiscalItem, nota.id, detalhe.itens);
+
+    // Completa os impostos se ainda não tínhamos e o detalhe trouxe.
+    if ((nota.impostosReais === null || nota.impostosReais === undefined) && detalhe.impostosReais !== null) {
+      await notaFiscal.update({ where: { id: nota.id }, data: { impostosReais: paraDecimal(deDecimal(detalhe.impostosReais)) } });
+    }
+  }
+
+  return buscados;
+}
+
 type NotaGravada = {
   id: string;
   blingId: string | null;
@@ -218,7 +292,6 @@ type NotaGravada = {
   pedidoId: string | null;
   clienteDocumento: string | null;
   dataEmissao: Date | null;
-  segmentoManual: boolean;
 };
 
 /**
@@ -573,7 +646,6 @@ export async function sincronizarNotasDoBling(): Promise<ResumoDaSincronizacao> 
         pedidoId: true,
         clienteDocumento: true,
         dataEmissao: true,
-        segmentoManual: true,
       },
       orderBy: { dataEmissao: "desc" },
       take: TETO_DE_DETALHES_POR_EXECUCAO,
@@ -603,14 +675,11 @@ export async function sincronizarNotasDoBling(): Promise<ResumoDaSincronizacao> 
 
       const valorCentavos = deDecimal(detalhe.valorNotaReais);
 
-      // Reconhece Prefeitura pelo cliente ser órgão público — a menos que o
-      // dono já tenha definido o segmento à mão (`segmentoManual`), caso em
-      // que a detecção automática não sobrescreve.
-      const clienteDaNota = await acharClientePorDocumentoComCategoria(
-        prisma as unknown as PrismaComRaw,
-        nota.clienteDocumento
-      );
-      const marcarPrefeitura = !nota.segmentoManual && clienteDaNota?.ehOrgaoPublico === true;
+      // Vincula a nota ao cliente do cadastro quando o CNPJ bate (bônus: a
+      // tela mostra o nome do cadastro). O SEGMENTO não é definido aqui: quem
+      // marca Prefeitura é `redetectarSegmentoPrefeitura`, que roda para todas
+      // as notas (inclusive as antigas) por nome e por órgão público.
+      const clienteDaNota = await acharClientePorDocumento(prisma as unknown as PrismaComRaw, nota.clienteDocumento);
 
       await notaFiscal.update({
         where: { id: nota.id },
@@ -621,10 +690,7 @@ export async function sincronizarNotasDoBling(): Promise<ResumoDaSincronizacao> 
           linkDanfe: detalhe.linkDanfe,
           descricaoItens: detalhe.descricaoDosItens,
           impostosReais: detalhe.impostosReais === null ? null : paraDecimal(deDecimal(detalhe.impostosReais)),
-          // Vincula a nota ao cliente quando reconhecido (bônus: a tela passa
-          // a mostrar o nome do cadastro).
           ...(clienteDaNota ? { clienteId: clienteDaNota.id } : {}),
-          ...(marcarPrefeitura ? { segmento: "PREFEITURA" as const } : {}),
         },
       });
 
@@ -652,6 +718,14 @@ export async function sincronizarNotasDoBling(): Promise<ResumoDaSincronizacao> 
       // `situacao`. É de lá que as contas vêm agora — ver a fase abaixo.
     }
 
+    // ── Fase Prefeitura: reconhecer e completar os itens ───────────────────
+    //
+    // Roda sempre, sobre TODAS as notas (não só as novas): marca como
+    // Prefeitura por nome ("prefeitura"/"municipio") ou por órgão público, e
+    // depois busca os itens das notas da prefeitura que ainda não os têm.
+    await redetectarSegmentoPrefeitura(notaFiscal, prisma as unknown as PrismaComRaw);
+    await buscarItensFaltantesPrefeitura({ accessToken, notaFiscal, notaFiscalItem });
+
     // ── Fase das contas a receber ──────────────────────────────────────────
     contasCriadas = await importarContasAReceber({
       accessToken,
@@ -670,6 +744,7 @@ export async function sincronizarNotasDoBling(): Promise<ResumoDaSincronizacao> 
 
     revalidatePath("/financeiro/notas-fiscais");
     revalidatePath("/financeiro/receber");
+    revalidatePath("/prefeitura");
 
     return {
       sucesso: true,
