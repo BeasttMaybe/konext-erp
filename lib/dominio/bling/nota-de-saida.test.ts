@@ -263,6 +263,40 @@ describe("detalhe da nota — o que a listagem não dá", () => {
   it("junta a descrição dos itens para a tela", () => {
     expect(detalhe.descricaoDosItens).toBe("FRONTAL");
   });
+
+  it("traz os itens estruturados, com ordem e valores", () => {
+    expect(detalhe.itens).toEqual([
+      { ordem: 1, descricao: "FRONTAL", quantidade: 1, valorUnitarioReais: 250, valorTotalReais: 250 },
+    ]);
+  });
+});
+
+describe("detalhe — itens", () => {
+  function comItens(itens: unknown[]) {
+    return lerDetalheDaNota({ data: { ...DETALHE_REAL.data, itens } })!;
+  }
+
+  it("calcula o total da linha quando o Bling não manda (quantidade × valor)", () => {
+    const itens = comItens([{ descricao: "PELÍCULA", quantidade: 3, valor: 20 }]).itens;
+    expect(itens[0]).toMatchObject({ quantidade: 3, valorUnitarioReais: 20, valorTotalReais: 60 });
+  });
+
+  it("numera a ordem em sequência e pula item sem descrição", () => {
+    const itens = comItens([
+      { descricao: "A", quantidade: 1, valor: 10, valorTotal: 10 },
+      { descricao: "", quantidade: 1, valor: 5 },
+      { descricao: "B", quantidade: 2, valor: 5, valorTotal: 10 },
+    ]).itens;
+    expect(itens.map((i) => [i.ordem, i.descricao])).toEqual([
+      [1, "A"],
+      [2, "B"],
+    ]);
+  });
+
+  it("lê o total de tributos quando presente, senão fica nulo", () => {
+    expect(lerDetalheDaNota({ data: { ...DETALHE_REAL.data, tributos: { totalTributos: 12.5 } } })?.impostosReais).toBe(12.5);
+    expect(lerDetalheDaNota(DETALHE_REAL)?.impostosReais).toBeNull();
+  });
 });
 
 describe("detalhe — links que não devem virar botão", () => {

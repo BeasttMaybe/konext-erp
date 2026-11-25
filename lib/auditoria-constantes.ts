@@ -109,6 +109,10 @@ export const ACOES_AUDITORIA = {
   PUBLICAR_MARKETING: "PUBLICAR_MARKETING",
   /** Resposta a uma avaliacao do Perfil do Google. */
   RESPONDER_AVALIACAO_GOOGLE: "RESPONDER_AVALIACAO_GOOGLE",
+  /** Custo de uma nota (itens ou total) informado/editado no modulo Prefeitura. */
+  ATUALIZAR_CUSTO_NOTA: "ATUALIZAR_CUSTO_NOTA",
+  /** Segmento comercial de uma nota definido/ajustado a mao (ex.: Prefeitura). */
+  DEFINIR_SEGMENTO_NOTA: "DEFINIR_SEGMENTO_NOTA",
 } as const;
 
 export const ENTIDADES_AUDITORIA = {
@@ -138,6 +142,7 @@ export const ENTIDADES_AUDITORIA = {
   PRODUTO: "PRODUTO",
   NOTA_DE_COMPRA: "NOTA_DE_COMPRA",
   CLIENTE: "CLIENTE",
+  NOTA_FISCAL: "NOTA_FISCAL",
 } as const;
 
 export type AcaoAuditoria = (typeof ACOES_AUDITORIA)[keyof typeof ACOES_AUDITORIA];

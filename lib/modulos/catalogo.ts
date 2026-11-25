@@ -79,7 +79,9 @@ export const MODULOS: readonly Modulo[] = [
     id: "financeiro",
     nome: "Financeiro",
     descricao: "Contas a pagar e a receber, fluxo de caixa e relatórios.",
-    rotas: ["/financeiro"],
+    // /prefeitura entra aqui: é o mesmo módulo contratável (financeiro), mesmo
+    // aparecendo como item próprio no menu.
+    rotas: ["/financeiro", "/prefeitura"],
     permissoes: ["financeiro", "dashboard.financeiro"],
   },
   {

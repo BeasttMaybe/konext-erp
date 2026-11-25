@@ -21,6 +21,7 @@ import {
   lerDetalheDaNota,
   lerPaginaDeNotas,
   TIPO_SAIDA_NO_BLING,
+  type ItemDaNota,
   type NotaDeSaidaLida,
 } from "@/lib/dominio/bling/nota-de-saida";
 import { paraMensagemSegura } from "@/lib/erros";
@@ -152,6 +153,63 @@ async function acharClientePorDocumento(
   return encontrados[0] ?? null;
 }
 
+/**
+ * Acha o cliente pelo documento e diz se ele é ÓRGÃO PÚBLICO.
+ *
+ * É o que liga a nota ao módulo Prefeitura sem o dono precisar marcar nada:
+ * se o CNPJ da nota é de um cliente cadastrado como órgão público, a nota é
+ * reconhecida como Prefeitura na própria sincronização.
+ */
+async function acharClientePorDocumentoComCategoria(
+  prisma: PrismaComRaw,
+  documento: string | null
+): Promise<{ id: string; ehOrgaoPublico: boolean } | null> {
+  const digitos = (documento ?? "").replace(/\D/g, "");
+  if (digitos.length !== 11 && digitos.length !== 14) return null;
+
+  const encontrados = await prisma.$queryRaw<Array<{ id: string; categoria: string }>>`
+    SELECT id, categoria::text AS categoria FROM "Cliente"
+     WHERE regexp_replace(documento, '[^0-9]', '', 'g') = ${digitos}
+     LIMIT 1
+  `;
+
+  const cliente = encontrados[0];
+  return cliente ? { id: cliente.id, ehOrgaoPublico: cliente.categoria === "ORGAO_PUBLICO" } : null;
+}
+
+/**
+ * Grava os itens da nota, idempotente por (nota, ordem).
+ *
+ * NUNCA toca em `custoTotal`: esse é o custo que o dono digita, e uma
+ * sincronização seguinte não pode apagá-lo. Só os campos vindos do Bling
+ * (descrição, quantidade, valores de venda) são atualizados.
+ */
+async function gravarItensDaNota(
+  notaFiscalItem: DelegateGenerico,
+  notaFiscalId: string,
+  itens: ItemDaNota[]
+): Promise<void> {
+  for (const item of itens) {
+    const existente = (await notaFiscalItem.findFirst?.({
+      where: { notaFiscalId, ordem: item.ordem },
+      select: { id: true },
+    })) as { id: string } | null;
+
+    const dados = {
+      descricao: item.descricao.slice(0, 500),
+      quantidade: item.quantidade,
+      valorUnitarioVenda: paraDecimal(deDecimal(item.valorUnitarioReais)),
+      valorTotalVenda: paraDecimal(deDecimal(item.valorTotalReais)),
+    };
+
+    if (existente) {
+      await notaFiscalItem.update({ where: { id: existente.id }, data: dados });
+    } else {
+      await notaFiscalItem.create({ data: { ...dados, notaFiscalId, ordem: item.ordem } });
+    }
+  }
+}
+
 type NotaGravada = {
   id: string;
   blingId: string | null;
@@ -160,6 +218,7 @@ type NotaGravada = {
   pedidoId: string | null;
   clienteDocumento: string | null;
   dataEmissao: Date | null;
+  segmentoManual: boolean;
 };
 
 /**
@@ -450,6 +509,7 @@ export async function sincronizarNotasDoBling(): Promise<ResumoDaSincronizacao> 
 
     const { prisma } = contexto;
     const notaFiscal = delegado(prisma, "notaFiscal", "NotaFiscal");
+    const notaFiscalItem = delegado(prisma, "notaFiscalItem", "NotaFiscalItem");
     const contaReceber = delegado(prisma, "contaReceber", "ContaReceber");
 
     const accessToken = await obterAccessTokenValido(prisma, contexto.empresaId);
@@ -513,6 +573,7 @@ export async function sincronizarNotasDoBling(): Promise<ResumoDaSincronizacao> 
         pedidoId: true,
         clienteDocumento: true,
         dataEmissao: true,
+        segmentoManual: true,
       },
       orderBy: { dataEmissao: "desc" },
       take: TETO_DE_DETALHES_POR_EXECUCAO,
@@ -542,6 +603,15 @@ export async function sincronizarNotasDoBling(): Promise<ResumoDaSincronizacao> 
 
       const valorCentavos = deDecimal(detalhe.valorNotaReais);
 
+      // Reconhece Prefeitura pelo cliente ser órgão público — a menos que o
+      // dono já tenha definido o segmento à mão (`segmentoManual`), caso em
+      // que a detecção automática não sobrescreve.
+      const clienteDaNota = await acharClientePorDocumentoComCategoria(
+        prisma as unknown as PrismaComRaw,
+        nota.clienteDocumento
+      );
+      const marcarPrefeitura = !nota.segmentoManual && clienteDaNota?.ehOrgaoPublico === true;
+
       await notaFiscal.update({
         where: { id: nota.id },
         data: {
@@ -550,8 +620,18 @@ export async function sincronizarNotasDoBling(): Promise<ResumoDaSincronizacao> 
           linkXml: detalhe.linkXml,
           linkDanfe: detalhe.linkDanfe,
           descricaoItens: detalhe.descricaoDosItens,
+          impostosReais: detalhe.impostosReais === null ? null : paraDecimal(deDecimal(detalhe.impostosReais)),
+          // Vincula a nota ao cliente quando reconhecido (bônus: a tela passa
+          // a mostrar o nome do cadastro).
+          ...(clienteDaNota ? { clienteId: clienteDaNota.id } : {}),
+          ...(marcarPrefeitura ? { segmento: "PREFEITURA" as const } : {}),
         },
       });
+
+      // Grava os itens da nota (idempotente; não mexe no custo já digitado).
+      if (detalhe.itens.length > 0) {
+        await gravarItensDaNota(notaFiscalItem, nota.id, detalhe.itens);
+      }
 
       const casou = await tentarVincular({
         prisma: prisma as unknown as PrismaComRaw,

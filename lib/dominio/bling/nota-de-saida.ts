@@ -217,6 +217,19 @@ export type ParcelaDaNota = {
   valorReais: number;
 };
 
+/**
+ * Um item da nota, como o detalhe do Bling descreve. Valores em REAIS; a
+ * conversão para centavos é de quem grava. `ordem` é a posição (1, 2, 3...),
+ * usada como chave de idempotência ao gravar.
+ */
+export type ItemDaNota = {
+  ordem: number;
+  descricao: string;
+  quantidade: number;
+  valorUnitarioReais: number;
+  valorTotalReais: number;
+};
+
 export type DetalheDaNota = {
   blingId: string;
   /** Em REAIS, como o Bling manda. A conversão para centavos é de quem grava. */
@@ -225,6 +238,9 @@ export type DetalheDaNota = {
   linkXml: string | null;
   linkDanfe: string | null;
   parcelas: ParcelaDaNota[];
+  itens: ItemDaNota[];
+  /** Total de tributos da nota, em REAIS, quando o Bling o traz. NULO = desconhecido. */
+  impostosReais: number | null;
   /** Descrição dos itens, para a tela dizer o que foi vendido. */
   descricaoDosItens: string | null;
 };
@@ -269,12 +285,30 @@ export function lerDetalheDaNota(resposta: unknown): DetalheDaNota | null {
   if (!blingId) return null;
 
   const serieBruta = texto(nota.serie);
-  const itens = Array.isArray(nota.itens) ? nota.itens : [];
+  const brutosItens = Array.isArray(nota.itens) ? nota.itens : [];
 
-  const descricoes = itens
-    .map((item) => objeto(item))
-    .map((item) => (item ? texto(item.descricao) : null))
-    .filter((descricao): descricao is string => descricao !== null);
+  const itens: ItemDaNota[] = [];
+  for (const bruto of brutosItens) {
+    const item = objeto(bruto);
+    const descricao = item ? texto(item.descricao) : null;
+    if (!item || !descricao) continue;
+
+    const quantidade = numero(item.quantidade) ?? 1;
+    const valorUnitarioReais = numero(item.valor) ?? 0;
+    // O detalhe nem sempre traz o total da linha; quando falta, é quantidade ×
+    // valor unitário. Preferimos o campo do Bling quando ele existe.
+    const valorTotalReais = numero(item.valorTotal) ?? quantidade * valorUnitarioReais;
+
+    itens.push({
+      ordem: itens.length + 1,
+      descricao,
+      quantidade,
+      valorUnitarioReais,
+      valorTotalReais,
+    });
+  }
+
+  const descricoes = itens.map((item) => item.descricao);
 
   const parcelas: ParcelaDaNota[] = (Array.isArray(nota.parcelas) ? nota.parcelas : [])
     .map((bruta) => {
@@ -293,6 +327,14 @@ export function lerDetalheDaNota(resposta: unknown): DetalheDaNota | null {
     })
     .filter((parcela): parcela is ParcelaDaNota => parcela !== null);
 
+  // Total de tributos: o Bling guarda num objeto `tributos`. Quando não vier,
+  // fica NULO — o cálculo de lucro líquido trata imposto desconhecido como
+  // zero, mas sinaliza na tela que não foi considerado.
+  const tributos = objeto(nota.tributos);
+  const impostosReais = tributos
+    ? numero(tributos.totalTributos) ?? numero(tributos.valorTotalTributos)
+    : numero(nota.totalImpostos);
+
   return {
     blingId,
     valorNotaReais: numero(nota.valorNota),
@@ -300,6 +342,8 @@ export function lerDetalheDaNota(resposta: unknown): DetalheDaNota | null {
     linkXml: linkDoBling(nota.xml),
     linkDanfe: linkDoBling(nota.linkDanfe),
     parcelas,
+    itens,
+    impostosReais,
     descricaoDosItens: descricoes.length > 0 ? descricoes.join(", ").slice(0, 300) : null,
   };
 }

@@ -103,6 +103,9 @@ export const ITENS_NAVEGACAO: readonly ItemNavegacao[] = [
       { label: "Conexões", path: "/marketing/conexoes" },
     ],
   },
+  // Vendas para a prefeitura: custo, lucro e caixa a partir das notas do Bling.
+  // Item próprio no menu, mas sob o módulo "financeiro" (ver catalogo.ts).
+  { label: "Prefeitura", path: "/prefeitura", iconKey: "Prefeitura" },
   // Ferramentas de bancada (modulo "ferramentas"); /ferramentas lista todas.
   {
     label: "Ferramentas",
