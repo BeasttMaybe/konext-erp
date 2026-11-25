@@ -140,12 +140,16 @@ export async function obterPainelPrefeitura(filtros: FiltrosPrefeitura = {}): Pr
 
   const where: Record<string, unknown> = { segmento: "PREFEITURA" };
   if (cliente) where.clienteNome = cliente;
-  if (de || ate) {
-    // dataEmissao é data de calendário (meia-noite UTC), então os limites
-    // batem exatos com o dia escolhido — `ate` inclui o próprio dia.
-    const faixa: Record<string, Date> = {};
-    if (de) faixa.gte = dataDeCalendario(de);
-    if (ate) faixa.lte = dataDeCalendario(ate);
+  // dataEmissao é data de calendário (meia-noite UTC), então os limites batem
+  // exatos com o dia escolhido — `ate` inclui o próprio dia. As datas já vêm
+  // validadas (YYYY-MM-DD), então dataDeCalendario não devolve null aqui, mas
+  // o guard mantém o tipo honesto.
+  const inicio = de ? dataDeCalendario(de) : null;
+  const fim = ate ? dataDeCalendario(ate) : null;
+  if (inicio || fim) {
+    const faixa: { gte?: Date; lte?: Date } = {};
+    if (inicio) faixa.gte = inicio;
+    if (fim) faixa.lte = fim;
     where.dataEmissao = faixa;
   }
 
