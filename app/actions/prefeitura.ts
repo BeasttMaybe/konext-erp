@@ -9,6 +9,7 @@ import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes
 import { deDecimal, paraDecimal } from "@/lib/dinheiro";
 import { dataDeCalendario } from "@/lib/datas";
 import { apurarNota, apurarPeriodo, IMPOSTO_PADRAO_PERCENTUAL, type ApuracaoPeriodo, type NotaApuracao } from "@/lib/dominio/prefeitura/apuracao";
+import { apurarCaixa, type ApuracaoCaixa, type ContaCaixa } from "@/lib/dominio/prefeitura/caixa";
 
 const ORIGEM = "prefeitura";
 
@@ -181,6 +182,101 @@ export async function obterPainelPrefeitura(filtros: FiltrosPrefeitura = {}): Pr
     prefeituras: distintas.map((d) => d.clienteNome).filter((n): n is string => !!n),
     filtros: { cliente, de, ate },
   };
+}
+
+export type ContaAbertaPrefeitura = {
+  id: string;
+  descricao: string;
+  valorCentavos: number;
+  vencimento: string;
+  atrasoDias: number;
+};
+
+export type CaixaPrefeitura = ApuracaoCaixa & {
+  temDados: boolean;
+  contasAbertas: ContaAbertaPrefeitura[];
+};
+
+const DIA_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Posição de caixa das vendas para a prefeitura: a receber (em aberto,
+ * vencido e a vencer), recebido e prazo médio de recebimento. Usa as contas a
+ * receber do Bling agrupadas pelos documentos (CNPJ) das prefeituras.
+ */
+export async function obterCaixaPrefeitura(): Promise<CaixaPrefeitura> {
+  const contexto = await exigirContextoTenant();
+  exigirPermissao(contexto, "financeiro.ver");
+
+  const vazio: CaixaPrefeitura = {
+    aReceberAbertoCentavos: 0,
+    vencidoCentavos: 0,
+    aVencerCentavos: 0,
+    recebidoCentavos: 0,
+    qtdAberto: 0,
+    qtdVencido: 0,
+    prazoMedioDias: null,
+    temDados: false,
+    contasAbertas: [],
+  };
+
+  // Documentos (CNPJ, só dígitos) das prefeituras reconhecidas.
+  const notas = (await contexto.prisma.notaFiscal.findMany({
+    where: { segmento: "PREFEITURA", clienteDocumento: { not: null } },
+    select: { clienteDocumento: true },
+    distinct: ["clienteDocumento"],
+  })) as Array<{ clienteDocumento: string | null }>;
+
+  const documentos = Array.from(
+    new Set(notas.map((n) => (n.clienteDocumento ?? "").replace(/\D/g, "")).filter((d) => d.length > 0))
+  );
+  if (documentos.length === 0) return vazio;
+
+  const contas = (await contexto.prisma.contaReceber.findMany({
+    where: { clienteDocumento: { in: documentos } },
+    select: { id: true, descricao: true, valor: true, status: true, dataVencimento: true, dataRecebimento: true, estornadaEm: true },
+    orderBy: { dataVencimento: "asc" },
+  })) as Array<{
+    id: string;
+    descricao: string;
+    valor: unknown;
+    status: string;
+    dataVencimento: Date;
+    dataRecebimento: Date | null;
+    estornadaEm: Date | null;
+  }>;
+
+  if (contas.length === 0) return vazio;
+
+  const paraCaixa: ContaCaixa[] = contas.map((c) => ({
+    valorCentavos: centavos(c.valor),
+    recebida: c.status === "RECEBIDO",
+    estornada: c.status === "ESTORNADO" || c.estornadaEm !== null,
+    vencimento: c.dataVencimento,
+    recebimento: c.dataRecebimento,
+  }));
+
+  // Hoje como data de calendário (meia-noite UTC): conta vencendo hoje ainda
+  // não é "vencida".
+  const agora = new Date();
+  const hoje = dataDeCalendario(
+    `${agora.getUTCFullYear()}-${String(agora.getUTCMonth() + 1).padStart(2, "0")}-${String(agora.getUTCDate()).padStart(2, "0")}`
+  ) as Date;
+
+  const apuracao = apurarCaixa(paraCaixa, hoje);
+
+  const contasAbertas: ContaAbertaPrefeitura[] = contas
+    .filter((c) => c.status !== "RECEBIDO" && c.status !== "ESTORNADO" && c.estornadaEm === null)
+    .slice(0, 20)
+    .map((c) => ({
+      id: c.id,
+      descricao: c.descricao || "Conta a receber",
+      valorCentavos: centavos(c.valor),
+      vencimento: c.dataVencimento.toISOString(),
+      atrasoDias: Math.max(0, Math.round((hoje.getTime() - c.dataVencimento.getTime()) / DIA_MS)),
+    }));
+
+  return { ...apuracao, temDados: true, contasAbertas };
 }
 
 export type NotaPrefeituraDetalhe = {

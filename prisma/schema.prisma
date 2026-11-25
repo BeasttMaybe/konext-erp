@@ -698,6 +698,12 @@ model ContaReceber {
   /// idempotente: reler a mesma nota nao cria a conta de novo.
   blingParcelaRef String? @unique
 
+  /// CNPJ/CPF do cliente da conta (so digitos), guardado na importacao do
+  /// Bling. Permite agrupar as contas por documento mesmo quando o cliente
+  /// nao esta cadastrado — e o que liga a conta a uma prefeitura (modulo
+  /// Prefeitura) sem depender de cadastro.
+  clienteDocumento String?
+
   origem           OrigemReceita
 
   notaFiscalEmitida Boolean @default(false)
@@ -716,6 +722,7 @@ model ContaReceber {
   @@index([clienteId])
   @@index([ordemServicoId])
   @@index([status, dataVencimento])
+  @@index([clienteDocumento])
 }
 
 enum StatusPagamento {
