@@ -12,6 +12,12 @@
  *   ainda nao voltou (nota nao recebida), e por quanto tempo fica parado.
  */
 
+/**
+ * Alíquota de imposto assumida por padrão quando a nota ainda não tem uma
+ * informada. É o Simples (4%) da loja — o dono pode sobrepor por nota.
+ */
+export const IMPOSTO_PADRAO_PERCENTUAL = 4;
+
 export type ItemApuracao = {
   /** Valor de venda da linha, em centavos. */
   valorVendaCentavos: number;

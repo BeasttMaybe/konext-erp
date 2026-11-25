@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { salvarCustosDaNota, type NotaPrefeituraDetalhe } from "@/app/actions/prefeitura";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { IMPOSTO_PADRAO_PERCENTUAL } from "@/lib/dominio/prefeitura/apuracao";
 import { formatarReais, lerEntradaMonetaria } from "@/lib/dinheiro";
 import { cn } from "@/lib/utils";
 
@@ -30,7 +31,7 @@ function lerPercentual(texto: string): number | null {
 const percentualParaCampo = (n: number | null): string => (n === null ? "" : String(n).replace(".", ","));
 
 // Imposto padrão do Simples, pré-preenchido quando a nota ainda não tem alíquota.
-const IMPOSTO_PADRAO = "4";
+const IMPOSTO_PADRAO = String(IMPOSTO_PADRAO_PERCENTUAL);
 
 export function LancarCustos({ nota }: { nota: NotaPrefeituraDetalhe }) {
   const router = useRouter();
