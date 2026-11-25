@@ -133,7 +133,12 @@ export function LancarCustos({ nota }: { nota: NotaPrefeituraDetalhe }) {
                     </div>
                     <div className="flex w-24 flex-col items-end">
                       <span className="text-[11px] font-bold uppercase tracking-wide text-kx-legenda">Lucro</span>
-                      <span className={cn("text-sm font-bold", lucro === null ? "text-kx-legenda" : lucro < 0 ? "text-kx-erro-texto" : "text-kx-texto")}>
+                      <span
+                        className={cn(
+                          "text-sm font-bold",
+                          lucro === null ? "text-kx-legenda" : lucro < 0 ? "text-kx-erro-texto" : lucro > 0 ? "text-kx-sucesso-texto" : "text-kx-texto"
+                        )}
+                      >
                         {lucro === null ? "—" : formatarReais(lucro)}
                       </span>
                     </div>
@@ -150,7 +155,9 @@ export function LancarCustos({ nota }: { nota: NotaPrefeituraDetalhe }) {
           {previa ? (
             <span>
               Custo <span className="font-bold text-kx-texto">{formatarReais(previa.custo)}</span> · Lucro bruto{" "}
-              <span className={cn("font-bold", previa.lucro < 0 ? "text-kx-erro-texto" : "text-kx-texto")}>{formatarReais(previa.lucro)}</span>
+              <span className={cn("font-bold", previa.lucro < 0 ? "text-kx-erro-texto" : previa.lucro > 0 ? "text-kx-sucesso-texto" : "text-kx-texto")}>
+                {formatarReais(previa.lucro)}
+              </span>
             </span>
           ) : (
             <span>Preencha o custo para ver o lucro.</span>
