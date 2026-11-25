@@ -16,6 +16,22 @@ const paraCentavos = (texto: string): number | null => lerEntradaMonetaria(texto
 
 const centavosParaCampo = (c: number | null): string => (c === null ? "" : (c / 100).toFixed(2).replace(".", ","));
 
+// Alíquota (0–100). Monta o número a partir dos grupos capturados pelo regex,
+// sem reescrever a vírgula (é percentual, não dinheiro — não passa pelo leitor
+// monetário, e evita o atalho de troca de separador que o projeto proíbe).
+function lerPercentual(texto: string): number | null {
+  const t = texto.trim();
+  if (t === "") return null;
+  const m = /^(\d{1,3})(?:[.,](\d{1,2}))?$/.exec(t);
+  if (!m) return null;
+  const n = Number(m[2] ? `${m[1]}.${m[2]}` : m[1]);
+  return Number.isFinite(n) && n >= 0 && n <= 100 ? n : null;
+}
+const percentualParaCampo = (n: number | null): string => (n === null ? "" : String(n).replace(".", ","));
+
+// Imposto padrão do Simples, pré-preenchido quando a nota ainda não tem alíquota.
+const IMPOSTO_PADRAO = "4";
+
 export function LancarCustos({ nota }: { nota: NotaPrefeituraDetalhe }) {
   const router = useRouter();
   const [modo, setModo] = useState<"ITENS" | "TOTAL">(nota.modoCusto);
@@ -23,24 +39,36 @@ export function LancarCustos({ nota }: { nota: NotaPrefeituraDetalhe }) {
   const [custos, setCustos] = useState<Record<string, string>>(() =>
     Object.fromEntries(nota.itens.map((i) => [i.id, centavosParaCampo(i.custoCentavos)]))
   );
+  const [frete, setFrete] = useState<string>(centavosParaCampo(nota.freteCentavos));
+  const [imposto, setImposto] = useState<string>(nota.impostoPercentual === null ? IMPOSTO_PADRAO : percentualParaCampo(nota.impostoPercentual));
   const [salvando, setSalvando] = useState(false);
 
-  // Prévia do lucro conforme o modo e o que foi digitado.
+  // Prévia do lucro conforme o modo e o que foi digitado (inclui frete e imposto).
   const previa = useMemo(() => {
     const receita = nota.receitaCentavos;
+    const freteC = paraCentavos(frete) ?? 0;
+    const pct = lerPercentual(imposto);
+    const impostoC = pct !== null ? Math.round((receita * pct) / 100) : 0;
+
+    let produtos: number | null = null;
     if (modo === "TOTAL") {
-      const custo = paraCentavos(custoTotal);
-      return custo === null ? null : { custo, lucro: receita - custo };
+      produtos = paraCentavos(custoTotal);
+    } else if (nota.itens.length > 0) {
+      let soma = 0;
+      let completo = true;
+      for (const item of nota.itens) {
+        const c = paraCentavos(custos[item.id] ?? "");
+        if (c === null) completo = false;
+        else soma += c;
+      }
+      produtos = completo ? soma : null;
     }
-    let custo = 0;
-    let completo = true;
-    for (const item of nota.itens) {
-      const c = paraCentavos(custos[item.id] ?? "");
-      if (c === null) completo = false;
-      else custo += c;
-    }
-    return completo && nota.itens.length > 0 ? { custo, lucro: receita - custo } : null;
-  }, [modo, custoTotal, custos, nota]);
+
+    if (produtos === null) return null;
+    const custo = produtos + freteC;
+    const lucroBruto = receita - custo;
+    return { custo, lucroBruto, imposto: impostoC, lucroLiquido: lucroBruto - impostoC };
+  }, [modo, custoTotal, custos, frete, imposto, nota]);
 
   const salvar = async () => {
     setSalvando(true);
@@ -49,6 +77,8 @@ export function LancarCustos({ nota }: { nota: NotaPrefeituraDetalhe }) {
         notaId: nota.id,
         modoCusto: modo,
         custoTotalCentavos: modo === "TOTAL" ? paraCentavos(custoTotal) : null,
+        freteCentavos: paraCentavos(frete),
+        impostoPercentual: lerPercentual(imposto),
         itens: nota.itens.map((i) => ({ id: i.id, custoCentavos: paraCentavos(custos[i.id] ?? "") })),
       });
       if (r.ok) {
@@ -150,15 +180,63 @@ export function LancarCustos({ nota }: { nota: NotaPrefeituraDetalhe }) {
         </ul>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-kx-painel-borda pt-3">
-        <div className="text-sm text-kx-legenda">
+      {/* Frete e imposto — abatem o lucro líquido */}
+      <div className="grid grid-cols-1 gap-3 rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-4 sm:max-w-md sm:grid-cols-2">
+        <div className="flex flex-col gap-1">
+          <label htmlFor="frete" className="text-xs font-bold text-kx-texto">
+            Frete (R$)
+          </label>
+          <Input
+            id="frete"
+            inputMode="decimal"
+            placeholder="0,00"
+            className="border-kx-campo-borda bg-kx-superficie text-kx-texto"
+            value={frete}
+            onChange={(e) => setFrete(e.target.value)}
+          />
+          <span className="text-[11px] text-kx-legenda">Entra no custo.</span>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="imposto" className="text-xs font-bold text-kx-texto">
+            Imposto (%)
+          </label>
+          <Input
+            id="imposto"
+            inputMode="decimal"
+            placeholder="4"
+            className="border-kx-campo-borda bg-kx-superficie text-kx-texto"
+            value={imposto}
+            onChange={(e) => setImposto(e.target.value)}
+          />
+          <span className="text-[11px] text-kx-legenda">Desconta no líquido (Simples: 4%).</span>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-kx-painel-borda pt-3">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-kx-legenda">
           {previa ? (
-            <span>
-              Custo <span className="font-bold text-kx-texto">{formatarReais(previa.custo)}</span> · Lucro bruto{" "}
-              <span className={cn("font-bold", previa.lucro < 0 ? "text-kx-erro-texto" : previa.lucro > 0 ? "text-kx-sucesso-texto" : "text-kx-texto")}>
-                {formatarReais(previa.lucro)}
+            <>
+              <span>
+                Custo <span className="font-bold text-kx-texto">{formatarReais(previa.custo)}</span>
               </span>
-            </span>
+              <span>
+                Bruto{" "}
+                <span className={cn("font-bold", previa.lucroBruto < 0 ? "text-kx-erro-texto" : previa.lucroBruto > 0 ? "text-kx-sucesso-texto" : "text-kx-texto")}>
+                  {formatarReais(previa.lucroBruto)}
+                </span>
+              </span>
+              <span>
+                Imposto <span className="font-bold text-kx-texto">−{formatarReais(previa.imposto)}</span>
+              </span>
+              <span>
+                Líquido{" "}
+                <span
+                  className={cn("font-bold", previa.lucroLiquido < 0 ? "text-kx-erro-texto" : previa.lucroLiquido > 0 ? "text-kx-sucesso-texto" : "text-kx-texto")}
+                >
+                  {formatarReais(previa.lucroLiquido)}
+                </span>
+              </span>
+            </>
           ) : (
             <span>Preencha o custo para ver o lucro.</span>
           )}

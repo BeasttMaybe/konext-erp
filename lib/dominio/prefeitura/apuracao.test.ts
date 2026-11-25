@@ -8,6 +8,8 @@ function nota(parcial: Partial<NotaApuracao>): NotaApuracao {
     modoCusto: "ITENS",
     custoTotalInformadoCentavos: null,
     impostosCentavos: null,
+    freteCentavos: 0,
+    impostoPercentual: null,
     itens: [],
     recebida: false,
     dataEmissao: null,
@@ -91,6 +93,38 @@ describe("apurarNota", () => {
 
   it("margem é nula quando a receita é zero", () => {
     expect(apurarNota(nota({ receitaCentavos: 0, itens: [] })).margemBrutaPct).toBeNull();
+  });
+
+  it("frete entra no custo e abate o lucro bruto", () => {
+    const a = apurarNota(
+      nota({ receitaCentavos: 100_00, itens: [{ valorVendaCentavos: 100_00, custoCentavos: 60_00 }], freteCentavos: 10_00 })
+    );
+    expect(a.custoCentavos).toBe(70_00);
+    expect(a.freteCentavos).toBe(10_00);
+    expect(a.lucroBrutoCentavos).toBe(30_00);
+  });
+
+  it("imposto por alíquota desconta receita × % no lucro líquido", () => {
+    const a = apurarNota(
+      nota({ receitaCentavos: 100_00, itens: [{ valorVendaCentavos: 100_00, custoCentavos: 60_00 }], impostoPercentual: 4 })
+    );
+    expect(a.impostosCentavos).toBe(4_00); // 4% de 100,00
+    expect(a.impostosConhecidos).toBe(true);
+    expect(a.lucroLiquidoCentavos).toBe(36_00); // 40,00 bruto − 4,00
+  });
+
+  it("a alíquota tem prioridade sobre o valor de imposto do Bling", () => {
+    const a = apurarNota(nota({ receitaCentavos: 200_00, impostosCentavos: 99_00, impostoPercentual: 5 }));
+    expect(a.impostosCentavos).toBe(10_00); // 5% de 200,00, não os 99,00 do Bling
+  });
+
+  it("frete + imposto juntos no lucro líquido", () => {
+    const a = apurarNota(
+      nota({ receitaCentavos: 100_00, itens: [{ valorVendaCentavos: 100_00, custoCentavos: 50_00 }], freteCentavos: 10_00, impostoPercentual: 4 })
+    );
+    // bruto = 100 − (50 + 10) = 40; líquido = 40 − 4 = 36
+    expect(a.lucroBrutoCentavos).toBe(40_00);
+    expect(a.lucroLiquidoCentavos).toBe(36_00);
   });
 
   it("consome caixa quando não recebida; zera quando recebida", () => {
