@@ -12,8 +12,10 @@ function Card({
       data-slot="card"
       data-size={size}
       className={cn(
-        "flex flex-col gap-4 overflow-hidden rounded-xl py-4 px-4 text-sm border",
-        size === "sm" && "gap-3 py-3 px-3",
+        // Redesenho 11/2026: canto reto (rounded-kx-cartao = 4px) no lugar do
+        // rounded-xl, e um pouco mais denso (gap/py 3) — acompanha os tokens.
+        "flex flex-col gap-3 overflow-hidden rounded-kx-cartao py-3 px-4 text-sm border",
+        size === "sm" && "gap-2 py-3 px-3",
         className
       )}
       {...props}
@@ -26,7 +28,7 @@ function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card-header"
       className={cn(
-        "grid auto-rows-min items-start gap-1 rounded-t-xl",
+        "grid auto-rows-min items-start gap-1 rounded-t-kx-cartao",
         className
       )}
       {...props}
@@ -85,7 +87,7 @@ function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card-footer"
       className={cn(
-        "flex items-center rounded-b-xl border-t bg-muted/50 p-(--card-spacing)",
+        "flex items-center rounded-b-kx-cartao border-t bg-muted/50 p-(--card-spacing)",
         className
       )}
       {...props}
