@@ -187,26 +187,56 @@ export async function obterPainelPrefeitura(filtros: FiltrosPrefeitura = {}): Pr
 export type ContaAbertaPrefeitura = {
   id: string;
   descricao: string;
+  prefeitura: string | null;
   valorCentavos: number;
   vencimento: string;
   atrasoDias: number;
 };
 
+export type RankingPrefeitura = {
+  nome: string;
+  recebidoCentavos: number;
+  aReceberCentavos: number;
+  /** recebido / (recebido + a receber), 0–100. NULO sem base. */
+  percentualRecebido: number | null;
+};
+
 export type CaixaPrefeitura = ApuracaoCaixa & {
   temDados: boolean;
   contasAbertas: ContaAbertaPrefeitura[];
+  /** Ranking das prefeituras por dinheiro recebido (desde sempre, todas). */
+  ranking: RankingPrefeitura[];
+  /** Nomes de prefeitura para o seletor. */
+  prefeituras: string[];
+  filtros: { cliente: string | null; de: string | null; ate: string | null };
 };
 
 const DIA_MS = 24 * 60 * 60 * 1000;
 
+function hojeCalendario(): Date {
+  const a = new Date();
+  return dataDeCalendario(
+    `${a.getUTCFullYear()}-${String(a.getUTCMonth() + 1).padStart(2, "0")}-${String(a.getUTCDate()).padStart(2, "0")}`
+  ) as Date;
+}
+
 /**
  * Posição de caixa das vendas para a prefeitura: a receber (em aberto,
- * vencido e a vencer), recebido e prazo médio de recebimento. Usa as contas a
- * receber do Bling agrupadas pelos documentos (CNPJ) das prefeituras.
+ * vencido e a vencer), recebido e prazo médio de recebimento, mais o ranking
+ * das prefeituras que mais renderam. Usa as contas a receber do Bling
+ * agrupadas pelos documentos (CNPJ) das prefeituras.
+ *
+ * Filtros (iguais aos da tela de resultado): por prefeitura e por período de
+ * VENCIMENTO. O ranking ignora os filtros de propósito (visão estratégica de
+ * todas as prefeituras, desde sempre).
  */
-export async function obterCaixaPrefeitura(): Promise<CaixaPrefeitura> {
+export async function obterCaixaPrefeitura(filtros: FiltrosPrefeitura = {}): Promise<CaixaPrefeitura> {
   const contexto = await exigirContextoTenant();
   exigirPermissao(contexto, "financeiro.ver");
+
+  const cliente = (filtros.cliente ?? "").trim() || null;
+  const de = dataValida(filtros.de);
+  const ate = dataValida(filtros.ate);
 
   const vazio: CaixaPrefeitura = {
     aReceberAbertoCentavos: 0,
@@ -218,23 +248,40 @@ export async function obterCaixaPrefeitura(): Promise<CaixaPrefeitura> {
     prazoMedioDias: null,
     temDados: false,
     contasAbertas: [],
+    ranking: [],
+    prefeituras: [],
+    filtros: { cliente, de, ate },
   };
 
-  // Documentos (CNPJ, só dígitos) das prefeituras reconhecidas.
+  // Mapa documento (CNPJ) -> nome da prefeitura, a partir das notas.
   const notas = (await contexto.prisma.notaFiscal.findMany({
     where: { segmento: "PREFEITURA", clienteDocumento: { not: null } },
-    select: { clienteDocumento: true },
-    distinct: ["clienteDocumento"],
-  })) as Array<{ clienteDocumento: string | null }>;
+    select: { clienteDocumento: true, clienteNome: true },
+  })) as Array<{ clienteDocumento: string | null; clienteNome: string | null }>;
 
-  const documentos = Array.from(
-    new Set(notas.map((n) => (n.clienteDocumento ?? "").replace(/\D/g, "")).filter((d) => d.length > 0))
-  );
+  const docParaNome = new Map<string, string>();
+  for (const n of notas) {
+    const doc = (n.clienteDocumento ?? "").replace(/\D/g, "");
+    if (doc && !docParaNome.has(doc) && n.clienteNome) docParaNome.set(doc, n.clienteNome);
+  }
+  const documentos = Array.from(new Set(notas.map((n) => (n.clienteDocumento ?? "").replace(/\D/g, "")).filter((d) => d.length > 0)));
   if (documentos.length === 0) return vazio;
+
+  const prefeituras = Array.from(new Set(docParaNome.values())).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  const docsDoCliente = cliente ? documentos.filter((d) => docParaNome.get(d) === cliente) : null;
 
   const contas = (await contexto.prisma.contaReceber.findMany({
     where: { clienteDocumento: { in: documentos } },
-    select: { id: true, descricao: true, valor: true, status: true, dataVencimento: true, dataRecebimento: true, estornadaEm: true },
+    select: {
+      id: true,
+      descricao: true,
+      valor: true,
+      status: true,
+      dataVencimento: true,
+      dataRecebimento: true,
+      estornadaEm: true,
+      clienteDocumento: true,
+    },
     orderBy: { dataVencimento: "asc" },
   })) as Array<{
     id: string;
@@ -244,11 +291,25 @@ export async function obterCaixaPrefeitura(): Promise<CaixaPrefeitura> {
     dataVencimento: Date;
     dataRecebimento: Date | null;
     estornadaEm: Date | null;
+    clienteDocumento: string | null;
   }>;
 
-  if (contas.length === 0) return vazio;
+  if (contas.length === 0) return { ...vazio, prefeituras };
 
-  const paraCaixa: ContaCaixa[] = contas.map((c) => ({
+  const hoje = hojeCalendario();
+  const inicio = de ? (dataDeCalendario(de) as Date) : null;
+  const fim = ate ? (dataDeCalendario(ate) as Date) : null;
+
+  // Contas que entram nos KPIs: respeita prefeitura e período (por vencimento).
+  const filtradas = contas.filter((c) => {
+    const doc = (c.clienteDocumento ?? "").replace(/\D/g, "");
+    if (docsDoCliente && !docsDoCliente.includes(doc)) return false;
+    if (inicio && c.dataVencimento.getTime() < inicio.getTime()) return false;
+    if (fim && c.dataVencimento.getTime() > fim.getTime()) return false;
+    return true;
+  });
+
+  const paraCaixa: ContaCaixa[] = filtradas.map((c) => ({
     valorCentavos: centavos(c.valor),
     recebida: c.status === "RECEBIDO",
     estornada: c.status === "ESTORNADO" || c.estornadaEm !== null,
@@ -256,27 +317,45 @@ export async function obterCaixaPrefeitura(): Promise<CaixaPrefeitura> {
     recebimento: c.dataRecebimento,
   }));
 
-  // Hoje como data de calendário (meia-noite UTC): conta vencendo hoje ainda
-  // não é "vencida".
-  const agora = new Date();
-  const hoje = dataDeCalendario(
-    `${agora.getUTCFullYear()}-${String(agora.getUTCMonth() + 1).padStart(2, "0")}-${String(agora.getUTCDate()).padStart(2, "0")}`
-  ) as Date;
-
   const apuracao = apurarCaixa(paraCaixa, hoje);
 
-  const contasAbertas: ContaAbertaPrefeitura[] = contas
+  const contasAbertas: ContaAbertaPrefeitura[] = filtradas
     .filter((c) => c.status !== "RECEBIDO" && c.status !== "ESTORNADO" && c.estornadaEm === null)
     .slice(0, 20)
     .map((c) => ({
       id: c.id,
       descricao: c.descricao || "Conta a receber",
+      prefeitura: docParaNome.get((c.clienteDocumento ?? "").replace(/\D/g, "")) ?? null,
       valorCentavos: centavos(c.valor),
       vencimento: c.dataVencimento.toISOString(),
       atrasoDias: Math.max(0, Math.round((hoje.getTime() - c.dataVencimento.getTime()) / DIA_MS)),
     }));
 
-  return { ...apuracao, temDados: true, contasAbertas };
+  // Ranking: todas as prefeituras, desde sempre (ignora filtros).
+  const porDoc = new Map<string, { recebido: number; aReceber: number }>();
+  for (const c of contas) {
+    if (c.status === "ESTORNADO" || c.estornadaEm !== null) continue;
+    const doc = (c.clienteDocumento ?? "").replace(/\D/g, "");
+    if (!doc) continue;
+    const acc = porDoc.get(doc) ?? { recebido: 0, aReceber: 0 };
+    if (c.status === "RECEBIDO") acc.recebido += centavos(c.valor);
+    else acc.aReceber += centavos(c.valor);
+    porDoc.set(doc, acc);
+  }
+  const ranking: RankingPrefeitura[] = Array.from(porDoc.entries())
+    .map(([doc, v]) => {
+      const total = v.recebido + v.aReceber;
+      return {
+        nome: docParaNome.get(doc) ?? "Prefeitura",
+        recebidoCentavos: v.recebido,
+        aReceberCentavos: v.aReceber,
+        percentualRecebido: total > 0 ? (v.recebido / total) * 100 : null,
+      };
+    })
+    .sort((a, b) => b.recebidoCentavos - a.recebidoCentavos)
+    .slice(0, 10);
+
+  return { ...apuracao, temDados: true, contasAbertas, ranking, prefeituras, filtros: { cliente, de, ate } };
 }
 
 export type NotaPrefeituraDetalhe = {
