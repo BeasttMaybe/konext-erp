@@ -147,10 +147,14 @@
   --kx-espaco-12: 48px;
   --kx-espaco-16: 64px;
 
-  /* ---- Raio ---- */
-  --kx-raio-painel: 24px;
-  --kx-raio-cartao: 16px;
-  --kx-raio-botao: 12px;
+  /* ---- Raio ----
+     Redesenho 11/2026 (direção "reto", aprovada pelo dono): cantos quase
+     retos (0–4px) no lugar dos 24/16/12 arredondados anteriores — aparência
+     de aplicação de trabalho, não "fofa". Pílula segue 999px porque switch,
+     badge e avatar são peças redondas por natureza, não cantos de caixa. */
+  --kx-raio-painel: 4px;
+  --kx-raio-cartao: 4px;
+  --kx-raio-botao: 4px;
   --kx-raio-pilula: 999px;
 
   /* ---- Sombra (elevação sobre fundo escuro — sutil, sem preto puro) ---- */
