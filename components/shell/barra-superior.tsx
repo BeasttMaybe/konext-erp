@@ -61,8 +61,8 @@ function MarcaDaLoja() {
           T
         </span>
       )}
-      <span className="hidden min-w-0 flex-col sm:flex">
-        <span className="max-w-[12rem] truncate text-sm font-extrabold leading-tight tracking-tight text-kx-texto">
+      <span className="hidden min-w-0 flex-col xl:flex">
+        <span className="max-w-[11rem] truncate text-sm font-extrabold leading-tight tracking-tight text-kx-texto">
           {nomeDaLoja || "TechOS"}
         </span>
         <span className="text-[11px] leading-tight text-kx-legenda">TechOS ERP</span>
@@ -95,19 +95,23 @@ export function BarraSuperior({ onAbrirBusca }: { onAbrirBusca: () => void }) {
   );
 
   return (
-    <header className="sticky top-0 z-kx-cabecalho flex shrink-0 flex-col border-b border-kx-painel-borda bg-kx-painel pt-[env(safe-area-inset-top)]">
+    <header className="sticky top-0 z-kx-cabecalho shrink-0 border-b border-kx-painel-borda bg-kx-fora pt-[env(safe-area-inset-top)]">
       {/* No iPhone instalado como app, o sistema ocupa também a área da barra
           de status (ver `statusBarStyle` em app/layout.tsx) — daí o padding de
-          cima pela safe-area; no navegador comum ela vale 0. */}
-      <div className="flex h-14 shrink-0 items-center gap-3 px-3 lg:px-4">
+          cima pela safe-area; no navegador comum ela vale 0.
+
+          Header no estilo Bling (11/2026): UMA linha, fundo escuro (--kx-fora),
+          marca + navegação em texto + busca + ações. */}
+      <div className="flex h-16 shrink-0 items-center gap-2 px-3 lg:gap-3 lg:px-4">
         <GavetaLateralMobile />
         <MarcaDaLoja />
+        <NavegacaoTopo />
 
         <button
           type="button"
           onClick={onAbrirBusca}
           aria-label="Buscar OS, cliente..."
-          className="flex h-9 w-9 shrink-0 items-center justify-center gap-2 rounded-kx-botao border border-kx-campo-borda bg-kx-superficie text-sm text-kx-placeholder transition-colors hover:border-kx-foco sm:ml-2 sm:w-auto sm:max-w-[420px] sm:flex-1 sm:shrink sm:justify-start sm:px-3"
+          className="flex h-9 w-9 shrink-0 items-center justify-center gap-2 rounded-kx-botao border border-kx-campo-borda bg-kx-superficie text-sm text-kx-placeholder transition-colors hover:border-kx-foco sm:ml-2 sm:w-auto sm:max-w-[520px] sm:flex-1 sm:shrink sm:justify-start sm:px-3"
         >
           <Search className="h-4 w-4 shrink-0" aria-hidden="true" />
           <span className="hidden flex-1 text-left sm:inline">Buscar OS, cliente...</span>
@@ -118,7 +122,7 @@ export function BarraSuperior({ onAbrirBusca }: { onAbrirBusca: () => void }) {
 
         <div className="ml-auto flex shrink-0 items-center gap-1">
           <BotaoLerQrDaOS />
-          <div className="hidden lg:block">
+          <div className="hidden xl:block">
             <StatusCaixa />
           </div>
           {montado && (
@@ -177,8 +181,6 @@ export function BarraSuperior({ onAbrirBusca }: { onAbrirBusca: () => void }) {
           </DropdownMenu>
         </div>
       </div>
-
-      <NavegacaoTopo />
     </header>
   );
 }
