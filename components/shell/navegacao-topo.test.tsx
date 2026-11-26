@@ -10,6 +10,9 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
  * fora e todo o segundo nível do sistema (Propostas, Contas a Receber, etc.)
  * ficava sem link. Aqui os filhos vivem num dropdown, então o teste ABRE o
  * menu (clica no gatilho) e confere que os links existem e apontam certo.
+ *
+ * Desde o reagrupamento (11/2026) o topo tem 7 grupos; os testes refletem a
+ * nova árvore (Vendas = PDV + Pedidos; Financeiro inclui Prefeitura; etc.).
  */
 
 const parametrosVazios = new URLSearchParams();
@@ -51,23 +54,22 @@ function abrirMenu(nome: string): HTMLElement {
 }
 
 describe("NavegacaoTopo — os filhos do dropdown aparecem", () => {
-  it("em /crm, abrir o menu mostra Propostas com link", () => {
+  it("em /crm, abrir Clientes mostra Propostas com link", () => {
     abrirEm("/crm");
-    abrirMenu("Clientes (CRM)");
+    abrirMenu("Clientes");
 
-    const propostas = screen.getByRole("link", { name: "Propostas" });
-    expect(propostas).toHaveAttribute("href", "/crm/propostas");
+    expect(screen.getByRole("link", { name: "Propostas" })).toHaveAttribute("href", "/crm/propostas");
   });
 
-  it("Vendas é link direto, sem dropdown", () => {
+  it("Vendas agrupa PDV e Pedidos de venda", () => {
     abrirEm("/vendas");
+    abrirMenu("Vendas");
 
-    expect(screen.getByRole("link", { name: "Vendas" })).toHaveAttribute("href", "/vendas");
-    expect(screen.queryByRole("button", { name: "Vendas" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Histórico" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "PDV (balcão)" })).toHaveAttribute("href", "/pdv");
+    expect(screen.getByRole("link", { name: "Pedidos de venda" })).toHaveAttribute("href", "/vendas");
   });
 
-  it("em /financeiro, as quatro telas de dentro têm link", () => {
+  it("Financeiro inclui as telas de dentro e a Prefeitura", () => {
     abrirEm("/financeiro");
     abrirMenu("Financeiro");
 
@@ -76,6 +78,8 @@ describe("NavegacaoTopo — os filhos do dropdown aparecem", () => {
       ["Contas a Pagar", "/financeiro/pagar"],
       ["Fluxo e Relatórios", "/financeiro/fluxo"],
       ["Notas Fiscais", "/financeiro/notas-fiscais"],
+      ["Prefeitura — Resultado", "/prefeitura"],
+      ["Prefeitura — Caixa", "/prefeitura/caixa"],
     ]) {
       expect(screen.getByRole("link", { name: rotulo }), rotulo).toHaveAttribute("href", caminho);
     }
@@ -88,37 +92,45 @@ describe("NavegacaoTopo — os filhos do dropdown aparecem", () => {
     expect(screen.getByRole("link", { name: "Entrada de nota" })).toHaveAttribute("href", "/estoque/notas/nova");
   });
 
+  it("'Mais' reúne Agenda, Metas e Ajuda", () => {
+    abrirEm("/");
+    abrirMenu("Mais");
+
+    expect(screen.getByRole("link", { name: "Agenda" })).toHaveAttribute("href", "/agenda");
+    expect(screen.getByRole("link", { name: "Metas" })).toHaveAttribute("href", "/metas");
+    expect(screen.getByRole("link", { name: "Ajuda" })).toHaveAttribute("href", "/ajuda");
+  });
+
   it("uma página de dentro marca o filho como atual", () => {
     abrirEm("/crm/propostas");
-    abrirMenu("Clientes (CRM)");
+    abrirMenu("Clientes");
 
     expect(screen.getByRole("link", { name: "Propostas" })).toHaveAttribute("aria-current", "page");
   });
 });
 
 describe("NavegacaoTopo — o que ela NÃO faz", () => {
+  it("não tem botão 'Dashboard' — a inicial é alcançada pela marca", () => {
+    abrirEm("/");
+
+    expect(screen.queryByRole("button", { name: "Dashboard" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Dashboard" })).not.toBeInTheDocument();
+  });
+
   it("dropdown fechado não deixa os filhos no DOM", () => {
     abrirEm("/crm");
 
-    // Nada aberto: nenhum filho renderizado.
     expect(screen.queryByRole("link", { name: "Propostas" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Contas a Receber" })).not.toBeInTheDocument();
   });
 
-  it("toda seção do menu continua alcançável (link ou botão)", () => {
+  it("os 7 grupos continuam alcançáveis (Marketing some sem o módulo)", () => {
     abrirEm("/");
 
-    for (const rotulo of [
-      "Dashboard",
-      "Ordens de Serviço",
-      "Clientes (CRM)",
-      "PDV",
-      "Vendas",
-      "Estoque",
-      "Financeiro",
-      "Metas",
-    ]) {
+    for (const rotulo of ["Ordens de Serviço", "Vendas", "Clientes", "Estoque", "Financeiro", "Mais"]) {
       expect(itemDoTopo(rotulo), rotulo).toBeInTheDocument();
     }
+    // Marketing não está nos módulos do mock, então não aparece.
+    expect(screen.queryByRole("button", { name: "Marketing" })).not.toBeInTheDocument();
   });
 });
