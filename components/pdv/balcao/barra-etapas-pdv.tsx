@@ -53,7 +53,7 @@ export function BarraEtapasPdv({
   };
 
   return (
-    <div className="flex gap-1 rounded-2xl border border-kx-painel-borda bg-kx-painel p-1" role="tablist" aria-label="Etapas da venda">
+    <div className="flex gap-1 rounded-kx-cartao border border-kx-painel-borda bg-kx-painel p-1" role="tablist" aria-label="Etapas da venda">
       {etapas.map((info) => {
         const ativa = etapaAtual === info.etapa;
 
@@ -64,7 +64,7 @@ export function BarraEtapasPdv({
             role="tab"
             aria-selected={ativa}
             onClick={() => onEscolher(info.etapa)}
-            className={`flex h-[52px] flex-1 items-center gap-3 rounded-xl px-4 text-left transition-colors ${
+            className={`flex h-[52px] flex-1 items-center gap-3 rounded-kx-cartao px-4 text-left transition-colors ${
               ativa ? "bg-kx-superficie text-kx-texto" : "bg-transparent text-kx-texto-2 hover:bg-kx-superficie/60"
             }`}
           >

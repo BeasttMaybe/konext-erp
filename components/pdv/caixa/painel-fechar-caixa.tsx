@@ -122,7 +122,7 @@ export function PainelFecharCaixa({
             placeholder="R$ 0,00"
             value={valorContadoTexto}
             onChange={(evento) => onValorContadoChange(evento.target.value)}
-            className="h-[60px] rounded-2xl border border-kx-destaque bg-kx-superficie px-4 text-2xl font-extrabold text-kx-texto outline-none placeholder:text-kx-placeholder"
+            className="h-[60px] rounded-kx-cartao border border-kx-destaque bg-kx-superficie px-4 text-2xl font-extrabold text-kx-texto outline-none placeholder:text-kx-placeholder"
           />
         </label>
 
@@ -164,7 +164,7 @@ export function PainelFecharCaixa({
             value={observacaoTexto}
             onChange={(evento) => onObservacaoChange(evento.target.value)}
             maxLength={280}
-            className="h-[46px] rounded-xl border border-kx-painel-borda bg-kx-superficie px-3.5 text-sm text-kx-texto outline-none placeholder:text-kx-placeholder"
+            className="h-[46px] rounded-kx-cartao border border-kx-painel-borda bg-kx-superficie px-3.5 text-sm text-kx-texto outline-none placeholder:text-kx-placeholder"
           />
         </label>
 

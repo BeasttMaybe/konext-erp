@@ -599,7 +599,7 @@ export function TabuleiroKanban({
                     dropProvided={dropProvided}
                     dropSnapshot={dropSnapshot}
                     vazio={
-                      <div className="flex min-h-40 items-center justify-center rounded-xl border border-dashed border-border/70 bg-background/60 px-4 text-center">
+                      <div className="flex min-h-40 items-center justify-center rounded-kx-cartao border border-dashed border-border/70 bg-background/60 px-4 text-center">
                         <div className="space-y-2">
                           <p className="text-sm font-medium text-foreground">Sem ordens de serviço</p>
                           <p className="text-xs text-muted-foreground">Solte um card aqui para atualizar a etapa.</p>

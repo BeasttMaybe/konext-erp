@@ -33,7 +33,7 @@ export function ModalVendaConcluidaPdv({
     <Dialog open={aberto} onOpenChange={() => {}}>
       <DialogContent
         showCloseButton={false}
-        className="flex max-h-[90vh] w-[95vw] max-w-md flex-col overflow-hidden rounded-[26px] border-kx-painel-borda bg-kx-painel p-0"
+        className="flex max-h-[90vh] w-[95vw] max-w-md flex-col overflow-hidden rounded-kx-cartao border-kx-painel-borda bg-kx-painel p-0"
       >
         <div className="flex max-h-[90vh] flex-col items-center justify-center space-y-5 overflow-y-auto px-6 py-6 text-center">
           <DialogTitle className="sr-only">Venda finalizada com sucesso</DialogTitle>

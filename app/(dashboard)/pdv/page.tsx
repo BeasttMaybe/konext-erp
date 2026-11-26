@@ -1022,7 +1022,7 @@ function PDVPageConteudo() {
 
             <div className="px-6 pt-5">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="rounded-lg border border-kx-info bg-kx-info-fundo p-4">
+                <div className="rounded-kx-cartao border border-kx-info bg-kx-info-fundo p-4">
                   <p className="text-xs font-medium text-kx-info-texto">
                     Faturamento Hoje
                   </p>
@@ -1031,7 +1031,7 @@ function PDVPageConteudo() {
                   </p>
                 </div>
 
-                <div className="rounded-lg border border-kx-alerta bg-kx-alerta-fundo p-4">
+                <div className="rounded-kx-cartao border border-kx-alerta bg-kx-alerta-fundo p-4">
                   <p className="text-xs font-medium text-kx-alerta-texto">
                     Custo de Mercadoria
                   </p>
@@ -1040,7 +1040,7 @@ function PDVPageConteudo() {
                   </p>
                 </div>
 
-                <div className="rounded-lg border border-kx-sucesso bg-kx-sucesso-fundo p-4">
+                <div className="rounded-kx-cartao border border-kx-sucesso bg-kx-sucesso-fundo p-4">
                   <p className="text-xs font-medium text-kx-sucesso-texto">
                     Lucro Bruto
                   </p>
@@ -1072,7 +1072,7 @@ function PDVPageConteudo() {
                 (resumoCaixaDiario?.sessoesFechadasHoje ?? []).map((sessao) => (
                   <div
                     key={sessao.id}
-                    className="rounded-lg border border-kx-painel-borda p-4 bg-kx-cartao"
+                    className="rounded-kx-cartao border border-kx-painel-borda p-4 bg-kx-cartao"
                   >
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-sm font-semibold text-kx-texto">
@@ -1140,7 +1140,7 @@ function PDVPageConteudo() {
                 (resumoCaixaDiario?.vendas ?? []).map((venda) => (
                   <div
                     key={venda.id}
-                    className="rounded-lg border border-kx-painel-borda p-4 mb-3 bg-kx-cartao"
+                    className="rounded-kx-cartao border border-kx-painel-borda p-4 mb-3 bg-kx-cartao"
                   >
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-sm font-semibold text-kx-texto">

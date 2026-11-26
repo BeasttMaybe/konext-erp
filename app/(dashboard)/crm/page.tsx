@@ -186,7 +186,7 @@ function SkeletonContacts() {
     <div className="w-full flex flex-col bg-transparent">
       <div className="border-b border-kx-painel-borda/70 bg-kx-painel/75 px-6 py-6 backdrop-blur-sm/70/50 lg:px-8">
         <div className="max-w-7xl mx-auto w-full">
-          <div className="h-9 w-64 rounded-lg bg-kx-painel-borda animate-pulse" />
+          <div className="h-9 w-64 rounded-kx-cartao bg-kx-painel-borda animate-pulse" />
           <div className="h-4 w-96 rounded bg-kx-superficie animate-pulse mt-2" />
         </div>
       </div>
@@ -194,13 +194,13 @@ function SkeletonContacts() {
         <div className="max-w-7xl mx-auto space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
             {Array.from({ length: 4 }).map((_, index) => (
-              <div key={index} className="rounded-xl border border-border bg-card p-5 space-y-3">
+              <div key={index} className="rounded-kx-cartao border border-border bg-card p-5 space-y-3">
                 <div className="h-4 w-28 rounded bg-kx-superficie animate-pulse" />
                 <div className="h-8 w-24 rounded bg-kx-superficie animate-pulse" />
               </div>
             ))}
           </div>
-          <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+          <div className="rounded-kx-cartao border border-border bg-card p-5 space-y-4">
             <div className="h-6 w-48 rounded bg-kx-superficie animate-pulse" />
             <div className="h-10 w-full rounded bg-kx-superficie animate-pulse" />
             <div className="h-80 w-full rounded bg-kx-superficie animate-pulse" />
@@ -496,7 +496,7 @@ function ContactsPageContent() {
         {isListLoading && <li className="py-8 text-center text-sm text-muted-foreground">Carregando contatos...</li>}
       </ul>
 
-      <div className="hidden rounded-lg border border-border overflow-hidden md:block">
+      <div className="hidden rounded-kx-cartao border border-border overflow-hidden md:block">
         <Table>
           <TableHeader>
             <TableRow>
@@ -653,7 +653,7 @@ function ContactsPageContent() {
                     </Badge>
                   </div>
 
-                  <div className="inline-flex rounded-lg border border-border p-1 bg-muted/30">
+                  <div className="inline-flex rounded-kx-cartao border border-border p-1 bg-muted/30">
                     <button
                       type="button"
                       onClick={() => {

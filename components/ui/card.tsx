@@ -13,7 +13,7 @@ function Card({
       data-size={size}
       className={cn(
         // Redesenho 11/2026: canto reto (rounded-kx-cartao = 4px) no lugar do
-        // rounded-xl, e um pouco mais denso (gap/py 3) — acompanha os tokens.
+        // rounded-xl antigo, e um pouco mais denso (gap/py 3) — acompanha os tokens.
         "flex flex-col gap-3 overflow-hidden rounded-kx-cartao py-3 px-4 text-sm border",
         size === "sm" && "gap-2 py-3 px-3",
         className

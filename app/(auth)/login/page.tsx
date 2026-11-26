@@ -51,7 +51,7 @@ function LoginPageConteudo() {
       {sessaoExpirada && (
         <div
           role="status"
-          className="flex items-start gap-3 rounded-[14px] px-4 py-3.5 text-sm leading-[1.45]"
+          className="flex items-start gap-3 rounded-kx-cartao px-4 py-3.5 text-sm leading-[1.45]"
           style={{ backgroundColor: "var(--kx-alerta-fundo)", color: "var(--kx-alerta-texto)" }}
         >
           <Clock className="mt-0.5 h-5 w-5 shrink-0" style={{ color: "var(--kx-alerta-icone)" }} aria-hidden />
@@ -62,7 +62,7 @@ function LoginPageConteudo() {
       {estado.erro && (
         <div
           role="alert"
-          className="flex items-start gap-3 rounded-[14px] px-4 py-3.5 text-sm leading-[1.45]"
+          className="flex items-start gap-3 rounded-kx-cartao px-4 py-3.5 text-sm leading-[1.45]"
           style={{ backgroundColor: "var(--kx-erro-fundo)", color: "var(--kx-erro-texto)" }}
         >
           <CircleAlert className="mt-0.5 h-5 w-5 shrink-0" style={{ color: "var(--kx-erro-icone)" }} aria-hidden />
@@ -120,7 +120,7 @@ function LoginPageConteudo() {
               onClick={() => setMostrarSenha((atual) => !atual)}
               aria-label={mostrarSenha ? "Ocultar senha" : "Mostrar senha"}
               aria-pressed={mostrarSenha}
-              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] ${classeFoco}`}
+              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-kx-cartao ${classeFoco}`}
               style={{ color: "var(--kx-texto-2)", outlineColor: "var(--kx-foco)" }}
             >
               {mostrarSenha ? <EyeOff className="h-5 w-5" aria-hidden /> : <Eye className="h-5 w-5" aria-hidden />}
@@ -144,7 +144,7 @@ function LoginPageConteudo() {
         <button
           type="submit"
           disabled={carregandoLogin}
-          className={`flex h-[54px] items-center justify-center gap-2.5 rounded-[14px] text-base font-extrabold transition-opacity ${classeFoco}`}
+          className={`flex h-[54px] items-center justify-center gap-2.5 rounded-kx-cartao text-base font-extrabold transition-opacity ${classeFoco}`}
           style={{
             backgroundColor: "var(--kx-primaria)",
             color: "var(--primary-foreground)",

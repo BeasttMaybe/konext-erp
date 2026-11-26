@@ -67,19 +67,19 @@ function SkeletonEstoque() {
     <div className="w-full flex flex-col bg-transparent">
       <div className="border-b border-kx-painel-borda/70 bg-kx-painel/75 px-6 py-6 backdrop-blur-sm lg:px-8">
         <div className="max-w-7xl mx-auto w-full">
-          <div className="h-9 w-56 rounded-lg bg-kx-painel-borda animate-pulse" />
+          <div className="h-9 w-56 rounded-kx-cartao bg-kx-painel-borda animate-pulse" />
           <div className="h-4 w-80 rounded bg-kx-superficie animate-pulse mt-2" />
         </div>
       </div>
       <div className="px-6 lg:px-8 py-6">
         <div className="max-w-7xl mx-auto">
-          <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+          <div className="rounded-kx-cartao border border-border bg-card p-5 space-y-4">
             <div className="flex gap-3">
-              <div className="flex-1 h-10 rounded-lg bg-kx-superficie animate-pulse" />
-              <div className="w-52 h-10 rounded-lg bg-kx-superficie animate-pulse" />
-              <div className="w-36 h-10 rounded-lg bg-kx-superficie animate-pulse" />
+              <div className="flex-1 h-10 rounded-kx-cartao bg-kx-superficie animate-pulse" />
+              <div className="w-52 h-10 rounded-kx-cartao bg-kx-superficie animate-pulse" />
+              <div className="w-36 h-10 rounded-kx-cartao bg-kx-superficie animate-pulse" />
             </div>
-            <div className="rounded-lg border border-border overflow-hidden">
+            <div className="rounded-kx-cartao border border-border overflow-hidden">
               {Array.from({ length: 8 }).map((_, i) => (
                 <div
                   key={i}
@@ -482,7 +482,7 @@ function ConteudoEstoque() {
                 {carregando && <li className="py-8 text-center text-sm text-muted-foreground">Carregando produtos...</li>}
               </ul>
 
-              <div className="hidden rounded-lg border border-border overflow-hidden md:block">
+              <div className="hidden rounded-kx-cartao border border-border overflow-hidden md:block">
                 <Table>
                   <TableHeader className="sticky top-0 z-kx-sticky bg-card">
                     <TableRow>

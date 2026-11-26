@@ -26,7 +26,7 @@ export function Aviso({ tipo, children }: { tipo: "erro" | "sucesso" | "info"; c
   return (
     <div
       role={tipo === "erro" ? "alert" : "status"}
-      className="flex items-start gap-3 rounded-[14px] px-4 py-3.5 text-sm leading-[1.45]"
+      className="flex items-start gap-3 rounded-kx-cartao px-4 py-3.5 text-sm leading-[1.45]"
       style={{ backgroundColor: cores.fundo, color: cores.texto, border: tipo === "info" ? "1px solid var(--kx-campo-borda)" : undefined }}
     >
       <Icone className="mt-0.5 h-5 w-5 shrink-0" style={{ color: cores.icone }} aria-hidden />
@@ -40,7 +40,7 @@ function BotaoPrincipal({ carregando, texto, textoCarregando }: { carregando: bo
     <button
       type="submit"
       disabled={carregando}
-      className={`flex h-[54px] items-center justify-center gap-2.5 rounded-[14px] text-base font-extrabold transition-opacity ${classeFoco}`}
+      className={`flex h-[54px] items-center justify-center gap-2.5 rounded-kx-cartao text-base font-extrabold transition-opacity ${classeFoco}`}
       style={{
         backgroundColor: "var(--kx-primaria)",
         color: "var(--primary-foreground)",
@@ -137,7 +137,7 @@ function CampoSenha({ id, rotulo, valor, onMudar, autoFocus }: { id: string; rot
           onClick={() => setMostrar((atual) => !atual)}
           aria-label={mostrar ? "Ocultar senha" : "Mostrar senha"}
           aria-pressed={mostrar}
-          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] ${classeFoco}`}
+          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-kx-cartao ${classeFoco}`}
           style={{ color: "var(--kx-texto-2)", outlineColor: "var(--kx-foco)" }}
         >
           {mostrar ? <EyeOff className="h-5 w-5" aria-hidden /> : <Eye className="h-5 w-5" aria-hidden />}
@@ -175,7 +175,7 @@ export function FormularioNovaSenha({ token }: { token: string }) {
         <Aviso tipo="sucesso">Senha trocada. Entre com a senha nova — os acessos que estavam abertos foram encerrados.</Aviso>
         <Link
           href="/login"
-          className={`flex h-[54px] items-center justify-center gap-2.5 rounded-[14px] text-base font-extrabold ${classeFoco}`}
+          className={`flex h-[54px] items-center justify-center gap-2.5 rounded-kx-cartao text-base font-extrabold ${classeFoco}`}
           style={{ backgroundColor: "var(--kx-primaria)", color: "var(--primary-foreground)", outlineColor: "var(--kx-foco)" }}
         >
           Ir para o login
