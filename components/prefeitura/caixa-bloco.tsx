@@ -1,11 +1,12 @@
 import type { ComponentType } from "react";
-import { AlertTriangle, Banknote, CalendarClock, Clock, Wallet } from "lucide-react";
+import { AlertTriangle, Banknote, CalendarClock, Clock, Trophy, Wallet } from "lucide-react";
 
 import type { CaixaPrefeitura } from "@/app/actions/prefeitura";
 import { formatarReais } from "@/lib/dinheiro";
 
 const data = (iso: string) =>
   iso ? new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+const pct0 = (v: number | null) => (v === null ? "—" : `${Math.round(v)}%`);
 
 function Kpi({
   rotulo,
@@ -72,7 +73,7 @@ export function CaixaBloco({ caixa }: { caixa: CaixaPrefeitura }) {
             {caixa.contasAbertas.map((c) => (
               <li key={c.id} className="flex items-center justify-between gap-3 bg-kx-superficie px-4 py-2.5">
                 <div className="flex min-w-0 flex-col">
-                  <span className="truncate text-sm text-kx-texto">{c.descricao}</span>
+                  <span className="truncate text-sm text-kx-texto">{c.prefeitura ?? c.descricao}</span>
                   <span className="text-xs text-kx-legenda">
                     Vence {data(c.vencimento)}
                     {c.atrasoDias > 0 ? <span className="text-kx-erro-texto"> · {c.atrasoDias} dia(s) de atraso</span> : null}
@@ -84,6 +85,43 @@ export function CaixaBloco({ caixa }: { caixa: CaixaPrefeitura }) {
               </li>
             ))}
           </ul>
+        </div>
+      ) : null}
+
+      {caixa.ranking.length > 0 ? (
+        <div className="flex flex-col gap-2 rounded-kx-painel border border-kx-painel-borda bg-kx-painel p-4">
+          <div className="flex flex-col gap-0.5">
+            <span className="flex items-center gap-1.5 text-sm font-bold text-kx-texto">
+              <Trophy className="h-4 w-4" aria-hidden /> Prefeituras que mais renderam
+            </span>
+            <span className="text-xs text-kx-legenda">Por dinheiro já recebido (todas as prefeituras, desde sempre).</span>
+          </div>
+          <ol className="flex flex-col gap-2">
+            {caixa.ranking.map((p, i) => {
+              const total = p.recebidoCentavos + p.aReceberCentavos;
+              const larguraRecebido = total > 0 ? Math.max(2, Math.round((p.recebidoCentavos / total) * 100)) : 0;
+              return (
+                <li key={p.nome} className="flex flex-col gap-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex min-w-0 items-center gap-2 text-sm text-kx-texto">
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-kx-superficie text-[11px] font-bold text-kx-texto-2">
+                        {i + 1}
+                      </span>
+                      <span className="truncate font-bold">{p.nome}</span>
+                    </span>
+                    <span className="shrink-0 text-sm font-bold text-kx-sucesso-texto">{formatarReais(p.recebidoCentavos)}</span>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-kx-superficie">
+                    <div className="h-full rounded-full bg-kx-sucesso-texto" style={{ width: `${larguraRecebido}%` }} />
+                  </div>
+                  <span className="text-[11px] text-kx-legenda">
+                    {pct0(p.percentualRecebido)} recebido
+                    {p.aReceberCentavos > 0 ? ` · ${formatarReais(p.aReceberCentavos)} a receber` : ""}
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
         </div>
       ) : null}
     </div>
