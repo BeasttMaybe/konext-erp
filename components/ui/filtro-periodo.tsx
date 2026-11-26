@@ -127,44 +127,30 @@ function criarHookDeMediaQuery(consultaCss: string) {
 const useEhTelaMobile = criarHookDeMediaQuery(CONSULTA_TELA_MOBILE);
 
 /**
- * Espaço mínimo (em px) que o layout de DOIS calendários lado a lado
- * precisa pra caber sem cortar nada. Altura medida DE VERDADE com
- * Playwright (o painel real — inputs + calendário + presets + rodapé —
- * renderiza a ~389px numa viewport bem alta, sem precisar rolar): 460px dá
- * uma margem de ~70px pra fonte/borda/padding variarem entre navegador/SO
- * sem virar um cálculo tão folgado que force o layout compacto em telas
- * que já teriam espaço de sobra pros dois calendários. Largura: 760px, o
- * painel de dois calendários mede 720px (ver `largura` em
- * `PainelFiltroPeriodo`) mais margem de segurança equivalente.
+ * Largura mínima (px) pro layout de DOIS calendários lado a lado. O painel
+ * de dois calendários mede 720px (ver `largura` em `PainelFiltroPeriodo`),
+ * mais margem de segurança. Abaixo disso, cai no layout compacto de um
+ * calendário só.
  */
 const LARGURA_MINIMA_DOIS_CALENDARIOS = 760;
-const ALTURA_MINIMA_DOIS_CALENDARIOS = 460;
 
 /**
- * Decide o layout compacto medindo o espaço disponível AO REDOR DO
- * GATILHO de verdade (`getBoundingClientRect`), não só o tamanho da
- * viewport — os dois só coincidem quando o gatilho fica no meio da tela.
- * Reportado ao vivo pelo dono do projeto: numa janela de ~1100×500 com o
- * gatilho perto do TOPO da página, a viewport inteira tem largura de
- * sobra (1100 > 900), mas o espaço vertical disponível ao redor do
- * gatilho — o que importa de verdade, já que é ele que limita onde o
- * Radix consegue encaixar o popover — é bem menor que os 500px inteiros
- * da janela (o gatilho já ocupa uma fatia vertical, então nem "acima" nem
- * "abaixo" dele sobra tudo). Usa o MAIOR dos dois lados (acima/abaixo),
- * já que é pra esse lado que o `avoidCollisions` do Radix vai inverter o
- * popover.
+ * Compacto SÓ por falta de LARGURA — nunca por falta de altura.
+ *
+ * O dono relatou (com print) que o painel abria "pequeno" e com o calendário
+ * CORTADO em telas que tinham largura de sobra. A versão anterior virava
+ * compacto quando faltava ALTURA ao redor do gatilho; só que o layout
+ * compacto (presets numa linha no topo + alternador Início/Fim + um
+ * calendário) é na vertical MAIS ALTO que o de dois calendários (presets viram
+ * barra lateral e o alternador some) — logo, trocar pra compacto "por falta de
+ * altura" cortava ainda mais. Agora o desktop mostra sempre os dois
+ * calendários, igual ao Dashboard; se a janela for muito curta, o próprio
+ * popover rola por dentro com o rodapé (Cancelar/Filtrar) sempre visível.
+ * Telas realmente estreitas caem na Sheet mobile (ver `ehMobile`), não aqui.
  */
-function medirSeEspacoEhCompacto(gatilho: HTMLElement | null): boolean {
+function medirSeEspacoEhCompacto(): boolean {
   if (typeof window === "undefined") return false;
-  if (window.innerWidth < LARGURA_MINIMA_DOIS_CALENDARIOS) return true;
-  if (!gatilho) return false;
-
-  const retangulo = gatilho.getBoundingClientRect();
-  const espacoAcima = retangulo.top;
-  const espacoAbaixo = window.innerHeight - retangulo.bottom;
-  const melhorEspacoVertical = Math.max(espacoAcima, espacoAbaixo);
-
-  return melhorEspacoVertical < ALTURA_MINIMA_DOIS_CALENDARIOS;
+  return window.innerWidth < LARGURA_MINIMA_DOIS_CALENDARIOS;
 }
 
 function inicioDoMesDeCalendario(data: Date): Date {
@@ -322,21 +308,16 @@ export function FiltroPeriodo({
   }, [aberto]);
 
   /**
-   * Decide dois calendários × compacto no momento de ABRIR, medindo o
-   * espaço de verdade ao redor do GATILHO (`medirSeEspacoEhCompacto`) — não
-   * um media query de viewport. Reportado ao vivo: numa janela curta
-   * (~1100×500) com o gatilho perto do topo da página, a viewport tem
-   * largura de sobra, mas o espaço VERTICAL disponível ao redor do
-   * gatilho — o que realmente limita onde o painel cabe — é bem menor que
-   * a altura inteira da janela. As duas `setState` abaixo (aqui e a que o
-   * Radix dispara via `open`) acontecem no mesmo handler, então o React
-   * aplica as duas juntas antes do próximo render — `PainelFiltroPeriodo`
-   * já monta com o `compacto` certo na primeira renderização, sem piscar
-   * o layout errado primeiro.
+   * Decide dois calendários × compacto no momento de ABRIR (só pela largura
+   * da janela — ver `medirSeEspacoEhCompacto`). As duas `setState` abaixo
+   * (aqui e a que o Radix dispara via `open`) acontecem no mesmo handler,
+   * então o React aplica as duas juntas antes do próximo render —
+   * `PainelFiltroPeriodo` já monta com o `compacto` certo na primeira
+   * renderização, sem piscar o layout errado primeiro.
    */
   function aoMudarAberto(novoAberto: boolean) {
     if (novoAberto) {
-      setCompacto(medirSeEspacoEhCompacto(gatilhoRef.current));
+      setCompacto(medirSeEspacoEhCompacto());
     }
     setAberto(novoAberto);
   }
