@@ -76,7 +76,8 @@ export interface FiltroPeriodoPaginaProps {
 /** Só o `variante="pill"` (o chip do Dashboard) precisa de um estilo próprio — ver o comentário grande no topo do arquivo sobre por que isto é uma escolha fixa, não uma porta de customização. */
 const CLASSE_GATILHO_PILL = (ativo: boolean) =>
   cn(
-    "h-11 gap-1.5 rounded-kx-botao border-transparent bg-transparent px-3 text-sm font-medium",
+    // h-9 pra casar com as pills de preset do Dashboard (densidade 11/2026).
+    "h-9 gap-1.5 rounded-kx-botao border-transparent bg-transparent px-3 text-sm font-medium",
     ativo
       ? "bg-kx-primaria/15 text-kx-destaque"
       : "text-kx-legenda hover:bg-transparent hover:text-kx-texto"
