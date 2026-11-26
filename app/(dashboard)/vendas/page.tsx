@@ -571,7 +571,7 @@ export default async function SalesHistoryPage({ searchParams }: PageProps) {
  <div className="space-y-2 xl:mt-1.5">
  <label className="text-sm font-medium text-kx-texto">Status</label>
  <Select name="status" defaultValue={statusFilter || "TODOS"}>
- <SelectTrigger className="h-8 rounded-lg border-kx-painel-borda bg-kx-superficie px-2.5 py-1 text-kx-texto">
+ <SelectTrigger className="h-8 rounded-kx-cartao border-kx-painel-borda bg-kx-superficie px-2.5 py-1 text-kx-texto">
  <SelectValue placeholder="Todos" />
  </SelectTrigger>
  <SelectContent>

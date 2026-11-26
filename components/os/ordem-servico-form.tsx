@@ -210,7 +210,7 @@ export function OrdemServicoForm({ initialData = null }: OrdemServicoFormProps) 
 
   return (
     <div className="flex h-full w-full items-start justify-center overflow-y-auto bg-kx-fundo p-6">
-      <div className="flex w-full max-w-[980px] flex-col gap-4 rounded-[26px] border border-kx-painel-borda bg-kx-painel p-6">
+      <div className="flex w-full max-w-[980px] flex-col gap-4 rounded-kx-cartao border border-kx-painel-borda bg-kx-painel p-6">
         <FormProvider {...form}>
           <ProvedorFotosPendentes valor={fotosPendentes}>
           <form onSubmit={form.handleSubmit(handleSubmit)}>

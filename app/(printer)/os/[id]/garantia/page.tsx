@@ -38,7 +38,7 @@ export default async function PaginaGarantiaOS({ params, searchParams }: PropsPa
   if (!termo) {
     return (
       <div className="min-h-screen bg-kx-papel-alternado p-6">
-        <div className="mx-auto max-w-2xl rounded-xl border border-kx-papel-borda bg-kx-papel p-6 shadow-sm">
+        <div className="mx-auto max-w-2xl rounded-kx-cartao border border-kx-papel-borda bg-kx-papel p-6 shadow-sm">
           <h1 className="text-xl font-semibold text-kx-papel-texto">
             Termo de garantia ainda não emitido
           </h1>

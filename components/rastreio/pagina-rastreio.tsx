@@ -279,10 +279,10 @@ export function PaginaRastreio({ os }: { os: (OsPublica & { nomeDaLoja?: string 
   if (!os) {
     return (
       <main className="min-h-screen bg-kx-superficie flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-kx-painel rounded-2xl shadow-lg p-8 text-center">
+        <div className="max-w-md w-full bg-kx-painel rounded-kx-cartao shadow-lg p-8 text-center">
           {/* Logotipo */}
           <div className="flex justify-center mb-6">
-            <div className="w-12 h-12 bg-kx-primaria rounded-xl flex items-center justify-center">
+            <div className="w-12 h-12 bg-kx-primaria rounded-kx-cartao flex items-center justify-center">
               <span className="text-primary-foreground font-bold text-lg">T</span>
             </div>
           </div>
@@ -304,10 +304,10 @@ export function PaginaRastreio({ os }: { os: (OsPublica & { nomeDaLoja?: string 
   if (linkExpirado(os.statusAtual, os.atualizadoEm)) {
     return (
       <main className="min-h-screen bg-kx-superficie flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-kx-painel rounded-2xl shadow-lg p-8 text-center">
+        <div className="max-w-md w-full bg-kx-painel rounded-kx-cartao shadow-lg p-8 text-center">
           {/* Logotipo */}
           <div className="flex justify-center mb-6">
-            <div className="w-12 h-12 bg-kx-primaria rounded-xl flex items-center justify-center">
+            <div className="w-12 h-12 bg-kx-primaria rounded-kx-cartao flex items-center justify-center">
               <span className="text-primary-foreground font-bold text-lg">T</span>
             </div>
           </div>
@@ -335,7 +335,7 @@ export function PaginaRastreio({ os }: { os: (OsPublica & { nomeDaLoja?: string 
 
         {/* Cabeçalho da página — logotipo + título */}
         <div className="flex flex-col items-center text-center gap-2">
-          <div className="w-12 h-12 bg-kx-primaria rounded-xl flex items-center justify-center shadow">
+          <div className="w-12 h-12 bg-kx-primaria rounded-kx-cartao flex items-center justify-center shadow">
             <span className="text-primary-foreground font-bold text-lg select-none">
               {(os.nomeDaLoja?.trim()[0] ?? "T").toUpperCase()}
             </span>
@@ -346,7 +346,7 @@ export function PaginaRastreio({ os }: { os: (OsPublica & { nomeDaLoja?: string 
         </div>
 
         {/* Card principal — identificação da OS */}
-        <div className="bg-kx-painel rounded-2xl shadow-lg p-6 border border-kx-painel-borda">
+        <div className="bg-kx-painel rounded-kx-cartao shadow-lg p-6 border border-kx-painel-borda">
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
               <p className="text-xs text-kx-legenda uppercase tracking-wider font-medium mb-0.5">
@@ -363,17 +363,17 @@ export function PaginaRastreio({ os }: { os: (OsPublica & { nomeDaLoja?: string 
 
           {/* Detalhes públicos da OS — sem dados sensíveis */}
           <dl className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-kx-superficie rounded-xl p-3">
+            <div className="bg-kx-superficie rounded-kx-cartao p-3">
               <dt className="text-xs text-kx-legenda font-medium mb-0.5">Cliente</dt>
               <dd className="text-sm font-semibold text-kx-texto">{os.primeiroNomeCliente}</dd>
             </div>
 
-            <div className="bg-kx-superficie rounded-xl p-3">
+            <div className="bg-kx-superficie rounded-kx-cartao p-3">
               <dt className="text-xs text-kx-legenda font-medium mb-0.5">Equipamento</dt>
               <dd className="text-sm font-semibold text-kx-texto">{equipamentoCompleto}</dd>
             </div>
 
-            <div className="bg-kx-superficie rounded-xl p-3">
+            <div className="bg-kx-superficie rounded-kx-cartao p-3">
               <dt className="text-xs text-kx-legenda font-medium mb-0.5">Data de Entrada</dt>
               <dd className="text-sm font-semibold text-kx-texto">{formatarData(os.criadoEm)}</dd>
             </div>
@@ -387,7 +387,7 @@ export function PaginaRastreio({ os }: { os: (OsPublica & { nomeDaLoja?: string 
         </div>
 
         {/* Card da linha do tempo — progressão visual do reparo */}
-        <div className="bg-kx-painel rounded-2xl shadow-lg p-6 border border-kx-painel-borda">
+        <div className="bg-kx-painel rounded-kx-cartao shadow-lg p-6 border border-kx-painel-borda">
           <h2 className="text-base font-bold text-kx-texto mb-6">
             Acompanhamento do Reparo
           </h2>

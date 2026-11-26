@@ -179,7 +179,7 @@ export function ModalNovaOS({
     <Dialog open={aberta} onOpenChange={onAbrirMudar}>
       <DialogContent
         showCloseButton={false}
-        className="flex max-h-[90vh] w-full max-w-[980px] flex-col overflow-hidden rounded-[26px] border-kx-painel-borda bg-kx-painel p-0"
+        className="flex max-h-[90vh] w-full max-w-[980px] flex-col overflow-hidden rounded-kx-cartao border-kx-painel-borda bg-kx-painel p-0"
       >
         <DialogTitle className="sr-only">Nova ordem de serviço</DialogTitle>
         <DialogDescription className="sr-only">

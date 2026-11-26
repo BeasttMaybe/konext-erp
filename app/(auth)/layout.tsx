@@ -68,7 +68,7 @@ export default function AuthGroupLayout({
       {/* Cabeçalho compacto — só abaixo de 1024px; o painel de marca cobre isso no desktop */}
       <div className="flex items-center gap-3 px-6 pt-6 lg:hidden">
         <div
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] text-base font-extrabold text-primary-foreground"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-kx-cartao text-base font-extrabold text-primary-foreground"
           style={{ backgroundColor: "var(--kx-primaria)" }}
         >
           T
@@ -83,7 +83,7 @@ export default function AuthGroupLayout({
       >
         <div className="flex items-center gap-3">
           <div
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[22px] font-extrabold text-primary-foreground"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-kx-cartao text-[22px] font-extrabold text-primary-foreground"
             style={{ backgroundColor: "var(--kx-primaria)" }}
           >
             T
@@ -113,7 +113,7 @@ export default function AuthGroupLayout({
           {COLUNAS_KANBAN_PREVIA.map((coluna) => (
             <div
               key={coluna.titulo}
-              className="flex flex-col gap-2.5 rounded-[20px] p-3.5"
+              className="flex flex-col gap-2.5 rounded-kx-cartao p-3.5"
               style={{ backgroundColor: "var(--kx-superficie)", border: "1px solid var(--kx-painel-borda)" }}
             >
               <div className="flex items-center gap-2">
@@ -122,7 +122,7 @@ export default function AuthGroupLayout({
               </div>
 
               <div
-                className="flex flex-col gap-1.5 rounded-[14px] p-3"
+                className="flex flex-col gap-1.5 rounded-kx-cartao p-3"
                 style={{ backgroundColor: "var(--kx-cartao)", border: "1px solid var(--kx-painel-borda)" }}
               >
                 <span className="text-[11px] font-extrabold" style={{ color: "var(--kx-link)" }}>

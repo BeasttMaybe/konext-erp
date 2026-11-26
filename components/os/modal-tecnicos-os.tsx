@@ -185,7 +185,7 @@ export function ModalTecnicosOS({
                 return (
                   <div
                     key={candidato.id}
-                    className="flex items-center justify-between gap-3 rounded-lg border border-border p-2.5"
+                    className="flex items-center justify-between gap-3 rounded-kx-cartao border border-border p-2.5"
                   >
                     <label className="flex flex-1 items-center gap-2.5 cursor-pointer">
                       <Checkbox
@@ -213,7 +213,7 @@ export function ModalTecnicosOS({
             </div>
 
             {mostrarParticipacao && (
-              <div className="space-y-2 rounded-lg border border-dashed border-border p-3">
+              <div className="space-y-2 rounded-kx-cartao border border-dashed border-border p-3">
                 <p className="text-xs text-muted-foreground">
                   Soma das participações: <span className="font-medium text-foreground">{somaParticipacao.toFixed(2)}%</span>
                 </p>

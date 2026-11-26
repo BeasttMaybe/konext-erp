@@ -58,7 +58,7 @@ export async function AcaoGarantiaOS({
   const terminoPrevisto = somarDias(agoraNaLoja(fusoHorario), previa.prazoPrevistoDias, fusoHorario);
 
   return (
-    <div className="rounded-lg border border-border bg-muted/40 p-4 text-sm">
+    <div className="rounded-kx-cartao border border-border bg-muted/40 p-4 text-sm">
       <div className="flex items-start gap-3">
         {faltamItens ? (
           <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-kx-alerta-icone" aria-hidden />

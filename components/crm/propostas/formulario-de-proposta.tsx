@@ -535,7 +535,7 @@ export function FormularioDeProposta({ proposta }: { proposta?: PropostaParaEdit
  />
 
  {clienteDropdownOpen && clientesFiltrados.length > 0 && (
- <div className="absolute z-kx-dropdown mt-1 w-full rounded-xl border border-kx-painel-borda bg-kx-fundo p-1 shadow-xl">
+ <div className="absolute z-kx-dropdown mt-1 w-full rounded-kx-cartao border border-kx-painel-borda bg-kx-fundo p-1 shadow-xl">
  {clientesFiltrados.map((cliente) => (
  <button
  key={cliente.id}
@@ -548,7 +548,7 @@ export function FormularioDeProposta({ proposta }: { proposta?: PropostaParaEdit
  });
  setClienteDropdownOpen(false);
  }}
- className="flex w-full flex-col rounded-lg px-3 py-2 text-left hover:bg-kx-cartao"
+ className="flex w-full flex-col rounded-kx-cartao px-3 py-2 text-left hover:bg-kx-cartao"
  >
  <span className="text-sm text-kx-texto">{cliente.nomeRazaoSocial}</span>
  <span className="text-xs text-kx-legenda">
@@ -748,7 +748,7 @@ export function FormularioDeProposta({ proposta }: { proposta?: PropostaParaEdit
  if (sugestoes.length === 0) return null;
 
  return (
- <div className="mt-1 max-h-48 w-full overflow-y-auto rounded-xl border border-kx-painel-borda bg-kx-fundo p-1 shadow-xl">
+ <div className="mt-1 max-h-48 w-full overflow-y-auto rounded-kx-cartao border border-kx-painel-borda bg-kx-fundo p-1 shadow-xl">
  {sugestoes.map((produto) => (
  <button
  key={produto.id}
@@ -765,7 +765,7 @@ export function FormularioDeProposta({ proposta }: { proposta?: PropostaParaEdit
  });
  setProdutoDropdownIndex(null);
  }}
- className="flex w-full flex-col rounded-lg px-3 py-2 text-left hover:bg-kx-cartao"
+ className="flex w-full flex-col rounded-kx-cartao px-3 py-2 text-left hover:bg-kx-cartao"
  >
  <span className="text-sm text-kx-texto">{produto.nome}</span>
  <span className="text-xs text-kx-legenda">
@@ -821,7 +821,7 @@ export function FormularioDeProposta({ proposta }: { proposta?: PropostaParaEdit
  onClick={() => remove(index)}
  disabled={fields.length === 1}
  aria-label="Remover item"
- className="rounded-lg p-1.5 text-kx-texto-2 opacity-0 transition-all hover:bg-kx-erro-fundo hover:text-kx-erro-texto group-hover:opacity-100 disabled:pointer-events-none disabled:opacity-0"
+ className="rounded-kx-cartao p-1.5 text-kx-texto-2 opacity-0 transition-all hover:bg-kx-erro-fundo hover:text-kx-erro-texto group-hover:opacity-100 disabled:pointer-events-none disabled:opacity-0"
  >
  <Trash2 className="h-3.5 w-3.5" />
  </button>

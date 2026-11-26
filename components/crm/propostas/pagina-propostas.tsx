@@ -313,7 +313,7 @@ export function PaginaPropostas({ hojeIso }: { hojeIso: string }) {
     <Suspense
       fallback={
         <div className="px-6 py-6 lg:px-8">
-          <div className="mx-auto h-9 w-56 max-w-7xl animate-pulse rounded-lg bg-kx-painel-borda" />
+          <div className="mx-auto h-9 w-56 max-w-7xl animate-pulse rounded-kx-cartao bg-kx-painel-borda" />
         </div>
       }
     >

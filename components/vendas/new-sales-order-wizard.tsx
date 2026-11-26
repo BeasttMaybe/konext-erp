@@ -628,13 +628,13 @@ export function NewSalesOrderWizard({
  <form onSubmit={handleSubmit(handleFormSubmit, handleFormInvalid)} noValidate>
  <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabValue)} className="space-y-6">
  <TabsList className="grid h-auto grid-cols-2 gap-2 rounded-kx-cartao border border-kx-painel-borda bg-kx-painel p-2 text-kx-legenda lg:grid-cols-3">
- <TabsTrigger value="dados-gerais" className="rounded-xl py-3 data-[state=active]:bg-kx-superficie data-[state=active]:text-kx-texto">
+ <TabsTrigger value="dados-gerais" className="rounded-kx-cartao py-3 data-[state=active]:bg-kx-superficie data-[state=active]:text-kx-texto">
  Dados Gerais
  </TabsTrigger>
- <TabsTrigger value="itens-pedido" className="rounded-xl py-3 data-[state=active]:bg-kx-superficie data-[state=active]:text-kx-texto">
+ <TabsTrigger value="itens-pedido" className="rounded-kx-cartao py-3 data-[state=active]:bg-kx-superficie data-[state=active]:text-kx-texto">
  Itens do Pedido
  </TabsTrigger>
- <TabsTrigger value="pagamento-impostos" className="rounded-xl py-3 data-[state=active]:bg-kx-superficie data-[state=active]:text-kx-texto">
+ <TabsTrigger value="pagamento-impostos" className="rounded-kx-cartao py-3 data-[state=active]:bg-kx-superficie data-[state=active]:text-kx-texto">
  Pagamento e Impostos
  </TabsTrigger>
  </TabsList>
@@ -813,7 +813,7 @@ export function NewSalesOrderWizard({
  type="button"
  variant="outline"
  role="combobox"
- className="h-8 w-full justify-between rounded-lg border-kx-painel-borda bg-kx-painel px-2.5 py-1 text-base font-normal text-kx-texto shadow-none hover:bg-kx-painel hover:text-kx-texto md:text-sm"
+ className="h-8 w-full justify-between rounded-kx-cartao border-kx-painel-borda bg-kx-painel px-2.5 py-1 text-base font-normal text-kx-texto shadow-none hover:bg-kx-painel hover:text-kx-texto md:text-sm"
  >
  <span className={cn("truncate", !draftProduto && "text-kx-legenda")}>
  {draftProduto ? draftProduto.name : "Buscar produto..."}
@@ -1082,7 +1082,7 @@ export function NewSalesOrderWizard({
  <div key={installmentField.id} className="grid gap-3 md:grid-cols-[80px_1fr_180px] md:items-end">
  <div className="space-y-2">
  <Label>{`${index + 1}x`}</Label>
- <div className="flex h-8 items-center rounded-lg border border-kx-painel-borda bg-kx-painel px-2.5 text-sm text-kx-texto-2">
+ <div className="flex h-8 items-center rounded-kx-cartao border border-kx-painel-borda bg-kx-painel px-2.5 text-sm text-kx-texto-2">
  {`${index + 1}x`}
  </div>
  </div>
