@@ -1,6 +1,7 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Moon, Search, Sun } from "lucide-react";
 import { usePerfilDaMoldura } from "@/contextos/contexto-perfil";
@@ -19,6 +20,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SinoNotificacoes } from "@/components/layout/sino-notificacoes";
 import { GavetaLateralMobile } from "./gaveta-lateral-mobile";
+import { NavegacaoTopo } from "./navegacao-topo";
+import { StatusCaixa } from "./status-caixa";
 import { BotaoLerQrDaOS } from "./botao-ler-qr-os";
 
 const PERMISSOES_CONFIGURACOES = ["configuracoes.empresa", "configuracoes.sistema", "configuracoes.usuarios"] as const;
@@ -39,19 +42,48 @@ function nomeOuEmail(nome: string | null | undefined, email: string): string {
   return parteLocal || email;
 }
 
+/** Marca da loja no canto esquerdo do cabeçalho — logo do tenant (ou um "T"
+ * de fallback) + nome. Clica e vai pro Dashboard. Antes vivia na barra
+ * lateral; no redesenho de topo (11/2026) a marca encabeça a primeira linha. */
+function MarcaDaLoja() {
+  const { logoUrl, nomeDaLoja } = usePerfilDaMoldura();
+  const [falhaLogo, setFalhaLogo] = useState(false);
+
+  return (
+    <Link href="/" className="flex shrink-0 items-center gap-2.5" aria-label={nomeDaLoja || "TechOS"}>
+      {logoUrl && !falhaLogo ? (
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-kx-botao bg-kx-papel">
+          {/* eslint-disable-next-line @next/next/no-img-element -- URL de logo enviada pelo tenant, fora do domínio otimizado pelo next/image. */}
+          <img src={logoUrl} alt="Logo da empresa" className="h-full w-full object-contain" onError={() => setFalhaLogo(true)} />
+        </span>
+      ) : (
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-kx-botao bg-kx-primaria text-base font-extrabold text-primary-foreground">
+          T
+        </span>
+      )}
+      <span className="hidden min-w-0 flex-col sm:flex">
+        <span className="max-w-[12rem] truncate text-sm font-extrabold leading-tight tracking-tight text-kx-texto">
+          {nomeDaLoja || "TechOS"}
+        </span>
+        <span className="text-[11px] leading-tight text-kx-legenda">TechOS ERP</span>
+      </span>
+    </Link>
+  );
+}
+
 /**
- * Barra superior do app shell (Fase 3-1, Parte 3) — campo de busca global
- * (abre a paleta de comando via Ctrl+K, ver paleta-comando.tsx), tema,
- * notificações e menu do usuário. Sem marca/nome da empresa (Fase 3-2C,
- * Parte 2): isso já aparece na barra lateral e no cabeçalho da página.
+ * Cabeçalho do app shell (redesenho 11/2026) — barra horizontal no topo, full
+ * width, no lugar da barra lateral. Duas linhas no desktop: a primeira com
+ * marca, busca global (Ctrl+K, ver paleta-comando.tsx) e ações (leitor de QR,
+ * status do caixa, tema, notificações, usuário); a segunda com a navegação
+ * dos módulos (`NavegacaoTopo`). Abaixo de `lg` a navegação some e dá lugar à
+ * gaveta (hambúrguer), e a barra fica numa linha só.
  */
 export function BarraSuperior({ onAbrirBusca }: { onAbrirBusca: () => void }) {
   const { resolvedTheme, setTheme } = useTheme();
   const router = useRouter();
   const { papel } = usePermissoes();
   const podeVerConfiguracoes = useTemAlgumaPermissao(PERMISSOES_CONFIGURACOES);
-  // Vem pronto do servidor (ver contextos/contexto-perfil.tsx): sem busca
-  // depois de montar, o nome ja aparece no primeiro desenho da barra.
   const perfil = usePerfilDaMoldura();
   const emailUsuario = perfil.email;
   const nomeUsuario = nomeOuEmail(perfil.nome, emailUsuario);
@@ -63,87 +95,90 @@ export function BarraSuperior({ onAbrirBusca }: { onAbrirBusca: () => void }) {
   );
 
   return (
-    <header className="sticky top-0 z-kx-cabecalho flex h-[calc(72px+env(safe-area-inset-top))] shrink-0 items-center gap-3 border-b border-kx-painel-borda bg-kx-painel px-4 pt-[env(safe-area-inset-top)] lg:px-6">
-      {/* No iPhone instalado como app, o sistema ocupa tambem a area da barra
-          de status (ver `statusBarStyle` em app/layout.tsx). A altura e o
-          espacamento de cima somam essa area — no navegador comum ela vale 0. */}
-      <GavetaLateralMobile />
+    <header className="sticky top-0 z-kx-cabecalho flex shrink-0 flex-col border-b border-kx-painel-borda bg-kx-painel pt-[env(safe-area-inset-top)]">
+      {/* No iPhone instalado como app, o sistema ocupa também a área da barra
+          de status (ver `statusBarStyle` em app/layout.tsx) — daí o padding de
+          cima pela safe-area; no navegador comum ela vale 0. */}
+      <div className="flex h-14 shrink-0 items-center gap-3 px-3 lg:px-4">
+        <GavetaLateralMobile />
+        <MarcaDaLoja />
 
-      {/* Sem marca/nome da empresa aqui — a empresa já é identificada pelo
-          cabeçalho da página (ex.: "Konext / 20 de setembro de 2026"), e a
-          marca do produto fica só na barra lateral (Fase 3-2C, Parte 2). */}
-      <button
-        type="button"
-        onClick={onAbrirBusca}
-        aria-label="Buscar OS, cliente..."
-        // No celular vira so a lupa: o texto quebrava em duas linhas e
-        // espremia os botoes ao lado (leitor de QR, tema, avisos).
-        className="flex h-10 w-10 shrink-0 items-center justify-center gap-2 rounded-kx-botao border border-kx-campo-borda bg-kx-superficie text-sm text-kx-placeholder transition-colors hover:border-kx-foco sm:w-auto sm:max-w-[460px] sm:flex-1 sm:shrink sm:justify-start sm:px-3"
-      >
-        <Search className="h-4 w-4 shrink-0" aria-hidden="true" />
-        <span className="hidden flex-1 text-left sm:inline">Buscar OS, cliente...</span>
-        <kbd className="hidden shrink-0 rounded border border-kx-campo-borda bg-kx-cartao px-1.5 py-0.5 text-[10px] font-medium text-kx-legenda sm:block">
-          Ctrl K
-        </kbd>
-      </button>
+        <button
+          type="button"
+          onClick={onAbrirBusca}
+          aria-label="Buscar OS, cliente..."
+          className="flex h-9 w-9 shrink-0 items-center justify-center gap-2 rounded-kx-botao border border-kx-campo-borda bg-kx-superficie text-sm text-kx-placeholder transition-colors hover:border-kx-foco sm:ml-2 sm:w-auto sm:max-w-[420px] sm:flex-1 sm:shrink sm:justify-start sm:px-3"
+        >
+          <Search className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span className="hidden flex-1 text-left sm:inline">Buscar OS, cliente...</span>
+          <kbd className="hidden shrink-0 rounded border border-kx-campo-borda bg-kx-cartao px-1.5 py-0.5 text-[10px] font-medium text-kx-legenda sm:block">
+            Ctrl K
+          </kbd>
+        </button>
 
-      <div className="ml-auto flex shrink-0 items-center gap-1">
-        <BotaoLerQrDaOS />
-        {montado && (
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={resolvedTheme === "light" ? "Ativar tema escuro" : "Ativar tema claro"}
-            onClick={() => setTheme(resolvedTheme === "light" ? "dark" : "light")}
-          >
-            {resolvedTheme === "light" ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
-          </Button>
-        )}
-
-        <SinoNotificacoes />
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-auto gap-2 px-2 py-1.5">
-              <Avatar className="h-10 w-10">
-                <AvatarImage src={fotoPerfilUrl ?? undefined} alt={nomeUsuario} />
-                <AvatarFallback>{iniciaisDoNome(nomeUsuario)}</AvatarFallback>
-              </Avatar>
-              <span className="hidden max-w-[10rem] flex-col items-start sm:flex">
-                <span className="truncate text-sm font-bold leading-tight text-kx-texto">{nomeUsuario}</span>
-                <span className="truncate text-xs leading-tight text-kx-legenda">{rotularPapel(papel)}</span>
-              </span>
-            </Button>
-          </DropdownMenuTrigger>
-
-          <DropdownMenuContent align="end" className="w-56">
-            <div className="px-2 py-1.5 text-sm">
-              <p className="font-medium text-foreground">{nomeUsuario}</p>
-              <p className="text-xs text-muted-foreground">{emailUsuario}</p>
-            </div>
-            <DropdownMenuSeparator />
-
-            <DropdownMenuItem className="flex cursor-pointer items-center gap-2" onSelect={() => router.push("/perfil")}>
-              <span>Meu Perfil</span>
-            </DropdownMenuItem>
-            {podeVerConfiguracoes && (
-              <DropdownMenuItem className="flex cursor-pointer items-center gap-2" onSelect={() => router.push("/configuracoes")}>
-                <span>Configurações</span>
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuSeparator />
-
-            <DropdownMenuItem
-              className="flex cursor-pointer items-center gap-2 text-destructive"
-              onSelect={() => {
-                void logout();
-              }}
+        <div className="ml-auto flex shrink-0 items-center gap-1">
+          <BotaoLerQrDaOS />
+          <div className="hidden lg:block">
+            <StatusCaixa />
+          </div>
+          {montado && (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={resolvedTheme === "light" ? "Ativar tema escuro" : "Ativar tema claro"}
+              onClick={() => setTheme(resolvedTheme === "light" ? "dark" : "light")}
             >
-              <span>Sair</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              {resolvedTheme === "light" ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+            </Button>
+          )}
+
+          <SinoNotificacoes />
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="h-auto gap-2 px-2 py-1.5">
+                <Avatar className="h-9 w-9">
+                  <AvatarImage src={fotoPerfilUrl ?? undefined} alt={nomeUsuario} />
+                  <AvatarFallback>{iniciaisDoNome(nomeUsuario)}</AvatarFallback>
+                </Avatar>
+                <span className="hidden max-w-[10rem] flex-col items-start xl:flex">
+                  <span className="truncate text-sm font-bold leading-tight text-kx-texto">{nomeUsuario}</span>
+                  <span className="truncate text-xs leading-tight text-kx-legenda">{rotularPapel(papel)}</span>
+                </span>
+              </Button>
+            </DropdownMenuTrigger>
+
+            <DropdownMenuContent align="end" className="w-56">
+              <div className="px-2 py-1.5 text-sm">
+                <p className="font-medium text-foreground">{nomeUsuario}</p>
+                <p className="text-xs text-muted-foreground">{emailUsuario}</p>
+              </div>
+              <DropdownMenuSeparator />
+
+              <DropdownMenuItem className="flex cursor-pointer items-center gap-2" onSelect={() => router.push("/perfil")}>
+                <span>Meu Perfil</span>
+              </DropdownMenuItem>
+              {podeVerConfiguracoes && (
+                <DropdownMenuItem className="flex cursor-pointer items-center gap-2" onSelect={() => router.push("/configuracoes")}>
+                  <span>Configurações</span>
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+
+              <DropdownMenuItem
+                className="flex cursor-pointer items-center gap-2 text-destructive"
+                onSelect={() => {
+                  void logout();
+                }}
+              >
+                <span>Sair</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
+
+      <NavegacaoTopo />
     </header>
   );
 }
