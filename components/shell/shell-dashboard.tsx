@@ -35,7 +35,7 @@ export function ShellDashboard({ children }: { children: ReactNode }) {
     <div className="flex h-screen flex-col bg-kx-fundo">
       <BarraSuperior onAbrirBusca={() => setBuscaAberta(true)} />
       <main className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-[1760px] px-4 py-4 sm:px-6 sm:py-6">{children}</div>
+        <div className="mx-auto w-full max-w-[1760px] px-4 py-4 sm:px-6 sm:py-5">{children}</div>
       </main>
       <PaletaComando aberta={buscaAberta} onAbertaChange={setBuscaAberta} />
     </div>
