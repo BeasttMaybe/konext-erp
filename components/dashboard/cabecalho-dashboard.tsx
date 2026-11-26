@@ -49,7 +49,7 @@ export function CabecalhoDashboard({ empresa, periodo, fusoHorario }: CabecalhoD
               href={`/?periodo=${opcao.valor}`}
               aria-current={ativo ? "page" : undefined}
               className={cn(
-                "flex h-11 shrink-0 items-center whitespace-nowrap rounded-kx-botao px-3 text-sm font-medium transition-colors",
+                "flex h-9 shrink-0 items-center whitespace-nowrap rounded-kx-botao px-3 text-sm font-medium transition-colors",
                 ativo ? "bg-kx-primaria/15 text-kx-destaque" : "text-kx-legenda hover:text-kx-texto"
               )}
             >

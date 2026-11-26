@@ -71,7 +71,7 @@ function CartaoIndicador({
         // No celular, compacto: dois por linha, sem o icone e com numero menor —
         // um por linha, como no computador, os cartoes ocupavam a tela toda
         // antes do conteudo da pagina.
-        "relative overflow-hidden rounded-kx-cartao border border-kx-painel-borda bg-kx-cartao p-3 shadow-kx-cartao sm:p-kx-4",
+        "relative overflow-hidden rounded-kx-cartao border border-kx-painel-borda bg-kx-cartao p-3 shadow-kx-cartao sm:p-kx-3",
         className
       )}
       {...props}

@@ -200,13 +200,18 @@
 }
 
 :root:not(.dark) {
-  /* ---- Cor: superfícies ---- */
+  /* ---- Cor: superfícies ----
+     Tema claro reforçado (11/2026): o dono relatou que no claro alguns
+     elementos "sumiam". O fundo da página ficou um tom mais escuro e a borda
+     dos painéis mais forte, pra os cartões brancos se destacarem do fundo em
+     vez de se fundirem nele. --kx-cabecalho (fora) segue mais escuro que o
+     fundo, pra o header ler como uma barra. */
   --kx-fora: #c4cedc;
-  --kx-fundo: #e4e9f1;
+  --kx-fundo: #dde4ee;
   --kx-painel: #ffffff;
-  --kx-painel-borda: #c3cddb;
+  --kx-painel-borda: #aebbce;
   --kx-campo-borda: #78869b; /* mesma logica do escuro — 3:1 pra fronteira de campo */
-  --kx-superficie: #eef2f7;
+  --kx-superficie: #e7edf5;
   --kx-cartao: #ffffff;
 
   /* ---- Cor: texto ---- */

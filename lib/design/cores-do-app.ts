@@ -13,6 +13,6 @@ export const CORES_DO_APP = {
   /** `--kx-fundo` do tema escuro: o fundo entre tocar no icone e a primeira tela. */
   fundoEscuro: "#0c1424",
   /** `--kx-fundo` do tema claro. */
-  fundoClaro: "#e4e9f1",
+  fundoClaro: "#dde4ee",
 } as const;
 /* eslint-enable konext/sem-hex-hardcoded */
