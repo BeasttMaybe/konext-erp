@@ -3,24 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import {
-  Briefcase,
-  CalendarDays,
-  ChevronDown,
-  DollarSign,
-  Flag,
-  Hammer,
-  Landmark,
-  LayoutDashboard,
-  LifeBuoy,
-  Megaphone,
-  MoreHorizontal,
-  Package,
-  ShoppingCart,
-  Users,
-  Wrench,
-  type LucideIcon,
-} from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePermissoes } from "@/contextos/contexto-permissoes";
 import type { Permissao } from "@/lib/auth/permissoes";
@@ -32,38 +15,20 @@ import {
   itensDaNavegacao,
 } from "@/lib/navegacao/itens-navegacao";
 
-const ICONES: Record<string, LucideIcon> = {
-  Dashboard: LayoutDashboard,
-  CRM: Users,
-  PDV: ShoppingCart,
-  Vendas: Briefcase,
-  Estoque: Package,
-  OS: Wrench,
-  Financeiro: DollarSign,
-  Agenda: CalendarDays,
-  Metas: Flag,
-  Marketing: Megaphone,
-  Prefeitura: Landmark,
-  Ferramentas: Hammer,
-  Ajuda: LifeBuoy,
-  Mais: MoreHorizontal,
-};
+// Rótulo mais curto só pro topo (o modelo e a gaveta mobile mantêm o nome
+// completo "Ordens de Serviço"). Mantém a barra enxuta, como no Bling.
+const ROTULO_CURTO: Record<string, string> = { "Ordens de Serviço": "Ordens" };
 
 /**
- * Navegação horizontal no topo (redesenho 11/2026) — substitui a barra
- * lateral. Cada módulo é um link direto (sem filhos) ou um botão que abre um
- * dropdown com os filhos (Contas a Receber, Propostas, etc.). Mesma fonte de
- * itens e de permissão da gaveta mobile (`itensDaNavegacao`/`filhosVisiveis`),
- * pra os dois nunca divergirem.
+ * Navegação horizontal no topo, no estilo Bling (redesenho 11/2026): módulos
+ * em TEXTO (sem ícone), com pílula de destaque (verde da marca) no item ativo
+ * ou aberto, e os filhos num painel suspenso. Numa linha só, dentro do
+ * cabeçalho escuro. Mesma fonte de itens/permissão da gaveta mobile.
  *
- * O dropdown é renderizado INLINE (posicionado absoluto, não em portal) e só
- * quando aberto. Como o cabeçalho que o contém não tem `overflow-hidden`, ele
- * pinta por cima do conteúdo sem ser cortado — e, por ser inline, o menu é
- * testável sem simular portal (abrir = achar os links no DOM).
- *
- * A barra pode quebrar em duas linhas em telas estreitas (flex-wrap), em vez
- * de rolar na horizontal: rolagem lateral esconde módulo e cortaria o
- * dropdown. Abaixo de `lg` ela some — quem navega ali é a gaveta mobile.
+ * O painel é renderizado INLINE (absoluto, não em portal) e só quando aberto.
+ * Como o cabeçalho não tem `overflow-hidden`, ele pinta sobre o conteúdo sem
+ * ser cortado — e, inline, é testável sem simular portal (abrir = achar os
+ * links no DOM). Abaixo de `lg` a barra some: ali navega a gaveta mobile.
  */
 export function NavegacaoTopo() {
   const pathname = usePathname();
@@ -77,8 +42,7 @@ export function NavegacaoTopo() {
     [permissoes]
   );
 
-  // Fecha o dropdown quando a rota muda (ajuste durante a renderização, nunca
-  // em efeito — mesmo padrão da gaveta mobile).
+  // Fecha o painel quando a rota muda (ajuste na renderização, nunca em efeito).
   const [rotaAnterior, setRotaAnterior] = useState(pathname);
   if (pathname !== rotaAnterior) {
     setRotaAnterior(pathname);
@@ -107,23 +71,11 @@ export function NavegacaoTopo() {
     .filter(({ item, filhos }) => !(item.filhos?.length && filhos.length === 0));
 
   return (
-    <nav
-      ref={navRef}
-      aria-label="Navegação principal"
-      className="hidden items-center gap-0.5 border-t border-kx-painel-borda px-2 lg:flex lg:flex-wrap"
-    >
+    <nav ref={navRef} aria-label="Navegação principal" className="hidden items-center gap-0.5 lg:flex">
       {itens.map(({ item, filhos }) => {
         const ativo = itemEstaAtivo(item, pathname, searchParams);
-        const Icone = ICONES[item.iconKey] ?? LayoutDashboard;
         const temDropdown = filhos.length > 1;
-
-        const classeBase = cn(
-          "flex h-10 items-center gap-2 rounded-kx-botao px-2.5 text-sm font-medium transition-colors",
-          "border-b-2 border-transparent -mb-px",
-          ativo
-            ? "border-kx-primaria font-semibold text-kx-texto"
-            : "text-kx-texto-2 hover:bg-kx-superficie hover:text-kx-texto"
-        );
+        const rotulo = ROTULO_CURTO[item.label] ?? item.label;
 
         if (!temDropdown) {
           const caminho = caminhoDoItem(item, filhos);
@@ -132,16 +84,20 @@ export function NavegacaoTopo() {
               key={item.path}
               href={caminho}
               aria-current={ativo ? "page" : undefined}
-              className={classeBase}
+              className={cn(
+                "flex h-9 items-center rounded-kx-pilula px-3 text-sm transition-colors",
+                ativo ? "bg-kx-sucesso font-semibold text-kx-fundo" : "font-medium text-kx-texto-2 hover:bg-kx-painel hover:text-kx-texto"
+              )}
             >
-              <Icone className={cn("h-4 w-4 shrink-0", ativo && "text-kx-destaque")} aria-hidden="true" />
-              {item.label}
+              {rotulo}
             </Link>
           );
         }
 
         const estaAberto = aberto === item.path;
+        const destacado = estaAberto || ativo;
         const indiceFilho = indiceFilhoAtivo(filhos, pathname, searchParams);
+        const duasColunas = filhos.length > 6;
 
         return (
           <div key={item.path} className="relative">
@@ -150,42 +106,44 @@ export function NavegacaoTopo() {
               aria-haspopup="true"
               aria-expanded={estaAberto}
               onClick={() => setAberto((atual) => (atual === item.path ? null : item.path))}
-              // Em barra de menu, com um dropdown já aberto, passar o mouse por
+              // Em barra de menu, com um painel já aberto, passar o mouse por
               // outro troca pra ele — comportamento esperado de menu horizontal.
               onPointerEnter={() => setAberto((atual) => (atual !== null ? item.path : atual))}
-              className={classeBase}
+              className={cn(
+                "flex h-9 items-center gap-1 rounded-kx-pilula px-3 text-sm transition-colors",
+                destacado ? "bg-kx-sucesso font-semibold text-kx-fundo" : "font-medium text-kx-texto-2 hover:bg-kx-painel hover:text-kx-texto"
+              )}
             >
-              <Icone className={cn("h-4 w-4 shrink-0", ativo && "text-kx-destaque")} aria-hidden="true" />
-              {item.label}
-              <ChevronDown
-                className={cn("h-3.5 w-3.5 shrink-0 text-kx-legenda transition-transform", estaAberto && "rotate-180")}
-                aria-hidden="true"
-              />
+              {rotulo}
+              <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 transition-transform", estaAberto && "rotate-180")} aria-hidden="true" />
             </button>
 
             {estaAberto && (
-              <ul className="absolute left-0 top-[calc(100%+4px)] z-kx-dropdown min-w-[13rem] overflow-hidden rounded-kx-cartao border border-kx-painel-borda bg-kx-painel py-1 shadow-kx-painel">
-                {filhos.map((filho, indice) => {
-                  const filhoAtivo = indice === indiceFilho;
-                  return (
-                    <li key={filho.path}>
-                      <Link
-                        href={filho.path}
-                        aria-current={filhoAtivo ? "page" : undefined}
-                        onClick={() => setAberto(null)}
-                        className={cn(
-                          "block px-3 py-2 text-[13px] transition-colors",
-                          filhoAtivo
-                            ? "bg-kx-superficie font-semibold text-kx-texto"
-                            : "text-kx-texto-2 hover:bg-kx-superficie hover:text-kx-texto"
-                        )}
-                      >
-                        {filho.label}
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
+              <div className="absolute left-0 top-[calc(100%+8px)] z-kx-dropdown rounded-kx-cartao border border-kx-painel-borda bg-kx-painel p-2 shadow-kx-painel">
+                <p className="px-2 pb-1.5 pt-1 text-[11px] font-bold uppercase tracking-wide text-kx-legenda">{item.label}</p>
+                <ul className={cn("grid gap-0.5", duasColunas ? "min-w-[30rem] grid-cols-2" : "min-w-[14rem] grid-cols-1")}>
+                  {filhos.map((filho, indice) => {
+                    const filhoAtivo = indice === indiceFilho;
+                    return (
+                      <li key={filho.path}>
+                        <Link
+                          href={filho.path}
+                          aria-current={filhoAtivo ? "page" : undefined}
+                          onClick={() => setAberto(null)}
+                          className={cn(
+                            "block rounded-kx-botao px-3 py-2 text-sm transition-colors",
+                            filhoAtivo
+                              ? "bg-kx-superficie font-semibold text-kx-texto"
+                              : "text-kx-texto-2 hover:bg-kx-superficie hover:text-kx-texto"
+                          )}
+                        >
+                          {filho.label}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
             )}
           </div>
         );

@@ -127,7 +127,8 @@ describe("NavegacaoTopo — o que ela NÃO faz", () => {
   it("os 7 grupos continuam alcançáveis (Marketing some sem o módulo)", () => {
     abrirEm("/");
 
-    for (const rotulo of ["Ordens de Serviço", "Vendas", "Clientes", "Estoque", "Financeiro", "Mais"]) {
+    // "Ordens de Serviço" aparece curto ("Ordens") no topo; os demais iguais.
+    for (const rotulo of ["Ordens", "Vendas", "Clientes", "Estoque", "Financeiro", "Mais"]) {
       expect(itemDoTopo(rotulo), rotulo).toBeInTheDocument();
     }
     // Marketing não está nos módulos do mock, então não aparece.
