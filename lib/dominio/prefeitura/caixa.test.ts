@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { apurarCaixa, type ContaCaixa } from "./caixa";
+import { apurarCaixa, serieRecebimentosPorMes, type ContaCaixa } from "./caixa";
 
 const HOJE = new Date("2026-11-25T00:00:00Z");
 
@@ -64,5 +64,36 @@ describe("apurarCaixa", () => {
     const r = apurarCaixa([], HOJE);
     expect(r.aReceberAbertoCentavos).toBe(0);
     expect(r.prazoMedioDias).toBeNull();
+  });
+});
+
+describe("serieRecebimentosPorMes", () => {
+  it("agrupa recebimentos por mês e preenche os meses vazios", () => {
+    const serie = serieRecebimentosPorMes(
+      [
+        conta({ recebida: true, recebimento: new Date("2026-11-05T00:00:00Z"), valorCentavos: 100_00 }),
+        conta({ recebida: true, recebimento: new Date("2026-11-20T00:00:00Z"), valorCentavos: 50_00 }),
+        conta({ recebida: true, recebimento: new Date("2026-09-10T00:00:00Z"), valorCentavos: 30_00 }),
+        conta({ recebida: false }), // em aberto não entra
+        conta({ recebida: true, estornada: true, recebimento: new Date("2026-11-01T00:00:00Z"), valorCentavos: 999_00 }),
+      ],
+      HOJE,
+      3
+    );
+    expect(serie).toEqual([
+      { mes: "2026-09", valorCentavos: 30_00 },
+      { mes: "2026-10", valorCentavos: 0 },
+      { mes: "2026-11", valorCentavos: 150_00 },
+    ]);
+  });
+
+  it("ignora recebimentos fora da janela", () => {
+    const serie = serieRecebimentosPorMes(
+      [conta({ recebida: true, recebimento: new Date("2026-01-10T00:00:00Z"), valorCentavos: 70_00 })],
+      HOJE,
+      3
+    );
+    expect(serie.every((m) => m.valorCentavos === 0)).toBe(true);
+    expect(serie).toHaveLength(3);
   });
 });

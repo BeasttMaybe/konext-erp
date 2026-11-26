@@ -9,7 +9,7 @@ import { ACOES_AUDITORIA, ENTIDADES_AUDITORIA } from "@/lib/auditoria-constantes
 import { deDecimal, paraDecimal } from "@/lib/dinheiro";
 import { dataDeCalendario } from "@/lib/datas";
 import { apurarNota, apurarPeriodo, IMPOSTO_PADRAO_PERCENTUAL, type ApuracaoPeriodo, type NotaApuracao } from "@/lib/dominio/prefeitura/apuracao";
-import { apurarCaixa, type ApuracaoCaixa, type ContaCaixa } from "@/lib/dominio/prefeitura/caixa";
+import { apurarCaixa, serieRecebimentosPorMes, type ApuracaoCaixa, type ContaCaixa } from "@/lib/dominio/prefeitura/caixa";
 
 const ORIGEM = "prefeitura";
 
@@ -201,15 +201,37 @@ export type RankingPrefeitura = {
   percentualRecebido: number | null;
 };
 
+export type AlertasCaixa = {
+  vencidasQtd: number;
+  vencidasCentavos: number;
+  vencendoQtd: number;
+  vencendoCentavos: number;
+  vencendoDias: number;
+};
+
+export type PontoRecebimentoMes = { mes: string; rotulo: string; valorCentavos: number };
+
 export type CaixaPrefeitura = ApuracaoCaixa & {
   temDados: boolean;
   contasAbertas: ContaAbertaPrefeitura[];
   /** Ranking das prefeituras por dinheiro recebido (desde sempre, todas). */
   ranking: RankingPrefeitura[];
+  /** Alertas de contas vencidas / a vencer em breve (respeita só a prefeitura). */
+  alertas: AlertasCaixa;
+  /** Recebimentos por mês nos últimos 12 meses (respeita só a prefeitura). */
+  recebimentosPorMes: PontoRecebimentoMes[];
   /** Nomes de prefeitura para o seletor. */
   prefeituras: string[];
   filtros: { cliente: string | null; de: string | null; ate: string | null };
 };
+
+const VENCENDO_EM_DIAS = 7;
+
+function rotuloMes(mes: string): string {
+  const d = new Date(`${mes}-01T00:00:00Z`);
+  const m = d.toLocaleDateString("pt-BR", { month: "short", timeZone: "UTC" }).replace(".", "");
+  return `${m}/${String(d.getUTCFullYear()).slice(2)}`;
+}
 
 const DIA_MS = 24 * 60 * 60 * 1000;
 
@@ -249,6 +271,8 @@ export async function obterCaixaPrefeitura(filtros: FiltrosPrefeitura = {}): Pro
     temDados: false,
     contasAbertas: [],
     ranking: [],
+    alertas: { vencidasQtd: 0, vencidasCentavos: 0, vencendoQtd: 0, vencendoCentavos: 0, vencendoDias: VENCENDO_EM_DIAS },
+    recebimentosPorMes: [],
     prefeituras: [],
     filtros: { cliente, de, ate },
   };
@@ -319,6 +343,37 @@ export async function obterCaixaPrefeitura(filtros: FiltrosPrefeitura = {}): Pro
 
   const apuracao = apurarCaixa(paraCaixa, hoje);
 
+  // Alertas e série mensal respeitam só a prefeitura (não o período): são uma
+  // visão "agora" / histórico, independentes do mês selecionado.
+  const clienteCaixa: ContaCaixa[] = contas
+    .filter((c) => !docsDoCliente || docsDoCliente.includes((c.clienteDocumento ?? "").replace(/\D/g, "")))
+    .map((c) => ({
+      valorCentavos: centavos(c.valor),
+      recebida: c.status === "RECEBIDO",
+      estornada: c.status === "ESTORNADO" || c.estornadaEm !== null,
+      vencimento: c.dataVencimento,
+      recebimento: c.dataRecebimento,
+    }));
+
+  const limiteVencendo = new Date(hoje.getTime() + VENCENDO_EM_DIAS * DIA_MS);
+  const alertas: AlertasCaixa = { vencidasQtd: 0, vencidasCentavos: 0, vencendoQtd: 0, vencendoCentavos: 0, vencendoDias: VENCENDO_EM_DIAS };
+  for (const c of clienteCaixa) {
+    if (c.recebida || c.estornada) continue;
+    if (c.vencimento.getTime() < hoje.getTime()) {
+      alertas.vencidasQtd += 1;
+      alertas.vencidasCentavos += c.valorCentavos;
+    } else if (c.vencimento.getTime() <= limiteVencendo.getTime()) {
+      alertas.vencendoQtd += 1;
+      alertas.vencendoCentavos += c.valorCentavos;
+    }
+  }
+
+  const recebimentosPorMes: PontoRecebimentoMes[] = serieRecebimentosPorMes(clienteCaixa, hoje).map((p) => ({
+    mes: p.mes,
+    rotulo: rotuloMes(p.mes),
+    valorCentavos: p.valorCentavos,
+  }));
+
   const contasAbertas: ContaAbertaPrefeitura[] = filtradas
     .filter((c) => c.status !== "RECEBIDO" && c.status !== "ESTORNADO" && c.estornadaEm === null)
     .slice(0, 20)
@@ -355,7 +410,7 @@ export async function obterCaixaPrefeitura(filtros: FiltrosPrefeitura = {}): Pro
     .sort((a, b) => b.recebidoCentavos - a.recebidoCentavos)
     .slice(0, 10);
 
-  return { ...apuracao, temDados: true, contasAbertas, ranking, prefeituras, filtros: { cliente, de, ate } };
+  return { ...apuracao, temDados: true, contasAbertas, ranking, alertas, recebimentosPorMes, prefeituras, filtros: { cliente, de, ate } };
 }
 
 export type NotaPrefeituraDetalhe = {

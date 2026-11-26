@@ -1,7 +1,8 @@
 import type { ComponentType } from "react";
-import { AlertTriangle, Banknote, CalendarClock, Clock, Trophy, Wallet } from "lucide-react";
+import { AlertTriangle, Banknote, BellRing, CalendarClock, Clock, Trophy, Wallet } from "lucide-react";
 
 import type { CaixaPrefeitura } from "@/app/actions/prefeitura";
+import { GraficoRecebimentos } from "@/components/prefeitura/grafico-recebimentos";
 import { formatarReais } from "@/lib/dinheiro";
 
 const data = (iso: string) =>
@@ -50,8 +51,37 @@ export function CaixaBloco({ caixa }: { caixa: CaixaPrefeitura }) {
           ? `+${caixa.prazoMedioDias} dias`
           : `${caixa.prazoMedioDias} dias`;
 
+  const { vencidasQtd, vencidasCentavos, vencendoQtd, vencendoCentavos, vencendoDias } = caixa.alertas;
+
   return (
     <div className="flex flex-col gap-3">
+      {vencidasQtd > 0 || vencendoQtd > 0 ? (
+        <div className="flex flex-col gap-2 sm:flex-row">
+          {vencidasQtd > 0 ? (
+            <div className="flex flex-1 items-center gap-2.5 rounded-kx-botao border border-kx-erro-borda bg-kx-erro-fundo px-4 py-2.5">
+              <AlertTriangle className="h-4 w-4 shrink-0 text-kx-erro-texto" aria-hidden />
+              <span className="text-sm text-kx-erro-texto">
+                <span className="font-bold">
+                  {vencidasQtd} conta(s) vencida(s) · {formatarReais(vencidasCentavos)}
+                </span>{" "}
+                aguardando pagamento.
+              </span>
+            </div>
+          ) : null}
+          {vencendoQtd > 0 ? (
+            <div className="flex flex-1 items-center gap-2.5 rounded-kx-botao bg-kx-alerta-fundo px-4 py-2.5">
+              <BellRing className="h-4 w-4 shrink-0 text-kx-alerta-texto" aria-hidden />
+              <span className="text-sm text-kx-alerta-texto">
+                <span className="font-bold">
+                  {vencendoQtd} vencendo em {vencendoDias} dias · {formatarReais(vencendoCentavos)}
+                </span>
+                .
+              </span>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 xl:grid-cols-5">
         <Kpi rotulo="A receber" valor={formatarReais(caixa.aReceberAbertoCentavos)} nota={`${caixa.qtdAberto} em aberto`} icone={Wallet} />
         <Kpi
@@ -65,6 +95,8 @@ export function CaixaBloco({ caixa }: { caixa: CaixaPrefeitura }) {
         <Kpi rotulo="Recebido" valor={formatarReais(caixa.recebidoCentavos)} icone={Banknote} corValor="text-kx-sucesso-texto" />
         <Kpi rotulo="Prazo médio" valor={prazo} nota="após o vencimento" icone={Clock} />
       </div>
+
+      <GraficoRecebimentos dados={caixa.recebimentosPorMes} />
 
       {caixa.contasAbertas.length > 0 ? (
         <div className="flex flex-col gap-1.5">
