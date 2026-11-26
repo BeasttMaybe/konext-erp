@@ -14,6 +14,7 @@ import {
   LayoutDashboard,
   LifeBuoy,
   Megaphone,
+  MoreHorizontal,
   Package,
   ShoppingCart,
   Users,
@@ -45,6 +46,7 @@ const ICONES: Record<string, LucideIcon> = {
   Prefeitura: Landmark,
   Ferramentas: Hammer,
   Ajuda: LifeBuoy,
+  Mais: MoreHorizontal,
 };
 
 /**

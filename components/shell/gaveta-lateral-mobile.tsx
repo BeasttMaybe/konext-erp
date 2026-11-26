@@ -15,6 +15,7 @@ import {
   LifeBuoy,
   LogOut,
   Menu,
+  MoreHorizontal,
   Package,
   ShoppingCart,
   Users,
@@ -44,6 +45,7 @@ const ICONES: Record<string, LucideIcon> = {
   Prefeitura: Landmark,
   Ferramentas: Hammer,
   Ajuda: LifeBuoy,
+  Mais: MoreHorizontal,
 };
 
 /** Gaveta de navegação abaixo de 1024px (Fase 3-1, Parte 3) — mesma fonte de itens/permissão da barra lateral fixa. */

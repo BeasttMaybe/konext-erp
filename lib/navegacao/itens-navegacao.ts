@@ -17,8 +17,20 @@ export type ItemNavegacao = {
 
 // Fonte única da navegação principal. Consumida pelo cabeçalho e pelo menu mobile.
 // "Configurações" não entra aqui: vive no menu do usuário.
+//
+// Redesenho 11/2026 (direção aprovada pelo dono): os módulos foram AGRUPADOS
+// pra caber numa barra horizontal limpa (antes eram 13 itens, que quebravam em
+// duas linhas e poluíam o topo). Agora são 7 grupos. Dashboard saiu do menu —
+// é a tela inicial, alcançada pela marca no canto. Prefeitura entrou no
+// Financeiro (é o mesmo módulo); PDV e Vendas viraram "Vendas"; e Agenda,
+// Metas, Ferramentas e Ajuda viraram "Mais".
+//
+// O `path` de um grupo é sempre o de uma PÁGINA REAL (um teste garante isso) —
+// por isso o grupo usa a rota do primeiro filho relevante; o clique no grupo,
+// no desktop, abre o dropdown, não navega. Grupos cujo `path` é de núcleo
+// (/crm, /agenda) aparecem sempre; os filhos é que são filtrados por módulo e
+// permissão, um a um.
 export const ITENS_NAVEGACAO: readonly ItemNavegacao[] = [
-  { label: "Dashboard", path: "/", iconKey: "Dashboard" },
   {
     label: "Ordens de Serviço",
     path: "/os",
@@ -40,8 +52,19 @@ export const ITENS_NAVEGACAO: readonly ItemNavegacao[] = [
       { label: "Relatório de peças", path: "/os/relatorio-pecas" },
     ],
   },
+  // PDV + Vendas num grupo só (pedido do dono). `path` no PDV (página real) —
+  // o balcão é o uso diário; o dropdown dá os dois.
   {
-    label: "Clientes (CRM)",
+    label: "Vendas",
+    path: "/pdv",
+    iconKey: "Vendas",
+    filhos: [
+      { label: "PDV (balcão)", path: "/pdv" },
+      { label: "Pedidos de venda", path: "/vendas" },
+    ],
+  },
+  {
+    label: "Clientes",
     path: "/crm",
     iconKey: "CRM",
     filhos: [
@@ -54,16 +77,6 @@ export const ITENS_NAVEGACAO: readonly ItemNavegacao[] = [
       { label: "Propostas", path: "/crm/propostas" },
     ],
   },
-  { label: "PDV", path: "/pdv", iconKey: "PDV" },
-  // Vendas não tem submenu porque virou UMA tela: a lista de vendas.
-  //
-  // Antes eram três filhos — "Hub Central", "Novo Pedido" e "Histórico" —
-  // apontando para um hub de oito cartões (cinco levavam a `#`), um
-  // formulário em branco e a lista de verdade, que era a única com conteúdo
-  // e a que ninguém alcançava. O hub foi apagado, a lista tomou o lugar
-  // dele em /vendas, e "novo pedido" é um botão na própria tela, que é onde
-  // alguém decide criar um.
-  { label: "Vendas", path: "/vendas", iconKey: "Vendas" },
   {
     label: "Estoque",
     path: "/estoque",
@@ -73,6 +86,8 @@ export const ITENS_NAVEGACAO: readonly ItemNavegacao[] = [
       { label: "Entrada de nota", path: "/estoque/notas/nova", permissoesRequeridas: ["estoque.editar"] },
     ],
   },
+  // Financeiro agora inclui Prefeitura (mesmo módulo "financeiro", ver
+  // catalogo.ts): o dono pediu pra unificar e tira um item do topo.
   {
     label: "Financeiro",
     path: "/financeiro",
@@ -83,11 +98,10 @@ export const ITENS_NAVEGACAO: readonly ItemNavegacao[] = [
       { label: "Contas a Pagar", path: "/financeiro/pagar", permissoesRequeridas: ["financeiro.ver"] },
       { label: "Fluxo e Relatórios", path: "/financeiro/fluxo", permissoesRequeridas: ["dashboard.financeiro"] },
       { label: "Notas Fiscais", path: "/financeiro/notas-fiscais", permissoesRequeridas: ["financeiro.ver"] },
+      { label: "Prefeitura — Resultado", path: "/prefeitura" },
+      { label: "Prefeitura — Caixa", path: "/prefeitura/caixa" },
     ],
   },
-  // Compromissos da equipe + vencimentos do financeiro + prazos de meta.
-  { label: "Agenda", path: "/agenda", iconKey: "Agenda" },
-  { label: "Metas", path: "/metas", iconKey: "Metas" },
   {
     label: "Marketing",
     path: "/marketing",
@@ -103,31 +117,23 @@ export const ITENS_NAVEGACAO: readonly ItemNavegacao[] = [
       { label: "Conexões", path: "/marketing/conexoes" },
     ],
   },
-  // Vendas para a prefeitura: custo, lucro e caixa a partir das notas do Bling.
-  // Item próprio no menu, mas sob o módulo "financeiro" (ver catalogo.ts).
+  // "Mais": o que não é uso diário — Agenda, Metas, Ferramentas e Ajuda. `path`
+  // na Agenda (núcleo), então o grupo aparece sempre; cada filho some sozinho
+  // se o módulo dele estiver desligado.
   {
-    label: "Prefeitura",
-    path: "/prefeitura",
-    iconKey: "Prefeitura",
+    label: "Mais",
+    path: "/agenda",
+    iconKey: "Mais",
     filhos: [
-      { label: "Resultado", path: "/prefeitura" },
-      { label: "Caixa", path: "/prefeitura/caixa" },
+      // Compromissos da equipe + vencimentos do financeiro + prazos de meta.
+      { label: "Agenda", path: "/agenda" },
+      { label: "Metas", path: "/metas" },
+      // Ferramentas de bancada (modulo "ferramentas"); /ferramentas lista todas.
+      { label: "Ferramentas", path: "/ferramentas" },
+      // Guias passo a passo das tarefas do sistema (lib/ajuda/artigos.ts).
+      { label: "Ajuda", path: "/ajuda" },
     ],
   },
-  // Ferramentas de bancada (modulo "ferramentas"); /ferramentas lista todas.
-  {
-    label: "Ferramentas",
-    path: "/ferramentas",
-    iconKey: "Ferramentas",
-    filhos: [
-      { label: "Remoção de Vírus", path: "/ferramentas/remocao-de-virus" },
-      { label: "O que está pesando", path: "/ferramentas/armazenamento" },
-      { label: "Limpeza de apps", path: "/ferramentas/limpeza-de-apps" },
-      { label: "Rom Samsung", path: "/ferramentas/rom-samsung" },
-    ],
-  },
-  // Guias passo a passo das tarefas do sistema (lib/ajuda/artigos.ts).
-  { label: "Ajuda", path: "/ajuda", iconKey: "Ajuda" },
 ];
 
 type LeituraParametros = Pick<URLSearchParams, "get">;
