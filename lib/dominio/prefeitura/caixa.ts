@@ -37,6 +37,32 @@ export type ApuracaoCaixa = {
 
 const DIA_EM_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * Soma dos recebimentos por mês (do recebimento), dos últimos `meses` meses
+ * até o mês de `hoje`, preenchendo com zero os meses sem entrada. Retorna em
+ * ordem cronológica, cada item com o mês "YYYY-MM" e o valor em centavos.
+ */
+export function serieRecebimentosPorMes(contas: ContaCaixa[], hoje: Date, meses = 12): Array<{ mes: string; valorCentavos: number }> {
+  const chave = (d: Date) => `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+
+  // Meses do intervalo, do mais antigo ao atual.
+  const ordem: string[] = [];
+  const base = new Date(Date.UTC(hoje.getUTCFullYear(), hoje.getUTCMonth(), 1));
+  for (let i = meses - 1; i >= 0; i -= 1) {
+    ordem.push(chave(new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() - i, 1))));
+  }
+  const dentro = new Set(ordem);
+  const soma = new Map<string, number>(ordem.map((m) => [m, 0]));
+
+  for (const c of contas) {
+    if (c.estornada || !c.recebida || !c.recebimento) continue;
+    const m = chave(c.recebimento);
+    if (dentro.has(m)) soma.set(m, (soma.get(m) ?? 0) + c.valorCentavos);
+  }
+
+  return ordem.map((mes) => ({ mes, valorCentavos: soma.get(mes) ?? 0 }));
+}
+
 export function apurarCaixa(contas: ContaCaixa[], hoje: Date): ApuracaoCaixa {
   let aReceber = 0;
   let vencido = 0;
